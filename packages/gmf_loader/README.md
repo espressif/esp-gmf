@@ -1,5 +1,7 @@
 # GMF Loader
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_loader/badge.svg)](https://components.espressif.com/components/espressif/gmf_loader)
+
 - [中文版](./README_CN.md)
 
 The GMF Loader is a helper component that allows users to easily customize their GMF pool through menuconfig. It provides two key capabilities:
@@ -123,7 +125,7 @@ ESP GMF Loader
 │       ├── Audio Echo Cancellation (AEC) [Y]
 │       └── Audio Front End (AFE) [N]
 │
-│── GMF Video Configurations     
+│── GMF Video Configurations
 │   ├── GMF Video Codec
 │   │   ├── Decoders [N]
 │   │   │   ├── Auto [Y]

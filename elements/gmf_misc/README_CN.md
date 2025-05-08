@@ -1,5 +1,7 @@
 # ESP-GMF-Misc
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_misc/badge.svg)](https://components.espressif.com/components/espressif/gmf_misc)
+
 - [English](./README.md)
 
 ESP GMF Miscellaneous 汇集了 GMF 各种各样功能单一的元素，目前支持的元素列表如下：

@@ -1,5 +1,7 @@
 # GMF AI Audio
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_ai_audio/badge.svg)](https://components.espressif.com/components/espressif/gmf_ai_audio)
+
 - [English](./README.md)
 
 `GMF AI Audio` 是一个人工智能语音处理模块，它在 [GMF](https://github.com/espressif/esp-gmf) 层面为用户提供方便、易用的语音唤醒、命令词识别和回声消除等常用智能语音处理算法。目前基于 `esp-sr` 提供以下模块：
@@ -226,3 +228,21 @@
 ## 示例
 
 示例代码，请参阅 [示例](./examples) 文件夹中的唤醒词检测和音频回声消除程序。
+
+此外，也可通过以下命令创建并编译工程，以 `aec_rec` 示例工程为例。开始之前需要有可运行的 [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/index.html) 环境。
+
+### 1. 创建示例工程
+
+基于 `gmf_ai_audio` 组件创建 `aec_rec` 的示例（以 v0.7.0 版本为例， 请根据实际使用更新版本参数）
+
+``` shell
+idf.py create-project-from-example "espressif/gmf_ai_audio=0.7.0:aec_rec"
+```
+
+### 2. 基于 ESP32S3 编译和下载
+
+```shell
+cd aec_rec
+idf.py set-target esp32s3`
+idf.py -p YOUR_PORT flash monitor
+```

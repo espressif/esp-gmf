@@ -1,5 +1,7 @@
 # GMF 应用工具包
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_app_utils/badge.svg)](https://components.espressif.com/components/espressif/gmf_app_utils)
+
 - [English Version](./README.md)
 
 GMF 应用工具包（gmf_app_utils）是一个为方便 ESP GMF 开发应用程序而提供的常用便捷 API，它包含常见外设设置的配置，比如 Wi-Fi、SD card、AudioCodec 初始化，还包括一些系统管理功能，如性能监控接口和串口终端命令行接口（CLI）。

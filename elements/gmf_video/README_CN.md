@@ -1,5 +1,7 @@
 # ESP-GMF-Video
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_video/badge.svg)](https://components.espressif.com/components/espressif/gmf_video)
+
 - [English Version](./README.md)
 
 ESP GMF Video 是一套专为视频编解码和视频转换等设计的视频处理模块。这些模块可以组合在一起，形成完整的视频处理流水线。
@@ -34,15 +36,15 @@ ESP GMF Video 是一套专为视频编解码和视频转换等设计的视频处
 
 ### 视频像素加速器 (PPA)
 视频像素加速器模块是一个复合模块，目前仅适用于 ESP32P4 ，包含以下功能：
-- **颜色转换：**  
+- **颜色转换：**
   ESP32P4 通过两个硬件模块支持颜色转换：
   - **2D-DMA：** 如果支持，将自动选择以提高效率。
   - **PPA：** 当 2D-DMA 不支持时作为备用方案。
-- **缩放：**  
+- **缩放：**
   由 PPA 模块提供缩放功能。
-- **裁剪:**  
+- **裁剪:**
   由 PPA 模块提供裁剪功能。
-- **旋转：**  
+- **旋转：**
   支持 0°、90°、180° 和 270° 旋转。
 
 ### 视频帧率转换
@@ -68,7 +70,7 @@ ESP GMF Video 是一套专为视频编解码和视频转换等设计的视频处
 
 # ESP-GMF-Video SoC 兼容性
 
-下表总结了当前版本中 ESP-GMF-Video 元素在乐鑫各 SoC 上的支持情况。  
+下表总结了当前版本中 ESP-GMF-Video 元素在乐鑫各 SoC 上的支持情况。
 &#10004; 表示支持，&#10006; 表示不支持。
 
 | 元素            |   ESP32     |  ESP32-S2   |  ESP32-S3   |  ESP32-P4   |

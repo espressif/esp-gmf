@@ -1,5 +1,7 @@
 # GMF Application Utilities
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_app_utils/badge.svg)](https://components.espressif.com/components/espressif/gmf_app_utils)
+
 - [中文版](./README_CN.md)
 
 GMF Application Utilities (gmf_app_utils) is a utility package that provides common convenient APIs for ESP GMF application development. It includes configurations for common peripheral setups such as Wi-Fi, SD card, and AudioCodec initialization, as well as system management functions like performance monitoring interfaces and serial terminal command line interface (CLI).

@@ -1,5 +1,7 @@
 # ESP-GMF-Video
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_video/badge.svg)](https://components.espressif.com/components/espressif/gmf_video)
+
 - [中文版](./README_CN.md)
 
 ESP GMF Video is a suite of video processing elements designed for a variety of tasks such as video encoding, and applying video effects. These elements can be combined to form a complete video processing pipeline.

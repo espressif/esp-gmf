@@ -1,4 +1,7 @@
 # ESP Audio Simple Player
+
+- [![Component Registry](https://components.espressif.com/components/espressif/esp_audio_simple_player/badge.svg)](https://components.espressif.com/components/espressif/esp_audio_simple_player)
+
 [中文版](./README_CN.md)
 
 The **ESP Audio Simple Player**, developed by Espressif and built on the ESP-GMF framework, is a lightweight and user-friendly audio player designed for simplicity and efficiency. With its modular, customizable, and resource-efficient architecture, it streamlines audio processing development, making it an ideal solution for audio applications in IoT devices. It offers developers a powerful yet flexible audio playback system.

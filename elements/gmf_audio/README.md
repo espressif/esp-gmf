@@ -1,5 +1,7 @@
 # ESP-GMF-Audio
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_audio/badge.svg)](https://components.espressif.com/components/espressif/gmf_audio)
+
 - [中文版](./README_CN.md)
 
 ESP GMF Audio is a collection of GMF elements related to audio processing, including audio encoding, decoding, and audio effect processing algorithms. The currently supported audio modules are listed in the table below.
@@ -21,3 +23,21 @@ ESP GMF Audio is a collection of GMF elements related to audio processing, inclu
 
 ## Usage
 The ESP GMF Audio is often used in combination to form a pipeline. For example code, please refer to [test_app](../test_apps/main/elements/gmf_audio_play_el_test.c)。
+
+You can also create and compile a project using the following commands, taking the `pipeline_play_embed_music` project as an example. Before starting, make sure you have a working [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/index.html) environment.
+
+### 1. Create the Example Project
+
+Create the `pipeline_play_embed_music` example project based on the `gmf_examples` component (using version v0.7.0 as an example; update the version as needed):
+
+```shell
+idf.py create-project-from-example "espressif/gmf_examples=0.7.0:pipeline_play_embed_music"
+```
+
+### 2. Build and Flash the Project Using an ESP32-S3 Board
+
+```shell
+cd pipeline_play_embed_music
+idf.py set-target esp32s3
+idf.py -p YOUR_PORT flash monitor
+```

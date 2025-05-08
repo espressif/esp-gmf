@@ -1,5 +1,7 @@
 # ESP-GMF-Audio
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_audio/badge.svg)](https://components.espressif.com/components/espressif/gmf_audio)
+
 - [English](./README.md)
 
 ESP GMF Audio 是 GMF 音频处理相关元素的集合，包括音频编码，解码和音频效果处理算法。目前已支持的 Audio 模块参见下表。
@@ -21,3 +23,21 @@ ESP GMF Audio 是 GMF 音频处理相关元素的集合，包括音频编码，�
 
 ## 示例
 ESP GMF Audio 常常组合成管道使用，示例代码请参考 [test_app](../test_apps/main/elements/gmf_audio_play_el_test.c)。
+
+此外，也可通过以下命令创建并编译工程，以 `pipeline_play_embed_music` 示例工程为例。开始之前需要有可运行的 [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/index.html) 环境。
+
+### 1. 创建示例工程
+
+基于 `gmf_examples` 组件创建 `pipeline_play_embed_music` 的示例（以 v0.7.0 版本为例， 请根据实际使用更新版本参数）
+
+``` shell
+idf.py create-project-from-example "espressif/gmf_examples=0.7.0:pipeline_play_embed_music"
+```
+
+### 2. 基于 ESP32S3 编译和下载
+
+```shell
+cd pipeline_play_embed_music
+idf.py set-target esp32s3`
+idf.py -p YOUR_PORT flash monitor
+```
