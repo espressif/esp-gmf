@@ -43,6 +43,8 @@ Advanced components are encapsulation modules in ESP-GMF that target specific ap
 | [esp_audio_simple_player](./packages/esp_audio_simple_player) | Simple audio player | - `gmf_audio`<br>- `gmf_io` |
 | [gmf_loader](./packages/gmf_loader) | Set up the given GMF pool using the <br> configuration selected via `Kconfig` | - `gmf_core`<br>- `gmf_io`<br>- `gmf_audio`<br>- `gmf_misc`<br>- `gmf_video`<br>- `gmf_ai_audio`<br>- `esp_codec_dev`<br>- `esp_audio_codec`<br>- `esp_video_codec` |
 | [gmf_app_utils](./packages/gmf_app_utils) | Common peripheral configuration, unit <br>testing tools Memory leak detection tools | - `gmf_core`<br>- `protocol_examples_common`<br>- `codec_board`|
+| [esp_capture](./packages/esp_capture) | High-level multimedia capture module | - `gmf_core`<br>- `gmf-audio`<br>- `gmf-video`<br>- `esp_muxer`<br>- `esp_codec_dev`<br>- `esp-sr`<br>- `esp_video`<br>- `esp32-camera`|
+
 
 # ESP-GMF Usage Guide
 

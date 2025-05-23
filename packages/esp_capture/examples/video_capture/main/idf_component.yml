@@ -1,0 +1,26 @@
+dependencies:
+  espressif/gmf_core:
+    version: "^0.7"
+    override_path: ../../../../../gmf_core
+  espressif/gmf_audio:
+    version: "^0.7"
+    override_path: ../../../../../elements/gmf_audio
+  espressif/gmf_video:
+    version: "^0.7"
+    override_path: ../../../../../elements/gmf_video
+  espressif/esp_capture:
+    version: "^0.7.0"
+    override_path: ../../../../esp_capture
+  espressif/gmf_app_utils:
+    version: "^0.7.0"
+    override_path: ../../../../gmf_app_utils
+  espressif/esp_video:
+    version: "^1.0"
+    rules:
+      - if: "target in [esp32p4]"
+  espressif/esp_video_codec:
+    version: "^0.5"
+  espressif/esp_audio_codec:
+    version: "^2.3"
+  tempotian/codec_board:
+    version: "^0.5.4"

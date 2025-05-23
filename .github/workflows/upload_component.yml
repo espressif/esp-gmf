@@ -22,5 +22,7 @@ jobs:
             gmf_video:./elements/gmf_video
             gmf_loader:./packages/gmf_loader
             esp_audio_simple_player:./packages/esp_audio_simple_player
+            esp_capture: ./packages/esp_capture
+            gmf_app_utils: ./packages/gmf_app_utils
           namespace: "espressif"
           api_token: ${{ secrets.IDF_COMPONENT_API_TOKEN }}
