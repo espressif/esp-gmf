@@ -31,9 +31,9 @@ typedef struct {
     uint8_t               **in_arr;           /*!< The array of input buffer pointer */
     uint8_t                 src_num;          /*!< The number of input stream source */
     uint8_t                 bits_per_sample;  /*!< Bits number of per sampling point */
-    bool                    need_reopen;      /*!< Whether need to reopen.
-                                                True: Execute the close function first, then execute the open function
-                                                False: Do nothing */
+    bool                    need_reopen : 1;  /*!< Whether need to reopen.
+                                                   True: Execute the close function first, then execute the open function
+                                                   False: Do nothing */
 } esp_gmf_interleave_t;
 
 static const char *TAG = "ESP_GMF_INTLV";
@@ -101,7 +101,7 @@ static esp_gmf_job_err_t esp_gmf_interleave_process(esp_gmf_element_handle_t sel
         esp_gmf_interleave_close(self, NULL);
         out_len = esp_gmf_interleave_open(self, NULL);
         if (out_len != ESP_GMF_JOB_ERR_OK) {
-            ESP_LOGE(TAG, "interleave reopen failed");
+            ESP_LOGE(TAG, "Interleave reopen failed");
             return out_len;
         }
     }
@@ -109,6 +109,7 @@ static esp_gmf_job_err_t esp_gmf_interleave_process(esp_gmf_element_handle_t sel
     esp_gmf_port_handle_t in_port = in;
     esp_gmf_port_handle_t out_port = ESP_GMF_ELEMENT_GET(self)->out;
     esp_gmf_interleave_cfg *interleave_info = (esp_gmf_interleave_cfg *)OBJ_GET_CFG(self);
+    ESP_GMF_NULL_CHECK(TAG, interleave_info, return ESP_GMF_JOB_ERR_FAIL);
     int index = interleave_info->src_num;
     int i = 0;
     bool is_done = false;
@@ -188,7 +189,7 @@ static esp_gmf_err_t interleave_received_event_handler(esp_gmf_event_pkt_t *evt,
     esp_gmf_element_get_state(self, &state);
     esp_gmf_info_sound_t *info = (esp_gmf_info_sound_t *)evt->payload;
     esp_gmf_interleave_cfg *config = (esp_gmf_interleave_cfg *)OBJ_GET_CFG(self);
-    ESP_GMF_NULL_CHECK(TAG, config, { return ESP_GMF_ERR_FAIL;});
+    ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_interleave_t *interleave = (esp_gmf_interleave_t *)self;
     interleave->need_reopen = (config->sample_rate != info->sample_rates) || (config->bits_per_sample != info->bits);
     config->sample_rate = info->sample_rates;
@@ -236,11 +237,14 @@ esp_gmf_err_t esp_gmf_interleave_init(esp_gmf_interleave_cfg *config, esp_gmf_el
     esp_gmf_obj_t *obj = (esp_gmf_obj_t *)interleave;
     obj->new_obj = esp_gmf_interleave_new;
     obj->del_obj = esp_gmf_interleave_destroy;
+    esp_gmf_interleave_cfg *cfg = esp_gmf_oal_calloc(1, sizeof(esp_gmf_interleave_cfg));
+    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto INTLV_INIT_FAIL;}, "interleave configuration", sizeof(esp_gmf_interleave_cfg));
+    esp_gmf_obj_set_config(obj, cfg, sizeof(esp_gmf_interleave_cfg));
     if (config) {
-        esp_gmf_interleave_cfg *new_config = NULL;
-        dupl_esp_ae_interleave_cfg(config, &new_config);
-        ESP_GMF_CHECK(TAG, new_config, {ret = ESP_GMF_ERR_MEMORY_LACK; goto INTLV_INIT_FAIL;}, "Failed to allocate interleave configuration");
-        esp_gmf_obj_set_config(obj, new_config, sizeof(esp_gmf_interleave_cfg));
+        memcpy(cfg, config, sizeof(esp_gmf_interleave_cfg));
+    } else {
+        esp_gmf_interleave_cfg dcfg = DEFAULT_ESP_GMF_INTERLEAVE_CONFIG();
+        memcpy(cfg, &dcfg, sizeof(esp_gmf_interleave_cfg));
     }
     ret = esp_gmf_obj_set_tag(obj, "aud_intlv");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto INTLV_INIT_FAIL, "Failed to set obj tag");

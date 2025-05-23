@@ -15,6 +15,20 @@
 extern "C" {
 #endif  /* __cplusplus */
 
+#define DEFAULT_ESP_GMF_CROP_CONFIG() {            \
+    .in_res = {                                    \
+        .width  = 320,                             \
+        .height = 240,                             \
+    },                                             \
+    .in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB565_LE, \
+    .cropped_res  = {                              \
+         .width  = 160,                            \
+         .height = 120,                            \
+    },                                             \
+    .x_pos = 0,                                    \
+    .y_pos = 0,                                    \
+}
+
 /**
  * @brief  Initialize the video crop element with the specified configuration
  *

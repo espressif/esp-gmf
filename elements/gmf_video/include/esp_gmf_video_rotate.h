@@ -14,6 +14,15 @@
 extern "C" {
 #endif  /* __cplusplus */
 
+#define DEFAULT_ESP_GMF_ROTATE_CONFIG() {          \
+    .in_res = {                                    \
+        .width  = 320,                             \
+        .height = 240,                             \
+    },                                             \
+    .in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB565_LE, \
+    .degree       = 0,                             \
+}
+
 /**
  * @brief  Initialize the video rotate element with the specified configuration
  *

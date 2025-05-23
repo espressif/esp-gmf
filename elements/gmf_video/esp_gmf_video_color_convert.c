@@ -52,6 +52,7 @@ static esp_gmf_job_err_t video_cc_el_process(esp_gmf_element_handle_t self, void
     esp_imgfx_data_t in_image;
     esp_imgfx_data_t out_image;
     esp_imgfx_color_convert_cfg_t *cfg = (esp_imgfx_color_convert_cfg_t *)OBJ_GET_CFG(self);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_JOB_ERR_FAIL);
     bool bypass = cfg->in_pixel_fmt == cfg->out_pixel_fmt;
     if (video_el->need_recfg) {
         // reset color convert config
@@ -234,6 +235,7 @@ static esp_gmf_err_t video_cc_el_received_event_handler(esp_gmf_event_pkt_t *evt
     esp_gmf_info_video_t *info = (esp_gmf_info_video_t *)evt->payload;
     esp_gmf_video_el_set_src_info(self, info);
     esp_imgfx_color_convert_cfg_t *config = (esp_imgfx_color_convert_cfg_t *)OBJ_GET_CFG(self);
+    ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_color_convert_hd_t *video_el = (esp_gmf_color_convert_hd_t *)self;
     GMF_VIDEO_UPDATE_CONFIG(config, info, video_el->need_recfg);
     ESP_LOGD(TAG, "RECV element info, from: %s-%p, next: %p, self: %s-%p, type: %x, state: %s, width: %d, height: %d, pixel format: %lx",
@@ -266,11 +268,14 @@ esp_gmf_err_t esp_gmf_video_color_convert_init(esp_imgfx_color_convert_cfg_t *co
     obj->new_obj = video_cc_el_new;
     obj->del_obj = video_cc_el_delete;
     // Set element config
-    if (config != NULL) {
-        esp_imgfx_color_convert_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(esp_imgfx_color_convert_cfg_t));
-        ESP_GMF_MEM_CHECK(TAG, cfg, ret = ESP_GMF_ERR_MEMORY_LACK; goto __init_exit);
+    esp_imgfx_color_convert_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(esp_imgfx_color_convert_cfg_t));
+    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto __init_exit;}, "color convert configuration", sizeof(esp_imgfx_color_convert_cfg_t));
+    esp_gmf_obj_set_config(obj, cfg, sizeof(esp_imgfx_color_convert_cfg_t));
+    if (config) {
         memcpy(cfg, config, sizeof(esp_imgfx_color_convert_cfg_t));
-        obj->cfg = cfg;
+    } else {
+        esp_imgfx_color_convert_cfg_t dcfg = DEFAULT_ESP_GMF_COLOR_CONVERT_CONFIG();
+        memcpy(cfg, &dcfg, sizeof(esp_imgfx_color_convert_cfg_t));
     }
     // Configure element
     esp_gmf_element_cfg_t el_cfg = {

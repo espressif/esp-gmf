@@ -25,9 +25,9 @@ typedef struct {
     esp_ae_fade_handle_t    fade_hd;           /*!< The audio effects fade handle */
     uint8_t                 bytes_per_sample;  /*!< Bytes number of per sampling point */
     esp_ae_fade_mode_t      mode;              /*!< The current fade mode */
-    bool                    need_reopen;       /*!< Whether need to reopen.
-                                                True: Execute the close function first, then execute the open function
-                                                False: Do nothing */
+    bool                    need_reopen : 1;   /*!< Whether need to reopen.
+                                                    True: Execute the close function first, then execute the open function
+                                                    False: Do nothing */
 } esp_gmf_fade_t;
 
 static const char *TAG = "ESP_GMF_FADE";
@@ -37,7 +37,7 @@ static esp_gmf_err_t __fade_set_mode(esp_gmf_element_handle_t handle, esp_gmf_ar
 {
     ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
     ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
-    return esp_gmf_fade_set_mode(handle, *buf);
+    return esp_gmf_fade_set_mode(handle, *((esp_ae_fade_mode_t *)buf));
 }
 
 static esp_gmf_err_t __fade_get_mode(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
@@ -48,7 +48,7 @@ static esp_gmf_err_t __fade_get_mode(esp_gmf_element_handle_t handle, esp_gmf_ar
 }
 
 static esp_gmf_err_t __fade_reset(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
-                                       uint8_t *buf, int buf_len)
+                                  uint8_t *buf, int buf_len)
 {
     return esp_gmf_fade_reset_weight(handle);
 }
@@ -91,7 +91,7 @@ static esp_gmf_job_err_t esp_gmf_fade_process(esp_gmf_element_handle_t self, voi
         esp_gmf_fade_close(self, NULL);
         out_len = esp_gmf_fade_open(self, NULL);
         if (out_len != ESP_GMF_JOB_ERR_OK) {
-            ESP_LOGE(TAG, "fade reopen failed");
+            ESP_LOGE(TAG, "Fade reopen failed");
             return out_len;
         }
     }
@@ -166,7 +166,7 @@ static esp_gmf_err_t fade_received_event_handler(esp_gmf_event_pkt_t *evt, void 
     esp_gmf_element_get_state(self, &state);
     esp_gmf_info_sound_t *info = (esp_gmf_info_sound_t *)evt->payload;
     esp_ae_fade_cfg_t *config = (esp_ae_fade_cfg_t *)OBJ_GET_CFG(self);
-    ESP_GMF_NULL_CHECK(TAG, config, { return ESP_GMF_ERR_FAIL;});
+    ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_fade_t *fade = (esp_gmf_fade_t *)self;
     fade->need_reopen = (config->sample_rate != info->sample_rates) || (info->channels != config->channel) || (config->bits_per_sample != info->bits);
     config->sample_rate = info->sample_rates;
@@ -225,6 +225,9 @@ static esp_gmf_err_t _load_fade_methods_func(esp_gmf_element_handle_t handle)
 
     ret = esp_gmf_method_append(&method, AMETHOD(FADE, RESET_WEIGHT), __fade_reset, NULL);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(FADE, RESET_WEIGHT));
+
+    esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
+    el->method = method;
     return ESP_GMF_ERR_OK;
 }
 
@@ -286,11 +289,14 @@ esp_gmf_err_t esp_gmf_fade_init(esp_ae_fade_cfg_t *config, esp_gmf_element_handl
     esp_gmf_obj_t *obj = (esp_gmf_obj_t *)fade;
     obj->new_obj = esp_gmf_fade_new;
     obj->del_obj = esp_gmf_fade_destroy;
+    esp_ae_fade_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(esp_ae_fade_cfg_t));
+    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto FADE_INIT_FAIL;}, "fade configuration", sizeof(esp_ae_fade_cfg_t));
+    esp_gmf_obj_set_config(obj, cfg, sizeof(esp_ae_fade_cfg_t));
     if (config) {
-        esp_ae_fade_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(*config));
-        ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto FADE_INIT_FAIL;}, "fade configuration", sizeof(*config));
-        memcpy(cfg, config, sizeof(*config));
-        esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
+        memcpy(cfg, config, sizeof(esp_ae_fade_cfg_t));
+    } else {
+        esp_ae_fade_cfg_t dcfg = DEFAULT_ESP_GMF_FADE_CONFIG();
+        memcpy(cfg, &dcfg, sizeof(esp_ae_fade_cfg_t));
     }
     ret = esp_gmf_obj_set_tag(obj, "aud_fade");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto FADE_INIT_FAIL, "Failed to set obj tag");

@@ -54,6 +54,7 @@ static esp_gmf_job_err_t video_rotate_el_process(esp_gmf_element_handle_t self, 
     esp_imgfx_data_t in_image;
     esp_imgfx_data_t out_image;
     esp_imgfx_rotate_cfg_t *cfg = (esp_imgfx_rotate_cfg_t *)OBJ_GET_CFG(self);
+    ESP_GMF_MEM_CHECK(TAG, cfg, return ESP_GMF_JOB_ERR_FAIL);
     bool bypass = cfg->degree % 360 == 0;
     if (video_el->need_recfg) {
         // Reset rotate configuration
@@ -237,6 +238,7 @@ static esp_gmf_err_t video_rotate_el_received_event_handler(esp_gmf_event_pkt_t 
     esp_gmf_info_video_t *info = (esp_gmf_info_video_t *)evt->payload;
     esp_gmf_video_el_set_src_info(self, info);
     esp_imgfx_rotate_cfg_t *config = (esp_imgfx_rotate_cfg_t *)OBJ_GET_CFG(self);
+    ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_rotate_hd_t *video_el = (esp_gmf_rotate_hd_t *)self;
     GMF_VIDEO_UPDATE_CONFIG(config, info, video_el->need_recfg);
     ESP_LOGD(TAG, "RECV element info, from: %s-%p, next: %p, self: %s-%p, type: %x, state: %s, width: %d, height: %d, pixel format: %lx",
@@ -268,11 +270,14 @@ esp_gmf_err_t esp_gmf_video_rotate_init(esp_imgfx_rotate_cfg_t *config, esp_gmf_
     // Configure object callbacks
     obj->new_obj = video_rotate_el_new;
     obj->del_obj = video_rotate_el_delete;
-    if (config != NULL) {
-        esp_imgfx_rotate_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(esp_imgfx_rotate_cfg_t));
-        ESP_GMF_MEM_CHECK(TAG, cfg, ret = ESP_GMF_ERR_MEMORY_LACK; goto __init_exit);
+    esp_imgfx_rotate_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(esp_imgfx_rotate_cfg_t));
+    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto __init_exit;}, "rotate configuration", sizeof(esp_imgfx_rotate_cfg_t));
+    esp_gmf_obj_set_config(obj, cfg, sizeof(esp_imgfx_rotate_cfg_t));
+    if (config) {
         memcpy(cfg, config, sizeof(esp_imgfx_rotate_cfg_t));
-        obj->cfg = cfg;
+    } else {
+        esp_imgfx_rotate_cfg_t dcfg = DEFAULT_ESP_GMF_ROTATE_CONFIG();
+        memcpy(cfg, &dcfg, sizeof(esp_imgfx_rotate_cfg_t));
     }
     // Configure element
     esp_gmf_element_cfg_t el_cfg = {
