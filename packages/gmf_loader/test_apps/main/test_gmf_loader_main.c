@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "unity.h"
-#include "test_utils.h"
+#include "esp_gmf_app_unit_test.h"
 
 void app_main(void)
 {
-    test_main();
+    esp_gmf_app_test_main();
 }

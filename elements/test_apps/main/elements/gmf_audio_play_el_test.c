@@ -20,6 +20,7 @@
 #include "esp_audio_dec_reg.h"
 #include "esp_gmf_new_databus.h"
 #include "esp_gmf_app_setup_peripheral.h"
+#include "esp_gmf_app_unit_test.h"
 #include "esp_gmf_audio_helper.h"
 #include "gmf_audio_play_com.h"
 #include "esp_gmf_io_http.h"
@@ -456,11 +457,12 @@ TEST_CASE("Audio Play, two in pipe use same task, [file->dec]->rb->[resample+IIS
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][leaks=14000]")
+TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][leaks=10000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
     ESP_GMF_MEM_SHOW(TAG);
+    esp_gmf_app_test_case_uses_tcpip();
     esp_gmf_app_wifi_connect();
     esp_gmf_app_setup_codec_dev(NULL);
 #ifdef MEDIA_LIB_MEM_TEST
@@ -593,11 +595,12 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_POOL][leaks=14000]")
+TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_POOL][leaks=10000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
     esp_log_level_set("ESP_GMF_POOL", ESP_LOG_DEBUG);
+    esp_gmf_app_test_case_uses_tcpip();
     ESP_GMF_MEM_SHOW(TAG);
     esp_gmf_app_wifi_connect();
     esp_gmf_app_setup_codec_dev(NULL);
