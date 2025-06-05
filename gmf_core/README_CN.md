@@ -7,8 +7,8 @@ classDiagram
     GMF-Obj <|-- GMF-IO
     GMF-Obj <|-- GMF-Task
     GMF-Obj <|-- GMF-Element
-    GMF-Obj: +new()
-    GMF-Obj: +delete()
+    GMF-Obj: +new_obj()
+    GMF-Obj: +del_obj()
     GMF-Task --* GMF-Pipeline
     GMF-Port --* GMF-Element
     GMF-Element --* GMF-Pipeline
