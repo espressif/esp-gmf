@@ -131,6 +131,7 @@ static inline void __esp_gmf_task_free(esp_gmf_task_handle_t handle)
     if (tsk->start_stack) {
         esp_gmf_job_stack_destroy(tsk->start_stack);
     }
+    esp_gmf_obj_set_tag((esp_gmf_obj_handle_t)tsk, NULL);
     esp_gmf_oal_free(tsk);
 }
 
@@ -190,9 +191,17 @@ static inline int process_func(esp_gmf_task_handle_t handle, void *para)
                 continue;
             }
         } else if (worker->ret == ESP_GMF_JOB_ERR_TRUNCATE) {
-            ESP_LOGD(TAG, "Job truncated [tsk:%s-%p:%p-%p-%s], st:%s", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, worker, worker->ctx, worker->label,
-                     esp_gmf_event_get_state_str(tsk->state));
-            esp_gmf_job_stack_push(tsk->start_stack, (uint32_t)worker);
+            if (worker->times == ESP_GMF_JOB_TIMES_ONCE) {
+                // Once job and truncated is conflicted, enter into error state when detected
+                ESP_LOGE(TAG, "Once job not support truncated");
+                 __esp_gmf_task_delete_jobs(tsk);
+                quit_state = ESP_GMF_EVENT_STATE_ERROR;
+                break;
+            } else {
+                ESP_LOGD(TAG, "Job truncated [tsk:%s-%p:%p-%p-%s], st:%s", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, worker, worker->ctx, worker->label,
+                        esp_gmf_event_get_state_str(tsk->state));
+                esp_gmf_job_stack_push(tsk->start_stack, (uint32_t)worker);
+            }
         } else if (worker->ret == ESP_GMF_JOB_ERR_DONE) {
             ESP_LOGI(TAG, "Job is done, [tsk:%s-%p, wk:%p, job:%p-%s]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, worker, worker->ctx, worker->label);
             esp_gmf_job_t *tmp = worker->next;
@@ -335,9 +344,7 @@ esp_gmf_err_t esp_gmf_task_init(esp_gmf_task_cfg_t *config, esp_gmf_task_handle_
     }
 
     esp_gmf_obj_t *obj = (esp_gmf_obj_t *)handle;
-    int ret = esp_gmf_obj_set_config(obj, cfg, sizeof(*cfg));
-    ESP_GMF_RET_ON_ERROR(TAG, ret, goto _tsk_init_failed, "Failed set OBJ configuration");
-    ret = esp_gmf_obj_set_tag(obj, tag);
+    esp_gmf_err_t ret = esp_gmf_obj_set_tag(obj, tag);
     ESP_GMF_RET_ON_ERROR(TAG, ret, goto _tsk_init_failed, "Failed set OBJ tag");
     obj->new_obj = _task_new;
     obj->del_obj = esp_gmf_task_deinit;
@@ -378,25 +385,28 @@ esp_gmf_err_t esp_gmf_task_deinit(esp_gmf_task_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_task_t *tsk = (esp_gmf_task_t *)handle;
-    esp_gmf_oal_mutex_lock(tsk->lock);
-    if ((tsk->state == ESP_GMF_EVENT_STATE_RUNNING)
-        || (tsk->state == ESP_GMF_EVENT_STATE_PAUSED)) {
-        tsk->_stop = 1;
+    // Wait for thread quit if already run
+    if (tsk->_task_run) {
+        esp_gmf_oal_mutex_lock(tsk->lock);
+        if ((tsk->state == ESP_GMF_EVENT_STATE_RUNNING)
+            || (tsk->state == ESP_GMF_EVENT_STATE_PAUSED)) {
+            tsk->_stop = 1;
+        }
+        if (tsk->state == ESP_GMF_EVENT_STATE_PAUSED) {
+            esp_gmf_task_release_signal(tsk, portMAX_DELAY);
+        }
+        tsk->_task_run = 0;
+        tsk->_destroy = 1;
+        xSemaphoreGive(tsk->block_sem);
+        // Wait for task exit
+        if (GMF_TASK_WAIT_FOR_STATE_BITS(tsk->event_group, GMF_TASK_EXIT_BIT, portMAX_DELAY) == false) {
+            ESP_LOGE(TAG, "Failed to wait task %p to exit", tsk);
+        }
+        ESP_LOGD(TAG, "%s, %s", __func__, OBJ_GET_TAG(tsk));
+        __esp_gmf_task_delete_jobs(tsk);
+        esp_gmf_oal_mutex_unlock(tsk->lock);
     }
-    if (tsk->state == ESP_GMF_EVENT_STATE_PAUSED) {
-        esp_gmf_task_release_signal(tsk, portMAX_DELAY);
-    }
-    tsk->_task_run = 0;
-    tsk->_destroy = 1;
-    xSemaphoreGive(tsk->block_sem);
-    // Wait for task exit
-    if (GMF_TASK_WAIT_FOR_STATE_BITS(tsk->event_group, GMF_TASK_EXIT_BIT, portMAX_DELAY) == false) {
-        ESP_LOGE(TAG, "Failed to wait task %p to exit", tsk);
-    }
-    ESP_LOGD(TAG, "%s, %s", __func__, OBJ_GET_TAG(tsk));
-    __esp_gmf_task_delete_jobs(tsk);
-    esp_gmf_oal_mutex_unlock(tsk->lock);
-    esp_gmf_obj_set_tag((esp_gmf_obj_handle_t)tsk, NULL);
+    // Clear-up all related resources
     __esp_gmf_task_free(tsk);
     return ESP_GMF_ERR_OK;
 }
