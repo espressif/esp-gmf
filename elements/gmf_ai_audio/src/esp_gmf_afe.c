@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include "freertos/idf_additions.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -55,6 +56,7 @@ typedef enum {
     ET_SPEECH_DECT,
     ET_WWE_DECT,
     ET_WAKEUP_TIMER_EXPIRED,
+    ET_KEEP_WAKE_MODIFIED,
     ET_UNKNOWN
 } wakeup_event_t;
 
@@ -67,6 +69,7 @@ typedef struct {
     esp_gmf_db_handle_t     out_db;
     wakeup_state_t          wakeup_state;
     bool                    origin_vad_enable;
+    bool                    keep_wake;
     esp_timer_handle_t      wakeup_timer;
     SemaphoreHandle_t       wake_st_lock;
     model_iface_data_t     *mn_handle;
@@ -89,6 +92,7 @@ static const char *event_str[] = {
     "ET_SPEECH_DECT",
     "ET_WWE_DECT",
     "ET_WAKEUP_TIMER_EXPIRED",
+    "ET_KEEP_WAKE_MODIFIED",
     "ET_UNKNOWN",
 };
 
@@ -130,6 +134,14 @@ static void wakeup_state_reset(esp_gmf_afe_t *gmf_afe)
 {
     esp_timer_stop(gmf_afe->wakeup_timer);
     WAKEUP_ST_SET(gmf_afe, ST_IDLE);
+    esp_gmf_afe_manager_features_t feat = { 0 };
+    esp_gmf_afe_cfg_t *cfg = OBJ_GET_CFG(gmf_afe);
+    if (cfg && cfg->afe_manager) {
+        esp_gmf_afe_manager_get_features(cfg->afe_manager, &feat);
+        if (feat.wakeup && gmf_afe->origin_vad_enable) {
+            esp_gmf_afe_manager_enable_features(cfg->afe_manager, ESP_AFE_FEATURE_VAD, false);
+        }
+    }
 }
 
 static void wakeup_timer_start(esp_gmf_afe_t *gmf_afe)
@@ -152,7 +164,8 @@ static void wakeup_state_update(esp_gmf_afe_t *gmf_afe, wakeup_event_t event, vo
     esp_gmf_afe_cfg_t *cfg = OBJ_GET_CFG(gmf_afe);
     esp_gmf_afe_manager_features_t afe_feat = {0};
     static wakeup_event_t last_event = ET_UNKNOWN;
-    if (last_event != event) {
+    int32_t user_event = -1;
+    if (event == ET_KEEP_WAKE_MODIFIED || last_event != event) {
         ESP_LOGV(TAG, "Recorder update state, cur %s, event %s", state_str[gmf_afe->wakeup_state], event_str[event]);
         last_event = event;
     } else {
@@ -167,50 +180,70 @@ static void wakeup_state_update(esp_gmf_afe_t *gmf_afe, wakeup_event_t event, vo
         case ST_IDLE: {
             if (event == ET_WWE_DECT) {
                 WAKEUP_ST_SET(gmf_afe, ST_WAKEUP);
-                wakeup_timer_start(gmf_afe);
+                if (!gmf_afe->keep_wake) {
+                    wakeup_timer_start(gmf_afe);
+                }
                 if (gmf_afe->origin_vad_enable) {
                     esp_gmf_afe_manager_enable_features(cfg->afe_manager, ESP_AFE_FEATURE_VAD, true);
                 }
-                event_2_user(gmf_afe, ESP_GMF_AFE_EVT_WAKEUP_START, event_data, len);
+                user_event = ESP_GMF_AFE_EVT_WAKEUP_START;
             } else if (event == ET_SPEECH_DECT && afe_feat.wakeup == false) {
                 WAKEUP_ST_SET(gmf_afe, ST_SPEECHING);
-                event_2_user(gmf_afe, ESP_GMF_AFE_EVT_VAD_START, event_data, len);
+                user_event = ESP_GMF_AFE_EVT_VAD_START;
             }
             break;
         }
         case ST_WAKEUP: {
             if (event == ET_SPEECH_DECT) {
+                esp_timer_stop(gmf_afe->wakeup_timer);
                 WAKEUP_ST_SET(gmf_afe, ST_SPEECHING);
-                event_2_user(gmf_afe, ESP_GMF_AFE_EVT_VAD_START, event_data, len);
+                user_event = ESP_GMF_AFE_EVT_VAD_START;
+            } else if (event == ET_KEEP_WAKE_MODIFIED) {
+                if (gmf_afe->keep_wake) {
+                    esp_timer_stop(gmf_afe->wakeup_timer);
+                } else {
+                    wakeup_timer_start(gmf_afe);
+                }
             } else if (event == ET_WAKEUP_TIMER_EXPIRED) {
                 WAKEUP_ST_SET(gmf_afe, ST_IDLE);
                 esp_timer_stop(gmf_afe->wakeup_timer);
-                event_2_user(gmf_afe, ESP_GMF_AFE_EVT_WAKEUP_END, NULL, 0);
+                user_event = ESP_GMF_AFE_EVT_WAKEUP_END;
             }
             break;
         }
         case ST_SPEECHING: {
             if (event == ET_NOISE_DECT) {
                 if (afe_feat.wakeup == true) {
-                    WAKEUP_ST_SET(gmf_afe, ST_WAIT_FOR_SLEEP);
-                    wakeup_timer_start(gmf_afe);
+                    if (!gmf_afe->keep_wake) {
+                        WAKEUP_ST_SET(gmf_afe, ST_WAIT_FOR_SLEEP);
+                        wakeup_timer_start(gmf_afe);
+                    } else {
+                        WAKEUP_ST_SET(gmf_afe, ST_WAKEUP);
+                    }
                 } else {
                     WAKEUP_ST_SET(gmf_afe, ST_IDLE);
                 }
-                event_2_user(gmf_afe, ESP_GMF_AFE_EVT_VAD_END, NULL, 0);
+                user_event = ESP_GMF_AFE_EVT_VAD_END;
             }
             break;
         }
         case ST_WAIT_FOR_SLEEP: {
             if (event == ET_SPEECH_DECT) {
                 WAKEUP_ST_SET(gmf_afe, ST_SPEECHING);
-                event_2_user(gmf_afe, ESP_GMF_AFE_EVT_VAD_START, event_data, len);
+                user_event = ESP_GMF_AFE_EVT_VAD_START;
             } else if (event == ET_WAKEUP_TIMER_EXPIRED) {
                 WAKEUP_ST_SET(gmf_afe, ST_IDLE);
                 if (gmf_afe->origin_vad_enable) {
                     esp_gmf_afe_manager_enable_features(cfg->afe_manager, ESP_AFE_FEATURE_VAD, false);
                 }
-                event_2_user(gmf_afe, ESP_GMF_AFE_EVT_WAKEUP_END, NULL, 0);
+                user_event = ESP_GMF_AFE_EVT_WAKEUP_END;
+            } else if (event == ET_KEEP_WAKE_MODIFIED) {
+                if (gmf_afe->keep_wake) {
+                    esp_timer_stop(gmf_afe->wakeup_timer);
+                    WAKEUP_ST_SET(gmf_afe, ST_WAKEUP);
+                } else {
+                    wakeup_timer_start(gmf_afe);
+                }
             }
             break;
         }
@@ -218,6 +251,9 @@ static void wakeup_state_update(esp_gmf_afe_t *gmf_afe, wakeup_event_t event, vo
             break;
     }
     xSemaphoreGive(gmf_afe->wake_st_lock);
+    if (user_event != -1) {
+        event_2_user(gmf_afe, user_event, event_data, len);
+    }
 }
 
 static void wakeup_afe_monitor(afe_fetch_result_t *result, void *user_ctx)
@@ -599,7 +635,7 @@ esp_gmf_err_t esp_gmf_afe_init(void *config, esp_gmf_obj_handle_t *handle)
     esp_gmf_afe_cfg_t *obj_cfg = esp_gmf_oal_calloc(1, sizeof(esp_gmf_afe_cfg_t));
     memcpy(obj_cfg, config, sizeof(esp_gmf_afe_cfg_t));
     esp_gmf_obj_set_config(obj, obj_cfg, sizeof(esp_gmf_afe_cfg_t));
-    int ret = esp_gmf_obj_set_tag(obj, "gmf_afe");
+    int ret = esp_gmf_obj_set_tag(obj, "ai_afe");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto __failed, "Failed set OBJ tag");
 
     esp_gmf_element_cfg_t el_cfg = {0};
@@ -656,4 +692,21 @@ esp_gmf_err_t esp_gmf_afe_set_event_cb(esp_gmf_element_handle_t handle, esp_gmf_
     cfg->event_cb = cb;
     cfg->event_ctx = ctx;
     return ESP_GMF_ERR_OK;
+}
+
+esp_gmf_err_t esp_gmf_afe_keep_awake(esp_gmf_element_handle_t handle, bool enable)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG;);
+
+    esp_gmf_afe_t *gmf_afe = (esp_gmf_afe_t *)handle;
+
+    if (gmf_afe->wake_st_lock) {
+        xSemaphoreTake(gmf_afe->wake_st_lock, portMAX_DELAY);
+        gmf_afe->keep_wake = enable;
+        xSemaphoreGive(gmf_afe->wake_st_lock);
+        wakeup_state_update(gmf_afe, ET_KEEP_WAKE_MODIFIED, &enable, sizeof(enable));
+        return ESP_GMF_ERR_OK;
+    } else {
+        return ESP_GMF_ERR_INVALID_STATE;
+    }
 }

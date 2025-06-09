@@ -10,7 +10,6 @@
 #include "esp_err.h"
 #include "esp_log.h"
 
-#include "esp_codec_dev.h"
 #include "esp_gmf_err.h"
 #include "esp_gmf_io_codec_dev.h"
 #include "esp_gmf_obj.h"
@@ -95,8 +94,6 @@ static esp_gmf_err_io_t pcm_buf_release_write(void *handle, esp_gmf_payload_t *l
 
 void app_main(void)
 {
-    esp_err_t ret = ESP_OK;
-
     esp_log_level_set("*", ESP_LOG_INFO);
 
     pcm_buffer = heap_caps_malloc(buf_size, MALLOC_CAP_SPIRAM);
@@ -174,7 +171,7 @@ void app_main(void)
     esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(play_pipe), esp_gmf_app_get_playback_handle());
 
     esp_gmf_obj_handle_t bit_cvt = NULL;
-    esp_gmf_pipeline_get_el_by_name(play_pipe, "aud_bit_cvt", &aud_bit_cvt);
+    esp_gmf_pipeline_get_el_by_name(play_pipe, "aud_bit_cvt", &bit_cvt);
     esp_gmf_bit_cvt_set_dest_bits(bit_cvt, DAC_I2S_BITS);
     esp_gmf_obj_handle_t ch_cvt = NULL;
     esp_gmf_pipeline_get_el_by_name(play_pipe, "aud_ch_cvt", &ch_cvt);
