@@ -27,7 +27,6 @@ static esp_gmf_err_t gmf_loader_setup_default_codec_dev(esp_gmf_pool_handle_t po
     codec_dev_io_cfg_t tx_codec_dev_cfg = ESP_GMF_IO_CODEC_DEV_CFG_DEFAULT();
     tx_codec_dev_cfg.dir = dir;
     tx_codec_dev_cfg.dev = NULL;
-    tx_codec_dev_cfg.name = (dir == ESP_GMF_IO_DIR_WRITER) ? "codec_dev_tx" : "codec_dev_rx";
     ret = esp_gmf_io_codec_dev_init(&tx_codec_dev_cfg, &dev);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init codec dev io");
     ret = esp_gmf_pool_register_io(pool, dev, NULL);

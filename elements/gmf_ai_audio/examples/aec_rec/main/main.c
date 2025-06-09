@@ -126,11 +126,11 @@ void app_main(void)
     esp_gmf_pipeline_handle_t read_pipe = NULL;
 
 #if ENCODER_ENABLE
-    const char *name[] = {"rate_cvt", "aec", "encoder"};
+    const char *name[] = {"aud_rate_cvt", "ai_aec", "aud_enc"};
 #else
-    const char *name[] = {"rate_cvt", "aec"};
+    const char *name[] = {"aud_rate_cvt", "ai_aec"};
 #endif  /* ENCODER_ENABLE */
-    esp_gmf_pool_new_pipeline(pool, "codec_dev_rx", name, sizeof(name) / sizeof(char *), NULL, &read_pipe);
+    esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), NULL, &read_pipe);
     if (read_pipe == NULL) {
         ESP_LOGE(TAG, "There is no pipeline");
         return;
@@ -140,7 +140,7 @@ void app_main(void)
     esp_gmf_port_handle_t out_port = NEW_ESP_GMF_PORT_OUT_BYTE(pcm_buf_acq_write, pcm_buf_release_write, NULL, NULL, 1024, portMAX_DELAY);
     esp_gmf_element_register_out_port(read_pipe->last_el, out_port);
     esp_gmf_obj_handle_t rate_cvt = NULL;
-    esp_gmf_pipeline_get_el_by_name(read_pipe, "rate_cvt", &rate_cvt);
+    esp_gmf_pipeline_get_el_by_name(read_pipe, "aud_rate_cvt", &rate_cvt);
     esp_gmf_rate_cvt_set_dest_rate(rate_cvt, 16000);
 
     esp_gmf_info_sound_t info = {
@@ -165,8 +165,8 @@ void app_main(void)
 
     // New pipeline to play 'test.mp3'
     esp_gmf_pipeline_handle_t play_pipe = NULL;
-    const char *play_name[] = {"aud_simp_dec", "rate_cvt", "ch_cvt", "bit_cvt"};
-    esp_gmf_pool_new_pipeline(pool, "file", play_name, sizeof(play_name) / sizeof(char *), "codec_dev_tx", &play_pipe);
+    const char *play_name[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt", "aud_bit_cvt"};
+    esp_gmf_pool_new_pipeline(pool, "io_file", play_name, sizeof(play_name) / sizeof(char *), "io_codec_dev", &play_pipe);
     if (play_pipe == NULL) {
         ESP_LOGE(TAG, "There is no play pipeline");
         return;
@@ -174,13 +174,13 @@ void app_main(void)
     esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(play_pipe), esp_gmf_app_get_playback_handle());
 
     esp_gmf_obj_handle_t bit_cvt = NULL;
-    esp_gmf_pipeline_get_el_by_name(play_pipe, "bit_cvt", &bit_cvt);
+    esp_gmf_pipeline_get_el_by_name(play_pipe, "aud_bit_cvt", &aud_bit_cvt);
     esp_gmf_bit_cvt_set_dest_bits(bit_cvt, DAC_I2S_BITS);
     esp_gmf_obj_handle_t ch_cvt = NULL;
-    esp_gmf_pipeline_get_el_by_name(play_pipe, "ch_cvt", &ch_cvt);
+    esp_gmf_pipeline_get_el_by_name(play_pipe, "aud_ch_cvt", &ch_cvt);
     esp_gmf_ch_cvt_set_dest_channel(ch_cvt, DAC_I2S_CH);
     esp_gmf_obj_handle_t dec_el = NULL;
-    esp_gmf_pipeline_get_el_by_name(play_pipe, "aud_simp_dec", &dec_el);
+    esp_gmf_pipeline_get_el_by_name(play_pipe, "aud_dec", &dec_el);
     esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);
 
     esp_gmf_pipeline_set_in_uri(play_pipe, "/sdcard/test.mp3");

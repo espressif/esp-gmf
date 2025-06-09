@@ -90,29 +90,29 @@ I (1157) ES7210: Enable TDM mode
 I (1163) ES7210: Unmuted
 I (1163) Adev_Codec: Open codec device OK
 I (1166) ESP_GMF_POOL: Registered items on pool:0x3c1a7640, app_main-51
-I (1173) ESP_GMF_POOL: IO, Item:0x3c1a78e0, H:0x3c1a7850, TAG:codec_dev_rx
-I (1180) ESP_GMF_POOL: IO, Item:0x3c1a79b0, H:0x3c1a78f0, TAG:http
-I (1187) ESP_GMF_POOL: IO, Item:0x3c1a7a80, H:0x3c1a79c0, TAG:http
-I (1194) ESP_GMF_POOL: IO, Item:0x3c1a7b1c, H:0x3c1a7a90, TAG:file
-I (1201) ESP_GMF_POOL: IO, Item:0x3c1a7bb8, H:0x3c1a7b2c, TAG:file
-I (1208) ESP_GMF_POOL: IO, Item:0x3c1a7ce8, H:0x3c1a7c54, TAG:embed_flash
+I (1173) ESP_GMF_POOL: IO, Item:0x3c1a78e0, H:0x3c1a7850, TAG:io_codec_dev
+I (1180) ESP_GMF_POOL: IO, Item:0x3c1a79b0, H:0x3c1a78f0, TAG:io_http
+I (1187) ESP_GMF_POOL: IO, Item:0x3c1a7a80, H:0x3c1a79c0, TAG:io_http
+I (1194) ESP_GMF_POOL: IO, Item:0x3c1a7b1c, H:0x3c1a7a90, TAG:io_file
+I (1201) ESP_GMF_POOL: IO, Item:0x3c1a7bb8, H:0x3c1a7b2c, TAG:io_file
+I (1208) ESP_GMF_POOL: IO, Item:0x3c1a7ce8, H:0x3c1a7c54, TAG:io_embed_flash
 I (1215) ESP_GMF_POOL: EL, Item:0x3c1a7c44, H:0x3c1a7bc8, TAG:copier
-I (1222) ESP_GMF_POOL: EL, Item:0x3c1a7dfc, H:0x3c1a7cf8, TAG:encoder
+I (1222) ESP_GMF_POOL: EL, Item:0x3c1a7dfc, H:0x3c1a7cf8, TAG:aud_enc
 I (1229) ESP_GMF_POOL: EL, Item:0x3c1a7ef0, H:0x3c1a7e0c, TAG:decoder
-I (1237) ESP_GMF_POOL: EL, Item:0x3c1a7fcc, H:0x3c1a7f00, TAG:alc
-I (1243) ESP_GMF_POOL: EL, Item:0x3c1a8090, H:0x3c1a7fdc, TAG:eq
-I (1250) ESP_GMF_POOL: EL, Item:0x3c1a80c4, H:0x3c1a81f8, TAG:ch_cvt
-I (1257) ESP_GMF_POOL: EL, Item:0x3c1a80f4, H:0x3c1a829c, TAG:bit_cvt
-I (1264) ESP_GMF_POOL: EL, Item:0x3c1a83dc, H:0x3c1a8340, TAG:rate_cvt
-I (1271) ESP_GMF_POOL: EL, Item:0x3c1a84b8, H:0x3c1a83ec, TAG:fade
-I (1278) ESP_GMF_POOL: EL, Item:0x3c1a85b4, H:0x3c1a84c8, TAG:sonic
-I (1285) ESP_GMF_POOL: EL, Item:0x3c1a8694, H:0x3c1a85c4, TAG:deinterleave
-I (1293) ESP_GMF_POOL: EL, Item:0x3c1a8770, H:0x3c1a86a4, TAG:interleave
-I (1300) ESP_GMF_POOL: EL, Item:0x3c1a8870, H:0x3c1a8780, TAG:mixer
+I (1237) ESP_GMF_POOL: EL, Item:0x3c1a7fcc, H:0x3c1a7f00, TAG:aud_alc
+I (1243) ESP_GMF_POOL: EL, Item:0x3c1a8090, H:0x3c1a7fdc, TAG:aud_eq
+I (1250) ESP_GMF_POOL: EL, Item:0x3c1a80c4, H:0x3c1a81f8, TAG:aud_ch_cvt
+I (1257) ESP_GMF_POOL: EL, Item:0x3c1a80f4, H:0x3c1a829c, TAG:aud_bit_cvt
+I (1264) ESP_GMF_POOL: EL, Item:0x3c1a83dc, H:0x3c1a8340, TAG:aud_rate_cvt
+I (1271) ESP_GMF_POOL: EL, Item:0x3c1a84b8, H:0x3c1a83ec, TAG:aud_fade
+I (1278) ESP_GMF_POOL: EL, Item:0x3c1a85b4, H:0x3c1a84c8, TAG:aud_sonic
+I (1285) ESP_GMF_POOL: EL, Item:0x3c1a8694, H:0x3c1a85c4, TAG:aud_deintlv
+I (1293) ESP_GMF_POOL: EL, Item:0x3c1a8770, H:0x3c1a86a4, TAG:aud_intlv
+I (1300) ESP_GMF_POOL: EL, Item:0x3c1a8870, H:0x3c1a8780, TAG:aud_mixer
 I (1307) REC_SDCARD: [ 3 ] Create audio pipeline, add all elements to pipeline
 I (1315) REC_SDCARD: [ 3.1 ] Set audio url to record
 I (1321) REC_SDCARD: [ 3.2 ] Reconfig audio encoder type by url and audio information and report information to the record pipeline
-W (1333) ESP_GMF_PIPELINE: There is no thread for add jobs, pipe:0x3c1a8880, tsk:0x0, [el:encoder-0x3c1a88b8]
+W (1333) ESP_GMF_PIPELINE: There is no thread for add jobs, pipe:0x3c1a8880, tsk:0x0, [el:aud_enc-0x3c1a88b8]
 I (1344) REC_SDCARD: [ 3.3 ] Create gmf task, bind task to pipeline and load linked element jobs to the bind task
 I (1355) ESP_GMF_TASK: Waiting to run... [tsk:TSK_0x3fcb1260-0x3fcb1260, wk:0x0, run:0]
 I (1363) ESP_GMF_THREAD: The TSK_0x3fcb1260 created on internal memory
@@ -123,8 +123,8 @@ I (1393) FILE_IO: Open, dir:2, uri:/sdcard/esp_gmf_rec001.aac
 I (1409) REC_SDCARD: CB: RECV Pipeline EVT: el:OBJ_GET_TAG(event->from)-0x3c1a8880, type:8192, sub:ESP_GMF_EVENT_STATE_OPENING, payload:0x0, size:0,0x0
 I (1416) REC_SDCARD: CB: RECV Pipeline EVT: el:OBJ_GET_TAG(event->from)-0x3c1a88b8, type:8192, sub:ESP_GMF_EVENT_STATE_RUNNING, payload:0x0, size:0,0x0
 I (1428) ESP_GMF_TASK: One times job is complete, del[wk:0x3c1a8ba8,ctx:0x3c1a88b8, label:encoder_open]
-I (1438) ESP_GMF_PORT: ACQ IN, new self payload:0x3c1a8ba8, port:0x3c1a8a50, el:0x3c1a88b8-encoder
-I (1448) ESP_GMF_PORT: ACQ OUT, new self payload:0x3c1b6220, port:0x3c1a8b20, el:0x3c1a88b8-encoder
+I (1438) ESP_GMF_PORT: ACQ IN, new self payload:0x3c1a8ba8, port:0x3c1a8a50, el:0x3c1a88b8-aud_enc
+I (1448) ESP_GMF_PORT: ACQ OUT, new self payload:0x3c1b6220, port:0x3c1a8b20, el:0x3c1a88b8-aud_enc
 I (1461) REC_SDCARD: [ 5 ] Wait for a while to stop record pipeline
 I (11494) ESP_GMF_CODEC_IO: CLose, 0x3c1a89e4, pos = 323584/0
 I (11494) FILE_IO: CLose, 0x3c1a8a94, pos = 80896/0

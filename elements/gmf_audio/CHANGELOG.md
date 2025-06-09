@@ -20,6 +20,7 @@
 
 - Fixed `gmf_audio_enc` process blocked due to forget release of in_load when truncate is returned
 - Fixed parameter mismatch in `audio_dec_reconfig_dec_by_sound_info`
+- Standardize TAG identifier format across all audio elements with `aud` prefix
 
 ## v0.6.3
 

@@ -84,17 +84,17 @@ static esp_gmf_err_t event_cb(esp_gmf_event_pkt_t *evt, void *ctx)
     TEST_ASSERT_EQUAL(info->fps, get_info.fps);
     TEST_ASSERT_EQUAL(info->bitrate, get_info.bitrate);
     const char *tag = OBJ_GET_TAG(ctx);
-    if (strcmp(tag, "imgfx_scale") == 0) {
+    if (strcmp(tag, "vid_scale") == 0) {
         esp_imgfx_scale_cfg_t *cfg = (esp_imgfx_scale_cfg_t *)OBJ_GET_CFG(ctx);
         TEST_ASSERT_EQUAL(info->width, cfg->scale_res.width);
         TEST_ASSERT_EQUAL(info->height, cfg->scale_res.height);
         TEST_ASSERT_EQUAL(info->format_id, cfg->in_pixel_fmt);
-    } else if (strcmp(tag, "imgfx_crop") == 0) {
+    } else if (strcmp(tag, "vid_crop") == 0) {
         esp_imgfx_crop_cfg_t *cfg = (esp_imgfx_crop_cfg_t *)OBJ_GET_CFG(ctx);
         TEST_ASSERT_EQUAL(info->width, cfg->cropped_res.width);
         TEST_ASSERT_EQUAL(info->height, cfg->cropped_res.height);
         TEST_ASSERT_EQUAL(info->format_id, cfg->in_pixel_fmt);
-    } else if (strcmp(tag, "imgfx_rotate") == 0) {
+    } else if (strcmp(tag, "vid_rotate") == 0) {
         esp_imgfx_rotate_cfg_t *cfg = (esp_imgfx_rotate_cfg_t *)OBJ_GET_CFG(ctx);
         if (cfg->degree % 90 == 0
             || cfg->degree % 270 == 0) {
@@ -105,7 +105,7 @@ static esp_gmf_err_t event_cb(esp_gmf_event_pkt_t *evt, void *ctx)
             TEST_ASSERT_EQUAL(info->height, cfg->in_res.height);
         }
         TEST_ASSERT_EQUAL(info->format_id, cfg->in_pixel_fmt);
-    } else if (strcmp(tag, "imgfx_color_convert") == 0) {
+    } else if (strcmp(tag, "vid_color_cvt") == 0) {
         esp_imgfx_color_convert_cfg_t *cfg = (esp_imgfx_color_convert_cfg_t *)OBJ_GET_CFG(ctx);
         TEST_ASSERT_EQUAL(info->width, cfg->in_res.width);
         TEST_ASSERT_EQUAL(info->height, cfg->in_res.height);

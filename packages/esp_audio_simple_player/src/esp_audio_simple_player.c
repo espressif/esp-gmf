@@ -41,15 +41,15 @@ const char *esp_asp_state_strings[] = {
     "ESP_AUD_SIMPLE_PLAYER_ERROR"};
 
 static const char *el_names[] = {
-    "aud_simp_dec",
+    "aud_dec",
 #ifdef CONFIG_ESP_AUDIO_SIMPLE_PLAYER_RESAMPLE_EN
-    "rate_cvt",
+    "aud_rate_cvt",
 #endif  /* CONFIG_ESP_AUDIO_SIMPLE_PLAYER_RESAMPLE_EN */
 #ifdef CONFIG_ESP_AUDIO_SIMPLE_PLAYER_CH_CVT_EN
-    "ch_cvt",
+    "aud_ch_cvt",
 #endif  /* CONFIG_ESP_AUDIO_SIMPLE_PLAYER_CH_CVT_EN */
 #ifdef CONFIG_ESP_AUDIO_SIMPLE_PLAYER_BIT_CVT_EN
-    "bit_cvt",
+    "aud_bit_cvt",
 #endif  /* CONFIG_ESP_AUDIO_SIMPLE_PLAYER_BIT_CVT_EN */
 };
 
@@ -160,17 +160,26 @@ static int __setup_pipeline(esp_audio_simple_player_t *player, const char *uri, 
         ESP_LOGE(TAG, "The URI is invalid, uri:%s", uri);
         return ESP_GMF_ERR_INVALID_URI;
     }
-    char *in_str = uri_st->scheme;
-    if (strcasecmp(in_str, "https") == 0) {
-        in_str[strlen(in_str) - 1] = 0;
-    }
-    if (strncasecmp(uri_st->scheme, "raw", strlen("raw")) == 0) {
+    char *in_str = NULL;
+    if (strcasecmp(uri_st->scheme, "https") == 0
+        || strcasecmp(uri_st->scheme, "http") == 0) {
+        in_str = strndup("io_http", strlen("io_http"));
+        free(uri_st->scheme);
+        uri_st->scheme = in_str;
+    } else if (strcasecmp(uri_st->scheme, "file") == 0) {
+        in_str = strndup("io_file", strlen("io_file"));
+        free(uri_st->scheme);
+        uri_st->scheme = in_str;
+    } else if (strcasecmp(uri_st->scheme, "embed") == 0) {
+        in_str = strndup("io_embed_flash", strlen("io_embed_flash"));
+        free(uri_st->scheme);
+        uri_st->scheme = in_str;
+    } else if (strncasecmp(uri_st->scheme, "raw", strlen("raw")) == 0) {
         if (player->cfg.in.cb == NULL) {
             ESP_LOGE(TAG, "No registered in raw callback, uri:%s", uri);
             esp_gmf_uri_free(uri_st);
             return ESP_GMF_ERR_NOT_SUPPORT;
         }
-        in_str = NULL;
     }
 
     if (player->pipe == NULL) {
@@ -226,7 +235,7 @@ static int __setup_pipeline(esp_audio_simple_player_t *player, const char *uri, 
     }
     esp_gmf_pipeline_bind_task(player->pipe, player->work_task);
     esp_gmf_element_handle_t dec_el = NULL;
-    ret = esp_gmf_pipeline_get_el_by_name(player->pipe, "aud_simp_dec", &dec_el);
+    ret = esp_gmf_pipeline_get_el_by_name(player->pipe, "aud_dec", &dec_el);
     ESP_GMF_RET_ON_ERROR(TAG, ret, goto __setup_pipe_err, "There is no decoder in pipeline");
     if (music_info) {
         esp_gmf_info_sound_t info ={

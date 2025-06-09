@@ -263,7 +263,7 @@ esp_gmf_err_t esp_gmf_video_rotate_init(esp_imgfx_rotate_cfg_t *config, esp_gmf_
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     esp_gmf_obj_t *obj = (esp_gmf_obj_t *)video_el;
     // Set element tag
-    ret = esp_gmf_obj_set_tag(video_el, "imgfx_rotate");
+    ret = esp_gmf_obj_set_tag(video_el, "vid_rotate");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto __init_exit, "Failed set OBJ tag");
     // Configure object callbacks
     obj->new_obj = video_rotate_el_new;

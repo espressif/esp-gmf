@@ -189,10 +189,8 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->FILE]", "[ESP_GMF_POOL]")
     esp_gmf_pipeline_handle_t pipe = NULL;
     const char *uri = "/sdcard/esp_gmf_rec1.aac";
 
-    // const char *name[] = {"encoder"};
-    // const char *name[] = {"rate_cvt", "encoder"};
-    const char *name[] = {"rate_cvt", "ch_cvt", "encoder"};
-    esp_gmf_pool_new_pipeline(pool, "codec_dev_rx", name, sizeof(name) / sizeof(char *), "file", &pipe);
+    const char *name[] = {"aud_rate_cvt", "aud_ch_cvt", "aud_enc"};
+    esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), "io_file", &pipe);
     TEST_ASSERT_NOT_NULL(pipe);
     gmf_setup_pipeline_in_dev(pipe);
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
@@ -208,7 +206,7 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->FILE]", "[ESP_GMF_POOL]")
 
     esp_gmf_pipeline_set_out_uri(pipe, uri);
     esp_gmf_element_handle_t enc_handle = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe, "encoder", &enc_handle);
+    esp_gmf_pipeline_get_el_by_name(pipe, "aud_enc", &enc_handle);
     uint32_t audio_type = 0;
     esp_gmf_audio_helper_get_audio_type_by_uri(uri, &audio_type);
     esp_gmf_info_sound_t info = {
@@ -220,7 +218,7 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->FILE]", "[ESP_GMF_POOL]")
     };
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_enc_reconfig_by_sound_info(enc_handle, &info));
     esp_gmf_element_handle_t resp = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe, "rate_cvt", &resp);
+    esp_gmf_pipeline_get_el_by_name(pipe, "aud_rate_cvt", &resp);
     esp_ae_rate_cvt_cfg_t *resp_cfg = (esp_ae_rate_cvt_cfg_t *)OBJ_GET_CFG(resp);
     resp_cfg->src_rate = SETUP_AUDIO_SAMPLE_RATE;
     if (audio_type == ESP_AUDIO_TYPE_AMRNB) {
@@ -283,8 +281,8 @@ TEST_CASE("Recorder, One Pipe recoding multiple format, [IIS->ENC->FILE]", "[ESP
     ESP_GMF_NULL_CHECK(TAG, pipe_sync_evt, return);
 
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"rate_cvt", "encoder"};
-    esp_gmf_pool_new_pipeline(pool, "codec_dev_rx", name, sizeof(name) / sizeof(char *), "file", &pipe);
+    const char *name[] = {"aud_rate_cvt", "aud_enc"};
+    esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), "io_file", &pipe);
     TEST_ASSERT_NOT_NULL(pipe);
     gmf_setup_pipeline_in_dev(pipe);
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
@@ -305,7 +303,7 @@ TEST_CASE("Recorder, One Pipe recoding multiple format, [IIS->ENC->FILE]", "[ESP
     for (int i = 0; i < sizeof(test_enc_format) / sizeof(char *); ++i) {
         snprintf(uri, 127, "/sdcard/esp_gmf_rec_%02d.%s", i, test_enc_format[i]);
         esp_gmf_element_handle_t enc_handle = NULL;
-        esp_gmf_pipeline_get_el_by_name(pipe, "encoder", &enc_handle);
+        esp_gmf_pipeline_get_el_by_name(pipe, "aud_enc", &enc_handle);
         esp_audio_enc_config_t *esp_gmf_enc_cfg = (esp_audio_enc_config_t *)OBJ_GET_CFG(enc_handle);
         uint32_t audio_type = 0;
         esp_gmf_audio_helper_get_audio_type_by_uri(uri, &audio_type);
@@ -326,7 +324,7 @@ TEST_CASE("Recorder, One Pipe recoding multiple format, [IIS->ENC->FILE]", "[ESP
         esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info, sizeof(info));
 
         esp_gmf_element_handle_t resp = NULL;
-        esp_gmf_pipeline_get_el_by_name(pipe, "rate_cvt", &resp);
+        esp_gmf_pipeline_get_el_by_name(pipe, "aud_rate_cvt", &resp);
         esp_ae_rate_cvt_cfg_t *resp_cfg = (esp_ae_rate_cvt_cfg_t *)OBJ_GET_CFG(resp);
         resp_cfg->src_rate = SETUP_AUDIO_SAMPLE_RATE;
         if (audio_type == ESP_AUDIO_TYPE_AMRNB) {
@@ -404,8 +402,8 @@ TEST_CASE("Record file for playback, multiple files with One Pipe, [FILE->dec->r
     ESP_GMF_POOL_SHOW_ITEMS(pool);
 
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"aud_simp_dec", "rate_cvt", "ch_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), "codec_dev_tx", &pipe));
+    const char *name[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe));
     TEST_ASSERT_NOT_NULL(pipe);
     gmf_setup_pipeline_out_dev(pipe);
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
@@ -463,14 +461,14 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=
 
     // Create the new elements
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"encoder"};
-    esp_gmf_pool_new_pipeline(pool, "codec_dev_rx", name, sizeof(name) / sizeof(char *), "http", &pipe);
+    const char *name[] = {"aud_enc"};
+    esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), "io_http", &pipe);
     TEST_ASSERT_NOT_NULL(pipe);
     gmf_setup_pipeline_in_dev(pipe);
     const char *rec_type = ".aac";
 
     esp_gmf_element_handle_t enc_handle = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe, "encoder", &enc_handle);
+    esp_gmf_pipeline_get_el_by_name(pipe, "aud_enc", &enc_handle);
     uint32_t audio_type = ESP_AUDIO_TYPE_AAC;
     esp_gmf_audio_helper_get_audio_type_by_uri(rec_type, &audio_type);
     esp_gmf_info_sound_t info = {

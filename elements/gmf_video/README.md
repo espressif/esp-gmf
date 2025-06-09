@@ -4,6 +4,22 @@
 
 ESP GMF Video is a suite of video processing elements designed for a variety of tasks such as video encoding, and applying video effects. These elements can be combined to form a complete video processing pipeline.
 
+## Supported Video Modules
+
+The following table lists the currently supported video processing modules and their detailed information:
+
+|Name|TAG|Function|Method|Input Port|Output Port|Hardware Acceleration|Dependent on Video Information|
+|:----:|:----:|:-----:|:----:|:----:|:----:|:----:|:----|
+| VIDEO_ENC | vid_enc | Video encoder: H264, MJPEG | `set_bitrate`<br>`set_dst_codec`<br>`get_src_fmts`<br>`preset`<br>`get_frame_size` | Single | Single | Yes | Yes |
+| VIDEO_DEC | vid_dec | Video decoder: H264, MJPEG | `set_dst_fmt`<br>`set_src_codec`<br>`get_dst_fmts` | Single | Single | No | No |
+| VIDEO_PPA | vid_ppa | Pixel processing accelerator: Color conversion,<br>Scaling, Cropping, Rotation | `set_dst_format`<br>`set_dst_resolution`<br>`set_rotation`<br>`set_cropped_rgn` | Single | Single | Yes | Yes |
+| FPS_CVT | vid_fps_cvt | Frame rate conversion | `set_fps` | Single | Single | No | Yes |
+| OVERLAY_MIXER | vid_overlay | Video overlay mixer | `overlay_enable`<br>`set_rgn`<br>`set_port`<br>`set_alpha` | Multiple | Single | No | Yes |
+| COLOR_CVT | vid_color_cvt | Software color conversion | `set_dst_fmt` | Single | Single | No | Yes |
+| CROP | vid_crop | Software video cropping | `set_crop_rgn` | Single | Single | No | Yes |
+| SCALE | vid_scale | Software video scaling | `set_dst_res` | Single | Single | No | Yes |
+| ROTATE | vid_rotate | Software video rotation | `set_angle` | Single | Single | No | Yes |
+
 ## Elements
 
 ### Video Encoder

@@ -102,7 +102,7 @@ I (1275) PLAY_SDCARD_MUSIC: [ 5 ] Wait stop event to the pipeline and stop all t
 I (1275) ESP_GMF_PORT: ACQ OUT SET, new self payload:0x3c1a9308, p:0x3c1a8ae8, el:0x3c1a88e8-decoder
 I (1295) ESP_GMF_ADEC: NOTIFY Info, rate: 44100, bits: 16, ch: 2 --> rate: 44100, bits: 16, ch: 2
 I (1383) ESP_GMF_TASK: One times job is complete, del[wk:0x3c1a9104,ctx:0x3c1a89dc, label:rate_cvt_open]
-I (1383) ESP_GMF_PORT: ACQ OUT SET, new self payload:0x3c1a9104, p:0x3c1a8c90, el:0x3c1a89dc-rate_cvt
+I (1383) ESP_GMF_PORT: ACQ OUT SET, new self payload:0x3c1a9104, p:0x3c1a8c90, el:0x3c1a89dc-aud_rate_cvt
 I (1393) ESP_GMF_TASK: One times job is complete, del[wk:0x3c1a916c,ctx:0x3c1a8b70, label:ch_cvt_open]
 I (1402) PLAY_SDCARD_MUSIC: CB: RECV Pipeline EVT: el: OBJ_GET_TAG(event->from)-0x3c1a8d18, type: 3000, sub: ESP_GMF_EVENT_STATE_INITIALIZED, payload: 0x3fcbb3e0, size: 12, 0x3fcbb780
 I (1419) PLAY_SDCARD_MUSIC: CB: RECV Pipeline EVT: el: OBJ_GET_TAG(event->from)-0x3c1a8d18, type: 2000, sub: ESP_GMF_EVENT_STATE_RUNNING, payload: 0x0, size: 0, 0x3fcbb780

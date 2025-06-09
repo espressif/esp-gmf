@@ -225,7 +225,7 @@ esp_gmf_err_t esp_gmf_aec_init(esp_gmf_aec_cfg_t *config, esp_gmf_obj_handle_t *
     memcpy(obj_cfg, config, sizeof(esp_gmf_aec_cfg_t));
     esp_gmf_err_t ret = esp_gmf_obj_set_config(obj, obj_cfg, sizeof(esp_gmf_aec_cfg_t));
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto __failed, "Failed set OBJ configuration");
-    ret = esp_gmf_obj_set_tag(obj, "aec");
+    ret = esp_gmf_obj_set_tag(obj, "ai_aec");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto __failed, "Failed set OBJ tag");
     esp_gmf_element_cfg_t el_cfg = {0};
     ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.in_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 16, 0,

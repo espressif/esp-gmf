@@ -180,8 +180,8 @@ if (ret != ESP_OK) {
 
 // Create a pipeline with HTTP reader
 esp_gmf_pipeline_handle_t pipeline = NULL;
-const char *elements[] = {"aud_simp_dec"};
-ret = esp_gmf_pool_new_pipeline(pool, "http", elements, 1, "codec_dev_tx", &pipeline);
+const char *elements[] = {"aud_dec"};
+ret = esp_gmf_pool_new_pipeline(pool, "io_http", elements, 1, "io_codec_dev", &pipeline);
 if (ret != ESP_OK) {
     ESP_LOGE(TAG, "Failed to create pipeline");
     gmf_loader_teardown_all_defaults(pool);

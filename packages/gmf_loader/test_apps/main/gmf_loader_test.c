@@ -105,7 +105,7 @@ TEST_CASE("GMF video effects", "[GMF_LOADER]")
 
     // Test color convert effect
 #ifdef CONFIG_GMF_VIDEO_EFFECTS_CC
-    element = get_element_by_tag_from_pool(pool, "imgfx_color_convert");
+    element = get_element_by_tag_from_pool(pool, "vid_color_cvt");
     TEST_ASSERT_NOT_NULL(element);
 
     esp_imgfx_color_convert_cfg_t *cc_cfg = (esp_imgfx_color_convert_cfg_t *)OBJ_GET_CFG(element);
@@ -117,7 +117,7 @@ TEST_CASE("GMF video effects", "[GMF_LOADER]")
 
     // Test scale effect
 #ifdef CONFIG_GMF_VIDEO_EFFECTS_SCALE
-    element = get_element_by_tag_from_pool(pool, "imgfx_scale");
+    element = get_element_by_tag_from_pool(pool, "vid_scale");
     TEST_ASSERT_NOT_NULL(element);
 
     esp_imgfx_scale_cfg_t *scale_cfg = (esp_imgfx_scale_cfg_t *)OBJ_GET_CFG(element);
@@ -132,7 +132,7 @@ TEST_CASE("GMF video effects", "[GMF_LOADER]")
 
     // Test rotate effect
 #ifdef CONFIG_GMF_VIDEO_EFFECTS_ROTATE
-    element = get_element_by_tag_from_pool(pool, "imgfx_rotate");
+    element = get_element_by_tag_from_pool(pool, "vid_rotate");
     TEST_ASSERT_NOT_NULL(element);
 
     esp_imgfx_rotate_cfg_t *rotate_cfg = (esp_imgfx_rotate_cfg_t *)OBJ_GET_CFG(element);
@@ -145,7 +145,7 @@ TEST_CASE("GMF video effects", "[GMF_LOADER]")
 
     // Test crop effect
 #ifdef CONFIG_GMF_VIDEO_EFFECTS_CROP
-    element = get_element_by_tag_from_pool(pool, "imgfx_crop");
+    element = get_element_by_tag_from_pool(pool, "vid_crop");
     TEST_ASSERT_NOT_NULL(element);
 
     esp_imgfx_crop_cfg_t *crop_cfg = (esp_imgfx_crop_cfg_t *)OBJ_GET_CFG(element);

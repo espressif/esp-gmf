@@ -54,8 +54,8 @@ void app_main(void)
 
     ESP_LOGI(TAG, "[ 3 ] Create audio pipeline");
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"aud_simp_dec", "bit_cvt", "rate_cvt", "ch_cvt"};
-    ret = esp_gmf_pool_new_pipeline(pool, "embed", name, sizeof(name) / sizeof(char *), "codec_dev_tx", &pipe);
+    const char *name[] = {"aud_dec", "aud_bit_cvt", "aud_rate_cvt", "aud_ch_cvt"};
+    ret = esp_gmf_pool_new_pipeline(pool, "io_embed_flash", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, { return; }, "Failed to new pipeline");
 
     esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(pipe), esp_gmf_app_get_playback_handle());
@@ -66,7 +66,7 @@ void app_main(void)
     esp_gmf_pipeline_get_in(pipe, &in_io);
     esp_gmf_io_embed_flash_set_context(in_io, (embed_item_info_t *)&g_esp_embed_tone[0], ESP_EMBED_TONE_URL_MAX);
     esp_gmf_element_handle_t dec_el = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe, "aud_simp_dec", &dec_el);
+    esp_gmf_pipeline_get_el_by_name(pipe, "aud_dec", &dec_el);
     esp_gmf_info_sound_t info = {0};
     esp_gmf_audio_helper_get_audio_type_by_uri(esp_embed_tone_url[ESP_EMBED_TONE_FF_16B_1C_44100HZ_MP3], &info.format_id);
     esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);

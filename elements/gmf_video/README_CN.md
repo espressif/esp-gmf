@@ -4,6 +4,22 @@
 
 ESP GMF Video 是一套专为视频编解码和视频转换等设计的视频处理模块。这些模块可以组合在一起，形成完整的视频处理流水线。
 
+## 支持的视频模块
+
+下表列出了当前支持的视频处理模块及其详细信息：
+
+| 名称 | 标签 | 功能 |  函数方法   | 输入端口 | 输出端口 | 硬件加速 |依赖视频信息 |
+|:----:|:-----:|:----:|:----:|:----:|:----:|:----:|:----|
+| VIDEO_ENC | vid_enc | 视频编码器：H264, MJPEG | `set_bitrate`<br>`set_dst_codec`<br>`get_src_fmts`<br>`preset`<br>`get_frame_size` | 单个 | 单个 | 是 | 是 |
+| VIDEO_DEC | vid_dec | 视频解码器：H264, MJPEG | `set_dst_fmt`<br>`set_src_codec`<br>`get_dst_fmts` | 单个 | 单个 | 否 | 否 |
+| VIDEO_PPA | vid_ppa | 像素处理加速器：颜色转换，缩放，<br>裁剪，旋转 | `set_dst_format`<br>`set_dst_resolution`<br>`set_rotation`<br>`set_cropped_rgn` | 单个 | 单个 | 是 | 是 |
+| FPS_CVT | vid_fps_cvt | 帧率转换 | `set_fps` | 单个 | 单个 | 否 | 是 |
+| OVERLAY_MIXER | vid_overlay | 视频叠加混合器 | `overlay_enable`<br>`set_rgn`<br>`set_port`<br>`set_alpha` | 多个 | 单个 | 否 | 是 |
+| COLOR_CVT | vid_color_cvt | 软件颜色转换 | `set_dst_fmt` | 单个 | 单个 | 否 | 是 |
+| CROP | vid_crop | 软件视频裁剪 | `set_crop_rgn` | 单个 | 单个 | 否 | 是 |
+| SCALE | vid_scale | 软件视频缩放 | `set_dst_res` | 单个 | 单个 | 否 | 是 |
+| ROTATE | vid_rotate | 软件视频旋转 | `set_angle` | 单个 | 单个 | 否 | 是 |
+
 ## 元素
 
 ### 视频编码器

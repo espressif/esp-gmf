@@ -46,8 +46,8 @@ void app_main(void)
 
     ESP_LOGI(TAG, "[ 3 ] Create audio pipeline");
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"encoder"};
-    ret = esp_gmf_pool_new_pipeline(pool, "codec_dev_rx", name, sizeof(name) / sizeof(char *), "file", &pipe);
+    const char *name[] = {"aud_enc"};
+    ret = esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), "io_file", &pipe);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, { return; }, "Failed to new pipeline");
 
     esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_IN_INSTANCE(pipe), esp_gmf_app_get_record_handle());
@@ -57,7 +57,7 @@ void app_main(void)
 
     ESP_LOGI(TAG, "[ 3.2 ] Reconfig audio encoder type by url and audio information and report information to the record pipeline");
     esp_gmf_element_handle_t enc_el = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe, "encoder", &enc_el);
+    esp_gmf_pipeline_get_el_by_name(pipe, "aud_enc", &enc_el);
     esp_gmf_info_sound_t info = {
         .sample_rates = 16000,
         .channels = 1,

@@ -245,22 +245,22 @@ void app_main(void)
 
     esp_gmf_pipeline_handle_t pipe = NULL;
 #if WITH_AFE == true
-    const char *name[] = {"gmf_afe"};
+    const char *name[] = {"ai_afe"};
 #else
-    const char *name[] = {"gmf_wn"};
+    const char *name[] = {"ai_wn"};
 #endif  /* WITH_AFE == true */
-    esp_gmf_pool_new_pipeline(pool, "codec_dev_rx", name, sizeof(name) / sizeof(char *), NULL, &pipe);
+    esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), NULL, &pipe);
     if (pipe == NULL) {
         ESP_LOGE(TAG, "There is no pipeline");
         goto __quit;
     }
     esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_IN_INSTANCE(pipe), esp_gmf_app_get_record_handle());
     esp_gmf_element_handle_t afe = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe, "gmf_afe", &afe);
+    esp_gmf_pipeline_get_el_by_name(pipe, "ai_afe", &afe);
     esp_gmf_afe_set_event_cb(afe, esp_gmf_afe_event_cb, NULL);
 #else
     esp_gmf_element_handle_t wn = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe, "gmf_wn", &wn);
+    esp_gmf_pipeline_get_el_by_name(pipe, "ai_wn", &wn);
     esp_gmf_wn_set_detect_cb(wn, esp_gmf_wn_event_cb, NULL);
 #endif  /* WITH_AFE == true */
     esp_gmf_port_handle_t outport = NEW_ESP_GMF_PORT_OUT_BYTE(outport_acquire_write,

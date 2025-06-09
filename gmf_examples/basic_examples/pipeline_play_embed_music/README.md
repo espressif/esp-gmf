@@ -87,25 +87,25 @@ I (1196) I2S_IF: channel mode 0 bits:16/16 channel:2 mask:3
 I (1202) I2S_IF: STD Mode 1 bits:16/16 channel:2 sample_rate:48000 mask:3
 I (1226) Adev_Codec: Open codec device OK
 I (1226) ESP_GMF_POOL: Registered items on pool:0x3c1e7640, app_main-60
-I (1227) ESP_GMF_POOL: IO, Item:0x3c1e7714, H:0x3c1e7654, TAG:http
-I (1233) ESP_GMF_POOL: IO, Item:0x3c1e77e4, H:0x3c1e7724, TAG:http
-I (1240) ESP_GMF_POOL: IO, Item:0x3c1e7880, H:0x3c1e77f4, TAG:file
-I (1247) ESP_GMF_POOL: IO, Item:0x3c1e791c, H:0x3c1e7890, TAG:file
-I (1254) ESP_GMF_POOL: IO, Item:0x3c1e7a4c, H:0x3c1e79b8, TAG:embed_flash
-I (1262) ESP_GMF_POOL: IO, Item:0x3c1e88a0, H:0x3c1e8810, TAG:codec_dev_tx
+I (1227) ESP_GMF_POOL: IO, Item:0x3c1e7714, H:0x3c1e7654, TAG:io_http
+I (1233) ESP_GMF_POOL: IO, Item:0x3c1e77e4, H:0x3c1e7724, TAG:io_http
+I (1240) ESP_GMF_POOL: IO, Item:0x3c1e7880, H:0x3c1e77f4, TAG:io_file
+I (1247) ESP_GMF_POOL: IO, Item:0x3c1e791c, H:0x3c1e7890, TAG:io_file
+I (1254) ESP_GMF_POOL: IO, Item:0x3c1e7a4c, H:0x3c1e79b8, TAG:io_embed_flash
+I (1262) ESP_GMF_POOL: IO, Item:0x3c1e88a0, H:0x3c1e8810, TAG:io_codec_dev
 I (1269) ESP_GMF_POOL: EL, Item:0x3c1e79a8, H:0x3c1e792c, TAG:copier
-I (1276) ESP_GMF_POOL: EL, Item:0x3c1e7b60, H:0x3c1e7a5c, TAG:encoder
+I (1276) ESP_GMF_POOL: EL, Item:0x3c1e7b60, H:0x3c1e7a5c, TAG:aud_enc
 I (1283) ESP_GMF_POOL: EL, Item:0x3c1e7c54, H:0x3c1e7b70, TAG:decoder
-I (1290) ESP_GMF_POOL: EL, Item:0x3c1e7d30, H:0x3c1e7c64, TAG:alc
-I (1297) ESP_GMF_POOL: EL, Item:0x3c1e7df4, H:0x3c1e7d40, TAG:eq
-I (1304) ESP_GMF_POOL: EL, Item:0x3c1e7e28, H:0x3c1e7f5c, TAG:ch_cvt
-I (1311) ESP_GMF_POOL: EL, Item:0x3c1e7e58, H:0x3c1e8000, TAG:bit_cvt
-I (1318) ESP_GMF_POOL: EL, Item:0x3c1e8140, H:0x3c1e80a4, TAG:rate_cvt
-I (1325) ESP_GMF_POOL: EL, Item:0x3c1e821c, H:0x3c1e8150, TAG:fade
-I (1332) ESP_GMF_POOL: EL, Item:0x3c1e8318, H:0x3c1e822c, TAG:sonic
-I (1339) ESP_GMF_POOL: EL, Item:0x3c1e83f8, H:0x3c1e8328, TAG:deinterleave
-I (1346) ESP_GMF_POOL: EL, Item:0x3c1e84d4, H:0x3c1e8408, TAG:interleave
-I (1354) ESP_GMF_POOL: EL, Item:0x3c1e85d4, H:0x3c1e84e4, TAG:mixer
+I (1290) ESP_GMF_POOL: EL, Item:0x3c1e7d30, H:0x3c1e7c64, TAG:aud_alc_alc
+I (1297) ESP_GMF_POOL: EL, Item:0x3c1e7df4, H:0x3c1e7d40, TAG:aud_eq
+I (1304) ESP_GMF_POOL: EL, Item:0x3c1e7e28, H:0x3c1e7f5c, TAG:aud_ch_cvt
+I (1311) ESP_GMF_POOL: EL, Item:0x3c1e7e58, H:0x3c1e8000, TAG:aud_bit_cvt
+I (1318) ESP_GMF_POOL: EL, Item:0x3c1e8140, H:0x3c1e80a4, TAG:aud_rate_cvt
+I (1325) ESP_GMF_POOL: EL, Item:0x3c1e821c, H:0x3c1e8150, TAG:aud_fade
+I (1332) ESP_GMF_POOL: EL, Item:0x3c1e8318, H:0x3c1e822c, TAG:aud_sonic
+I (1339) ESP_GMF_POOL: EL, Item:0x3c1e83f8, H:0x3c1e8328, TAG:aud_deintlv
+I (1346) ESP_GMF_POOL: EL, Item:0x3c1e84d4, H:0x3c1e8408, TAG:aud_intlv
+I (1354) ESP_GMF_POOL: EL, Item:0x3c1e85d4, H:0x3c1e84e4, TAG:aud_mixer
 I (1361) PLAY_EMBED_MUSIC: [ 3 ] Create audio pipeline, add all elements to pipeline
 W (1369) AUD_SDEC_REG: Overwrote ES decoder 6
 W (1374) AUD_SDEC_REG: Overwrote ES decoder 7
@@ -126,7 +126,7 @@ W (1493) ESP_GMF_ADEC: Not enough memory for out, need:2304, old: 1024, new: 230
 I (1502) ESP_GMF_ADEC: NOTIFY Info, rate: 44100, bits: 16, ch: 1 --> rate: 44100, bits: 16, ch: 1
 I (1510) ESP_GMF_TASK: One times job is complete, del[wk:0x3c1e9134,ctx:0x3c1e89dc, label:bit_cvt_open]
 I (1601) ESP_GMF_TASK: One times job is complete, del[wk:0x3c1e919c,ctx:0x3c1e8b70, label:rate_cvt_open]
-I (1601) ESP_GMF_PORT: ACQ OUT SET, new self payload:0x3c1e919c, p:0x3c1e8e34, el:0x3c1e8b70-rate_cvt
+I (1601) ESP_GMF_PORT: ACQ OUT SET, new self payload:0x3c1e919c, p:0x3c1e8e34, el:0x3c1e8b70-aud_rate_cvt
 I (1610) PLAY_EMBED_MUSIC: CB: RECV Pipeline EVT: el:OBJ_GET_TAG(event->from)-0x3c1e8d14, type:3000, sub:ESP_GMF_EVENT_STATE_INITIALIZED, payload:0x3fcbb8f0, size:12,0x3fcbbc90
 I (1626) PLAY_EMBED_MUSIC: CB: RECV Pipeline EVT: el:OBJ_GET_TAG(event->from)-0x3c1e8d14, type:2000, sub:ESP_GMF_EVENT_STATE_RUNNING, payload:0x0, size:0,0x3fcbbc90
 I (1641) ESP_GMF_TASK: One times job is complete, del[wk:0x3c1e9134,ctx:0x3c1e8d14, label:ch_cvt_open]

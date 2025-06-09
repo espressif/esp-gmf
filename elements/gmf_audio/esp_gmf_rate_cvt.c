@@ -249,7 +249,7 @@ esp_gmf_err_t esp_gmf_rate_cvt_init(esp_ae_rate_cvt_cfg_t *config, esp_gmf_eleme
         memcpy(cfg, config, sizeof(*config));
         esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
     }
-    ret = esp_gmf_obj_set_tag(obj, "rate_cvt");
+    ret = esp_gmf_obj_set_tag(obj, "aud_rate_cvt");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto RATE_CVT_INIT_FAIL, "Failed to set obj tag");
     esp_gmf_element_cfg_t el_cfg = {0};
     ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.in_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,

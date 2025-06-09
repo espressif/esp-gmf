@@ -54,14 +54,14 @@ void app_main(void)
 
     ESP_LOGI(TAG, "[ 3 ] Create audio pipeline");
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"aud_simp_dec", "rate_cvt", "ch_cvt", "bit_cvt"};
-    ret = esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), "codec_dev_tx", &pipe);
+    const char *name[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt", "aud_bit_cvt"};
+    ret = esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, { return; }, "Failed to new pipeline");
 
     esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(pipe), esp_gmf_app_get_playback_handle());
 
     esp_gmf_element_handle_t dec_el = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe, "aud_simp_dec", &dec_el);
+    esp_gmf_pipeline_get_el_by_name(pipe, "aud_dec", &dec_el);
     esp_gmf_info_sound_t info = {0};
     esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);
 

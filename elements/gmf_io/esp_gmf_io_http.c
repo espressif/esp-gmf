@@ -480,7 +480,7 @@ esp_gmf_err_t esp_gmf_io_http_init(http_io_cfg_t *config, esp_gmf_io_handle_t *i
                        "http stream configuration", sizeof(*config));
     memcpy(cfg, config, sizeof(*config));
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
-    ret = esp_gmf_obj_set_tag(obj, "http");
+    ret = esp_gmf_obj_set_tag(obj, "io_http");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _http_init_fail, "Failed to set obj tag");
     http->base.dir = config->dir;
     http->base.type = ESP_GMF_IO_TYPE_BLOCK;

@@ -235,7 +235,7 @@ esp_gmf_err_t esp_gmf_io_file_init(file_io_cfg_t *config, esp_gmf_io_handle_t *i
                        "file stream configuration", sizeof(*config));
     memcpy(cfg, config, sizeof(*config));
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
-    ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "file" : config->name));
+    ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_file" : config->name));
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _file_fail, "Failed to set obj tag");
     file_io->base.close = _file_close;
     file_io->base.open = _file_open;

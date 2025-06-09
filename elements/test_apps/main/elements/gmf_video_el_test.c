@@ -380,7 +380,7 @@ TEST_CASE("Color convert SW", "[ESP_GMF_VIDEO]")
     convert_res_t res;
     memset(&video_el_inst, 0, sizeof(video_el_test_t));
     prepare_pool(&res);
-    const char *name[] = {"imgfx_color_convert", NULL};
+    const char *name[] = {"vid_color_cvt", NULL};
     TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, (const char **)name));
 
     uint32_t convert_pair[][2] = {
@@ -505,7 +505,7 @@ TEST_CASE("Scale SW", "[ESP_GMF_VIDEO]")
     convert_res_t res;
     memset(&video_el_inst, 0, sizeof(video_el_test_t));
     prepare_pool(&res);
-    const char *name[] = {"imgfx_scale", NULL};
+    const char *name[] = {"vid_scale", NULL};
     TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, (const char **)name));
     uint32_t convert_pair[][2] = {
         {ESP_FOURCC_RGB16, ESP_FOURCC_RGB16},
@@ -597,7 +597,7 @@ TEST_CASE("Rotate SW", "[ESP_GMF_VIDEO]")
     convert_res_t res;
     memset(&video_el_inst, 0, sizeof(video_el_test_t));
     prepare_pool(&res);
-    const char *name[] = {"imgfx_rotate", NULL};
+    const char *name[] = {"vid_rotate", NULL};
     TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, (const char **)name));
     uint32_t convert_pair[][2] = {
         {ESP_FOURCC_RGB16, ESP_FOURCC_RGB16},
@@ -694,7 +694,7 @@ TEST_CASE("Crop only SW", "[ESP_GMF_VIDEO]")
     memset(&video_el_inst, 0, sizeof(video_el_test_t));
     prepare_pool(&res);
 
-    const char *name[] = {"imgfx_crop", NULL};
+    const char *name[] = {"vid_crop", NULL};
 
     TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, name));
 

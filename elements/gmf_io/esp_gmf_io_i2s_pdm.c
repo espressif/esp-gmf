@@ -185,7 +185,7 @@ esp_gmf_err_t esp_gmf_io_i2s_pdm_init(i2s_pdm_io_cfg_t *config, esp_gmf_io_handl
                        "I2s pdm stream configuration", sizeof(*config));
     memcpy(cfg, config, sizeof(*config));
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
-    ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "i2s_pdm" : config->name));
+    ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_i2s_pdm" : config->name));
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _i2s_pdm_fail, "Failed to set obj tag");
     i2s_pdm_io->base.close = _i2s_pdm_close;
     i2s_pdm_io->base.open = _i2s_pdm_open;
