@@ -1,5 +1,5 @@
 .target_test_template:
-  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.4:1"
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.4:2"
   stage: target_test
   interruptible: true
   timeout: 1 hour
