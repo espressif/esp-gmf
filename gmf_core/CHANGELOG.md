@@ -1,6 +1,6 @@
 # Changelog
 
-## *Unreleased*
+## v0.7.0
 
 ### Features
 - Added `esp_gmf_pool_iterate_element` to support iteration over elements in the GMF pool
