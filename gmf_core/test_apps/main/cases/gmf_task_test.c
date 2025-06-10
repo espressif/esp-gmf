@@ -136,6 +136,23 @@ static esp_gmf_err_t esp_gmf_task_evt(esp_gmf_event_pkt_t *evt, void *ctx)
     return ESP_GMF_ERR_OK;
 }
 
+TEST_CASE("Deinit after init directly", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    esp_gmf_task_handle_t hd = NULL;
+    esp_gmf_task_init(&cfg, &hd);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_NOT_SUPPORT, esp_gmf_task_pause(hd));
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_NOT_SUPPORT, esp_gmf_task_resume(hd));
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
 TEST_CASE("Working to done with manual register cleanup", "[ESP_GMF_TASK]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
@@ -814,6 +831,67 @@ TEST_CASE("Return error after call STOP", "[ESP_GMF_TASK]")
     // } else {
     //     TEST_ASSERT_FALSE(true);
     // }
+
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Once job return TRUNCATE", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+
+    clear_test_gmf_task_count();
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    esp_gmf_task_init(&cfg, &hd);
+    esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
+
+    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+
+    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    // Let working3 run once only
+    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    // Let working3 run TRUNCATE
+    test_gmf_task3_count.working_return = ESP_GMF_JOB_ERR_TRUNCATE;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_pause(hd));
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_resume(hd));
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
+
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_ERROR, state);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.cleanup);
+
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.prepare);
+
+    TEST_ASSERT_NOT_EQUAL(0, test_gmf_task1_count.working);
+    TEST_ASSERT_NOT_EQUAL(0, test_gmf_task2_count.working);
+    TEST_ASSERT_NOT_EQUAL(0, test_gmf_task3_count.working);
+    // Test4 should not run for task3 error
+    TEST_ASSERT_EQUAL(0, test_gmf_task4_count.working);
 
     ESP_GMF_MEM_SHOW(TAG);
 }

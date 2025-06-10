@@ -26,6 +26,9 @@
 - Fixed `esp_gmf_cache_acquire` still report OK even not cache enough data
 - Fixed stop timeout occurred due to an element keep on report CONTINUE
 - Fixed method helper to support method without argument
+- Fixed used after free when once job return TRUNCATE
+- Removed unused configuration buffer for GMF task
+- Fixed memory leakage when clear-up when `esp_gmf_task_init` failed
 
 ## v0.6.1
 
