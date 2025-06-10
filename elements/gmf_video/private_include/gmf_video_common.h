@@ -115,7 +115,7 @@ static inline esp_gmf_job_err_t video_el_acquire_payload(esp_gmf_port_handle_t i
         if (load_ret == ESP_GMF_IO_ABORT) {
             return ESP_GMF_JOB_ERR_OK;
         }
-        ESP_LOGE("Imgfx_el", "Acquire size: %ld-%d on in port, ret: %d", in_wanted_size, (*in_load)->valid_size, load_ret);
+        ESP_LOGE("Imgfx_el", "Acquire size: %ld on in port, ret: %d", in_wanted_size, load_ret);
         return ESP_GMF_JOB_ERR_FAIL;
     }
     if (((*in_load)->valid_size) < (in_wanted_size)) {
