@@ -17,18 +17,24 @@
 #include "esp_gmf_cap.h"
 #include "esp_gmf_caps_def.h"
 #include "esp_gmf_audio_element.h"
+#ifdef MIXER_DEBUG
+#include "esp_timer.h"
+#endif
 
-#define MIXER_DEFAULT_PROC_TIME_MS (10)
+#define MIXER_DEFAULT_PROC_TIME_MS      (10)
+#define MIXER_GET_FRAME_BYTE_SIZE(info) (MIXER_DEFAULT_PROC_TIME_MS * info->sample_rate * info->channel * info->bits_per_sample / 8000)
 
 typedef struct {
     esp_gmf_audio_element_t parent;            /*!< The GMF mixer handle */
     esp_ae_mixer_handle_t   mixer_hd;          /*!< The audio effects mixer handle */
     uint8_t                 bytes_per_sample;  /*!< Bytes number of per sampling point */
     uint32_t                process_num;       /*!< The data number of mixer processing */
+    uint32_t                frame_time;        /*!< The time of one frame, unit: ms */
     esp_gmf_payload_t     **in_load;           /*!< The array of input payload */
     esp_gmf_payload_t      *out_load;          /*!< The output payload */
     uint8_t               **in_arr;            /*!< The input buffer pointer array of mixer */
     esp_ae_mixer_mode_t    *mode;              /*!< The mixer mode */
+    uint8_t                 src_num;           /*!< The number of source */
     bool                    need_reopen : 1;   /*!< Whether need to reopen.
                                                     True: Execute the close function first, then execute the open function
                                                     False: Do nothing */
@@ -102,9 +108,15 @@ static esp_gmf_job_err_t esp_gmf_mixer_open(esp_gmf_element_handle_t self, void 
     esp_ae_mixer_cfg_t *mixer_info = (esp_ae_mixer_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, mixer_info, {return ESP_GMF_JOB_ERR_FAIL;})
     mixer->bytes_per_sample = (mixer_info->bits_per_sample >> 3) * mixer_info->channel;
-    mixer->process_num = MIXER_DEFAULT_PROC_TIME_MS * mixer_info->sample_rate * mixer->bytes_per_sample / 1000;
     esp_ae_mixer_open(mixer_info, &mixer->mixer_hd);
     ESP_GMF_CHECK(TAG, mixer->mixer_hd, {return ESP_GMF_JOB_ERR_FAIL;}, "Failed to create mixer handle");
+    for (int i = 0; i < mixer_info->src_num; i++) {
+        esp_ae_mixer_set_mode(mixer->mixer_hd, i, mixer->mode[i]);
+    }
+    uint32_t process_num = MIXER_GET_FRAME_BYTE_SIZE(mixer_info);
+    mixer->process_num = (ESP_GMF_ELEMENT_GET(mixer)->in_attr.data_size == 0) ? (process_num) : (ESP_GMF_ELEMENT_GET(mixer)->in_attr.data_size);
+    mixer->frame_time = GMF_AUDIO_CALC_PTS(mixer->process_num, mixer_info->sample_rate, mixer_info->channel, mixer_info->bits_per_sample);
+    mixer->src_num = mixer_info->src_num;
     mixer->in_load = esp_gmf_oal_calloc(1, sizeof(esp_gmf_payload_t *) * mixer_info->src_num);
     ESP_GMF_MEM_VERIFY(TAG, mixer->in_load, {return ESP_GMF_JOB_ERR_FAIL;},
                        "in load", sizeof(esp_gmf_payload_t *) * mixer_info->src_num);
@@ -156,16 +168,27 @@ static esp_gmf_job_err_t esp_gmf_mixer_process(esp_gmf_element_handle_t self, vo
     esp_gmf_port_handle_t in = ESP_GMF_ELEMENT_GET(self)->in;
     esp_gmf_port_handle_t in_port = in;
     esp_gmf_port_handle_t out_port = ESP_GMF_ELEMENT_GET(self)->out;
-    esp_ae_mixer_cfg_t *mixer_info = (esp_ae_mixer_cfg_t *)OBJ_GET_CFG(self);
-    ESP_GMF_NULL_CHECK(TAG, mixer_info, return ESP_GMF_JOB_ERR_FAIL);
-    int index = mixer_info->src_num;
+    int index = mixer->src_num;
     memset(mixer->in_load, 0, sizeof(esp_gmf_payload_t *) * index);
     mixer->out_load = NULL;
     int i = 0;
-    int wait_time = 0;
+#ifdef MIXER_DEBUG
+    uint64_t start = 0;
+    uint64_t end = 0;
+    uint64_t acquire_in_time = 0;
+    uint32_t frame_time = mixer->frame_time;
+#endif
     while (in_port != NULL) {
-        wait_time = i == 0 ? ESP_GMF_MAX_DELAY : 0;
-        ret = esp_gmf_port_acquire_in(in_port, &(mixer->in_load[i]), mixer->process_num, wait_time);
+#ifdef MIXER_DEBUG
+        start = esp_timer_get_time();
+#endif
+        int wait_ticks = ((in_port->wait_ticks < (mixer->frame_time / index)) ? (mixer->frame_time / index) : (in_port->wait_ticks));
+        ret = esp_gmf_port_acquire_in(in_port, &(mixer->in_load[i]), mixer->process_num, wait_ticks);
+#ifdef MIXER_DEBUG
+        end = esp_timer_get_time();
+        acquire_in_time += ((end - start) / 1000);
+        ESP_LOGD(TAG, "Port %d acquire in time: %lld ms, wait ticks: %d", i, (end - start) / 1000, wait_ticks);
+#endif
         if (ret == ESP_GMF_IO_FAIL || mixer->in_load[i]->buf == NULL) {
             ESP_LOGE(TAG, "Acquire in failed, idx:%d, ret: %d", i, ret);
             out_len = ESP_GMF_JOB_ERR_FAIL;
@@ -180,11 +203,16 @@ static esp_gmf_job_err_t esp_gmf_mixer_process(esp_gmf_element_handle_t self, vo
             memset(mixer->in_arr[i] + read_len, 0, mixer->process_num - read_len);
         }
         in_port = in_port->next;
-        i++;
         ESP_LOGV(TAG, "IN: idx: %d load: %p, buf: %p, valid size: %d, buf length: %d, done: %d",
                  i, mixer->in_load[i], mixer->in_load[i]->buf, mixer->in_load[i]->valid_size,
                  mixer->in_load[i]->buf_length, mixer->in_load[i]->is_done);
+        i++;
     }
+#ifdef MIXER_DEBUG
+    if (acquire_in_time > frame_time) {
+        ESP_LOGW(TAG, "Total acquire in time: %lld ms, frame time: %ld ms", acquire_in_time, frame_time);
+    }
+#endif
     ret = esp_gmf_port_acquire_out(out_port, &mixer->out_load, mixer->process_num, ESP_GMF_MAX_DELAY);
     ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, ret, out_len, { goto __mixer_release;});
     // Down-mixer never stop in gmf, only user can set to stop
@@ -380,13 +408,17 @@ esp_gmf_err_t esp_gmf_mixer_init(esp_ae_mixer_cfg_t *config, esp_gmf_element_han
     esp_gmf_obj_set_config(obj, cfg, sizeof(esp_ae_mixer_cfg_t));
     mixer->mode = esp_gmf_oal_calloc(cfg->src_num, sizeof(esp_ae_mixer_mode_t));
     ESP_GMF_MEM_VERIFY(TAG, mixer->mode, {ret = ESP_GMF_ERR_MEMORY_LACK; goto MIXER_INIT_FAIL;}, "Allocate(%d) failed", cfg->src_num * sizeof(esp_ae_mixer_mode_t));
+    for (int i = 0; i < cfg->src_num; i++) {
+        mixer->mode[i] = ESP_AE_MIXER_MODE_FADE_UPWARD;
+    }
     ret = esp_gmf_obj_set_tag(obj, "aud_mixer");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto MIXER_INIT_FAIL, "Failed to set obj tag");
     esp_gmf_element_cfg_t el_cfg = {0};
+    mixer->process_num = MIXER_GET_FRAME_BYTE_SIZE(cfg);
     ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.in_attr, ESP_GMF_EL_PORT_CAP_MULTI, 0, 0,
-        ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
+        ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, mixer->process_num);
     ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.out_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
-        ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
+        ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, mixer->process_num);
     el_cfg.dependency = true;
     ret = esp_gmf_audio_el_init(mixer, &el_cfg);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto MIXER_INIT_FAIL, "Failed to initialize mixer element");

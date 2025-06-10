@@ -498,11 +498,10 @@ TEST_CASE("Audio mixer Play", "[ESP_GMF_Effects]")
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe3));
     esp_gmf_element_handle_t mixer_hd = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe3, "aud_mixer", &mixer_hd));
-    esp_ae_mixer_mode_t mode = ESP_AE_MIXER_MODE_FADE_UPWARD;
     xEventGroupWaitBits(pipe_sync_evt3, PIPELINE_BLOCK_RUN_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
     // set mode
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_mixer_set_mode(mixer_hd, 0, mode));
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_mixer_set_mode(mixer_hd, 1, mode));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_mixer_set_mode(mixer_hd, 0, ESP_AE_MIXER_MODE_FADE_UPWARD));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_mixer_set_mode(mixer_hd, 1, ESP_AE_MIXER_MODE_FADE_DOWNWARD));
 
     xEventGroupWaitBits(pipe_sync_evt1, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
     xEventGroupWaitBits(pipe_sync_evt2, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);

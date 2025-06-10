@@ -69,13 +69,14 @@ typedef struct {
  * @brief  Configuration structure for the audio simple player
  */
 typedef struct {
-    esp_asp_func_t       in;          /*!< Input data callback, it is required only for raw data(raw://xxx/xxx.mp3), and is ignored in other cases */
-    esp_asp_func_t       out;         /*!< Output data callback configuration, it is required for all cases */
-    int                  task_prio;   /*!< Priority of the player task */
-    int                  task_stack;  /*!< Size of the task stack */
-    uint8_t              task_core;   /*!< CPU core affinity for the task */
-    esp_asp_prev_func_t  prev;        /*!< An optional callback invoked before the pipeline starts (e.g., configure linked elements before running) */
-    void                *prev_ctx;    /*!< User context passed to the previous action callback */
+    esp_asp_func_t       in;                    /*!< Input data callback, it is required only for raw data(raw://xxx/xxx.mp3), and is ignored in other cases */
+    esp_asp_func_t       out;                   /*!< Output data callback configuration, it is required for all cases */
+    int                  task_prio;             /*!< Priority of the player task */
+    int                  task_stack;            /*!< Size of the task stack */
+    uint8_t              task_core;             /*!< CPU core affinity for the task */
+    bool                 task_stack_in_ext : 1; /*!< Whether the task stack is in external memory */
+    esp_asp_prev_func_t  prev;                  /*!< An optional callback invoked before the pipeline starts (e.g., configure linked elements before running) */
+    void                *prev_ctx;              /*!< User context passed to the previous action callback */
 } esp_asp_cfg_t;
 
 /**

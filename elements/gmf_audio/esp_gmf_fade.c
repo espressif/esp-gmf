@@ -24,7 +24,6 @@ typedef struct {
     esp_gmf_audio_element_t parent;            /*!< The GMF fade handle */
     esp_ae_fade_handle_t    fade_hd;           /*!< The audio effects fade handle */
     uint8_t                 bytes_per_sample;  /*!< Bytes number of per sampling point */
-    esp_ae_fade_mode_t      mode;              /*!< The current fade mode */
     bool                    need_reopen : 1;   /*!< Whether need to reopen.
                                                     True: Execute the close function first, then execute the open function
                                                     False: Do nothing */
@@ -236,6 +235,8 @@ esp_gmf_err_t esp_gmf_fade_set_mode(esp_gmf_element_handle_t handle, esp_ae_fade
 {
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_fade_t *fade = (esp_gmf_fade_t *)handle;
+    esp_ae_fade_cfg_t *cfg = (esp_ae_fade_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     if (fade->fade_hd) {
         esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
         esp_ae_err_t ret = esp_ae_fade_set_mode(fade->fade_hd, mode);
@@ -244,7 +245,7 @@ esp_gmf_err_t esp_gmf_fade_set_mode(esp_gmf_element_handle_t handle, esp_ae_fade
             return ESP_GMF_JOB_ERR_FAIL;
         }
     }
-    fade->mode = mode;
+    cfg->mode = mode;
     return ESP_GMF_JOB_ERR_OK;
 }
 
@@ -252,6 +253,8 @@ esp_gmf_err_t esp_gmf_fade_get_mode(esp_gmf_element_handle_t handle, esp_ae_fade
 {
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     ESP_GMF_NULL_CHECK(TAG, mode, { return ESP_GMF_ERR_INVALID_ARG;});
+    esp_ae_fade_cfg_t *cfg = (esp_ae_fade_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_fade_t *fade = (esp_gmf_fade_t *)handle;
     if (fade->fade_hd) {
         esp_ae_err_t ret = esp_ae_fade_get_mode(fade->fade_hd, mode);
@@ -259,7 +262,7 @@ esp_gmf_err_t esp_gmf_fade_get_mode(esp_gmf_element_handle_t handle, esp_ae_fade
             return ESP_GMF_JOB_ERR_FAIL;
         }
     } else {
-        *mode = fade->mode;
+        *mode = cfg->mode;
     }
     return ESP_GMF_JOB_ERR_OK;
 }
@@ -267,6 +270,8 @@ esp_gmf_err_t esp_gmf_fade_get_mode(esp_gmf_element_handle_t handle, esp_ae_fade
 esp_gmf_err_t esp_gmf_fade_reset_weight(esp_gmf_element_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
+    esp_ae_fade_cfg_t *cfg = (esp_ae_fade_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_fade_t *fade = (esp_gmf_fade_t *)handle;
     if(fade->fade_hd) {
         esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
@@ -275,7 +280,7 @@ esp_gmf_err_t esp_gmf_fade_reset_weight(esp_gmf_element_handle_t handle)
         if (ret != ESP_AE_ERR_OK) {
             return ESP_GMF_JOB_ERR_FAIL;
         }
-        esp_ae_fade_get_mode(fade->fade_hd, &fade->mode);
+        esp_ae_fade_get_mode(fade->fade_hd, &cfg->mode);
     }
     return ESP_GMF_JOB_ERR_OK;
 }
