@@ -23,6 +23,7 @@
 #include "esp_gmf_rate_cvt.h"
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_app_setup_peripheral.h"
+#include "esp_gmf_app_unit_test.h"
 #include "esp_gmf_audio_helper.h"
 #include "gmf_audio_play_com.h"
 
@@ -436,11 +437,12 @@ TEST_CASE("Record file for playback, multiple files with One Pipe, [FILE->dec->r
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=14000]")
+TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=10000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
     esp_log_level_set("ESP_GMF_POOL", ESP_LOG_DEBUG);
+    esp_gmf_app_test_case_uses_tcpip();
     ESP_GMF_MEM_SHOW(TAG);
     esp_gmf_app_wifi_connect();
     esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();

@@ -34,3 +34,20 @@ GMF 应用工具包（gmf_app_utils）是一个为方便 ESP GMF 开发应用程
   - `io`：GPIO 引脚控制
     - 用法：io <引脚编号> <电平 0-1>
     - 设置指定 GPIO 引脚的输出电平
+
+### 单元测试工具（`esp_gmf_app_unit_test.h`）
+提供 GMF 应用单元测试常用函数
+
+- 主要功能
+  - 多级内存泄漏检测（警告/关键阈值）
+  - 组件特定泄漏分类（通用/LWIP/NVS）
+  - 灵活的泄漏检查模式（默认/自定义/禁用）
+  - 堆损坏检测和报告
+  - TCP/IP 栈初始化
+  - 单元测试的 Task 创建函数
+
+- 使用方式
+  - 在每个测试前后自动调用 `setUp()` 和 `tearDown()`
+  - 使用`esp_gmf_app_test_case_uses_tcpip()`进行网络测试项资源预分配
+  - 支持通过测试项描述如 `[leaks]` 或 `[leaks=1024]` 控制泄漏检查阈值
+  - main 函数调用 `esp_gmf_app_test_main()` 创建单元测试线程

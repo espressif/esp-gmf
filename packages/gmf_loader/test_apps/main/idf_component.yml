@@ -14,3 +14,5 @@ dependencies:
   espressif/gmf_loader:
     override_path: ../../../gmf_loader
   espressif/esp-dsp: <=1.6.0
+  espressif/gmf_app_utils:
+    override_path: "../../../../packages/gmf_app_utils"

@@ -34,3 +34,20 @@ Provides interactive CLI support where users can customize command prompts and r
   - `io`: GPIO pin control
     - Usage: io <gpio_num> <level 0-1>
     - Set output level for specified GPIO pin
+
+### Unit Test Utilities (`esp_gmf_app_unit_test.h`)
+Provide common functions for GMF application unit tests
+
+- Key Features
+  - Multi-level memory leak detection (warning/critical thresholds)
+  - Component-specific leak categorization (General/LWIP/NVS)
+  - Flexible leak checking modes (default/custom/disabled)
+  - Heap corruption detection and reporting
+  - Memory pre-allocation for TCP/IP stack
+  - The Task creation function of unit tests
+
+- Usage
+  - `setUp()` and `tearDown()` are automatically called before/after each test
+  - Call `esp_gmf_app_test_case_uses_tcpip()` in tests that require network functionality
+  - Use test annotations like `[leaks]` or `[leaks=1024]` to control leak checking
+  - The main function calls' esp_gmf_app_test_main() 'to create the unit test Task

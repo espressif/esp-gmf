@@ -28,7 +28,7 @@ TEST_CASE("esp_gmf_app_cli_init_basic", "[gmf_app_utils][cli][leaks=8000]")
     // Test basic CLI initialization without custom commands
     esp_err_t ret = esp_gmf_app_cli_init("test> ", NULL);
     TEST_ASSERT_EQUAL(ESP_OK, ret);
-
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
     // Test double initialization - should return ESP_OK with warning
     ret = esp_gmf_app_cli_init("test2> ", NULL);
     TEST_ASSERT_EQUAL(ESP_OK, ret);

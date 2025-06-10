@@ -5,8 +5,6 @@
  */
 
 #include "unity.h"
-
-#include "test_utils.h"
 #include "esp_gmf_err.h"
 #include "esp_gmf_pool.h"
 #include "gmf_loader_setup_defaults.h"
