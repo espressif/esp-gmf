@@ -32,10 +32,10 @@ static esp_gmf_job_err_t video_crop_el_open(esp_gmf_element_handle_t self, void 
     esp_gmf_crop_hd_t *video_el = (esp_gmf_crop_hd_t *)self;
     // Get and check config
     esp_imgfx_crop_cfg_t *cfg = (esp_imgfx_crop_cfg_t *)OBJ_GET_CFG(self);
-    ESP_GMF_MEM_CHECK(TAG, cfg, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_CHECK(TAG, cfg, return ESP_GMF_JOB_ERR_FAIL, "Failed to get crop config");
     // Open crop module
     esp_imgfx_crop_open(cfg, &video_el->hd);
-    ESP_GMF_MEM_CHECK(TAG, video_el->hd, return ESP_GMF_JOB_ERR_FAIL);
+    ESP_GMF_CHECK(TAG, video_el->hd, return ESP_GMF_JOB_ERR_FAIL, "Failed to create crop handle");
     // Get video size
     esp_imgfx_get_image_size(cfg->in_pixel_fmt, &cfg->in_res, (uint32_t *)&(ESP_GMF_ELEMENT_GET(video_el)->in_attr.data_size));
     esp_imgfx_get_image_size(cfg->in_pixel_fmt, &cfg->cropped_res, (uint32_t *)&(ESP_GMF_ELEMENT_GET(video_el)->out_attr.data_size));
@@ -240,6 +240,7 @@ static esp_gmf_err_t video_crop_el_received_event_handler(esp_gmf_event_pkt_t *e
     esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
     esp_gmf_element_get_state(self, &state);
     esp_gmf_info_video_t *info = (esp_gmf_info_video_t *)evt->payload;
+    esp_gmf_video_el_set_src_info(self, info);
     esp_imgfx_crop_cfg_t *config = (esp_imgfx_crop_cfg_t *)OBJ_GET_CFG(self);
     esp_gmf_crop_hd_t *video_el = (esp_gmf_crop_hd_t *)self;
     GMF_VIDEO_UPDATE_CONFIG(config, info, video_el->need_recfg);
