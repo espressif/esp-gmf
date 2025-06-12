@@ -656,8 +656,8 @@ TEST_CASE("Audio Effects Play, [FILE->dec->resample->bvt->cvt->alc->eq->fade->so
     ESP_GMF_POOL_SHOW_ITEMS(pool);
     esp_gmf_pipeline_handle_t pipe = NULL;
 
-    const char *name[] = {"aud_simp_dec", "rate_cvt", "ch_cvt", "bit_cvt", "alc", "eq", "fade", "sonic"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), "codec_dev_tx", &pipe));
+    const char *name[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt", "aud_bit_cvt", "aud_alc", "aud_eq", "aud_fade", "aud_sonic"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe));
     TEST_ASSERT_NOT_NULL(pipe);
 
     gmf_setup_pipeline_out_dev(pipe);
@@ -675,7 +675,7 @@ TEST_CASE("Audio Effects Play, [FILE->dec->resample->bvt->cvt->alc->eq->fade->so
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe, "/sdcard/test.mp3"));
     esp_gmf_element_handle_t dec_el = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_simp_dec", &dec_el));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_dec", &dec_el));
     esp_gmf_info_sound_t info = {
         .format_id = ESP_AUDIO_SIMPLE_DEC_TYPE_MP3,
     };
@@ -742,30 +742,30 @@ TEST_CASE("Audio Effects Data Weaver test", "[ESP_GMF_Effects]")
 
     ESP_GMF_POOL_SHOW_ITEMS(pool);
     esp_gmf_pipeline_handle_t pipe1 = NULL;
-    const char *name1[] = {"aud_simp_dec", "deinterleave"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name1, sizeof(name1) / sizeof(char *), NULL, &pipe1));
+    const char *name1[] = {"aud_dec", "aud_deintlv"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name1, sizeof(name1) / sizeof(char *), NULL, &pipe1));
     TEST_ASSERT_NOT_NULL(pipe1);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe1, "/sdcard/test.mp3"));
     esp_gmf_element_handle_t dec_el = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe1, "aud_simp_dec", &dec_el));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe1, "aud_dec", &dec_el));
     esp_gmf_info_sound_t info = {
         .format_id = ESP_AUDIO_SIMPLE_DEC_TYPE_MP3,
     };
     esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);
 
     esp_gmf_pipeline_handle_t pipe2 = NULL;
-    const char *name2[] = {"alc"};
+    const char *name2[] = {"aud_alc"};
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name2, sizeof(name2) / sizeof(char *), NULL, &pipe2));
     TEST_ASSERT_NOT_NULL(pipe2);
 
     esp_gmf_pipeline_handle_t pipe3 = NULL;
-    const char *name3[] = {"alc"};
+    const char *name3[] = {"aud_alc"};
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name3, sizeof(name3) / sizeof(char *), NULL, &pipe3));
     TEST_ASSERT_NOT_NULL(pipe3);
 
     esp_gmf_pipeline_handle_t pipe4 = NULL;
-    const char *name4[] = {"interleave", "rate_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name4, sizeof(name4) / sizeof(char *), "codec_dev_tx", &pipe4));
+    const char *name4[] = {"aud_intlv", "aud_rate_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name4, sizeof(name4) / sizeof(char *), "io_codec_dev", &pipe4));
     TEST_ASSERT_NOT_NULL(pipe4);
 
     gmf_setup_pipeline_out_dev(pipe4);
@@ -776,35 +776,35 @@ TEST_CASE("Audio Effects Data Weaver test", "[ESP_GMF_Effects]")
                                                                ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 300);
     esp_gmf_port_handle_t in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, esp_gmf_db_deinit, db1,
                                                              ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 300);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe1, "deinterleave", out_port, pipe2, "alc", in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe1, "aud_deintlv", out_port, pipe2, "aud_alc", in_port));
     esp_gmf_db_handle_t db2 = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_db_new_ringbuf(10, 1024, &db2));
     out_port = NEW_ESP_GMF_PORT_OUT_BYTE(esp_gmf_db_acquire_write, esp_gmf_db_release_write, esp_gmf_db_deinit, db2,
                                          ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 3000);
     in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, esp_gmf_db_deinit, db2,
                                        ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 3000);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe1, "deinterleave", out_port, pipe3, "alc", in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe1, "aud_deintlv", out_port, pipe3, "aud_alc", in_port));
     esp_gmf_db_handle_t db3 = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_db_new_ringbuf(10, 1024, &db3));
     out_port = NEW_ESP_GMF_PORT_OUT_BYTE(esp_gmf_db_acquire_write, esp_gmf_db_release_write, esp_gmf_db_deinit, db3,
                                          ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 3000);
     in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, esp_gmf_db_deinit, db3,
                                        ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 3000);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe2, "alc", out_port, pipe4, "interleave", in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe2, "aud_alc", out_port, pipe4, "aud_intlv", in_port));
     esp_gmf_db_handle_t db4 = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_db_new_ringbuf(10, 1024, &db4));
     out_port = NEW_ESP_GMF_PORT_OUT_BYTE(esp_gmf_db_acquire_write, esp_gmf_db_release_write, esp_gmf_db_deinit, db4,
                                          ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 3000);
     in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, esp_gmf_db_deinit, db4,
                                        ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 3000);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe3, "alc", out_port, pipe4, "interleave", in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe3, "aud_alc", out_port, pipe4, "aud_intlv", in_port));
 
     esp_gmf_task_cfg_t cfg1 = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg1.ctx = NULL;
     cfg1.cb = NULL;
     cfg1.thread.core = 0;
     cfg1.thread.prio = 3;
-    cfg1.name = "deinterleave";
+    cfg1.name = "aud_deintlv";
     esp_gmf_task_handle_t work_task1 = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg1, &work_task1));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_bind_task(pipe1, work_task1));
@@ -838,7 +838,7 @@ TEST_CASE("Audio Effects Data Weaver test", "[ESP_GMF_Effects]")
     cfg4.cb = NULL;
     cfg4.thread.core = 0;
     cfg4.thread.prio = 3;
-    cfg4.name = "interleave";
+    cfg4.name = "aud_intlv";
     esp_gmf_task_handle_t work_task4 = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg4, &work_task4));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_bind_task(pipe4, work_task4));
@@ -931,27 +931,27 @@ TEST_CASE("Audio mixer Play", "[ESP_GMF_Effects]")
 
     ESP_GMF_POOL_SHOW_ITEMS(pool);
     esp_gmf_pipeline_handle_t pipe1 = NULL;
-    const char *name1[] = {"aud_simp_dec", "rate_cvt", "ch_cvt", "bit_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name1, sizeof(name1) / sizeof(char *), NULL, &pipe1));
+    const char *name1[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt", "aud_bit_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name1, sizeof(name1) / sizeof(char *), NULL, &pipe1));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe1, "/sdcard/test1.mp3"));
     esp_gmf_element_handle_t dec_el = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe1, "aud_simp_dec", &dec_el));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe1, "aud_dec", &dec_el));
     esp_gmf_info_sound_t info = {
         .format_id = ESP_AUDIO_SIMPLE_DEC_TYPE_MP3,
     };
     esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);
 
     esp_gmf_pipeline_handle_t pipe2 = NULL;
-    const char *name2[] = {"aud_simp_dec", "rate_cvt", "ch_cvt", "bit_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name2, sizeof(name2) / sizeof(char *), NULL, &pipe2));
+    const char *name2[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt", "aud_bit_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name2, sizeof(name2) / sizeof(char *), NULL, &pipe2));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe2, "/sdcard/test.mp3"));
     dec_el = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe2, "aud_simp_dec", &dec_el));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe2, "aud_dec", &dec_el));
     esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);
 
     esp_gmf_pipeline_handle_t pipe3 = NULL;
-    const char *name3[] = {"mixer"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name3, sizeof(name3) / sizeof(char *), "codec_dev_tx", &pipe3));
+    const char *name3[] = {"aud_mixer"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name3, sizeof(name3) / sizeof(char *), "io_codec_dev", &pipe3));
     gmf_setup_pipeline_out_dev(pipe3);
     // create rb
     esp_gmf_db_handle_t db = NULL;
@@ -963,13 +963,13 @@ TEST_CASE("Audio mixer Play", "[ESP_GMF_Effects]")
                                                                ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 300);
     esp_gmf_port_handle_t in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, esp_gmf_db_deinit, db,
                                                              ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 300);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe1, "bit_cvt", out_port, pipe3, "mixer", in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe1, "aud_bit_cvt", out_port, pipe3, "aud_mixer", in_port));
 
     out_port = NEW_ESP_GMF_PORT_OUT_BYTE(esp_gmf_db_acquire_write, esp_gmf_db_release_write, esp_gmf_db_deinit, db2,
                                          ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 300);
     in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, esp_gmf_db_deinit, db2,
                                        ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 300);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe2, "bit_cvt", out_port, pipe3, "mixer", in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe2, "aud_bit_cvt", out_port, pipe3, "aud_mixer", in_port));
 
     esp_gmf_task_cfg_t cfg1 = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg1.ctx = NULL;
@@ -1009,7 +1009,7 @@ TEST_CASE("Audio mixer Play", "[ESP_GMF_Effects]")
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe2));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe3));
     esp_gmf_element_handle_t mixer_hd = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe3, "mixer", &mixer_hd));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe3, "aud_mixer", &mixer_hd));
     esp_ae_mixer_mode_t mode = ESP_AE_MIXER_MODE_FADE_UPWARD;
     xEventGroupWaitBits(pipe_sync_evt3, PIPELINE_BLOCK_RUN_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
     // set mode

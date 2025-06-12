@@ -286,7 +286,7 @@ static int embed_flash_io_set(esp_asp_handle_t *handle, void *ctx)
     if (pipe) {
         esp_gmf_io_handle_t flash = NULL;
         ret = esp_gmf_pipeline_get_in(pipe, &flash);
-        if ((ret == ESP_GMF_ERR_OK) && (strcasecmp(OBJ_GET_TAG(flash), "embed") == 0)) {
+        if ((ret == ESP_GMF_ERR_OK) && (strcasecmp(OBJ_GET_TAG(flash), "io_embed_flash") == 0)) {
             ret = esp_gmf_io_embed_flash_set_context(flash, (embed_item_info_t *)&g_esp_embed_tone[0], ESP_EMBED_TONE_URL_MAX);
         }
     }
@@ -372,7 +372,7 @@ TEST_CASE("Play, Advance API run and stop", "[Simple_Player]")
     esp_gmf_alc_init(&alc_cfg, &alc_hd);
     esp_audio_simple_player_register_el(handle, alc_hd);
 
-    const char *name[] = {"aud_simp_dec", "rate_cvt", "ch_cvt", "bit_cvt", "alc"};
+    const char *name[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt", "aud_bit_cvt", "aud_alc"};
     esp_audio_simple_player_set_pipeline(handle, NULL, name, 5);
 
     const char *uri = "file://sdcard/test.mp3";

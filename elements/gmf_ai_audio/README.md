@@ -9,6 +9,12 @@
 - [esp_gmf_wn](./src/esp_gmf_wn.c): A standalone wake word detection module that can be used independently
 - [esp_gmf_afe](./src/esp_gmf_afe.c): An easy-to-use interface based on the `audio front end (afe)` from `esp-sr`, providing functionalities such as voice wake-up, command word recognition, and speech detection
 
+| Name | Tag | Function | Method | Input Channel Number | Output Channel Number | Model Partition Dependency | Input Frame Length | Notes |
+|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----|
+| esp_gmf_afe | ai_afe | Audio front-end processing: Wake word detection, command word recognition, voice enhancement, echo cancellation, noise suppression, automatic gain control | `start_vcmd_det` | 1-4 | 1 | Yes | 256(sample) | Currently supports up to 2 microphone channels + 1 speaker reference signal, remaining channel selection marked as N, requires following voice command detection procedure |
+| esp_gmf_aec | ai_aec | Echo cancellation: Eliminates echo interference in audio, improves voice quality | None | 1-4 | 1 | No | 256(sample) | Input channels can be set to multiple microphones, uses first microphone channel and reference channel for calculation, must include reference signal |
+| esp_gmf_wn | ai_wn | Independent wake word detection: Lightweight wake word detection, independent of AFE, low resource consumption | None | 1-4 | 1 | Yes | 256(sample) | Supports up to 3 microphone channels, microphone channel count in input format must match working mode |
+
 ## AFE Manager `esp_gmf_afe_manager`
 
 ### Features

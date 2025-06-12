@@ -260,7 +260,7 @@ esp_gmf_err_t esp_gmf_video_color_convert_init(esp_imgfx_color_convert_cfg_t *co
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     esp_gmf_obj_t *obj = (esp_gmf_obj_t *)video_el;
     // Set element tag
-    ret = esp_gmf_obj_set_tag(video_el, "imgfx_color_convert");
+    ret = esp_gmf_obj_set_tag(video_el, "vid_color_cvt");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto __init_exit, "Failed set OBJ tag");
     // Configure object callbacks
     obj->new_obj = video_cc_el_new;

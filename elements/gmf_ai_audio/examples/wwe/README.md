@@ -96,9 +96,9 @@ I (1547) AFE: AFE Version: (2MIC_V250113)
 I (1550) AFE: Input PCM Config: total 4 channels(2 microphone, 1 playback), sample rate:16000
 I (1560) AFE: AFE Pipeline: [input] -> |AEC(SR_HIGH_PERF)| -> |SE(BSS)| -> |VAD(WebRTC)| -> |WakeNet(wn9_hilexin,)| -> [output]
 I (1572) AFE_manager: Feed task, ch 4, chunk 1024, buf size 8192
-I (1579) GMF_AFE: Create AFE, gmf_afe-0x3c2dcf90
-I (1584) GMF_AFE: Create AFE, gmf_afe-0x3c2dd0b8
-I (1589) GMF_AFE: New an object,gmf_afe-0x3c2dd0b8
+I (1579) GMF_AFE: Create AFE, ai_afe-0x3c2dcf90
+I (1584) GMF_AFE: Create AFE, ai_afe-0x3c2dd0b8
+I (1589) GMF_AFE: New an object,ai_afe-0x3c2dd0b8
 I (1595) ESP_GMF_TASK: Waiting to run... [tsk:TSK_0x3fcc500c-0x3fcc500c, wk:0x0, run:0]
 I (1603) ESP_GMF_THREAD: The TSK_0x3fcc500c created on internal memory
 I (1610) ESP_GMF_TASK: Waiting to run... [tsk:TSK_0x3fcc500c-0x3fcc500c, wk:0x3c2dd17c, run:0]
@@ -112,15 +112,15 @@ I (2639) NEW_DATA_BUS: New ringbuffer:0x3c6feeb4, num:2, item_cnt:8192, db:0x3c6
 I (2643) NEW_DATA_BUS: New ringbuffer:0x3c6fe4d0, num:1, item_cnt:20480, db:0x3c6fcbd8
 I (2651) AFE_manager: AFE manager suspend 1
 I (2656) AFE_manager: AFE manager suspend 0
-I (2661) AI_AUDIO_WWE: CB: RECV Pipeline EVT: el:gmf_afe-0x3c2dd0b8, type:12288, sub:ESP_GMF_EVENT_STATE_INITIALIZED, payload:0x3fccd920, size:12,0x0
-I (2675) AI_AUDIO_WWE: CB: RECV Pipeline EVT: el:gmf_afe-0x3c2dd0b8, type:8192, sub:ESP_GMF_EVENT_STATE_RUNNING, payload:0x0, size:0,0x0
+I (2661) AI_AUDIO_WWE: CB: RECV Pipeline EVT: el:ai_afe-0x3c2dd0b8, type:12288, sub:ESP_GMF_EVENT_STATE_INITIALIZED, payload:0x3fccd920, size:12,0x0
+I (2675) AI_AUDIO_WWE: CB: RECV Pipeline EVT: el:ai_afe-0x3c2dd0b8, type:8192, sub:ESP_GMF_EVENT_STATE_RUNNING, payload:0x0, size:0,0x0
 I (2688) ESP_GMF_TASK: One times job is complete, del[wk:0x3c2dd17c,ctx:0x3c2dd0b8, label:gmf_afe_open]
-I (2698) ESP_GMF_PORT: ACQ IN, new self payload:0x3c2dd17c, port:0x3c2dd240, el:0x3c2dd0b8-gmf_afe
+I (2698) ESP_GMF_PORT: ACQ IN, new self payload:0x3c2dd17c, port:0x3c2dd240, el:0x3c2dd0b8-ai_afe
 
 Type 'help' to get the list of commands.
 Use UP/DOWN arrows to navigate through command history.
 Press TAB when typing command name to auto-complete.
-I (2893) ESP_GMF_PORT: ACQ OUT, new self payload:0x3c6fc548, port:0x3c2dd280, el:0x3c2dd0b8-gmf_afe
+I (2893) ESP_GMF_PORT: ACQ OUT, new self payload:0x3c6fc548, port:0x3c2dd280, el:0x3c2dd0b8-ai_afe
 Audio > I (5668) AFE_manager: AFE Ctrl [1, 1]
 I (5669) AFE_manager: VAD ctrl ret 1
 I (5674) AI_AUDIO_WWE: WAKEUP_START [1 : 1]

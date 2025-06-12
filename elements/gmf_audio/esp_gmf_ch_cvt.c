@@ -271,7 +271,7 @@ esp_gmf_err_t esp_gmf_ch_cvt_init(esp_ae_ch_cvt_cfg_t *config, esp_gmf_element_h
         ESP_GMF_CHECK(TAG, new_cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto CH_CVT_INIT_FAIL;}, "Failed to allocate channel conversion configuration");
         esp_gmf_obj_set_config(obj, new_cfg, sizeof(*new_cfg));
     }
-    ret = esp_gmf_obj_set_tag(obj, "ch_cvt");
+    ret = esp_gmf_obj_set_tag(obj, "aud_ch_cvt");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto CH_CVT_INIT_FAIL, "Failed to set obj tag");
     esp_gmf_element_cfg_t el_cfg = {0};
     ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.in_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,

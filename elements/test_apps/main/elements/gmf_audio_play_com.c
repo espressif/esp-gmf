@@ -37,7 +37,7 @@ void play_pause_single_file( esp_gmf_pipeline_handle_t pipe, const char *uri)
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe, uri));
 
     esp_gmf_element_handle_t dec_el = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_simp_dec", &dec_el));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_dec", &dec_el));
     esp_audio_simple_dec_cfg_t *simple_cfg = (esp_audio_simple_dec_cfg_t *)OBJ_GET_CFG(dec_el);
     TEST_ASSERT_NOT_NULL(simple_cfg);
     uint32_t type = ESP_AUDIO_TYPE_UNSUPPORT;
@@ -66,7 +66,7 @@ void play_loop_single_file(esp_gmf_pipeline_handle_t pipe, esp_audio_type_t type
 
     // enc reconfig
     esp_gmf_element_handle_t enc_handle = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe, "encoder", &enc_handle);
+    esp_gmf_pipeline_get_el_by_name(pipe, "aud_enc", &enc_handle);
     esp_gmf_info_sound_t info = {0};
     info.format_id = type;
     if (type == ESP_AUDIO_TYPE_G711A || type == ESP_AUDIO_TYPE_G711U) {
@@ -86,7 +86,7 @@ void play_loop_single_file(esp_gmf_pipeline_handle_t pipe, esp_audio_type_t type
 
     // dec reconfig
     esp_gmf_element_handle_t dec_el = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_simp_dec", &dec_el));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_dec", &dec_el));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info));
 
     ESP_GMF_MEM_SHOW(TAG);

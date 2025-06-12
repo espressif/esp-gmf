@@ -123,8 +123,8 @@ TEST_CASE("Create and destroy pipeline", "[ESP_GMF_POOL]")
     ESP_GMF_POOL_SHOW_ITEMS(pool);
     // Create the new pipeline
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"aud_simp_dec", "rate_cvt"};
-    esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), "codec_dev_tx", &pipe);
+    const char *name[] = {"aud_dec", "aud_rate_cvt"};
+    esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe);
     TEST_ASSERT_NOT_NULL(pipe);
     esp_gmf_pipeline_destroy(pipe);
     gmf_unregister_audio_all(pool);
@@ -159,8 +159,8 @@ TEST_CASE("Audio Play, ENC and DEC Loop TEST, [FILE->enc->dec->IIS]", "[ESP_GMF_
     ESP_GMF_POOL_SHOW_ITEMS(pool);
 
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"encoder", "aud_simp_dec", "rate_cvt", "ch_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), "codec_dev_tx", &pipe));
+    const char *name[] = {"aud_enc", "aud_dec", "aud_rate_cvt", "aud_ch_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe));
     TEST_ASSERT_NOT_NULL(pipe);
     gmf_setup_pipeline_out_dev(pipe);
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
@@ -217,12 +217,12 @@ TEST_CASE("Audio Play, One Pipe, [FILE->dec->resample->IIS]", "[ESP_GMF_POOL]")
     ESP_GMF_POOL_SHOW_ITEMS(pool);
 
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"aud_simp_dec", "rate_cvt"};
-    esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), "codec_dev_tx", &pipe);
+    const char *name[] = {"aud_dec", "aud_rate_cvt"};
+    esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe);
     TEST_ASSERT_NOT_NULL(pipe);
     gmf_setup_pipeline_out_dev(pipe);
     esp_gmf_element_handle_t dec_el = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe, "aud_simp_dec", &dec_el);
+    esp_gmf_pipeline_get_el_by_name(pipe, "aud_dec", &dec_el);
     esp_gmf_info_sound_t info = {
         .format_id = ESP_AUDIO_SIMPLE_DEC_TYPE_MP3,
     };
@@ -289,8 +289,8 @@ TEST_CASE("Audio Play, multiple file with One Pipe, [FILE->dec->resample->IIS]",
     ESP_GMF_POOL_SHOW_ITEMS(pool);
 
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"aud_simp_dec", "rate_cvt", "ch_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), "codec_dev_tx", &pipe));
+    const char *name[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe));
     TEST_ASSERT_NOT_NULL(pipe);
     gmf_setup_pipeline_out_dev(pipe);
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
@@ -346,15 +346,15 @@ TEST_CASE("Audio Play, two in pipe use same task, [file->dec]->rb->[resample+IIS
     ESP_GMF_POOL_SHOW_ITEMS(pool);
 
     esp_gmf_pipeline_handle_t pipe_in1, pipe_in2;
-    const char *name[] = {"aud_simp_dec"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), NULL, &pipe_in1));
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), NULL, &pipe_in2));
+    const char *name[] = {"aud_dec"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), NULL, &pipe_in1));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), NULL, &pipe_in2));
     TEST_ASSERT_NOT_NULL(pipe_in1);
     TEST_ASSERT_NOT_NULL(pipe_in2);
 
-    const char *name2[] = {"rate_cvt"};
+    const char *name2[] = {"aud_rate_cvt"};
     esp_gmf_pipeline_handle_t pipe_out = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name2, sizeof(name2) / sizeof(char *), "codec_dev_tx", &pipe_out));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name2, sizeof(name2) / sizeof(char *), "io_codec_dev", &pipe_out));
     TEST_ASSERT_NOT_NULL(pipe_out);
     gmf_setup_pipeline_out_dev(pipe_out);
     esp_gmf_db_handle_t db = NULL;
@@ -367,13 +367,13 @@ TEST_CASE("Audio Play, two in pipe use same task, [file->dec]->rb->[resample+IIS
 
     esp_gmf_port_handle_t in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, NULL, db,
                                                              ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, portMAX_DELAY);
-    esp_gmf_pipeline_connect_pipe(pipe_in1, "aud_simp_dec", out_port1, pipe_out, "rate_cvt", in_port);
+    esp_gmf_pipeline_connect_pipe(pipe_in1, "aud_dec", out_port1, pipe_out, "aud_rate_cvt", in_port);
 
     ESP_LOGW(TAG, "Starting play the FIRST file.");
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
     cfg.cb = NULL;
-    cfg.name = "aud_simp_dec";
+    cfg.name = "aud_dec";
     esp_gmf_task_handle_t work_task_in1 = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task_in1));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_bind_task(pipe_in1, work_task_in1));
@@ -390,7 +390,7 @@ TEST_CASE("Audio Play, two in pipe use same task, [file->dec]->rb->[resample+IIS
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe_in1, (char *)wav_file_path[0]));
 
     esp_gmf_element_handle_t dec_el = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe_in1, "aud_simp_dec", &dec_el);
+    esp_gmf_pipeline_get_el_by_name(pipe_in1, "aud_dec", &dec_el);
     uint32_t type = ESP_AUDIO_TYPE_UNSUPPORT;
     esp_gmf_audio_helper_get_audio_type_by_uri(wav_file_path[0], &type);
     esp_gmf_info_sound_t info = {
@@ -408,7 +408,7 @@ TEST_CASE("Audio Play, two in pipe use same task, [file->dec]->rb->[resample+IIS
 
     ESP_LOGW(TAG, "Starting play the SECOND file.");
     esp_gmf_audio_element_handle_t el = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe_in2, "aud_simp_dec", &el);
+    esp_gmf_pipeline_get_el_by_name(pipe_in2, "aud_dec", &el);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_register_out_port(el, out_port2));
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_reset(work_task_in1));
@@ -416,7 +416,7 @@ TEST_CASE("Audio Play, two in pipe use same task, [file->dec]->rb->[resample+IIS
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_event(pipe_in2, _pipeline_event, pipe_sync_evt));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe_in2, (char *)wav_file_path[1]));
     dec_el = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe_in2, "aud_simp_dec", &dec_el);
+    esp_gmf_pipeline_get_el_by_name(pipe_in2, "aud_dec", &dec_el);
     esp_gmf_audio_helper_get_audio_type_by_uri(wav_file_path[1], &info.format_id);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(pipe_in2));
@@ -483,8 +483,8 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
     // Create the new elements
     esp_gmf_pipeline_handle_t pipe = NULL;
     const char *uri = "https://dl.espressif.com/dl/audio/gs-16b-2c-44100hz.mp3";
-    const char *name[] = {"aud_simp_dec", "rate_cvt", "ch_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "http", name, sizeof(name) / sizeof(char *), "codec_dev_tx", &pipe));
+    const char *name[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_http", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe));
     TEST_ASSERT_NOT_NULL(pipe);
     gmf_setup_pipeline_out_dev(pipe);
     EventGroupHandle_t pipe_sync_evt = xEventGroupCreate();
@@ -508,7 +508,7 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
 
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe, uri));
         esp_gmf_element_handle_t dec_el = NULL;
-        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_simp_dec", &dec_el));
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_dec", &dec_el));
         esp_gmf_audio_helper_get_audio_type_by_uri(uri, &info.format_id);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info));
 
@@ -544,8 +544,8 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
         // Create the new elements
         esp_gmf_pipeline_handle_t pipe = NULL;
         const char *uri = "https://dl.espressif.com/dl/audio/gs-16b-2c-44100hz.mp3";
-        const char *name[] = {"aud_simp_dec", "rate_cvt", "ch_cvt"};
-        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "http", name, sizeof(name) / sizeof(char *), "codec_dev_tx", &pipe));
+        const char *name[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt"};
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_http", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe));
         TEST_ASSERT_NOT_NULL(pipe);
         gmf_setup_pipeline_out_dev(pipe);
         esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
@@ -560,7 +560,7 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_event(pipe, _pipeline_event, pipe_sync_evt));
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe, uri));
         esp_gmf_element_handle_t dec_el = NULL;
-        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_simp_dec", &dec_el));
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_dec", &dec_el));
         info.format_id = ESP_AUDIO_SIMPLE_DEC_TYPE_MP3;
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info));
 
@@ -622,10 +622,10 @@ TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_P
     esp_gmf_pipeline_handle_t pipe_in = NULL;
     esp_gmf_pipeline_handle_t pipe_out = NULL;
     const char *uri = "https://dl.espressif.com/dl/audio/ff-16b-2c-16000hz.mp3";
-    const char *name_in[] = {"aud_simp_dec"};
-    const char *name_out[] = {"rate_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "http", name_in, sizeof(name_in) / sizeof(char *), NULL, &pipe_in));
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name_out, sizeof(name_out) / sizeof(char *), "codec_dev_tx", &pipe_out));
+    const char *name_in[] = {"aud_dec"};
+    const char *name_out[] = {"aud_rate_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_http", name_in, sizeof(name_in) / sizeof(char *), NULL, &pipe_in));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name_out, sizeof(name_out) / sizeof(char *), "io_codec_dev", &pipe_out));
     TEST_ASSERT_NOT_NULL(pipe_in);
     TEST_ASSERT_NOT_NULL(pipe_out);
     gmf_setup_pipeline_out_dev(pipe_out);
@@ -636,7 +636,7 @@ TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_P
                                                                ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, portMAX_DELAY);
     esp_gmf_port_handle_t in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, NULL, db,
                                                              ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, portMAX_DELAY);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe_in, "aud_simp_dec", out_port, pipe_out, "rate_cvt", in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe_in, "aud_dec", out_port, pipe_out, "aud_rate_cvt", in_port));
 
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
@@ -651,7 +651,7 @@ TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_P
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_event(pipe_in, _pipeline_event, pipe_sync_evt));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe_in, uri));
     esp_gmf_element_handle_t dec_el = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe_in, "aud_simp_dec", &dec_el);
+    esp_gmf_pipeline_get_el_by_name(pipe_in, "aud_dec", &dec_el);
     esp_gmf_info_sound_t info = {
         .format_id = ESP_AUDIO_SIMPLE_DEC_TYPE_MP3,
     };
@@ -749,15 +749,15 @@ TEST_CASE("Audio Play, loop with no gap, [file->dec]->rb->[resample+IIS]", "[ESP
     gmf_register_audio_all(pool);
     ESP_GMF_POOL_SHOW_ITEMS(pool);
 
-    const char *name[] = {"aud_simp_dec"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), NULL, &pipe_in1));
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), NULL, &pipe_in2));
+    const char *name[] = {"aud_dec"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), NULL, &pipe_in1));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), NULL, &pipe_in2));
     TEST_ASSERT_NOT_NULL(pipe_in1);
     TEST_ASSERT_NOT_NULL(pipe_in2);
 
-    const char *name2[] = {"rate_cvt"};
+    const char *name2[] = {"aud_rate_cvt"};
     esp_gmf_pipeline_handle_t pipe_out = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name2, sizeof(name2) / sizeof(char *), "codec_dev_tx", &pipe_out));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name2, sizeof(name2) / sizeof(char *), "io_codec_dev", &pipe_out));
     TEST_ASSERT_NOT_NULL(pipe_out);
     gmf_setup_pipeline_out_dev(pipe_out);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_db_new_ringbuf(20, 1024, &db));
@@ -769,12 +769,12 @@ TEST_CASE("Audio Play, loop with no gap, [file->dec]->rb->[resample+IIS]", "[ESP
 
     esp_gmf_port_handle_t in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, NULL, db,
                                                              ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, portMAX_DELAY);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe_in1, "aud_simp_dec", out_port1, pipe_out, "rate_cvt", in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe_in1, "aud_dec", out_port1, pipe_out, "aud_rate_cvt", in_port));
 
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
     cfg.cb = NULL;
-    cfg.name = "aud_simp_dec";
+    cfg.name = "aud_dec";
     esp_gmf_task_handle_t work_task_in1 = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task_in1));
     TEST_ASSERT_NOT_NULL(work_task_in1);
@@ -788,7 +788,7 @@ TEST_CASE("Audio Play, loop with no gap, [file->dec]->rb->[resample+IIS]", "[ESP
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_event(pipe_in2, _loop_play_event, pipe_sync_evt));
 
     esp_gmf_audio_element_handle_t el = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe_in2, "aud_simp_dec", &el));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe_in2, "aud_dec", &el));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_register_out_port(el, out_port2));
 
     cfg.name = "res_iis";
@@ -805,13 +805,13 @@ TEST_CASE("Audio Play, loop with no gap, [file->dec]->rb->[resample+IIS]", "[ESP
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe_in2, file_name1));
 
     esp_gmf_element_handle_t dec_el = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe_in1, "aud_simp_dec", &dec_el));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe_in1, "aud_dec", &dec_el));
     esp_gmf_info_sound_t info = {0};
     esp_gmf_audio_helper_get_audio_type_by_uri(file_name, &info.format_id);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info));
 
     dec_el = NULL;
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe_in2, "aud_simp_dec", &dec_el));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe_in2, "aud_dec", &dec_el));
     esp_gmf_audio_helper_get_audio_type_by_uri(file_name1, &info.format_id);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info));
 
@@ -904,14 +904,14 @@ TEST_CASE("Copier, 2 pipeline test, One pipeline play file to I2S, another save 
     ESP_GMF_POOL_SHOW_ITEMS(pool);
 
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"aud_simp_dec", "copier", "rate_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), "codec_dev_tx", &pipe));
+    const char *name[] = {"aud_dec", "copier", "aud_rate_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe));
     TEST_ASSERT_NOT_NULL(pipe);
     gmf_setup_pipeline_out_dev(pipe);
     ESP_LOGE(TAG, "%d, Copier, 2 pipeline test", __LINE__);
     esp_gmf_pipeline_handle_t pipe2 = NULL;
-    const char *name2[] = {"rate_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name2, sizeof(name2) / sizeof(char *), "file", &pipe2));
+    const char *name2[] = {"aud_rate_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name2, sizeof(name2) / sizeof(char *), "io_file", &pipe2));
     TEST_ASSERT_NOT_NULL(pipe2);
 
     esp_gmf_db_handle_t db = NULL;
@@ -921,7 +921,7 @@ TEST_CASE("Copier, 2 pipeline test, One pipeline play file to I2S, another save 
                                                                ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 100);
     esp_gmf_port_handle_t in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, esp_gmf_db_deinit, db,
                                                              ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 100);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe, "copier", out_port, pipe2, "rate_cvt", in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe, "copier", out_port, pipe2, "aud_rate_cvt", in_port));
 
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
@@ -952,7 +952,7 @@ TEST_CASE("Copier, 2 pipeline test, One pipeline play file to I2S, another save 
     ESP_GMF_MEM_SHOW(TAG);
     esp_gmf_element_handle_t dec_el = NULL;
     esp_gmf_info_sound_t info = {0};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_simp_dec", &dec_el));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_dec", &dec_el));
     esp_gmf_audio_helper_get_audio_type_by_uri(file_name, &info.format_id);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info));
 
@@ -1019,21 +1019,21 @@ TEST_CASE("Copier, 3 pipeline test, One pipeline decoding file, one is play to I
     ESP_GMF_POOL_SHOW_ITEMS(pool);
 
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"aud_simp_dec", "copier"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "file", name, sizeof(name) / sizeof(char *), NULL, &pipe));
+    const char *name[] = {"aud_dec", "copier"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), NULL, &pipe));
     TEST_ASSERT_NOT_NULL(pipe);
 
     esp_gmf_pipeline_handle_t pipe2 = NULL;
-    const char *name2[] = {"rate_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name2, sizeof(name2) / sizeof(char *), "codec_dev_tx", &pipe2));
+    const char *name2[] = {"aud_rate_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name2, sizeof(name2) / sizeof(char *), "io_codec_dev", &pipe2));
     TEST_ASSERT_NOT_NULL(pipe2);
     gmf_setup_pipeline_out_dev(pipe2);
     esp_gmf_pipeline_handle_t pipe3 = NULL;
-    const char *name3[] = {"rate_cvt"};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name3, sizeof(name3) / sizeof(char *), "file", &pipe3));
+    const char *name3[] = {"aud_rate_cvt"};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name3, sizeof(name3) / sizeof(char *), "io_file", &pipe3));
     TEST_ASSERT_NOT_NULL(pipe3);
     esp_gmf_element_handle_t rate_hd = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe2, "rate_cvt", &rate_hd);
+    esp_gmf_pipeline_get_el_by_name(pipe2, "aud_rate_cvt", &rate_hd);
 
     esp_gmf_db_handle_t db = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_db_new_ringbuf(10, 1024, &db));
@@ -1044,14 +1044,14 @@ TEST_CASE("Copier, 3 pipeline test, One pipeline decoding file, one is play to I
     esp_gmf_port_handle_t in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, esp_gmf_db_deinit, db,
                                                              ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 10);
 
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe, "copier", out_port, pipe2, "rate_cvt", in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe, "copier", out_port, pipe2, "aud_rate_cvt", in_port));
 
     out_port = NEW_ESP_GMF_PORT_OUT_BYTE(esp_gmf_db_acquire_write, esp_gmf_db_release_write, esp_gmf_db_deinit, db2,
                                          ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 3000);
     in_port = NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read, esp_gmf_db_deinit, db2,
                                        ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT, 3000);
 
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe, "copier", out_port, pipe3, "rate_cvt", in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_connect_pipe(pipe, "copier", out_port, pipe3, "aud_rate_cvt", in_port));
 
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
@@ -1068,7 +1068,7 @@ TEST_CASE("Copier, 3 pipeline test, One pipeline decoding file, one is play to I
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe, file_name));
     esp_gmf_element_handle_t dec_el = NULL;
     esp_gmf_info_sound_t info = {0};
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_simp_dec", &dec_el));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe, "aud_dec", &dec_el));
     esp_gmf_audio_helper_get_audio_type_by_uri(file_name, &info.format_id);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info));
 

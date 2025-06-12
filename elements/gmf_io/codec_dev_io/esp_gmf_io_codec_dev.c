@@ -135,7 +135,7 @@ esp_gmf_err_t esp_gmf_io_codec_dev_init(codec_dev_io_cfg_t *config, esp_gmf_io_h
                        "codec device configuration", sizeof(*config));
     memcpy(cfg, config, sizeof(*config));
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
-    ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "codec_dev" : config->name));
+    ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_codec_dev" : config->name));
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _codec_dev_fail, "Failed to set obj tag");
     codec_dev_io->base.close = _codec_dev_close;
     codec_dev_io->base.open = _codec_dev_open;

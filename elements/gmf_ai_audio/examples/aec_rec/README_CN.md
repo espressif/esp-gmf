@@ -148,56 +148,56 @@ I (1112) ES7210: Enable TDM mode
 I (1118) ES7210: Unmuted
 I (1118) Adev_Codec: Open codec device OK
 I (1123) ESP_GMF_POOL: Registered items on pool:0x3c23ddf8, app_main-142
-I (1129) ESP_GMF_POOL: IO, Item:0x3c23decc, H:0x3c23de0c, TAG:http
-I (1135) ESP_GMF_POOL: IO, Item:0x3c23df9c, H:0x3c23dedc, TAG:http
-I (1142) ESP_GMF_POOL: IO, Item:0x3c23e038, H:0x3c23dfac, TAG:file
-I (1149) ESP_GMF_POOL: IO, Item:0x3c23e0d4, H:0x3c23e048, TAG:file
-I (1156) ESP_GMF_POOL: IO, Item:0x3c23e204, H:0x3c23e170, TAG:embed_flash
-I (1163) ESP_GMF_POOL: IO, Item:0x3c23ede0, H:0x3c23ed50, TAG:codec_dev_tx
-I (1171) ESP_GMF_POOL: IO, Item:0x3c23ee80, H:0x3c23edf0, TAG:codec_dev_rx
+I (1129) ESP_GMF_POOL: IO, Item:0x3c23decc, H:0x3c23de0c, TAG:io_http
+I (1135) ESP_GMF_POOL: IO, Item:0x3c23df9c, H:0x3c23dedc, TAG:io_http
+I (1142) ESP_GMF_POOL: IO, Item:0x3c23e038, H:0x3c23dfac, TAG:io_file
+I (1149) ESP_GMF_POOL: IO, Item:0x3c23e0d4, H:0x3c23e048, TAG:io_file
+I (1156) ESP_GMF_POOL: IO, Item:0x3c23e204, H:0x3c23e170, TAG:io_embed_flash
+I (1163) ESP_GMF_POOL: IO, Item:0x3c23ede0, H:0x3c23ed50, TAG:io_codec_dev
+I (1171) ESP_GMF_POOL: IO, Item:0x3c23ee80, H:0x3c23edf0, TAG:io_codec_dev
 I (1178) ESP_GMF_POOL: EL, Item:0x3c23e160, H:0x3c23e0e4, TAG:copier
-I (1185) ESP_GMF_POOL: EL, Item:0x3c23e2e8, H:0x3c23e214, TAG:encoder
-I (1193) ESP_GMF_POOL: EL, Item:0x3c23e3e8, H:0x3c23e2f8, TAG:aud_simp_dec
-I (1200) ESP_GMF_POOL: EL, Item:0x3c23e4bc, H:0x3c23e3f8, TAG:alc
-I (1207) ESP_GMF_POOL: EL, Item:0x3c23e570, H:0x3c23e4cc, TAG:eq
-I (1214) ESP_GMF_POOL: EL, Item:0x3c23e5a4, H:0x3c23e6d8, TAG:ch_cvt
-I (1221) ESP_GMF_POOL: EL, Item:0x3c23e5d4, H:0x3c23e774, TAG:bit_cvt
-I (1228) ESP_GMF_POOL: EL, Item:0x3c23e8ac, H:0x3c23e810, TAG:rate_cvt
-I (1235) ESP_GMF_POOL: EL, Item:0x3c23e988, H:0x3c23e8bc, TAG:fade
-I (1242) ESP_GMF_POOL: EL, Item:0x3c23ea84, H:0x3c23e998, TAG:sonic
-I (1249) ESP_GMF_POOL: EL, Item:0x3c23eb64, H:0x3c23ea94, TAG:deinterleave
-I (1256) ESP_GMF_POOL: EL, Item:0x3c23ec40, H:0x3c23eb74, TAG:interleave
-I (1264) ESP_GMF_POOL: EL, Item:0x3c23ed40, H:0x3c23ec50, TAG:mixer
-I (1271) ESP_GMF_POOL: EL, Item:0x3c23ef60, H:0x3c23ee90, TAG:aec
-W (1278) ESP_GMF_PIPELINE: There is no thread for add jobs, pipe:0x3c23ef70, tsk:0x0, [el:rate_cvt-0x3c23efa8]
+I (1185) ESP_GMF_POOL: EL, Item:0x3c23e2e8, H:0x3c23e214, TAG:aud_enc
+I (1193) ESP_GMF_POOL: EL, Item:0x3c23e3e8, H:0x3c23e2f8, TAG:aud_dec
+I (1200) ESP_GMF_POOL: EL, Item:0x3c23e4bc, H:0x3c23e3f8, TAG:aud_alc
+I (1207) ESP_GMF_POOL: EL, Item:0x3c23e570, H:0x3c23e4cc, TAG:aud_eq
+I (1214) ESP_GMF_POOL: EL, Item:0x3c23e5a4, H:0x3c23e6d8, TAG:aud_ch_cvt
+I (1221) ESP_GMF_POOL: EL, Item:0x3c23e5d4, H:0x3c23e774, TAG:aud_bit_cvt
+I (1228) ESP_GMF_POOL: EL, Item:0x3c23e8ac, H:0x3c23e810, TAG:aud_rate_cvt
+I (1235) ESP_GMF_POOL: EL, Item:0x3c23e988, H:0x3c23e8bc, TAG:aud_fade
+I (1242) ESP_GMF_POOL: EL, Item:0x3c23ea84, H:0x3c23e998, TAG:aud_sonic
+I (1249) ESP_GMF_POOL: EL, Item:0x3c23eb64, H:0x3c23ea94, TAG:aud_deintlv
+I (1256) ESP_GMF_POOL: EL, Item:0x3c23ec40, H:0x3c23eb74, TAG:aud_intlv
+I (1264) ESP_GMF_POOL: EL, Item:0x3c23ed40, H:0x3c23ec50, TAG:aud_mixer
+I (1271) ESP_GMF_POOL: EL, Item:0x3c23ef60, H:0x3c23ee90, TAG:ai_aec
+W (1278) ESP_GMF_PIPELINE: There is no thread for add jobs, pipe:0x3c23ef70, tsk:0x0, [el:aud_rate_cvt-0x3c23efa8]
 I (1288) ESP_GMF_THREAD: The TSK_0x3fcb5404 created on internal memory
 I (1288) ESP_GMF_TASK: Waiting to run... [tsk:TSK_0x3fcb5404-0x3fcb5404, wk:0x0, run:0]
 I (1304) AEC_EL_2_FILE: CB: RECV Pipeline EVT: el:NULL-0x3c23ef70, type:8192, sub:ESP_GMF_EVENT_STATE_OPENING, payload:0x0, size:0,0x0
-I (1328) ESP_GMF_PORT: ACQ IN, new self payload:0x3c23f35c, port:0x3c23f2a8, el:0x3c23efa8-rate_cvt
-I (1329) ESP_GMF_PORT: ACQ OUT SET, new self payload:0x3c23fe68, p:0x3c23f1a8, el:0x3c23efa8-rate_cvt
+I (1328) ESP_GMF_PORT: ACQ IN, new self payload:0x3c23f35c, port:0x3c23f2a8, el:0x3c23efa8-aud_rate_cvt
+I (1329) ESP_GMF_PORT: ACQ OUT SET, new self payload:0x3c23fe68, p:0x3c23f1a8, el:0x3c23efa8-aud_rate_cvt
 I (1358) GMF_AEC: GMF AEC open, frame_len: 2048, nch 4, chunksize 256
-I (1359) AEC_EL_2_FILE: CB: RECV Pipeline EVT: el:aec-0x3c23f0c4, type:12288, sub:ESP_GMF_EVENT_STATE_INITIALIZED, payload:0x3fcb6790, size:12,0x0
-I (1371) AEC_EL_2_FILE: CB: RECV Pipeline EVT: el:aec-0x3c23f0c4, type:8192, sub:ESP_GMF_EVENT_STATE_RUNNING, payload:0x0, size:0,0x0
+I (1359) AEC_EL_2_FILE: CB: RECV Pipeline EVT: el:ai_aec-0x3c23f0c4, type:12288, sub:ESP_GMF_EVENT_STATE_INITIALIZED, payload:0x3fcb6790, size:12,0x0
+I (1371) AEC_EL_2_FILE: CB: RECV Pipeline EVT: el:ai_aec-0x3c23f0c4, type:8192, sub:ESP_GMF_EVENT_STATE_RUNNING, payload:0x0, size:0,0x0
 I (1383) ESP_GMF_TASK: One times job is complete, del[wk:0x3c23f3dc,ctx:0x3c23f0c4, label:aec_open]
 I (1401) ESP_GMF_TASK: Waiting to run... [tsk:TSK_0x3fcca2f8-0x3fcca2f8, wk:0x0, run:0]
 I (1401) ESP_GMF_THREAD: The TSK_0x3fcca2f8 created on internal memory
 I (1432) ESP_GMF_TASK: Waiting to run... [tsk:TSK_0x3fcca2f8-0x3fcca2f8, wk:0x3c252ac0, run:0]
 I (1433) ESP_GMF_FILE: Open, dir:1, uri:/sdcard/test.mp3
-I (1446) ESP_GMF_FILE: File size: 2994349 byte, file position: 0
+I (1446) ESP_GMF_FILE: File size: 2994349 byte, io_file position: 0
 I (1447) AEC_EL_2_FILE: CB: RECV Pipeline EVT: el:NULL-0x3c25230c, type:8192
 I (1460) ESP_GMF_TASK: One times job is complete, del[wk:0x3c252ac0,ctx:0x3c252344, label:aud_simp_dec_open]
-I (1469) ESP_GMF_PORT: ACQ IN, new self payload:0x3c252ac0, port:0x3c252964, el:0x3c252344-aud_simp_dec
-I (1482) ESP_GMF_PORT: ACQ OUT SET, new self payload:0x3c252d64, p:0x3c25252c, el:0x3c252344-aud_simp_dec
+I (1469) ESP_GMF_PORT: ACQ IN, new self payload:0x3c252ac0, port:0x3c252964, el:0x3c252344-aud_dec
+I (1482) ESP_GMF_PORT: ACQ OUT SET, new self payload:0x3c252d64, p:0x3c25252c, el:0x3c252344-aud_dec
 W (1491) ESP_GMF_ASMP_DEC: Not enough memory for out, need:4608, old: 1024, new: 4608
 I (1505) ESP_GMF_ASMP_DEC: NOTIFY Info, rate: 0, bits: 0, ch: 0 --> rate: 44100, bits: 16, ch: 2
 Audio >
 I (1589) ESP_GMF_TASK: One times job is complete, del[wk:0x3c253fa4,ctx:0x3c252420, label:rate_cvt_open]
-I (1590) ESP_GMF_PORT: ACQ OUT SET, new self payload:0x3c253fa4, p:0x3c2526c4, el:0x3c252420-rate_cvt
+I (1590) ESP_GMF_PORT: ACQ OUT SET, new self payload:0x3c253fa4, p:0x3c2526c4, el:0x3c252420-aud_rate_cvt
 I (1603) ESP_GMF_TASK: One times job is complete, del[wk:0x3c253fec,ctx:0x3c2525ac, label:ch_cvt_open]
-I (1615) AEC_EL_2_FILE: CB: RECV Pipeline EVT: el:bit_cvt-0x3c252744, type:12288, sub:ESP_GMF_EVENT_STATE_INITIALIZED, payload:0x3fccb680, size:12,0x0
-I (1627) AEC_EL_2_FILE: CB: RECV Pipeline EVT: el:bit_cvt-0x3c252744, type:8192, sub:ESP_GMF_EVENT_STATE_RUNNING, payload:0x0, size:0,0x0
+I (1615) AEC_EL_2_FILE: CB: RECV Pipeline EVT: el:aud_bit_cvt-0x3c252744, type:12288, sub:ESP_GMF_EVENT_STATE_INITIALIZED, payload:0x3fccb680, size:12,0x0
+I (1627) AEC_EL_2_FILE: CB: RECV Pipeline EVT: el:aud_bit_cvt-0x3c252744, type:8192, sub:ESP_GMF_EVENT_STATE_RUNNING, payload:0x0, size:0,0x0
 I (1639) ESP_GMF_TASK: One times job is complete, del[wk:0x3c255608,ctx:0x3c252744, label:bit_cvt_open]
-I (1651) ESP_GMF_PORT: ACQ OUT, new self payload:0x3c255608, port:0x3c252a34, el:0x3c252744-bit_cvt
+I (1651) ESP_GMF_PORT: ACQ OUT, new self payload:0x3c255608, port:0x3c252a34, el:0x3c252744-aud_bit_cvt
 I (21462) ESP_GMF_CODEC_DEV: CLose, 0x3c23f228, pos = 7716864/0
 I (21464) ESP_GMF_TASK: One times job is complete, del[wk:0x3c23f410,ctx:0x3c23efa8, label:rate_cvt_close]
 I (21478) ESP_GMF_TASK: One times job is complete, del[wk:0x3c253fec,ctx:0x3c23f0c4, label:aec_close]
@@ -240,5 +240,5 @@ I (25314) main_task: Returned from app_main()
 
 由于 AEC 算法需要的 cpu 算力较多，所以组建包含 AEC 元素的 Pipeline 时，需合理分配资源，如遇到问题，可按如下方式处理：
 
-- 查看 Pipeline 有哪些需要 cpu 算力较多的元素，如 `gmf_aec`, `encoder`, `file IO` 等
+- 查看 Pipeline 有哪些需要 cpu 算力较多的元素，如 `ai_aec`, `aud_enc`, `io_file` 等
 - 将出现问题的 Pipeline 拆分为两个，分别运行到不同的 cpu 核心上，使用 `gmf port` 连接

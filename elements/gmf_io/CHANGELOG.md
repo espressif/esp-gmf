@@ -13,6 +13,8 @@
 - Fixed file open check for treat return error as valid fd
 - Corrected return value validation for *acq_write/read and *acq_release_write/read callback function implementations
 - Fixed HTTP connection timeout handling during _http_close operations
+- Standardize TAG identifier format across all I/O elements with `io` prefix
+
 
 ## v0.6.3
 

@@ -15,6 +15,8 @@
 - Fixed a build error occurring when SPIRAM is disabled
 - Integrated gmf_app_utils package for peripheral and system management
 - Migrated common utilities to gmf_app_utils package
+- Standardize TAG identifier format across all elements with `ai` prefix
+- Fixed examples TAGs issue because of updating TAGs gmf_audio gmf_io 
 
 ## v0.6.2
 

@@ -150,11 +150,11 @@ static int prepare_encoder_pipeline(esp_gmf_pool_handle_t pool, esp_gmf_info_sou
         return ESP_FAIL;
     }
     // Create pipeline
-    const char *name[] = { "encoder" };
+    const char *name[] = { "aud_enc" };
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, NULL, name, sizeof(name) / sizeof(char *), NULL, &res->pipeline));
     TEST_ASSERT_NOT_NULL(res->pipeline);
     // Get encoder element
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(res->pipeline, "encoder", &res->encoder));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(res->pipeline, "aud_enc", &res->encoder));
     // Create event group
     res->sync_evt = xEventGroupCreate();
     TEST_ASSERT_NOT_NULL(res->sync_evt);

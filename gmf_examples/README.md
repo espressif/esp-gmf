@@ -6,6 +6,6 @@ ESP GMF Examples is a component that collects GMF-related examples, mainly desig
 
 | Example Name | Description | Main Components | Data Flow |
 |---------|---------|---------|---------|
-| pipeline_play_embed_music | Play music embedded in Flash | - aud_simp_dec<br>- bit_cvt<br>- rate_cvt<br>- ch_cvt | Flash -> Decoder -> Audio Processing -> Output Device |
-| pipeline_play_sdcard_music | Play music from SD card | - aud_simp_dec<br>- rate_cvt<br>- ch_cvt<br>- bit_cvt | SD Card -> Decoder -> Audio Processing -> Output Device |
+| pipeline_play_embed_music | Play music embedded in Flash | - aud_dec<br>- aud_bit_cvt<br>- aud_rate_cvt<br>- aud_ch_cvt | Flash -> Decoder -> Audio Processing -> Output Device |
+| pipeline_play_sdcard_music | Play music from SD card | - aud_dec<br>- aud_rate_cvt<br>- aud_ch_cvt<br>- aud_bit_cvt | SD Card -> Decoder -> Audio Processing -> Output Device |
 | pipeline_record_sdcard | Record audio to SD card | - encoder | Input Device -> Encoder -> SD Card |

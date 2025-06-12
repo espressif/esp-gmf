@@ -242,7 +242,7 @@ esp_gmf_err_t esp_gmf_interleave_init(esp_gmf_interleave_cfg *config, esp_gmf_el
         ESP_GMF_CHECK(TAG, new_config, {ret = ESP_GMF_ERR_MEMORY_LACK; goto INTLV_INIT_FAIL;}, "Failed to allocate interleave configuration");
         esp_gmf_obj_set_config(obj, new_config, sizeof(esp_gmf_interleave_cfg));
     }
-    ret = esp_gmf_obj_set_tag(obj, "interleave");
+    ret = esp_gmf_obj_set_tag(obj, "aud_intlv");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto INTLV_INIT_FAIL, "Failed to set obj tag");
     esp_gmf_element_cfg_t el_cfg = {0};
     ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.in_attr, ESP_GMF_EL_PORT_CAP_MULTI, 0, 0,

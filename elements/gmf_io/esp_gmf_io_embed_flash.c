@@ -142,7 +142,7 @@ esp_gmf_err_t esp_gmf_io_embed_flash_init(embed_flash_io_cfg_t *config, esp_gmf_
                        "embed flash stream configuration", sizeof(*config));
     memcpy(cfg, config, sizeof(*config));
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
-    ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "embed" : config->name));
+    ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_embed_flash" : config->name));
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _embed_fail, "Failed to set obj tag");
     embed_flash->base.open = _embed_flash_open;
     embed_flash->base.close = _embed_flash_close;
