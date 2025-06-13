@@ -14,6 +14,16 @@
 extern "C" {
 #endif  /* __cplusplus */
 
+#define DEFAULT_ESP_GMF_COLOR_CONVERT_CONFIG() {        \
+    .in_res = {                                         \
+        .width  = 320,                                  \
+        .height = 240 ,                                 \
+    },                                                  \
+    .in_pixel_fmt    = ESP_IMGFX_PIXEL_FMT_YUYV,        \
+    .out_pixel_fmt   = ESP_IMGFX_PIXEL_FMT_RGB565_LE,   \
+    .color_space_std = ESP_IMGFX_COLOR_SPACE_STD_BT601, \
+}
+
 /**
  * @brief  Initialize the video color convert element with the specified configuration
  *

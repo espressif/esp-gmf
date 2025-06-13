@@ -28,7 +28,7 @@ typedef struct {
     uint8_t                 bytes_per_sample;  /*!< Bytes number of per sampling point */
     int8_t                 *gain;              /*!< The modified gain value of a certain channel number */
     int8_t                  max_ch;            /*!< The maximum channel number */
-    bool                    need_reopen;       /*!< Whether need to reopen.
+    bool                    need_reopen : 1;   /*!< Whether need to reopen.
                                                     True: Execute the close function first, then execute the open function
                                                     False: Do nothing */
 } esp_gmf_alc_t;
@@ -176,7 +176,7 @@ static esp_gmf_err_t alc_received_event_handler(esp_gmf_event_pkt_t *evt, void *
     esp_gmf_element_get_state(self, &state);
     esp_gmf_info_sound_t *info = (esp_gmf_info_sound_t *)evt->payload;
     esp_ae_alc_cfg_t *config = (esp_ae_alc_cfg_t *)OBJ_GET_CFG(self);
-    ESP_GMF_NULL_CHECK(TAG, config, { return ESP_GMF_ERR_FAIL;});
+    ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)self;
     if (info->channels > alc->max_ch) {
         alc->gain = esp_gmf_oal_realloc(alc->gain, config->channel * sizeof(*alc->gain));
@@ -302,12 +302,16 @@ esp_gmf_err_t esp_gmf_alc_init(esp_ae_alc_cfg_t *config, esp_gmf_element_handle_
     obj->new_obj = esp_gmf_alc_new;
     obj->del_obj = esp_gmf_alc_destroy;
     alc->max_ch = GMF_ALC_DEFAULT_MAX_CHANNEL;
+    esp_ae_alc_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(esp_ae_alc_cfg_t));
+    ESP_GMF_MEM_VERIFY(TAG, cfg, ret = ESP_GMF_ERR_MEMORY_LACK; goto ALC_INIT_FAIL;, "alc configuration", sizeof(esp_ae_alc_cfg_t));
+    esp_gmf_obj_set_config(obj, cfg, sizeof(esp_ae_alc_cfg_t));
     if (config) {
-        esp_ae_alc_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(*config));
-        ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto ALC_INIT_FAIL;}, "alc configuration", sizeof(*config));
         alc->max_ch = config->channel > 0 ? config->channel : GMF_ALC_DEFAULT_MAX_CHANNEL;
-        memcpy(cfg, config, sizeof(*config));
-        esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
+        memcpy(cfg, config, sizeof(esp_ae_alc_cfg_t));
+    } else {
+        esp_ae_alc_cfg_t dcfg = DEFAULT_ESP_GMF_ALC_CONFIG();
+        alc->max_ch = dcfg.channel;
+        memcpy(cfg, &dcfg, sizeof(esp_ae_alc_cfg_t));
     }
     alc->gain = esp_gmf_oal_calloc(1, alc->max_ch * sizeof(int8_t));
     ESP_GMF_MEM_VERIFY(TAG, alc->gain, goto ALC_INIT_FAIL, "alc gain", alc->max_ch * sizeof(int8_t));

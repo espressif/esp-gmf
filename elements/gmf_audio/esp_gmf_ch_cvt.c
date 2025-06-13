@@ -110,7 +110,7 @@ static esp_gmf_job_err_t esp_gmf_ch_cvt_process(esp_gmf_element_handle_t self, v
         esp_gmf_ch_cvt_close(self, NULL);
         out_len = esp_gmf_ch_cvt_open(self, NULL);
         if (out_len != ESP_GMF_JOB_ERR_OK) {
-            ESP_LOGE(TAG, "ALC reopen failed");
+            ESP_LOGE(TAG, "Channel conversion reopen failed");
             return out_len;
         }
     }
@@ -185,7 +185,7 @@ static esp_gmf_err_t ch_cvt_received_event_handler(esp_gmf_event_pkt_t *evt, voi
     esp_gmf_element_get_state(self, &state);
     esp_gmf_info_sound_t *info = (esp_gmf_info_sound_t *)evt->payload;
     esp_ae_ch_cvt_cfg_t *config = (esp_ae_ch_cvt_cfg_t *)OBJ_GET_CFG(self);
-    ESP_GMF_NULL_CHECK(TAG, config, { return ESP_GMF_ERR_FAIL;});
+    ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_ch_cvt_t *ch_cvt = (esp_gmf_ch_cvt_t *)self;
     ch_cvt->need_reopen = (config->sample_rate != info->sample_rates) || (info->channels != config->src_ch) || (config->bits_per_sample != info->bits);
     config->sample_rate = info->sample_rates;
@@ -265,12 +265,15 @@ esp_gmf_err_t esp_gmf_ch_cvt_init(esp_ae_ch_cvt_cfg_t *config, esp_gmf_element_h
     esp_gmf_obj_t *obj = (esp_gmf_obj_t *)ch_cvt;
     obj->new_obj = esp_gmf_ch_cvt_new;
     obj->del_obj = esp_gmf_ch_cvt_destroy;
+    esp_ae_ch_cvt_cfg_t *cfg = NULL;
     if (config) {
-        esp_ae_ch_cvt_cfg_t *new_cfg = NULL;
-        dupl_esp_ae_ch_cvt_cfg(config, &new_cfg);
-        ESP_GMF_CHECK(TAG, new_cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto CH_CVT_INIT_FAIL;}, "Failed to allocate channel conversion configuration");
-        esp_gmf_obj_set_config(obj, new_cfg, sizeof(*new_cfg));
+        dupl_esp_ae_ch_cvt_cfg(config, &cfg);
+    } else {
+        esp_ae_ch_cvt_cfg_t dcfg = DEFAULT_ESP_GMF_CH_CVT_CONFIG();
+        dupl_esp_ae_ch_cvt_cfg(&dcfg, &cfg);
     }
+    ESP_GMF_CHECK(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto CH_CVT_INIT_FAIL;}, "Failed to allocate channel conversion configuration");
+    esp_gmf_obj_set_config(obj, cfg, sizeof(esp_ae_ch_cvt_cfg_t));
     ret = esp_gmf_obj_set_tag(obj, "aud_ch_cvt");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto CH_CVT_INIT_FAIL, "Failed to set obj tag");
     esp_gmf_element_cfg_t el_cfg = {0};

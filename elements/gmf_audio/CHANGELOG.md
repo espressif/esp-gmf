@@ -15,12 +15,20 @@
 - Redefined audio methods name
 - Removed the audio encoder and decoder reconfig interface in `esp_gmf_audio_helper.c`
 - Used the `esp_gmf_element_handle_t` type handle in the `gmf_audio` module
+- Use default configuration for `esp_gmf_audio_xxx_init` internally if configuration set to NULL
+- Added TRUNCATE support for SONIC element to enable its flexible placement at any position within the pipeline
+- Supported scenarios where the input data for audio encoding is not a complete frame
 
 ### Bug Fixes
 
 - Fixed `gmf_audio_enc` process blocked due to forget release of in_load when truncate is returned
 - Fixed parameter mismatch in `audio_dec_reconfig_dec_by_sound_info`
 - Standardize TAG identifier format across all audio elements with `aud` prefix
+- Fixed a crash caused by passing a NULL encoder config to the init function and subsequently reporting info
+- Fixed bugs in the implementation of methods for sonic, fade, and mixer
+- Fixed the issue where the encoder modified the configuration during runtime
+- Fixed the issue where the mixer did not forward the out_load parameter to downstream components when all input stream were no data
+- Fixed bugs that not check validation of in and out buffer for mixer which will cause crash
 
 ## v0.6.3
 

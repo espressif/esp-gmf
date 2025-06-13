@@ -44,6 +44,10 @@ void test_esp_gmf_alc_if()
     TEST_ASSERT_EQUAL(esp_gmf_alc_get_gain(handle, config.channel + 1, &gain), ESP_GMF_ERR_INVALID_ARG);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_alc_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
 void test_esp_gmf_bit_cvt_if()
@@ -54,6 +58,10 @@ void test_esp_gmf_bit_cvt_if()
     TEST_ASSERT_EQUAL(esp_gmf_bit_cvt_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_bit_cvt_init(&config, &handle), ESP_GMF_ERR_OK);
     // Deinitialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_bit_cvt_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
@@ -69,6 +77,10 @@ void test_esp_gmf_ch_cvt_if()
     TEST_ASSERT_EQUAL(esp_gmf_ch_cvt_set_dest_channel(handle, 1), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_ch_cvt_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
 void test_esp_gmf_deinterleave_if()
@@ -79,6 +91,10 @@ void test_esp_gmf_deinterleave_if()
     TEST_ASSERT_EQUAL(esp_gmf_deinterleave_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_deinterleave_init(&config, &handle), ESP_GMF_ERR_OK);
     // Deinitialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_deinterleave_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
@@ -93,6 +109,10 @@ void test_esp_gmf_eq_if()
     // Set para function test
     TEST_ASSERT_EQUAL(esp_gmf_eq_set_para(NULL, 0, &para), ESP_GMF_ERR_INVALID_ARG);
     // Deinitialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_eq_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
@@ -115,6 +135,10 @@ void test_esp_gmf_fade_if()
     TEST_ASSERT_EQUAL(esp_gmf_fade_reset_weight(handle), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_fade_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
 void test_esp_gmf_interleave_if()
@@ -125,6 +149,10 @@ void test_esp_gmf_interleave_if()
     TEST_ASSERT_EQUAL(esp_gmf_interleave_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_interleave_init(&config, &handle), ESP_GMF_ERR_OK);
     // Deinitialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_interleave_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
@@ -148,6 +176,10 @@ void test_esp_gmf_mixer_if()
     TEST_ASSERT_EQUAL(esp_gmf_mixer_set_audio_info(handle, sample_rate, channel, bits), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_mixer_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
 void test_esp_gmf_rate_cvt_if()
@@ -162,6 +194,10 @@ void test_esp_gmf_rate_cvt_if()
     TEST_ASSERT_EQUAL(esp_gmf_rate_cvt_set_dest_rate(NULL, sample_rate), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_rate_cvt_set_dest_rate(handle, sample_rate), ESP_GMF_ERR_OK);
     // Deinitialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_rate_cvt_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
@@ -188,6 +224,10 @@ void test_esp_gmf_sonic_if()
     TEST_ASSERT_EQUAL(esp_gmf_sonic_get_pitch(handle, &pitch), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_sonic_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
 void test_esp_gmf_dec_if()
@@ -199,6 +239,14 @@ void test_esp_gmf_dec_if()
     TEST_ASSERT_EQUAL(esp_gmf_audio_dec_init(&config, &handle), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_audio_dec_init(NULL, &handle), ESP_GMF_ERR_OK);
+    esp_audio_simple_dec_cfg_t *cfg = OBJ_GET_CFG(handle);
+    TEST_ASSERT_NOT_EQUAL(NULL, cfg);
+    TEST_ASSERT_EQUAL(cfg->dec_type, ESP_AUDIO_SIMPLE_DEC_TYPE_NONE);
+    TEST_ASSERT_EQUAL(cfg->dec_cfg, NULL);
+    TEST_ASSERT_EQUAL(cfg->cfg_size, 0);
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
 void test_esp_gmf_enc_if()
@@ -209,6 +257,14 @@ void test_esp_gmf_enc_if()
     TEST_ASSERT_EQUAL(esp_gmf_audio_enc_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_audio_enc_init(&config, &handle), ESP_GMF_ERR_OK);
     // Deinitialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_audio_enc_init(NULL, &handle), ESP_GMF_ERR_OK);
+    esp_audio_enc_config_t *cfg = OBJ_GET_CFG(handle);
+    TEST_ASSERT_NOT_EQUAL(NULL, cfg);
+    TEST_ASSERT_EQUAL(cfg->type, ESP_AUDIO_TYPE_UNSUPPORT);
+    TEST_ASSERT_EQUAL(cfg->cfg, NULL);
+    TEST_ASSERT_EQUAL(cfg->cfg_sz, 0);
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 

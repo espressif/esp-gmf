@@ -31,9 +31,9 @@ typedef struct {
     uint8_t               **out_arr;           /*!< The array of output buffer pointer */
     uint8_t                 channel;           /*!< The audio channel */
     uint8_t                 bits_per_sample;   /*!< Bits number of per sampling point */
-    bool                    need_reopen;       /*!< Whether need to reopen.
-                                                True: Execute the close function first, then execute the open function
-                                                False: Do nothing */
+    bool                    need_reopen : 1;   /*!< Whether need to reopen.
+                                                    True: Execute the close function first, then execute the open function
+                                                    False: Do nothing */
 } esp_gmf_deinterleave_t;
 
 static const char *TAG = "ESP_GMF_DEINTLV";
@@ -192,7 +192,7 @@ static esp_gmf_err_t deinterleave_received_event_handler(esp_gmf_event_pkt_t *ev
     esp_gmf_info_sound_t *info = (esp_gmf_info_sound_t *)evt->payload;
     ESP_GMF_NULL_CHECK(TAG, info, { return ESP_GMF_ERR_FAIL;});
     esp_gmf_deinterleave_cfg *config = (esp_gmf_deinterleave_cfg *)OBJ_GET_CFG(self);
-    ESP_GMF_NULL_CHECK(TAG, config, { return ESP_GMF_ERR_FAIL;});
+    ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_deinterleave_t *deinterleave = (esp_gmf_deinterleave_t *)self;
     deinterleave->need_reopen = (config->sample_rate != info->sample_rates) || (info->channels != config->channel) || (config->bits_per_sample != info->bits);
     config->sample_rate = info->sample_rates;
@@ -241,12 +241,15 @@ esp_gmf_err_t esp_gmf_deinterleave_init(esp_gmf_deinterleave_cfg *config, esp_gm
     esp_gmf_obj_t *obj = (esp_gmf_obj_t *)deinterleave;
     obj->new_obj = esp_gmf_deinterleave_new;
     obj->del_obj = esp_gmf_deinterleave_destroy;
+    esp_gmf_deinterleave_cfg *cfg = NULL;
     if (config) {
-        esp_gmf_deinterleave_cfg *new_config = NULL;
-        dupl_esp_ae_deinterleave_cfg(config, &new_config);
-        ESP_GMF_CHECK(TAG, new_config, {ret = ESP_GMF_ERR_MEMORY_LACK; goto DEINTLV_INIT_FAIL;}, "Failed to allocate deinterleave configuration");
-        esp_gmf_obj_set_config(obj, new_config, sizeof(esp_gmf_deinterleave_cfg));
+        dupl_esp_ae_deinterleave_cfg(config, &cfg);
+    } else {
+        esp_gmf_deinterleave_cfg dcfg = DEFAULT_ESP_GMF_DEINTERLEAVE_CONFIG();
+        dupl_esp_ae_deinterleave_cfg(&dcfg, &cfg);
     }
+    ESP_GMF_CHECK(TAG, cfg, ret = ESP_GMF_ERR_MEMORY_LACK; goto DEINTLV_INIT_FAIL;, "Failed to allocate deinterleave configuration");
+    esp_gmf_obj_set_config(obj, cfg, sizeof(esp_gmf_deinterleave_cfg));
     ret = esp_gmf_obj_set_tag(obj, "aud_deintlv");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto DEINTLV_INIT_FAIL, "Failed to set obj tag");
     esp_gmf_element_cfg_t el_cfg = {0};

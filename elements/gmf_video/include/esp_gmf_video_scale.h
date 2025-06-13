@@ -15,6 +15,19 @@
 extern "C" {
 #endif  /* __cplusplus */
 
+#define DEFAULT_ESP_GMF_SCALE_CONFIG() {                     \
+    .in_res = {                                              \
+        .width  = 320,                                       \
+        .height = 240,                                       \
+    },                                                       \
+    .in_pixel_fmt = ESP_IMGFX_PIXEL_FMT_RGB565_LE,           \
+    .scale_res    = {                                        \
+        .width  = 160,                                       \
+        .height = 120,                                       \
+    },                                                       \
+    .filter_type = ESP_IMGFX_SCALE_FILTER_TYPE_DOWN_RESAMPLE \
+}
+
 /**
  * @brief  Initialize the video scale element with the specified configuration
  *

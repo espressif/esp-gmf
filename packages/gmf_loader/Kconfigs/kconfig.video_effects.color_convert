@@ -34,7 +34,7 @@ menu "Video Effects Color Convert Configuration"
 
     choice
         prompt "Input Pixel Format"
-        default GMF_VIDEO_EFFECTS_CC_INPUT_FMT_GREY
+        default GMF_VIDEO_EFFECTS_CC_INPUT_FMT_YUYV
         help
             Select input pixel format for color conversion
 
