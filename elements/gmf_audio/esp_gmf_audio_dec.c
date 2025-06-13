@@ -19,8 +19,7 @@
 #include "esp_gmf_audio_methods_def.h"
 #include "esp_gmf_audio_element.h"
 
-#define DEFAULT_DEC_OUTPUT_BUFFER_SIZE                     1024
-#define AUDIO_DEC_CALC_PTS(out_len, sample_rate, ch, bits) (out_len) * 8000 / ((sample_rate) * (ch) * (bits))
+#define DEFAULT_DEC_OUTPUT_BUFFER_SIZE 1024
 
 /**
  * @brief Audio simple decoder context in GMF
@@ -312,8 +311,8 @@ static esp_gmf_job_err_t esp_gmf_audio_dec_process(esp_gmf_element_handle_t self
                 GMF_AUDIO_UPDATE_SND_INFO(self, dec_info.sample_rate, dec_info.bits_per_sample, dec_info.channel);
             }
             out_load->valid_size = audio_dec->out_data.decoded_size;
-            audio_dec->pts += AUDIO_DEC_CALC_PTS(out_load->valid_size, dec_info.sample_rate, dec_info.channel, dec_info.bits_per_sample);
             out_load->pts = audio_dec->pts;
+            audio_dec->pts += GMF_AUDIO_CALC_PTS(out_load->valid_size, dec_info.sample_rate, dec_info.channel, dec_info.bits_per_sample);
             esp_gmf_audio_el_update_file_pos(self, out_load->valid_size);
             if (audio_dec->in_load != NULL && audio_dec->in_data.len > 0) {
                 ESP_LOGD(TAG, "Return truncate, in len:%ld", audio_dec->in_data.len);

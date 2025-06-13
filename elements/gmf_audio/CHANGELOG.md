@@ -18,6 +18,7 @@
 - Use default configuration for `esp_gmf_audio_xxx_init` internally if configuration set to NULL
 - Added TRUNCATE support for SONIC element to enable its flexible placement at any position within the pipeline
 - Supported scenarios where the input data for audio encoding is not a complete frame
+- Added PTS (Presentation Time Stamp) calculation and propagation for the `aud_alc`, `aud_eq`, `aud_fade`, `aud_enc`
 
 ### Bug Fixes
 

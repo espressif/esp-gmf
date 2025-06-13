@@ -17,6 +17,7 @@
 #include "esp_gmf_caps_def.h"
 #include "esp_gmf_audio_methods_def.h"
 #include "esp_gmf_audio_element.h"
+#include "gmf_audio_common.h"
 
 #define AUD_ENC_DEFAULT_INPUT_TIME_MS (20)
 #define SET_ENC_BASIC_INFO(cfg, info) do {          \
@@ -34,6 +35,7 @@ typedef struct {
     esp_gmf_cache_t        *cached_payload;  /*!< A Cached payload for data concatenation */
     uint32_t                bitrate;         /*!< The bitrate of the encoded data */
     esp_gmf_payload_t      *origin_in_load;  /*!< The original input payload */
+    int64_t                 cur_pts;         /*!< The audio Presentation Time Stamp(pts) */
 } esp_gmf_audio_enc_t;
 
 static const char *TAG = "ESP_GMF_AENC";
@@ -306,6 +308,9 @@ static esp_gmf_job_err_t gmf_audio_enc_acquire_in(esp_gmf_audio_enc_t *audio_enc
     if (needed_load) {
         esp_gmf_err_io_t load_ret = esp_gmf_port_acquire_in(in_port, &audio_enc->origin_in_load, ESP_GMF_ELEMENT_GET(audio_enc)->in_attr.data_size, in_port->wait_ticks);
         ESP_GMF_PORT_ACQUIRE_IN_CHECK(TAG, load_ret, job_ret, return job_ret);
+        int cache_size = 0;
+        esp_gmf_cache_get_cached_size(audio_enc->cached_payload, &cache_size);
+        audio_enc->cur_pts = audio_enc->origin_in_load->pts - GMF_AUDIO_CALC_PTS(cache_size, audio_enc->parent.snd_info.sample_rates, audio_enc->parent.snd_info.channels, audio_enc->parent.snd_info.bits);
         esp_gmf_cache_load(audio_enc->cached_payload, audio_enc->origin_in_load);
     }
     esp_gmf_err_t ret = esp_gmf_cache_acquire(audio_enc->cached_payload, ESP_GMF_ELEMENT_GET(audio_enc)->in_attr.data_size, in_load);
@@ -334,6 +339,9 @@ static esp_gmf_job_err_t esp_gmf_audio_enc_open(esp_gmf_element_handle_t self, v
     esp_gmf_port_enable_payload_share(ESP_GMF_ELEMENT_GET(self)->in, false);
     esp_gmf_cache_new(ESP_GMF_ELEMENT_GET(enc)->in_attr.data_size, &enc->cached_payload);
     ESP_GMF_CHECK(TAG, enc->cached_payload, {return ESP_GMF_JOB_ERR_FAIL;}, "Failed to new a cached payload on open");
+    esp_audio_enc_info_t enc_info = {0};
+    esp_audio_enc_get_info(enc->audio_enc_hd, &enc_info);
+    GMF_AUDIO_UPDATE_SND_INFO(self, enc_info.sample_rate, enc_info.bits_per_sample, enc_info.channel);
     ESP_LOGI(TAG, "Open, type:%s, acquire in frame: %d, out frame: %d", esp_audio_codec_get_name(enc_cfg->type), ESP_GMF_ELEMENT_GET(enc)->in_attr.data_size, ESP_GMF_ELEMENT_GET(enc)->out_attr.data_size);
     return ESP_GMF_JOB_ERR_OK;
 }
@@ -391,6 +399,8 @@ static esp_gmf_job_err_t esp_gmf_audio_enc_process(esp_gmf_element_handle_t self
     ESP_GMF_RET_ON_ERROR(TAG, ret, {out_len = ESP_GMF_JOB_ERR_FAIL; goto __audio_enc_release;}, "Audio encoder process error %d", ret);
     out_load->valid_size = enc_out_frame.encoded_bytes;
     out_load->is_done = in_load->is_done;
+    out_load->pts = audio_enc->cur_pts;
+    audio_enc->cur_pts += GMF_AUDIO_CALC_PTS(enc_in_frame.len, audio_enc->parent.snd_info.sample_rates, audio_enc->parent.snd_info.channels, audio_enc->parent.snd_info.bits);
     // Handle end of stream
     if (in_load->is_done) {
         ESP_LOGW(TAG, "Got done, out size: %d", out_load->valid_size);
