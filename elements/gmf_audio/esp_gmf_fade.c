@@ -125,6 +125,7 @@ static esp_gmf_job_err_t esp_gmf_fade_process(esp_gmf_element_handle_t self, voi
              out_load, out_load->buf, out_load->valid_size, out_load->buf_length, out_load->is_done);
     out_load->valid_size = samples_num * fade->bytes_per_sample;
     out_load->is_done = in_load->is_done;
+    out_load->pts = in_load->pts;
     if (out_load->valid_size > 0) {
         esp_gmf_audio_el_update_file_pos((esp_gmf_element_handle_t)self, out_load->valid_size);
     }
