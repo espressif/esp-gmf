@@ -1,6 +1,5 @@
 set(extra_component_path "$ENV{IDF_PATH}/examples/common_components/protocol_examples_common")
 
-
 set(EXTRA_SRCS "${extra_component_path}/stdin_out.c"
          "${extra_component_path}/addr_from_stdin.c"
          "${extra_component_path}/connect.c"

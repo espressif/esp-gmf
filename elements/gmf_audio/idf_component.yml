@@ -1,4 +1,4 @@
-version: "0.6.3"
+version: "0.7.0"
 description: Espressif GMF Audio Elements Module
 url: https://github.com/espressif/esp-gmf/tree/main/elements/gmf_audio
 documentation: "https://github.com/espressif/esp-gmf/blob/main/elements/gmf_audio/README.md"

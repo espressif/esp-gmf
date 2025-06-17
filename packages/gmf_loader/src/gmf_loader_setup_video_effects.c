@@ -69,7 +69,7 @@ esp_gmf_err_t gmf_loader_setup_video_effects_default(esp_gmf_pool_handle_t pool)
     ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
 
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_element_handle_t element = NULL;
+    esp_gmf_element_handle_t element __attribute__((unused)) = NULL;
 
 #if defined(CONFIG_GMF_VIDEO_EFFECTS_INIT_PPA)
     ret = gmf_loader_setup_default_video_ppa(pool);

@@ -10,8 +10,3 @@
 
 gmf_core/test_apps:
   <<: *disable_example
-
-elements/gmf_ai_audio:
-  disable:
-    - if: TARGET_DIR_TYPE == "example"
-    - if: TARGET_DIR_TYPE == "test_apps"
