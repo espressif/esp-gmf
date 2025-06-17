@@ -300,6 +300,7 @@ esp_gmf_err_t esp_audio_simple_player_new(esp_asp_cfg_t *cfg, esp_asp_handle_t *
         task_cfg.thread.prio = cfg->task_prio;
     }
     task_cfg.thread.core = cfg->task_core;
+    task_cfg.thread.stack_in_ext = cfg->task_stack_in_ext;
     esp_gmf_task_init(&task_cfg, &player->work_task);
     if (player->work_task == NULL) {
         ESP_LOGE(TAG, "Failed to create the pipeline task");

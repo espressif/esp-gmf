@@ -5,6 +5,7 @@
 ### Features
 
 - Replaced the interface for decoding reconfig
+- Supported placing the audio processing task stack in RAM or SPI-RAM using `stack_in_ext` in `esp_asp_cfg_t`
 
 ## v0.9.3
 

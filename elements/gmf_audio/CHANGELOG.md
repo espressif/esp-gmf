@@ -19,6 +19,7 @@
 - Added TRUNCATE support for SONIC element to enable its flexible placement at any position within the pipeline
 - Supported scenarios where the input data for audio encoding is not a complete frame
 - Added PTS (Presentation Time Stamp) calculation and propagation for the `aud_alc`, `aud_eq`, `aud_fade`, `aud_enc`
+- Supported user-configurable input frame length and load acquisition timeout for the mixer
 
 ### Bug Fixes
 
@@ -30,6 +31,7 @@
 - Fixed the issue where the encoder modified the configuration during runtime
 - Fixed the issue where the mixer did not forward the out_load parameter to downstream components when all input stream were no data
 - Fixed bugs that not check validation of in and out buffer for mixer which will cause crash
+- Fixed bugs where setting parameters before opening had no effect for `aud_fade` and `aud_mixer`
 
 ## v0.6.3
 
