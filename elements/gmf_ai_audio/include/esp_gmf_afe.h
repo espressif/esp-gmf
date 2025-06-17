@@ -160,6 +160,24 @@ esp_gmf_err_t esp_gmf_afe_vcmd_detection_cancel(esp_gmf_element_handle_t handle)
  */
 esp_gmf_err_t esp_gmf_afe_set_event_cb(esp_gmf_element_handle_t handle, esp_gmf_afe_event_cb_t cb, void *ctx);
 
+/**
+ * @brief  Enable or disable keep-awake mode
+ *
+ *         When keep-awake mode is enabled, the system will remain in the wake state
+ *         and prevent wakeup_end events from being triggered automatically
+ *         This is useful for scenarios where you want to keep the system active
+ *         without automatic timeout
+ *
+ * @param  handle  The handle to the AFE element
+ * @param  enable  True to enable keep-awake mode, false to disable
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK             Success
+ *       - ESP_GMF_ERR_INVALID_ARG    Invalid argument
+ *       - ESP_GMF_ERR_INVALID_STATE  Config not exist
+ */
+esp_gmf_err_t esp_gmf_afe_keep_awake(esp_gmf_element_handle_t handle, bool enable);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

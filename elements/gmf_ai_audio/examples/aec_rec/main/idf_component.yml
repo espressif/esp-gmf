@@ -15,4 +15,4 @@ dependencies:
   espressif/gmf_loader:
     version: "^0.6"
   espressif/gmf_app_utils:
-    version: "^0.6"
+    version: "^0.7"

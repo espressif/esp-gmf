@@ -248,7 +248,7 @@ esp_gmf_err_t esp_gmf_afe_manager_enable_features(esp_gmf_afe_manager_handle_t h
     esp_gmf_afe_manager_t *afe_manager = (esp_gmf_afe_manager_t *)handle;
     ESP_RETURN_ON_FALSE(afe_manager, ESP_GMF_ERR_INVALID_ARG, TAG, "AFE suspend: handle NULL");
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    ESP_LOGI(TAG, "AFE Ctrl [%u, %d]", feature, enable);
+    ESP_LOGD(TAG, "AFE Ctrl [%u, %d]", feature, enable);
     switch (feature) {
         case ESP_AFE_FEATURE_WAKENET: {
             if (enable) {
@@ -256,7 +256,7 @@ esp_gmf_err_t esp_gmf_afe_manager_enable_features(esp_gmf_afe_manager_handle_t h
             } else {
                 ret = afe_manager->esp_afe->disable_wakenet(afe_manager->afe_data);
             }
-            ESP_LOGI(TAG, "Wakenet ctrl ret %d", ret);
+            ESP_LOGD(TAG, "Wakenet ctrl ret %d", ret);
             if (ret >= 0) {
                 afe_manager->feat.wakeup = ret;
             }
@@ -268,7 +268,7 @@ esp_gmf_err_t esp_gmf_afe_manager_enable_features(esp_gmf_afe_manager_handle_t h
             } else {
                 ret = afe_manager->esp_afe->disable_aec(afe_manager->afe_data);
             }
-            ESP_LOGI(TAG, "AEC ctrl ret %d", ret);
+            ESP_LOGD(TAG, "AEC ctrl ret %d", ret);
             if (ret >= 0) {
                 afe_manager->feat.aec = ret;
             }
@@ -280,7 +280,7 @@ esp_gmf_err_t esp_gmf_afe_manager_enable_features(esp_gmf_afe_manager_handle_t h
             } else {
                 ret = afe_manager->esp_afe->disable_se(afe_manager->afe_data);
             }
-            ESP_LOGI(TAG, "AE ctrl ret %d", ret);
+            ESP_LOGD(TAG, "AE ctrl ret %d", ret);
             if (ret >= 0) {
                 afe_manager->feat.se = ret;
             }
@@ -292,7 +292,7 @@ esp_gmf_err_t esp_gmf_afe_manager_enable_features(esp_gmf_afe_manager_handle_t h
             } else {
                 ret = afe_manager->esp_afe->disable_vad(afe_manager->afe_data);
             }
-            ESP_LOGI(TAG, "VAD ctrl ret %d", ret);
+            ESP_LOGD(TAG, "VAD ctrl ret %d", ret);
             if (ret >= 0) {
                 afe_manager->feat.vad = ret;
             }

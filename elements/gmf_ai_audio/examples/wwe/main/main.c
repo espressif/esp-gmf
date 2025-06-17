@@ -4,12 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "esp_err.h"
 #include "esp_log.h"
 #include "soc/soc_caps.h"
+#include "esp_console.h"
+#include "argtable3/argtable3.h"
 
 #include "esp_gmf_io.h"
 #include "esp_gmf_pipeline.h"
@@ -23,7 +26,16 @@
 #if SOC_SDMMC_HOST_SUPPORTED == 1
 #define VOICE2FILE     (true)
 #endif  /* SOC_SDMMC_HOST_SUPPORTED == 1 */
+#ifdef CONFIG_GMF_AI_AUDIO_WAKEUP_ENABLE
 #define WAKENET_ENABLE (true)
+#else
+#define WAKENET_ENABLE (false)
+#endif /* CONFIG_GMF_AI_AUDIO_WAKEUP_ENABLE */
+#ifdef CONFIG_GMF_AI_AUDIO_VOICE_COMMAND_ENABLE
+#define VCMD_ENABLE (true)
+#else
+#define VCMD_ENABLE (false)
+#endif /* CONFIG_GMF_AI_AUDIO_VOICE_COMMAND_ENABLE */
 #define VAD_ENABLE     (true)
 #define QUIT_CMD_FOUND (BIT0)
 
@@ -47,10 +59,6 @@
 #endif  /* defined CONFIG_IDF_TARGET_ESP32S3 */
 
 #if AUDIO_BOARD == BOARD_KORVO_2
-#define AEC_ENABLE          (true)
-#define VCMD_ENABLE         (true)
-
-#define ADC_I2S_PORT        (0)
 #define ADC_I2S_CH          (2)
 #define ADC_I2S_BITS        (32)
 #define INPUT_CH_NUM        (4)
@@ -58,30 +66,18 @@
                                    2-channel mode to accommodate 16-bit, 4-channel data */
 #define INPUT_CH_ALLOCATION ("RMNM")
 #elif AUDIO_BOARD == BOARD_LYRAT_MINI
-#define AEC_ENABLE          (false)
-#define VCMD_ENABLE         (false)
-
-#define ADC_I2S_PORT        (1)
 #define ADC_I2S_CH          (2)
 #define ADC_I2S_BITS        (16)
 #define INPUT_CH_NUM        (ADC_I2S_CH)
 #define INPUT_CH_BITS       (ADC_I2S_BITS)
 #define INPUT_CH_ALLOCATION ("RM")
 #elif AUDIO_BOARD == BOARD_XD_AIOT_C3
-#define AEC_ENABLE          (false)
-#define VCMD_ENABLE         (false)
-
-#define ADC_I2S_PORT        (0)
 #define ADC_I2S_CH          (2)
 #define ADC_I2S_BITS        (16)
 #define INPUT_CH_NUM        (ADC_I2S_CH)
 #define INPUT_CH_BITS       (ADC_I2S_BITS)
 #define INPUT_CH_ALLOCATION ("MR")
 #elif AUDIO_BOARD == BOARD_ESP_SPOT
-#define AEC_ENABLE          (false)
-#define VCMD_ENABLE         (false)
-
-#define ADC_I2S_PORT        (0)
 #define ADC_I2S_CH          (2)
 #define ADC_I2S_BITS        (16)
 #define INPUT_CH_NUM        (ADC_I2S_CH)
@@ -102,6 +98,7 @@ static bool speeching = false;
 static bool wakeup    = false;
 #endif  /* WITH_AFE == true */
 static EventGroupHandle_t g_event_group = NULL;
+static esp_gmf_element_handle_t g_afe   = NULL;
 
 static esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
@@ -158,14 +155,6 @@ void esp_gmf_afe_event_cb(esp_gmf_obj_handle_t obj, esp_gmf_afe_evt_t *event, vo
             esp_gmf_afe_vcmd_info_t *info = event->event_data;
             ESP_LOGW(TAG, "Command %d, phrase_id %d, prob %f, str: %s",
                      event->type, info->phrase_id, info->prob, info->str);
-            /* Here use the first command to quit this demo
-             * For Chinese model, the first default command is `ba xiao shi hou guan ji`
-             * For English model, the first default command is `tell me a joke`
-             * If user had modified the commands, please refer to the commands setting.
-             */
-            if (event->type == 1) {
-                xEventGroupSetBits(g_event_group, QUIT_CMD_FOUND);
-            }
             break;
         }
     }
@@ -225,9 +214,58 @@ static esp_gmf_err_io_t outport_release_write(void *handle, esp_gmf_payload_t *l
     return ESP_GMF_IO_OK;
 }
 
+static struct {
+    struct arg_int *keep;
+    struct arg_end *end;
+} keep_args;
+
+static int keep_awake(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&keep_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, keep_args.end, argv[0]);
+        return ESP_FAIL;
+    }
+    if (g_afe) {
+        esp_gmf_afe_keep_awake(g_afe, keep_args.keep->ival[0]);
+        printf("Keep awake: %d\n", keep_args.keep->ival[0]);
+    } else {
+        ESP_LOGE(TAG, "AFE not found");
+    }
+    return ESP_OK;
+}
+
+static int quit(int argc, char **argv)
+{
+    xEventGroupSetBits(g_event_group, QUIT_CMD_FOUND);
+    return 0;
+}
+
+static void wwe_cmds_register(void)
+{
+    esp_console_cmd_t cmd_keep = {
+        .command = "keep",
+        .help = "keep awake",
+        .hint = NULL,
+        .func = &keep_awake,
+        .argtable = &keep_args,
+    };
+    keep_args.keep = arg_int0(NULL, NULL, "<0 - 1>", "Keep awake");
+    keep_args.end = arg_end(1);
+    esp_console_cmd_register(&cmd_keep);
+
+    esp_console_cmd_t cmd_quit = {
+        .command = "quit",
+        .help = "quit",
+        .hint = NULL,
+        .func = &quit,
+        .argtable = NULL,
+    };
+    esp_console_cmd_register(&cmd_quit);
+}
+
 void app_main(void)
 {
-    int ret = 0;
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
     codec_info.record_info.sample_rate = 16000;
@@ -255,9 +293,9 @@ void app_main(void)
         goto __quit;
     }
     esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_IN_INSTANCE(pipe), esp_gmf_app_get_record_handle());
-    esp_gmf_element_handle_t afe = NULL;
-    esp_gmf_pipeline_get_el_by_name(pipe, "ai_afe", &afe);
-    esp_gmf_afe_set_event_cb(afe, esp_gmf_afe_event_cb, NULL);
+#if WITH_AFE == true
+    esp_gmf_pipeline_get_el_by_name(pipe, "ai_afe", &g_afe);
+    esp_gmf_afe_set_event_cb(g_afe, esp_gmf_afe_event_cb, NULL);
 #else
     esp_gmf_element_handle_t wn = NULL;
     esp_gmf_pipeline_get_el_by_name(pipe, "ai_wn", &wn);
@@ -291,7 +329,7 @@ void app_main(void)
     esp_gmf_pipeline_set_event(pipe, _pipeline_event, NULL);
     esp_gmf_pipeline_run(pipe);
 
-    esp_gmf_app_cli_init("Audio >", NULL);
+    esp_gmf_app_cli_init("Audio >", wwe_cmds_register);
 
     while (1) {
         EventBits_t bits = xEventGroupWaitBits(g_event_group, QUIT_CMD_FOUND, pdTRUE, pdFALSE, portMAX_DELAY);
