@@ -25,6 +25,6 @@ dependencies:
   espressif/gmf_video:
     version: "^0.6"
   espressif/gmf_misc:
-    version: "^0.6"  
+    version: "^0.6"
   espressif/esp_video_codec:
     version: "~0.5.2"

@@ -1,5 +1,7 @@
 # GMF AI Audio
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_ai_audio/badge.svg)](https://components.espressif.com/components/espressif/gmf_ai_audio)
+
 - [中文版](./README_CN.md)
 
 `GMF AI Audio` is an artificial intelligence audio processing module that provides users with convenient and easy-to-use intelligent audio processing algorithms at the [GMF](https://github.com/espressif/esp-gmf) framework, such as voice wake-up, command word recognition, and echo cancellation. Currently, it offers the following modules based on `esp-sr`:
@@ -226,3 +228,21 @@ Users need to decide when to start command word detection. A typical use case is
 ## Usage
 
 For example code, refer to the [examples](./examples) folder for the Wake Word Detection and Audio Echo Cancellation demos.
+
+You can also create and compile a project using the following commands, taking the `aec_rec` project as an example. Before starting, make sure you have a working [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/index.html) environment.
+
+### 1. Create the Example Project
+
+Create the `aec_rec` example project based on the `gmf_ai_audio` component (using version v0.7.0 as an example; update the version as needed):
+
+```shell
+idf.py create-project-from-example "espressif/gmf_ai_audio=0.7.0:aec_rec"
+```
+
+### 2. Build and Flash the Project Using an ESP32-S3 Board
+
+```shell
+cd aec_rec
+idf.py set-target esp32s3
+idf.py -p YOUR_PORT flash monitor
+```

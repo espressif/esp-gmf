@@ -1,5 +1,7 @@
 # ESP-GMF-Misc
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_misc/badge.svg)](https://components.espressif.com/components/espressif/gmf_misc)
+
 - [中文版](./README_CN.md)
 
 ESP GMF Miscellaneous gathers various GMF elements with single-purpose functionalities. The currently supported elements are listed below：

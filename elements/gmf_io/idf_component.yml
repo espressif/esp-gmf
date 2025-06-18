@@ -13,4 +13,4 @@ dependencies:
     version: "~1.3"
   espressif/gmf_core:
     require: public
-    version: "^0.6"
+    version: "^0.7"

@@ -18,7 +18,7 @@ dependencies:
   espressif/gmf_video:
     override_path: ../../../../elements/gmf_video
   espressif/gmf_ai_audio:
-    override_path: ../../../../elements/gmf_ai_audio            
+    override_path: ../../../../elements/gmf_ai_audio
   espressif/gmf_loader:
     override_path: ../../../../packages/gmf_loader
   espressif/gmf_app_utils:

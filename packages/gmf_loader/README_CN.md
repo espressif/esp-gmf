@@ -1,8 +1,10 @@
 # GMF Loader
 
+- [![Component Registry](https://components.espressif.com/components/espressif/gmf_loader/badge.svg)](https://components.espressif.com/components/espressif/gmf_loader)
+
 - [English Version](./README.md)
 
-GMF Loader 是一个帮助组件，允许用户通过 menuconfig 轻松自定义其 GMF pool。它提供两个关键功能：
+GMF Loader 是一个辅助组件，允许用户通过 menuconfig 轻松自定义其 GMF pool。它提供两个关键功能：
 
 - 初始化：启用选定的 GMF 功能并将相应的元素添加到用户的 pool 中
 - 配置：允许在将元素添加到 pool 之前通过 menuconfig 设置默认参数
@@ -123,7 +125,7 @@ ESP GMF Loader
 │       ├── Audio Echo Cancellation (AEC) [Y]
 │       └── Audio Front End (AFE) [N]
 │
-│── GMF Video Configurations     
+│── GMF Video Configurations
 │   ├── GMF Video Codec
 │   │   ├── Decoders [N]
 │   │   │   ├── Auto [Y]
