@@ -1,5 +1,8 @@
 menu "GMF APP Configuration"
 
+# Extra components for wifi configuration
+source "${IDF_PATH}/examples/common_components/protocol_examples_common/Kconfig.projbuild"
+
 choice
     prompt "Target Board"
     default ESP32_S3_KORVO_V2_BOARD
@@ -78,4 +81,3 @@ menu "Unit Test"
 endmenu
 
 endmenu
-

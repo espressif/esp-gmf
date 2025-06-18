@@ -1,7 +1,16 @@
+
+version: "0.7.0"
+description: Espressif GMF App Utils is a module that provides utility functions for the GMF application
+url: https://github.com/espressif/esp-gmf/tree/main/packages/gmf_app_utils
+documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/gmf_app_utils/README.md"
+issues: "https://github.com/espressif/esp-gmf/issues"
+
+tags:
+   - "gmf"
+   - "gmf_app"
+
 dependencies:
   espressif/gmf_core:
-    version: "^0.6"
-  protocol_examples_common:
-    path: ${IDF_PATH}/examples/common_components/protocol_examples_common
+    version: "^0.7"
   tempotian/codec_board:
     version: "^0.5.0"
