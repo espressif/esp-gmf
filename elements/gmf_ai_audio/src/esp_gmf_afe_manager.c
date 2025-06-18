@@ -199,10 +199,24 @@ esp_gmf_err_t esp_gmf_afe_manager_create(esp_gmf_afe_manager_cfg_t *cfg, esp_gmf
                                              &afe_manager->fetch.task);
     ESP_GOTO_ON_FALSE(afe_manager->fetch.task, ESP_GMF_ERR_MEMORY_LACK, __err, TAG, "Create afe fetch task failed");
 #else
-    xTaskCreatePinnedToCore(feed_task, "afe_feed", cfg->feed_stack, afe, cfg->feed_prio, &afe_manager->feed.task, cfg->feed_core);
+    ESP_LOGW(TAG, "The AFE Manager may not work when PSRAM is disabled");
+
+    xTaskCreatePinnedToCore(feed_task,
+                            "afe_feed",
+                            cfg->feed_task_setting.stack_size,
+                            afe_manager,
+                            cfg->feed_task_setting.prio,
+                            &afe_manager->feed.task,
+                            cfg->feed_task_setting.core);
     ESP_GOTO_ON_FALSE(afe_manager->feed.task, ESP_GMF_ERR_MEMORY_LACK, __err, TAG, "Create afe feed task failed");
 
-    xTaskCreatePinnedToCore(fetch_task, "afe_fetch", cfg->fetch_stack, afe, cfg->fetch_prio, &afe_manager->fetch.task, cfg->fetch_core);
+    xTaskCreatePinnedToCore(fetch_task,
+                            "afe_fetch",
+                            cfg->fetch_task_setting.stack_size,
+                            afe_manager,
+                            cfg->fetch_task_setting.prio,
+                            &afe_manager->fetch.task,
+                            cfg->fetch_task_setting.core);
     ESP_GOTO_ON_FALSE(afe_manager->fetch.task, ESP_GMF_ERR_MEMORY_LACK, __err, TAG, "Create afe fetch task failed");
 #endif  /* (configSUPPORT_STATIC_ALLOCATION == 1) */
 
