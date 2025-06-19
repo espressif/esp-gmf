@@ -1,8 +1,6 @@
-.target_test_template:
-  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.4:2"
-  stage: target_test
-  interruptible: true
-  timeout: 1 hour
+.target_example_test_template:
+  extends:
+    - .target_test_template
   parallel:
     matrix:
       - IDF_VERSION_TAG: ['v5.3', 'v5.4']
@@ -13,17 +11,6 @@
     TEST_FW_PATH: "$CI_PROJECT_DIR/tools/tiny-test-fw"
     LOG_PATH: "$CI_PROJECT_DIR/TEST_LOGS"
     ENV_FILE: "${BASE_FRAMEWORK_PATH}/ci-test-runner-configs/$CI_RUNNER_DESCRIPTION/EnvConfig.yml"
-  before_script:
-    - source ${CI_PROJECT_DIR}/tools/ci/utils.sh
-    - check_idf_version $IDF_VERSION_TAG
-    - export PYTHONPATH="$BASE_FRAMEWORK_PATH/tools:$BASE_FRAMEWORK_PATH/tools/ci/python_packages:$PYTHONPATH"
-    - export PYTHONPATH="$CI_PROJECT_DIR/tools:$PYTHONPATH"
-  cache:
-    # Usually do not need submodule-cache in target_test
-    - key: pip-cache
-      paths:
-        - .cache/pip
-      policy: pull
   artifacts:
     when: always
     paths:
@@ -34,25 +21,26 @@
     reports:
       junit: XUNIT_RESULT.xml
     expire_in: 1 week
-  retry: 2
 
 .pytest_template:
   extends:
-    - .target_test_template
+    - .target_example_test_template
   script:
-    - pip install pytest pytest-embedded-idf pytest-embedded-serial-esp pytest-rerunfailures pytest-timeout
-    - pytest ${TEST_DIR} --target ${IDF_TARGET} -m "${tags}" --junitxml=XUNIT_RESULT.xml --parallel-count 1 --parallel-index 1
+    - pip install pytest pytest-embedded-idf pytest-embedded-serial-esp pytest-rerunfailures pytest-timeout idf_build_apps
+    - eval "$(python ${CI_PROJECT_DIR}/tools/ci/build_apps.py ${TEST_DIR} --find --target-dir-type ${TARGET_DIR_TYPE} --target ${IDF_TARGET} -vv)"
+    - pytest "${APP_LIST[@]}" --target ${IDF_TARGET} -m "${tags}" --junitxml=XUNIT_RESULT.xml --parallel-count 1 --parallel-index 1
 
 .pytest_audio_loopback_template:
   image: "$CI_DOCKER_IMAGE_REGISTRY/target_test_env_v5.3:2"
   extends:
     - .rules:build:enable-gmf-example-test
-    - .target_test_template
+    - .target_example_test_template
   script:
     - export PYTHONPATH="/usr/local/lib/python3.9/dist-packages:$PYTHONPATH"
-    - pip install pytest pytest-embedded-idf pytest-embedded-serial-esp pytest-rerunfailures pytest-timeout
+    - pip install pytest pytest-embedded-idf pytest-embedded-serial-esp pytest-rerunfailures pytest-timeout idf_build_apps
     - arecord -l
-    - pytest ${TEST_DIR} --target ${IDF_TARGET} -m "${tags}" --junitxml=XUNIT_RESULT.xml --parallel-count 1 --parallel-index 1
+    - eval "$(python ${CI_PROJECT_DIR}/tools/ci/build_apps.py ${TEST_DIR} --find --target-dir-type ${TARGET_DIR_TYPE} --target ${IDF_TARGET} -vv)"
+    - pytest "${APP_LIST[@]}" --target ${IDF_TARGET} -m "${tags}" --junitxml=XUNIT_RESULT.xml --parallel-count 1 --parallel-index 1
   variables:
     TEST_DIR: "${EXAMPLES_PATH}"
 

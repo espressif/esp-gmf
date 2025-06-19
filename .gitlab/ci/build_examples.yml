@@ -24,6 +24,7 @@
       - "**/build*/sdkconfig"
       - "**/build*/bootloader/*.bin"
       - "**/build*/partition_table/*.bin"
+      - "**/build*/srmodels/*.bin"
     when: always
     expire_in: 4 days
   extends:
@@ -31,8 +32,10 @@
   script:
     - cd $CI_PROJECT_DIR
     - pip install idf_build_apps
-    - run_cmd python $CI_PROJECT_DIR/tools/ci/build_apps.py ${EXAMPLES_PATH} \
+    - run_cmd python $CI_PROJECT_DIR/tools/ci/build_apps.py ${EXAMPLES_PATH[@]} \
                    -t $IDF_TARGET -vv \
+                   --target-dir-type ${TARGET_DIR_TYPE} \
+                   --build-dir ${IDF_VERSION_TAG}/build_@t_@w \
                    --parallel-count ${parallel##*/} \
                    --parallel-index ${parallel%%/*}
 

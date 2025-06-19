@@ -7,6 +7,7 @@ variables:
 .build_gmf_component:
   interruptible: true
   variables:
+    TARGET_DIR_TYPE: "test_apps"
     TEST_DIR: ${CI_PROJECT_DIR}/gmf_core
   parallel:
     matrix:
@@ -34,7 +35,8 @@ variables:
     - cd ${CI_PROJECT_DIR}
     - run_cmd python $CI_PROJECT_DIR/tools/ci/build_apps.py ${TEST_DIR} \
                 -t $IDF_TARGET -vv \
-                --pytest-apps \
+                --target-dir-type ${TARGET_DIR_TYPE} \
+                --build-dir ${IDF_VERSION_TAG}/build_@t_@w \
                 --parallel-count ${parallel##*/} \
                 --parallel-index ${parallel%%/*}
   after_script:

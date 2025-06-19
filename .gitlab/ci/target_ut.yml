@@ -1,18 +1,10 @@
-.target_ut_test_template:
-  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.4:2"
-  stage: target_test
-  interruptible: true
-  timeout: 2 hour
-  cache:
-    # Usually do not need submodule-cache in target_test
-    - key: pip-cache
-      paths:
-        - .cache/pip
-      policy: pull
-
 .pytest_ut_template:
   extends:
-    - .target_ut_test_template
+    - .target_test_template
+  variables:
+    IDF_VERSION_TAG: v5.4
+    IDF_TAG_FLAG: true
+    TARGET_DIR_TYPE: "test_apps"
   artifacts:
     when: always
     paths:
@@ -21,18 +13,11 @@
     reports:
       junit: XUNIT_RESULT.xml
     expire_in: 1 week
-  variables:
-    IDF_VERSION_TAG: v5.4
-    IDF_TAG_FLAG: true
-  before_script:
-    - source ${CI_PROJECT_DIR}/tools/ci/utils.sh
-    - check_idf_version $IDF_VERSION_TAG
-    - export PYTHONPATH="$IDF_PATH/tools:$IDF_PATH/tools/ci/python_packages:$PYTHONPATH"
-    - export PYTHONPATH="$CI_PROJECT_DIR/tools:$PYTHONPATH"
   script:
     - cd $CI_PROJECT_DIR
-    - pip install pytest pytest-embedded-idf pytest-embedded-serial-esp pytest-rerunfailures pytest-timeout
-    - pytest $TEST_DIR
+    - pip install pytest pytest-embedded-idf pytest-embedded-serial-esp pytest-rerunfailures pytest-timeout idf_build_apps
+    - eval "$(python ${CI_PROJECT_DIR}/tools/ci/build_apps.py ${TEST_DIR} --find --target-dir-type ${TARGET_DIR_TYPE} --target ${IDF_TARGET} -vv)"
+    - pytest "${APP_LIST[@]}"
       --target ${IDF_TARGET}
       --junitxml=XUNIT_RESULT.xml
       --parallel-count ${CI_NODE_TOTAL:-1}

@@ -15,7 +15,8 @@ variables:
   PROJECT_PATH: "${CI_PROJECT_DIR}"
   BASE_FRAMEWORK: $IDF_REPOSITORY
   BASE_FRAMEWORK_PATH: "${IDF_PATH}"
-  EXAMPLES_PATH: "${CI_PROJECT_DIR}/gmf_examples/basic_examples"
+  TARGET_DIR_TYPE: "example"
+  EXAMPLES_PATH: "${CI_PROJECT_DIR}"
 
 before_script:
   - source ${CI_PROJECT_DIR}/tools/ci/utils.sh
