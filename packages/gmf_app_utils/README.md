@@ -6,6 +6,20 @@
 
 GMF Application Utilities (gmf_app_utils) is a utility package that provides common convenient APIs for ESP GMF application development. It includes configurations for common peripheral setups such as Wi-Fi, SD card, and AudioCodec initialization, as well as system management functions like performance monitoring interfaces and serial terminal command line interface (CLI).
 
+The `gmf_app_utils` component also provides configuration options via **menuconfig**:
+
+* **Configure network parameters (e.g., SSID and Password)**
+
+  Navigate to: `GMF APP Configuration` → `Example Connection Configuration` → `WiFi SSID` and `WiFi Password`
+
+* **Select the target development board**
+
+  Navigate to: `GMF APP Configuration` → `Target Board`
+
+* **Adjust the unit test task priority**
+
+  Navigate to: `GMF APP Configuration` → `Unit Test`
+
 ## Features
 
 ### Peripheral Management (`esp_gmf_app_setup_peripheral.h`)

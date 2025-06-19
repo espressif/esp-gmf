@@ -6,6 +6,20 @@
 
 GMF 应用工具包（gmf_app_utils）是一个为方便 ESP GMF 开发应用程序而提供的常用便捷 API，它包含常见外设设置的配置，比如 Wi-Fi、SD card、AudioCodec 初始化，还包括一些系统管理功能，如性能监控接口和串口终端命令行接口（CLI）。
 
+同时 gmf_app_utils 提供了 menuconfig 进行参数配置:
+
+- 配置网络参数(如：SSID 和 Password)
+
+  选择路径是：`GMF APP Configuration` -> `Example Connection Configuration` -> `WiFi SSID` 和 `WiFi Password`
+
+- 选择开发板
+
+  选择路径是：`GMF APP Configuration` -> `Target Board`
+
+- 调整 Unit test 任务优先级
+
+  选择路径是：`GMF APP Configuration` -> `Unit Test`
+
 ## 功能特性
 
 ### 外设管理（`esp_gmf_app_setup_peripheral.h`）

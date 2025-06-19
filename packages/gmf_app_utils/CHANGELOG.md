@@ -1,6 +1,7 @@
 # Changelog
 
-## Unreleased
+
+## v0.7.0
 
 ### Features
 
