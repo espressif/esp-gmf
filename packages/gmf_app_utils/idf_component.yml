@@ -11,6 +11,8 @@ tags:
 
 dependencies:
   espressif/gmf_core:
+    require: public
     version: "^0.7"
   tempotian/codec_board:
+    require: public
     version: "^0.5.0"
