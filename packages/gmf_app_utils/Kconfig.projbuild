@@ -78,6 +78,10 @@ menu "Unit Test"
         int "Critical leak for UT which use LWIP component"
         default 4095
 
+    config UNITY_HEAP_TRACE_RECORDS
+        int "Number of heap trace records to allocate for Unity test"
+        default 200
+
 endmenu
 
 endmenu

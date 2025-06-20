@@ -135,7 +135,7 @@ static size_t gmf_app_get_leak_level(esp_gmf_app_leak_type_t type_of_leak, esp_g
 #ifdef CONFIG_HEAP_TRACING
 static void gmf_app_setup_heap_record(void)
 {
-    const size_t num_heap_records = 200;
+    const size_t num_heap_records = CONFIG_UNITY_HEAP_TRACE_RECORDS;
     static heap_trace_record_t *record_buffer;
     if (!record_buffer) {
         record_buffer = heap_caps_malloc_prefer(sizeof(heap_trace_record_t) * num_heap_records, 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_INTERNAL);
