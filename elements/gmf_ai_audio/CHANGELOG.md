@@ -9,6 +9,7 @@
 - Introduced `esp_gmf_wn` element to support wake word detection
 - Corrected return value validation for *acq_write* and *acq_release* callback function implementations
 - Added `esp_gmf_afe_keep_awake` API to enable/disable the keep awake feature
+- Increased `esp-sr` dependency to version 2.1.4
 
 ### Bug Fixes
 
@@ -17,7 +18,7 @@
 - Integrated gmf_app_utils package for peripheral and system management
 - Migrated common utilities to gmf_app_utils package
 - Standardize TAG identifier format across all elements with `ai` prefix
-- Fixed examples TAGs issue because of updating TAGs gmf_audio gmf_io 
+- Fixed examples TAGs issue because of updating TAGs gmf_audio gmf_io
 
 ## v0.6.2
 
