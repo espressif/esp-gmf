@@ -9,5 +9,6 @@ from pytest_embedded import Dut
 
 @pytest.mark.esp32
 @pytest.mark.esp32s3
-def test_pipeline_play_sdcard_music_str_detect(dut: Dut)-> None:
-    dut.expect(r'Destroy all the resources', timeout=30)
+@pytest.mark.temp_skip_ci(targets=['esp32', 'esp32s3', 'esp32p4'], reason='No running in CI')
+def test_wwe(dut: Dut)-> None:
+    dut.expect(r'Audio >', timeout=20)

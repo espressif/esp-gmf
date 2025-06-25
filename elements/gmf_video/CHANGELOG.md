@@ -1,10 +1,10 @@
 # Changelog
 
-## v0.6.0
+## v0.7.0
 
 ### Features
 
-- Initial release of the `gmf_video` component
-- Added elements for video processing: decoder, encoder, frame rate converter, and overlay mixer
-- Added video pixel processing accelerator (PPA) element
-- Added software video effects elements: cropper, scaler, color converter and rotator
+This is the initial release of the `gmf_video` component, introducing the following features:
+
+* Core video processing elements: decoder, encoder, frame rate converter, overlay mixer, and hardware-accelerated Pixel Processing Accelerator (PPA)
+* Software-based video effects: cropper, scaler, color converter, and rotator

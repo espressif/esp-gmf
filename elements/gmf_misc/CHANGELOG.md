@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.7.0
+
+No further changes. Version updated to align with other components.
+
 ## v0.6.1
 
 ### Bug Fixes
