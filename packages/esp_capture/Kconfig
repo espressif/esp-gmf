@@ -1,0 +1,20 @@
+menu "Espressif Capture Configuration"
+    config ESP_CAPTURE_ENABLE_AUDIO
+        bool "Enable Audio Capture"
+        default y
+
+    config ESP_CAPTURE_ENABLE_VIDEO
+        bool "Enable Video Capture"
+        default y
+
+    config ESP_CAPTURE_ENABLE_VIDEO_OVERLAY
+        bool "Enable Video Overlay for Capture"
+        default y
+        depends on ESP_CAPTURE_ENABLE_VIDEO
+
+    config ESP_CAPTURE_ENABLE_PERF_MON
+        bool "Enable Performance Monitor for Capture"
+        default n
+
+    rsource "impl/capture_text_overlay/Kconfig"
+endmenu
