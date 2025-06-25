@@ -20,3 +20,23 @@ variables:
     - multimedia_build
   before_script:
     - *update_source
+
+.target_test_template:
+  stage: target_test
+  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.4:2"
+  interruptible: true
+  timeout: 1 hour
+  retry: 2
+  cache:
+    # Usually do not need submodule-cache in target_test
+    - key: pip-cache
+      paths:
+        - .cache/pip
+      policy: pull
+  before_script:
+    - source ${CI_PROJECT_DIR}/tools/ci/utils.sh
+    - add_gitlab_ssh_keys
+    - git clone --depth 1 -b $IDF_VERSION_TAG $IDF_REPOSITORY $IDF_PATH
+    - check_idf_version $IDF_VERSION_TAG
+    - export PYTHONPATH="$IDF_PATH/tools:$IDF_PATH/tools/ci/python_packages:$PYTHONPATH"
+    - export PYTHONPATH="$CI_PROJECT_DIR/tools:$PYTHONPATH"

@@ -1,15 +1,17 @@
-.enable_general: &enable_general
-  enable:
-    - if: IDF_TARGET in ["esp32", "esp32s2", "esp32s3", "esp32c3", "esp32p4", "esp32c6"]
+# The file mainly marks apps with special rules, while other apps are enabled by default
+
+.disable_test_apps: &disable_test_apps
+  disable:
+    - if: TARGET_DIR_TYPE == "test_apps"
+
+.disable_example: &disable_example
+  disable:
+    - if: TARGET_DIR_TYPE == "example"
 
 gmf_core/test_apps:
-  <<: *enable_general
+  <<: *disable_example
 
-elements/test_apps:
-  <<: *enable_general
-
-packages:
-  <<: *enable_general
-
-gmf_examples:
-  <<: *enable_general
+elements/gmf_ai_audio:
+  disable:
+    - if: TARGET_DIR_TYPE == "example"
+    - if: TARGET_DIR_TYPE == "test_apps"
