@@ -24,5 +24,6 @@ jobs:
             esp_audio_simple_player:./packages/esp_audio_simple_player
             esp_capture: ./packages/esp_capture
             gmf_app_utils: ./packages/gmf_app_utils
+            gmf_examples: ./packages/gmf_examples
           namespace: "espressif"
           api_token: ${{ secrets.IDF_COMPONENT_API_TOKEN }}
