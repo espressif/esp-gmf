@@ -1,4 +1,4 @@
-version: "0.9.4"
+version: "0.9.4~1"
 description: Espressif audio simple player based on ESP-GMF
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_audio_simple_player
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_audio_simple_player/README.md"
@@ -10,6 +10,6 @@ tags:
 
 dependencies:
   espressif/gmf_audio:
-    version: "^0.6"
+    version: "^0.7"
   espressif/gmf_io:
-    version: "^0.6"
+    version: "^0.7"
