@@ -13,3 +13,4 @@ examples:
    - path: "./basic_examples/pipeline_play_embed_music"
    - path: "./basic_examples/pipeline_play_sdcard_music"
    - path: "./basic_examples/pipeline_record_sdcard"
+   - path: "./basic_examples/pipeline_http_download_to_sdcard"

@@ -5,6 +5,7 @@
 ### Features
 
 - Add play http music example
+- Added `pipeline_http_download_to_sdcard` example for HTTP file downloads to SD card
 
 ## v0.7.2~1
 
