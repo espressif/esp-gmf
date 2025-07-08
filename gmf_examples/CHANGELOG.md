@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Add play http music example
+
 ## v0.7.2~1
 
 ### Bug Fixes
