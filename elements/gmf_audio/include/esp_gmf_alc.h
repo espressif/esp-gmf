@@ -17,8 +17,8 @@ extern "C" {
 
 #define DEFAULT_ESP_GMF_ALC_CONFIG() {  \
     .sample_rate     = 48000,           \
-    .bits_per_sample = 16,              \
     .channel         = 2,               \
+    .bits_per_sample = 16,              \
 }
 
 /**

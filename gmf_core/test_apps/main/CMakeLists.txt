@@ -1,4 +1,5 @@
 idf_component_register(SRCS "test_gmf_core_main.c"
+                            "test_cxx_build.cpp"
                             "./cases/gmf_element_test.c"
                             "./cases/gmf_task_test.c"
                             "./cases/gmf_io_test.c"

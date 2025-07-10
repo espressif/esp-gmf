@@ -17,9 +17,9 @@ extern "C" {
 
 #define DEFAULT_ESP_GMF_RATE_CVT_CONFIG() {              \
     .src_rate        = 44100,                            \
-    .bits_per_sample = 16,                               \
-    .channel         = 2,                                \
     .dest_rate       = 48000,                            \
+    .channel         = 2,                                \
+    .bits_per_sample = 16,                               \
     .complexity      = 2,                                \
     .perf_type       = ESP_AE_RATE_CVT_PERF_TYPE_SPEED,  \
 }

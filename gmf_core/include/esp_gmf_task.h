@@ -89,13 +89,15 @@ typedef struct {
 #define DEFAULT_ESP_GMF_TASK_CORE  (0)
 
 #define DEFAULT_ESP_GMF_TASK_CONFIG() {       \
-    .name = NULL,                             \
     .thread = {                               \
         .stack = DEFAULT_ESP_GMF_STACK_SIZE,  \
         .prio = DEFAULT_ESP_GMF_TASK_PRIO,    \
         .core = DEFAULT_ESP_GMF_TASK_CORE,    \
         .stack_in_ext = false,                \
     },                                        \
+    .name = NULL,                             \
+    .ctx = NULL,                              \
+    .cb = NULL,                               \
 }
 
 /**

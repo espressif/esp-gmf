@@ -196,3 +196,26 @@ function fetch_idf_branch() {
     echo "IDF_PATH not set"
   fi
 }
+
+function check_project_root_dir_change() {
+  git fetch --unshallow || true
+  PREV_COMMIT=$(git rev-parse HEAD~1)
+  CURR_COMMIT=$(git rev-parse HEAD)
+
+  # List all folder names in the current and previous commits
+  CURR_FOLDERS=$(git ls-tree -d --name-only "$CURR_COMMIT")
+  PREV_FOLDERS=$(git ls-tree -d --name-only "$PREV_COMMIT")
+
+  # Find newly added folders
+  NEW_FOLDERS=$(comm -23 <(echo "$CURR_FOLDERS" | sort) <(echo "$PREV_FOLDERS" | sort) || true)
+
+  echo "New root-level directories:"
+  echo "$NEW_FOLDERS"
+
+  if [[ -n "$NEW_FOLDERS" ]]; then
+    # If there are new folders, exit with status 1
+    echo -e "\033[1;33mWarning: Please update the change rules in .gitlab/ci/rules.yml to include the following new root-level folders: '$NEW_FOLDERS'\033[0m"
+    echo -e "\033[1;33mWarning: Please add the jobs in .gitlab/ci/build_ut.yml to test new components test_apps\033[0m"
+    exit 1
+  fi
+}

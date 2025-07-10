@@ -17,7 +17,7 @@
 
 static const char *TAG = "CXX_BUILD_TEST";
 
-extern "C" void cxx_build_test(void)
+extern "C" void test_cxx_build(void)
 {
     ESP_LOGI(TAG, "Starting ESP Board Manager Test Application");
     esp_board_manager_print_board_info();

@@ -1,3 +1,10 @@
+.patterns-build_components: &patterns-build_components
+  - ".gitlab/**/*"
+  - "tools/**/*"
+  - "elements/**/*"
+  - "gmf_core/**/*"
+  - "packages/**/*"
+
 ##############
 # if anchors #
 ##############
@@ -100,10 +107,12 @@
 
 .rules:build:enable-gmf-unit-test:
   rules:
+    - <<: *if-dev-push
+      when: never
     - <<: *if-label-skip_unit_test
       when: never
     - <<: *if-web
     - <<: *if-protected
     - <<: *if-trigger
     - <<: *if-schedule
-    - <<: *if-merge_request_event
+    - changes: *patterns-build_components

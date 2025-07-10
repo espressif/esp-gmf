@@ -39,6 +39,7 @@ variables:
                 --build-dir ${IDF_VERSION_TAG}/build_@t_@w \
                 --parallel-count ${parallel##*/} \
                 --parallel-index ${parallel%%/*}
+    - python $CI_PROJECT_DIR/tools/ci/check_test_cxx_build.py
   after_script:
     - find "${TEST_DIR}" -type d -name "managed_components" -exec rm -rf {} +
 
