@@ -17,8 +17,13 @@ extern "C" {
  * @brief  File IO configurations, if any entry is zero then the configuration will be set to default values
  */
 typedef struct {
-    int         dir;  /*!< IO direction, reader or writer */
-    const char *name; /*!< Name for this instance */
+    int          dir;         /*!< IO direction, reader or writer */
+    const char  *name;        /*!< Name for this instance */
+    int          cache_size;  /*!< Cache size for file IO operations in bytes. If size <= 512, it will be set to 0.
+                                   Note: Larger cache size will improve read and write performance but consume more memory */
+    int          cache_caps;  /*!< Cache memory capabilities, if zero then it will be set to (MALLOC_CAP_INTERNAL | MALLOC_CAP_CACHE_ALIGNED).
+                                   Note: If chips have SOC_SDMMC_PSRAM_DMA_CAPABLE capability(such as ESP32P4),
+                                         then you can set (MALLOC_CAP_SPIRAM | MALLOC_CAP_CACHE_ALIGNED) to save SRAM */
 } file_io_cfg_t;
 
 #define FILE_IO_CFG_DEFAULT() {     \

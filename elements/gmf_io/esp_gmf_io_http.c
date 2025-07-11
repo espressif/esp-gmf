@@ -30,7 +30,6 @@ typedef struct http_io {
     bool                     gzip_encoding; /*!< Content is encoded */
     gzip_miniz_handle_t      gzip;          /*!< GZIP instance */
     esp_gmf_db_handle_t      data_bus;      /*!< The data bus handle */
-    int                      codec_fmt;     /*!< The format of codec */
 } http_stream_t;
 
 static const char *TAG = "ESP_GMF_HTTP";
@@ -133,7 +132,7 @@ static esp_gmf_err_t _http_open(esp_gmf_io_handle_t self)
             .cert_pem = http_io_cfg->cert_pem,
 #ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
             .crt_bundle_attach = http_io_cfg->crt_bundle_attach,
-#endif /* CONFIG_MBEDTLS_CERTIFICATE_BUNDLE */
+#endif  /* CONFIG_MBEDTLS_CERTIFICATE_BUNDLE */
         };
         http->client = esp_http_client_init(&http_cfg);
         ESP_GMF_CHECK(TAG, http->client, return ESP_GMF_ERR_MEMORY_LACK, "Failed to initialize http client");
@@ -213,6 +212,18 @@ _stream_redirect:
         return ESP_GMF_ERR_FAIL;
     }
     esp_gmf_io_set_size(self, info.size);
+
+    if (http->data_bus == NULL) {
+        err = esp_gmf_db_new_block(1, http_io_cfg->out_buf_size, &http->data_bus);
+        if (err != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to create the download buffer, sz: %d, %s-%p", http_io_cfg->out_buf_size, OBJ_GET_TAG(http), http);
+            return err;
+        }
+        esp_gmf_data_bus_type_t db_type = 0;
+        esp_gmf_db_get_type(http->data_bus, &db_type);
+        http->base.type = db_type;
+    }
+
     return ESP_GMF_ERR_OK;
 }
 
@@ -375,6 +386,7 @@ static esp_gmf_err_t _http_destroy(esp_gmf_io_handle_t self)
     ESP_LOGD(TAG, "%s-%p", __FUNCTION__, http);
     if (http->data_bus) {
         esp_gmf_db_deinit(http->data_bus);
+        http->data_bus = NULL;
     }
     void *cfg = OBJ_GET_CFG(self);
     if (cfg) {
@@ -441,7 +453,9 @@ esp_gmf_err_t esp_gmf_io_http_reset(esp_gmf_io_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG;);
     http_stream_t *http = (http_stream_t *)handle;
-    esp_gmf_db_reset(http->data_bus);
+    if (http->data_bus) {
+        esp_gmf_db_reset(http->data_bus);
+    }
     ESP_LOGD(TAG, "Reset, %p", http);
     return ESP_GMF_ERR_OK;
 }
@@ -465,8 +479,8 @@ esp_gmf_err_t esp_gmf_io_http_set_event_callback(esp_gmf_io_handle_t handle, htt
 
 esp_gmf_err_t esp_gmf_io_http_init(http_io_cfg_t *config, esp_gmf_io_handle_t *io)
 {
-    ESP_GMF_NULL_CHECK(TAG, config, {return ESP_GMF_ERR_INVALID_ARG;});
-    ESP_GMF_NULL_CHECK(TAG, io, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, io, return ESP_GMF_ERR_INVALID_ARG);
     *io = NULL;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     http_stream_t *http = esp_gmf_oal_calloc(1, sizeof(http_stream_t));
@@ -501,14 +515,6 @@ esp_gmf_err_t esp_gmf_io_http_init(http_io_cfg_t *config, esp_gmf_io_handle_t *i
         ret = ESP_GMF_ERR_NOT_SUPPORT;
         goto _http_init_fail;
     }
-    ret = esp_gmf_db_new_block(1, config->out_buf_size, &http->data_bus);
-    if (ret != ESP_GMF_ERR_OK) {
-        ESP_LOGE(TAG, "Failed to create the download buffer, sz: %d, %s-%p", config->out_buf_size, OBJ_GET_TAG(http), http);
-        goto _http_init_fail;
-    }
-    esp_gmf_data_bus_type_t db_type = 0;
-    esp_gmf_db_get_type(http->data_bus, &db_type);
-    http->base.type = db_type;
     esp_gmf_io_cfg_t io_cfg = {
         .thread.stack = config->task_stack,
         .thread.prio = config->task_prio,

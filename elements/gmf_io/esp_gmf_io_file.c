@@ -11,18 +11,26 @@
 #include <string.h>
 #include "errno.h"
 
+#include "esp_heap_caps.h"
 #include "esp_gmf_io_file.h"
 #include "esp_gmf_oal_mem.h"
 #include "fcntl.h"
 #include "esp_log.h"
 
+#define IO_FILE_ALIGN_UP(num, align)  (((num) + ((align) - 1)) & ~((align) - 1))
+#define MIN(a, b)                     ((a) < (b) ? (a) : (b))
+#define IO_FILE_DEFAULT_CACHE_ALIGN   (512)
+
 /**
- * @brief File io context in GMF
+ * @brief  File io context in GMF
  */
 typedef struct {
-    esp_gmf_io_t base;    /*!< The GMF file io handle */
-    bool         is_open; /*!< The flag of whether opened */
-    int          file;    /*!< The handle of file stream */
+    esp_gmf_io_t  base;        /*!< The GMF file io handle */
+    bool          is_open;     /*!< The flag of whether opened */
+    FILE         *file;        /*!< The handle of file stream */
+    uint8_t      *cache;       /*!< The cache buffer */
+    int           cache_size;  /*!< The cache size */
+    int           cache_caps;  /*!< The cache memory capabilities */
 } file_io_stream_t;
 
 static const char *TAG = "ESP_GMF_FILE";
@@ -71,8 +79,8 @@ static esp_gmf_err_t _file_open(esp_gmf_io_handle_t io)
         return ESP_GMF_ERR_FAIL;
     }
     if (((file_io_cfg_t *)file_io->base.parent.cfg)->dir == ESP_GMF_IO_DIR_READER) {
-        file_io->file = open(path, O_RDONLY);
-        if (file_io->file <= 0) {
+        file_io->file = fopen(path, "rb");
+        if (file_io->file == NULL) {
             ESP_LOGE(TAG, "Failed to open on read, path: %s, err: %s", path, strerror(errno));
             return ESP_GMF_ERR_FAIL;
         }
@@ -83,14 +91,14 @@ static esp_gmf_err_t _file_open(esp_gmf_io_handle_t io)
         esp_gmf_io_get_info((esp_gmf_io_handle_t)file_io, &info);
         ESP_LOGI(TAG, "File size: %d byte, file position: %lld", (int)sz.st_size, info.pos);
         if (info.pos > 0) {
-            if (lseek(file_io->file, info.pos, SEEK_SET) < 0) {
+            if (fseek(file_io->file, info.pos, SEEK_SET) != 0) {
                 ESP_LOGE(TAG, "Seek to %lld failed, err: %s", info.pos, strerror(errno));
                 return ESP_GMF_ERR_FAIL;
             }
         }
     } else if (((file_io_cfg_t *)file_io->base.parent.cfg)->dir == ESP_GMF_IO_DIR_WRITER) {
-        file_io->file = open(path, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
-        if (file_io->file == -1) {
+        file_io->file = fopen(path, "wb");
+        if (file_io->file == NULL) {
             ESP_LOGE(TAG, "Failed to open on write, path: %s, err: %s", path, strerror(errno));
             return ESP_GMF_ERR_FAIL;
         }
@@ -98,6 +106,13 @@ static esp_gmf_err_t _file_open(esp_gmf_io_handle_t io)
         ESP_LOGE(TAG, "The type must be reader or writer");
         return ESP_GMF_ERR_FAIL;
     }
+    if (file_io->cache_size > 0) {
+        file_io->cache = heap_caps_malloc(file_io->cache_size, file_io->cache_caps);
+        ESP_GMF_MEM_VERIFY(TAG, file_io->cache, { fclose(file_io->file); return ESP_GMF_ERR_MEMORY_LACK;},
+                            "file stream cache", file_io->cache_size);
+        setvbuf(file_io->file, (char *)file_io->cache, _IOFBF, file_io->cache_size);
+    }
+
     file_io->is_open = true;
     return ESP_GMF_ERR_OK;
 }
@@ -106,18 +121,18 @@ static esp_gmf_err_io_t _file_acquire_read(esp_gmf_io_handle_t handle, void *pay
 {
     file_io_stream_t *file_io = (file_io_stream_t *)handle;
     esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    int rlen = read(file_io->file, pload->buf, wanted_size);
-    ESP_LOGD(TAG, "Read len: %d-%ld", rlen, wanted_size);
-    if (rlen == -1) {
+    size_t rlen = fread(pload->buf, 1, wanted_size, file_io->file);
+    ESP_LOGD(TAG, "Read len: %zu-%ld", rlen, wanted_size);
+    if (rlen == 0 && ferror(file_io->file)) {
         ESP_LOGE(TAG, "The error is happened in reading data, error msg: %s", strerror(errno));
         return ESP_GMF_IO_FAIL;
     }
     pload->valid_size = rlen;
     if (rlen < wanted_size) {
-        rlen = read(file_io->file, pload->buf + rlen, (wanted_size - rlen));
+        rlen = fread(pload->buf + rlen, 1, (wanted_size - rlen), file_io->file);
         if (rlen == 0) {
             pload->is_done = true;
-            ESP_LOGI(TAG, "No more data, ret: %d", rlen);
+            ESP_LOGI(TAG, "No more data, ret: %zu", rlen);
             return ESP_GMF_IO_OK;
         }
         pload->valid_size += rlen;
@@ -145,19 +160,29 @@ static esp_gmf_err_io_t _file_release_write(esp_gmf_io_handle_t handle, void *pa
 {
     file_io_stream_t *file_io = (file_io_stream_t *)handle;
     esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    int wlen = 0;
-    wlen = write(file_io->file, pload->buf, pload->valid_size);
-    fsync(file_io->file);
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)file_io, &info);
-    ESP_LOGD(TAG, "Write len = %d, pos = %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
-    if (wlen > 0) {
-        esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, wlen);
+    size_t wlen_total = 0;
+    uint8_t *pbuf = pload->buf;
+    if (file_io->cache_size > 0) {
+        while (pload->valid_size > wlen_total) {
+            int size = MIN(pload->valid_size - wlen_total, file_io->cache_size - 1);
+            size_t wlen = fwrite(pbuf, 1, size, file_io->file);
+            if (wlen == 0) {
+                break;
+            }
+            pbuf += wlen;
+            wlen_total += wlen;
+        }
+    } else {
+        wlen_total = fwrite(pload->buf, 1, pload->valid_size, file_io->file);
     }
-    if (wlen == -1) {
+    if (wlen_total != pload->valid_size) {
         ESP_LOGE(TAG, "The error is happened in writing data, error msg:%s", strerror(errno));
         return ESP_GMF_IO_FAIL;
     }
+    esp_gmf_info_file_t info = {0};
+    esp_gmf_io_get_info((esp_gmf_io_handle_t)file_io, &info);
+    ESP_LOGD(TAG, "Write len = %zu, pos = %d/%d", wlen_total, (int)info.pos, (int)info.size);
+    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, wlen_total);
     return ESP_GMF_IO_OK;
 }
 
@@ -173,7 +198,7 @@ static esp_gmf_err_t _file_seek(esp_gmf_io_handle_t io, uint64_t seek_byte_pos)
                  info.size, seek_byte_pos);
         return ESP_GMF_ERR_OUT_OF_RANGE;
     }
-    if (lseek(file_io->file, seek_byte_pos, SEEK_SET) < 0) {
+    if (fseek(file_io->file, seek_byte_pos, SEEK_SET) != 0) {
         ESP_LOGE(TAG, "Error seek file, error message: %s, line: %d", strerror(errno), __LINE__);
         return ESP_GMF_ERR_FAIL;
     }
@@ -183,8 +208,8 @@ static esp_gmf_err_t _file_seek(esp_gmf_io_handle_t io, uint64_t seek_byte_pos)
 static esp_gmf_err_t _file_reset(esp_gmf_io_handle_t io)
 {
     file_io_stream_t *file_io = (file_io_stream_t *)io;
-    if (file_io->file != 0) {
-        lseek(file_io->file, 0, SEEK_SET);
+    if (file_io->file != NULL) {
+        fseek(file_io->file, 0, SEEK_SET);
     }
     return ESP_GMF_ERR_OK;
 }
@@ -196,10 +221,15 @@ static esp_gmf_err_t _file_close(esp_gmf_io_handle_t io)
     esp_gmf_io_get_info((esp_gmf_io_handle_t)file_io, &info);
     ESP_LOGI(TAG, "CLose, %p, pos = %d/%d", file_io, (int)info.pos, (int)info.size);
     if (file_io->is_open) {
-        close(file_io->file);
+        fclose(file_io->file);
+        file_io->file = NULL;
         file_io->is_open = false;
     }
     esp_gmf_io_set_pos((esp_gmf_io_handle_t)io, 0);
+    if (file_io->cache) {
+        esp_gmf_oal_free(file_io->cache);
+        file_io->cache = NULL;
+    }
     return ESP_GMF_ERR_OK;
 }
 
@@ -218,8 +248,8 @@ static esp_gmf_err_t _file_delete(esp_gmf_io_handle_t io)
 
 esp_gmf_err_t esp_gmf_io_file_init(file_io_cfg_t *config, esp_gmf_io_handle_t *io)
 {
-    ESP_GMF_NULL_CHECK(TAG, config, {return ESP_GMF_ERR_INVALID_ARG;});
-    ESP_GMF_NULL_CHECK(TAG, io, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, io, return ESP_GMF_ERR_INVALID_ARG);
     *io = NULL;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     file_io_stream_t *file_io = esp_gmf_oal_calloc(1, sizeof(file_io_stream_t));
@@ -231,8 +261,7 @@ esp_gmf_err_t esp_gmf_io_file_init(file_io_cfg_t *config, esp_gmf_io_handle_t *i
     obj->new_obj = _file_new;
     obj->del_obj = _file_delete;
     file_io_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(*config));
-    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _file_fail;},
-                       "file stream configuration", sizeof(*config));
+    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _file_fail;}, "file_io cfg", sizeof(*config));
     memcpy(cfg, config, sizeof(*config));
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
     ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_file" : config->name));
@@ -255,7 +284,13 @@ esp_gmf_err_t esp_gmf_io_file_init(file_io_cfg_t *config, esp_gmf_io_handle_t *i
         goto _file_fail;
     }
     *io = obj;
-    ESP_LOGD(TAG, "Initialization, %s-%p", OBJ_GET_TAG(obj), file_io);
+    if (cfg->cache_size <= IO_FILE_DEFAULT_CACHE_ALIGN) {
+        file_io->cache_size = 0;
+    } else {
+        file_io->cache_caps = (cfg->cache_caps == 0) ? (MALLOC_CAP_INTERNAL | MALLOC_CAP_CACHE_ALIGNED) : cfg->cache_caps;
+        file_io->cache_size = IO_FILE_ALIGN_UP(cfg->cache_size, IO_FILE_DEFAULT_CACHE_ALIGN);
+    }
+    ESP_LOGD(TAG, "Initialization, %s-%p, cache_size: %d", OBJ_GET_TAG(obj), file_io, file_io->cache_size);
     return ESP_GMF_ERR_OK;
 _file_fail:
     esp_gmf_obj_delete(obj);

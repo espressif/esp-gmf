@@ -90,18 +90,18 @@ esp_gmf_err_t esp_gmf_oal_sys_get_real_time_stats(int elapsed_time_ms, bool mark
     configRUN_TIME_COUNTER_TYPE start_run_time, end_run_time;
 
     esp_gmf_err_t ret = esp_gmf_get_cur_task_status(&start_array, &start_array_size, &start_run_time);
-    ESP_GMF_MEM_CHECK(TAG, start_array, { goto exit; });
+    ESP_GMF_MEM_CHECK(TAG, start_array, goto exit);
 
     // Delay some time to get cpu usage
     vTaskDelay(pdMS_TO_TICKS(elapsed_time_ms));
 
     ret = esp_gmf_get_cur_task_status(&end_array, &end_array_size, &end_run_time);
-    ESP_GMF_MEM_CHECK(TAG, end_array, { goto exit; });
+    ESP_GMF_MEM_CHECK(TAG, end_array, goto exit);
 
     // Match each task in start_array to those in the end_array
     int min_count = start_array_size < end_array_size ? start_array_size : end_array_size;
     matched_arr = malloc(min_count * sizeof(uint8_t));
-    ESP_GMF_MEM_CHECK(TAG, matched_arr, { goto exit; });
+    ESP_GMF_MEM_CHECK(TAG, matched_arr, goto exit);
 
     uint8_t matched_count = 0;
     for (int i = 0; i < start_array_size; i++) {
@@ -111,7 +111,6 @@ esp_gmf_err_t esp_gmf_oal_sys_get_real_time_stats(int elapsed_time_ms, bool mark
             }
             matched_arr[matched_count++] = j;
             start_array[i].xHandle = NULL;
-            end_array[j].xHandle = NULL;
             end_array[j].ulRunTimeCounter -= start_array[i].ulRunTimeCounter;
             break;
         }

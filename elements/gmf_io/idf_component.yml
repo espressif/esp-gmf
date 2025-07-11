@@ -1,4 +1,4 @@
-version: "0.7.1"
+version: "0.7.2"
 description: Espressif GMF IO Module
 url: https://github.com/espressif/esp-gmf/tree/main/elements/gmf_io
 documentation: "https://github.com/espressif/esp-gmf/blob/main/elements/gmf_io/README.md"

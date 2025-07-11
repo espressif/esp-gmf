@@ -129,5 +129,6 @@ void esp_gmf_app_wifi_connect(void)
 void esp_gmf_app_wifi_disconnect(void)
 {
     ESP_ERROR_CHECK(example_disconnect());
+    ESP_ERROR_CHECK(esp_event_loop_delete_default());
     esp_netif_deinit();
 }

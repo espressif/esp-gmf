@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.2
+
+### Features
+
+- Added io_file cache size configuration to enhance read and write performance
+
+### Bug Fixes
+
+- Delay task creation to open stage in `io_http` to avoid task resource waste if no used
+
 ## v0.7.1
 
 - Updated `esp-codec-dev` dependency to v1.4.0

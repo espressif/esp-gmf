@@ -1,11 +1,12 @@
 # Changelog
 
-## Un-Released
+## v0.7.3
 
 ### Bug Fixes
 
 - Fixed possible dead lock for released port after close
 - Fixed pipeline previous action state not cleared after stopped
+- Fixed incorrect task stack information when using `esp_gmf_oal_sys_get_real_time_stats`
 
 ## v0.7.2
 

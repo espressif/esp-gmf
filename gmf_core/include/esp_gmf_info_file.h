@@ -55,6 +55,7 @@ static inline esp_gmf_err_t esp_gmf_info_file_deinit(esp_gmf_info_file_t *handle
     ESP_GMF_NULL_CHECK(INFO_TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     if (handle->uri) {
         esp_gmf_oal_free((char *)handle->uri);
+        handle->uri = NULL;
     }
     return ESP_GMF_ERR_OK;
 }
