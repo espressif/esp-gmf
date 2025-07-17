@@ -239,13 +239,11 @@ static inline int process_func(esp_gmf_task_handle_t handle, void *para)
                          esp_gmf_event_get_state_str(tsk->state));
                 GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_PAUSE_BIT);
             }
-            tsk->_pause = 0;
         }
         if (tsk->_stop && (tsk->state != ESP_GMF_EVENT_STATE_ERROR)) {
             ESP_LOGV(TAG, "Stop job, [%s-%p, wk:%p, job:%p-%s]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, worker, worker->ctx, worker->label);
             __esp_gmf_task_delete_jobs(tsk);
             quit_state = ESP_GMF_EVENT_STATE_STOPPED;
-            tsk->_stop = 0;
             break;
         }
         ESP_LOGD(TAG, "Find next job to process, [%s-%p, cur:%p-%p-%s]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, worker, worker->ctx, worker->label);
@@ -511,8 +509,10 @@ esp_gmf_err_t esp_gmf_task_stop(esp_gmf_task_handle_t handle)
     if (GMF_TASK_WAIT_FOR_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT, tsk->api_sync_time) == false) {
         ESP_LOGE(TAG, "Stop timeout,[%s,%p]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         esp_gmf_oal_mutex_unlock(tsk->lock);
+        tsk->_stop = 0;
         return ESP_GMF_ERR_TIMEOUT;
     }
+    tsk->_stop = 0;
     esp_gmf_oal_mutex_unlock(tsk->lock);
     return ESP_GMF_ERR_OK;
 }
@@ -542,8 +542,10 @@ esp_gmf_err_t esp_gmf_task_pause(esp_gmf_task_handle_t handle)
     if (GMF_TASK_WAIT_FOR_MULTI_STATE_BITS(tsk->event_group, GMF_TASK_PAUSE_BIT | GMF_TASK_STOP_BIT, tsk->api_sync_time) == false) {
         ESP_LOGE(TAG, "Pause timeout,[%s,%p]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         esp_gmf_oal_mutex_unlock(tsk->lock);
+        tsk->_pause = 0;
         return ESP_GMF_ERR_TIMEOUT;
     }
+    tsk->_pause = 0;
     // Only clear pause bits
     GMF_TASK_CLR_STATE_BITS(tsk->event_group, GMF_TASK_PAUSE_BIT);
     esp_gmf_oal_mutex_unlock(tsk->lock);
