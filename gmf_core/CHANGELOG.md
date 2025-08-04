@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.1
+
+### Bug Fixes
+
+- Fixed a bug where the pause and stop operations lagged and caused the run API call to fail
+
 ## v0.7.0
 
 ### Features

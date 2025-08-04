@@ -28,9 +28,23 @@
 #include "esp_gmf_io.h"
 #include "esp_gmf_io_embed_flash.h"
 
-static const char *TAG = "PLAYER_TEST";
-
 #define PIPELINE_BLOCK_BIT BIT(0)
+
+// 定义事件组标志位
+#define STATE_RUNNING_BIT              (1 << 0)
+#define STATE_STOPPED_BIT              (1 << 1)
+#define STATE_PAUSED_BIT               (1 << 2)
+#define STATE_FINISHED_BIT             (1 << 3)
+#define CUSTOM_HIGH_PRIO_TASK_STOP_BIT (1 << 4)
+#define CUSTOM_LOW_PRIO_TASK_STOP_BIT  (1 << 5)
+
+typedef struct {
+    esp_asp_handle_t  *player_handle;
+    volatile bool     *test_flag;
+    EventGroupHandle_t state_event_group;
+} test_task_params_t;
+
+static const char *TAG = "PLAYER_TEST";
 
 static const char *dec_file_path[] = {
     "file://sdcard/test.mp3",
@@ -603,5 +617,182 @@ TEST_CASE("Play, Multiple-file Async Playing", "[Simple_Player][leaks=14000]")
     ESP_GMF_MEM_SHOW(TAG);
     esp_gmf_app_wifi_disconnect();
     vTaskDelay(1000 / portTICK_PERIOD_MS);
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+static int test_event_callback(esp_asp_event_pkt_t *event, void *ctx)
+{
+    if (event->type == ESP_ASP_EVENT_TYPE_MUSIC_INFO) {
+        esp_asp_music_info_t info = {0};
+        memcpy(&info, event->payload, event->payload_size);
+        ESP_LOGW(TAG, "Get info, rate:%d, channels:%d, bits:%d", info.sample_rate, info.channels, info.bits);
+    } else if (event->type == ESP_ASP_EVENT_TYPE_STATE) {
+        esp_asp_state_t st = 0;
+        memcpy(&st, event->payload, event->payload_size);
+        ESP_LOGW(TAG, "Get State, %d,%s", st, esp_audio_simple_player_state_to_str(st));
+
+        uint8_t bits = 0;
+        switch (st) {
+            case ESP_ASP_STATE_RUNNING:
+                bits = STATE_RUNNING_BIT;
+                break;
+            case ESP_ASP_STATE_STOPPED:
+                bits = STATE_STOPPED_BIT;
+                break;
+            case ESP_ASP_STATE_PAUSED:
+                bits = STATE_PAUSED_BIT;
+                break;
+            case ESP_ASP_STATE_FINISHED:
+                bits = STATE_FINISHED_BIT;
+                break;
+            default:
+                break;
+        }
+        if (bits != 0) {
+            // Set event group bits
+            xEventGroupSetBits((EventGroupHandle_t)ctx, bits);
+        }
+    }
+    return 0;
+}
+
+// Low priority task：run simple player and randomly pause or stop it
+void low_priority_task(void *pvParameters)
+{
+    ESP_LOGI(TAG, "Low priority task running ...");
+    srand(xTaskGetTickCount() ^ (uint32_t)pvParameters);
+
+    test_task_params_t *task_params = (test_task_params_t *)pvParameters;
+    esp_asp_handle_t *handle = task_params->player_handle;
+    EventGroupHandle_t event_group = task_params->state_event_group;
+
+    esp_asp_state_t state;
+    esp_gmf_err_t err;
+
+    err = esp_audio_simple_player_run(*handle, "file://sdcard/alarm_44100hz_16bit_2ch_100ms.mp3", NULL);
+    TEST_ASSERT_EQUAL(ESP_OK, err);
+
+    while (*(task_params->test_flag)) {
+        vTaskDelay(pdMS_TO_TICKS(90 + rand() % 40));
+
+        err = esp_audio_simple_player_get_state(*handle, &state);
+        TEST_ASSERT_EQUAL(ESP_OK, err);
+
+        if (state == ESP_ASP_STATE_RUNNING) {
+            uint8_t op = rand() % 2;
+            switch (op) {
+                case 0:  // Pause
+                    ESP_LOGW(TAG, "Player is running, trying to PAUSE it");
+                    err = esp_audio_simple_player_pause(*handle);
+                    TEST_ASSERT_EQUAL(ESP_OK, err);
+                    break;
+
+                case 1:  // Stop
+                    ESP_LOGW(TAG, "Player is running, trying to STOP it");
+                    err = esp_audio_simple_player_stop(*handle);
+                    TEST_ASSERT_EQUAL(ESP_OK, err);
+                    break;
+            }
+        }
+    }
+
+    ESP_LOGI(TAG, "Low priority task is done");
+    xEventGroupSetBits(event_group, CUSTOM_LOW_PRIO_TASK_STOP_BIT);
+    vTaskDelete(NULL);
+}
+
+// High priority task：monitor player state and recover it if needed
+void high_priority_task(void *pvParameters)
+{
+    ESP_LOGI(TAG, "High priority task running ...");
+
+    test_task_params_t *task_params = (test_task_params_t *)pvParameters;
+    esp_asp_handle_t *handle = task_params->player_handle;
+    EventGroupHandle_t event_group = task_params->state_event_group;
+
+    EventBits_t bits;
+    TickType_t wait_timeout = 100;
+
+    while (*(task_params->test_flag)) {
+        bits = xEventGroupWaitBits(event_group,
+                                   STATE_STOPPED_BIT | STATE_FINISHED_BIT | STATE_PAUSED_BIT,
+                                   pdTRUE, pdFALSE, portMAX_DELAY);
+
+        if ((bits & STATE_FINISHED_BIT) || (bits & STATE_STOPPED_BIT)) {
+            wait_timeout = 200;
+            xEventGroupClearBits(event_group, STATE_FINISHED_BIT | STATE_STOPPED_BIT | STATE_RUNNING_BIT);
+            ESP_LOGW(TAG, "Player FINISHED or STOPPED, high priority begin to recover player");
+            esp_gmf_err_t err = esp_audio_simple_player_run(*handle, "file://sdcard/alarm_44100hz_16bit_2ch_100ms.mp3", NULL);
+            TEST_ASSERT_EQUAL(ESP_OK, err);
+        } else if (bits & STATE_PAUSED_BIT) {
+            wait_timeout = 100;
+            xEventGroupClearBits(event_group, STATE_PAUSED_BIT | STATE_RUNNING_BIT);
+            ESP_LOGW(TAG, "Player PAUSED, high priority begin to recover player");
+            esp_gmf_err_t err = esp_audio_simple_player_resume(*handle);
+            TEST_ASSERT_EQUAL(ESP_OK, err);
+        }
+
+        EventBits_t run_bits = xEventGroupWaitBits(event_group,
+                                                   STATE_RUNNING_BIT,
+                                                   pdTRUE, pdFALSE,
+                                                   pdMS_TO_TICKS(wait_timeout));
+        TEST_ASSERT_TRUE(run_bits & STATE_RUNNING_BIT);
+    }
+
+    ESP_LOGI(TAG, "High priority task is done");
+    xEventGroupSetBits(event_group, CUSTOM_HIGH_PRIO_TASK_STOP_BIT);
+    vTaskDelete(NULL);
+}
+
+TEST_CASE("Pause, Stop, and Run APIs for Multi-task Execution", "[Simple_Player]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+    esp_gmf_app_setup_codec_dev(NULL);
+    void *sdcard_handle = NULL;
+    esp_gmf_app_setup_sdcard(&sdcard_handle);
+
+    esp_asp_cfg_t cfg = {
+        .in.cb = NULL,
+        .in.user_ctx = NULL,
+        .out.cb = out_data_callback,
+        .out.user_ctx = esp_gmf_app_get_playback_handle(),
+        .task_prio = 5,
+    };
+
+    esp_asp_handle_t handle = NULL;
+    esp_gmf_err_t err = esp_audio_simple_player_new(&cfg, &handle);
+    TEST_ASSERT_EQUAL(ESP_OK, err);
+
+    EventGroupHandle_t event_group = xEventGroupCreate();
+    xEventGroupClearBits(event_group, 0xFFFFFF);
+    err = esp_audio_simple_player_set_event(handle, test_event_callback, event_group);
+
+    test_task_params_t *params = malloc(sizeof(test_task_params_t));
+    volatile bool test_flag = true;
+
+    params->player_handle = &handle;
+    params->test_flag = &test_flag;
+    params->state_event_group = event_group;
+
+    xTaskCreate(high_priority_task, "High Priority Task", 4096, (void *)params, 7, NULL);
+    xTaskCreate(low_priority_task, "Low Priority Task", 4096, (void *)params, 6, NULL);
+
+    vTaskDelay(pdMS_TO_TICKS(20000));
+    test_flag = false;
+
+    xEventGroupWaitBits(event_group,
+                            CUSTOM_HIGH_PRIO_TASK_STOP_BIT | CUSTOM_LOW_PRIO_TASK_STOP_BIT,
+                            pdTRUE, pdTRUE,
+                            portMAX_DELAY);
+    ESP_LOGI(TAG, "All tasks are deleted, test finished");
+    err = esp_audio_simple_player_stop(handle);
+    TEST_ASSERT_EQUAL(ESP_OK, err);
+    err = esp_audio_simple_player_destroy(handle);
+    TEST_ASSERT_EQUAL(ESP_OK, err);
+    esp_gmf_app_teardown_sdcard(sdcard_handle);
+    esp_gmf_app_teardown_codec_dev();
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    free(params);
     ESP_GMF_MEM_SHOW(TAG);
 }
