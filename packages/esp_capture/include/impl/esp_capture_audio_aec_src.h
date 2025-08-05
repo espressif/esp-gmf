@@ -35,10 +35,11 @@ extern "C" {
  * @brief  Audio with AEC source configuration
  */
 typedef struct {
-    void    *record_handle;  /*!< Record handle of `esp_codec_dev` */
-    uint8_t  channel;        /*!< Audio channel */
-    uint8_t  channel_mask;   /*!< Bit mask to select which channels to process
-                               (e.g. 0x1 for left channel, 0x2 for right channel) */
+    const char *mic_layout;     /*!< Mic data layout, e.g. "MR", "RMNM"" */
+    void       *record_handle;  /*!< Record handle of `esp_codec_dev` */
+    uint8_t     channel;        /*!< Audio channel */
+    uint8_t     channel_mask;   /*!< Bit mask to select which channels to process
+                                      (e.g. 0x1 for left channel, 0x2 for right channel) */
 } esp_capture_audio_aec_src_cfg_t;
 
 /**
