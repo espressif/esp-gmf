@@ -1,4 +1,4 @@
-version: "0.7.0"
+version: "0.7.1"
 description: Espressif GMF Related Examples
 url: https://github.com/espressif/esp-gmf/tree/main/gmf_examples
 documentation: "https://github.com/espressif/esp-gmf/blob/main/gmf_examples/README.md"

@@ -42,7 +42,16 @@ void app_main(void)
     ESP_GMF_MEM_SHOW(TAG);
     int ret;
     ESP_LOGI(TAG, "[ 1 ] Mount peripheral");
-    esp_gmf_app_setup_codec_dev(NULL);
+    // Configuration of codec to be aligned with audio pipeline output
+    esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
+    codec_info.play_info.sample_rate = CONFIG_GMF_AUDIO_EFFECT_RATE_CVT_DEST_RATE;
+    codec_info.play_info.channel = CONFIG_GMF_AUDIO_EFFECT_CH_CVT_DEST_CH;
+    codec_info.play_info.bits_per_sample = CONFIG_GMF_AUDIO_EFFECT_BIT_CVT_DEST_BITS;
+    codec_info.record_info = codec_info.play_info;
+    esp_gmf_app_setup_codec_dev(&codec_info);
+
+    // Set default output volume range from [0, 100]
+    esp_codec_dev_set_out_vol((esp_codec_dev_handle_t)esp_gmf_app_get_playback_handle() , 80);
 
     ESP_LOGI(TAG, "[ 2 ] Register all the elements and set audio information to play codec device");
     esp_gmf_pool_handle_t pool = NULL;
