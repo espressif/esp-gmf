@@ -121,6 +121,7 @@ static esp_gmf_err_t esp_gmf_task_evt(esp_gmf_event_pkt_t *evt, void *ctx)
                 esp_gmf_event_state_t st = 0;
                 esp_gmf_task_get_state(tsk, &st);
                 if (st != ESP_GMF_EVENT_STATE_PAUSED) {
+                    evt->sub = ESP_GMF_EVENT_STATE_OPENING;
                     if (pipeline->in) {
                         ret_val = esp_gmf_io_open(pipeline->in);
                         if (ret_val != ESP_GMF_ERR_OK) {
@@ -135,7 +136,6 @@ static esp_gmf_err_t esp_gmf_task_evt(esp_gmf_event_pkt_t *evt, void *ctx)
                             ESP_LOGE(TAG, "Failed to open the out port, ret:%d,[%p-%s]", ret_val, tsk, OBJ_GET_TAG(tsk));
                         }
                     }
-                    evt->sub = ESP_GMF_EVENT_STATE_OPENING;
                 }
                 evt->from = pipeline;
                 _set_pipe_linked_el_state(pipeline, evt->sub);

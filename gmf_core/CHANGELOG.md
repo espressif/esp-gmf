@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.2
+
+### Bug Fixes
+
+- Fixed an issue where the pipeline overwrote the event callback state when both input and output IO operations failed
+
 ## v0.7.1
 
 ### Bug Fixes
