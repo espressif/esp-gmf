@@ -19,12 +19,16 @@
 
 static const char *TAG = "REC_SDCARD";
 
-esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
+#define DEFAULT_RECORD_SAMPLE_RATE  16000
+#define DEFAULT_RECORD_CHANNEL      1
+#define DEFAULT_RECORD_BITS         16
+
+esp_gmf_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
     ESP_LOGI(TAG, "CB: RECV Pipeline EVT: el:%s-%p, type:%d, sub:%s, payload:%p, size:%d,%p",
              "OBJ_GET_TAG(event->from)", event->from, event->type, esp_gmf_event_get_state_str(event->sub),
              event->payload, event->payload_size, ctx);
-    return 0;
+    return ESP_GMF_ERR_OK;
 }
 
 void app_main(void)
@@ -32,9 +36,19 @@ void app_main(void)
     esp_log_level_set("*", ESP_LOG_INFO);
     int ret = 0;
     ESP_LOGI(TAG, "[ 1 ] Mount sdcard");
-    esp_gmf_app_setup_codec_dev(NULL);
     void *sdcard_handle = NULL;
     esp_gmf_app_setup_sdcard(&sdcard_handle);
+
+    // Configuration of codec to be aligned with audio pipeline input
+    esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
+    codec_info.record_info.sample_rate = DEFAULT_RECORD_SAMPLE_RATE;
+    codec_info.record_info.bits_per_sample = DEFAULT_RECORD_BITS;
+    codec_info.record_info.channel = DEFAULT_RECORD_CHANNEL;
+    codec_info.play_info = codec_info.record_info;
+    esp_gmf_app_setup_codec_dev(&codec_info);
+
+    // Set default microphone gain
+    esp_codec_dev_set_in_gain((esp_codec_dev_handle_t)esp_gmf_app_get_record_handle(), 32);
 
     ESP_LOGI(TAG, "[ 2 ] Register all the elements and set audio information to record codec device");
     esp_gmf_pool_handle_t pool = NULL;
@@ -59,9 +73,9 @@ void app_main(void)
     esp_gmf_element_handle_t enc_el = NULL;
     esp_gmf_pipeline_get_el_by_name(pipe, "aud_enc", &enc_el);
     esp_gmf_info_sound_t info = {
-        .sample_rates = 16000,
-        .channels = 1,
-        .bits = 16,
+        .sample_rates = DEFAULT_RECORD_SAMPLE_RATE,
+        .channels = DEFAULT_RECORD_CHANNEL,
+        .bits = DEFAULT_RECORD_BITS,
         .format_id = ESP_AUDIO_TYPE_AAC,
     };
     esp_gmf_audio_enc_reconfig_by_sound_info(enc_el, &info);
