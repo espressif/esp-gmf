@@ -1,0 +1,13 @@
+dependencies:
+  espressif/gmf_core:
+    version: "^0.7"
+    override_path: ../../../../gmf_core
+  espressif/gmf_audio:
+    version: "^0.7"
+    override_path: ../../../../elements/gmf_audio
+  espressif/esp_audio_render:
+    version: "^0.7.0"
+    override_path: ../../../esp_audio_render
+  espressif/gmf_app_utils:
+    version: "^0.7.0"
+    override_path: ../../../gmf_app_utils

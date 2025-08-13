@@ -54,3 +54,49 @@ esp_gmf_err_t esp_gmf_audio_param_set_dest_ch(esp_gmf_element_handle_t self, uin
 
     RELEASE_AMETHOD_SETTING();
 }
+
+esp_gmf_err_t esp_gmf_audio_param_set_speed(esp_gmf_element_handle_t self, float speed)
+{
+    const char *method_name = AMETHOD(SONIC, SET_SPEED);
+    PREPARE_AMETHOD_SETTING();
+
+    SET_AMETHOD_ARG(AMETHOD_ARG(SONIC, SET_SPEED, SPEED), speed);
+
+    RELEASE_AMETHOD_SETTING();
+}
+
+esp_gmf_err_t esp_gmf_audio_param_set_pitch(esp_gmf_element_handle_t self, float pitch)
+{
+    const char *method_name = AMETHOD(SONIC, SET_PITCH);
+    PREPARE_AMETHOD_SETTING();
+
+    SET_AMETHOD_ARG(AMETHOD_ARG(SONIC, SET_PITCH, PITCH), pitch);
+
+    RELEASE_AMETHOD_SETTING();
+}
+
+esp_gmf_err_t esp_gmf_audio_param_set_alc_channel_gain(esp_gmf_element_handle_t self, uint8_t ch_idx, float db)
+{
+    const char *method_name = AMETHOD(ALC, SET_GAIN);
+    // ALC currently only support int8 db
+    int8_t gain = (int8_t) db;
+    PREPARE_AMETHOD_SETTING();
+
+    SET_AMETHOD_ARG(AMETHOD_ARG(ALC, SET_GAIN, IDX), ch_idx);
+    SET_AMETHOD_ARG(AMETHOD_ARG(ALC, SET_GAIN, GAIN), gain);
+
+    RELEASE_AMETHOD_SETTING();
+}
+
+esp_gmf_err_t esp_gmf_audio_param_set_fade(esp_gmf_element_handle_t self, bool is_fade_in)
+{
+    const char *method_name = AMETHOD(FADE, SET_MODE);
+    // Aligned with ESP_AE_FADE_MODE_FADE_IN  = 1, ESP_AE_FADE_MODE_FADE_OUT = 2
+    int32_t mode = is_fade_in ? 1 : 2;
+
+    PREPARE_AMETHOD_SETTING();
+
+    SET_AMETHOD_ARG(AMETHOD_ARG(FADE, SET_MODE, MODE), mode);
+
+    RELEASE_AMETHOD_SETTING();
+}

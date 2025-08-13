@@ -44,7 +44,19 @@ static esp_gmf_err_t __alc_set_gain(esp_gmf_element_handle_t handle, esp_gmf_arg
     uint8_t idx = (uint8_t)(*buf);
     alc_desc = alc_desc->next;
     int8_t gain = (int8_t)(*(buf + alc_desc->offset));
-    return esp_gmf_alc_set_gain(handle, idx, gain);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    if (idx == 0xFF) {
+        // Apply gain to all channels
+        esp_ae_alc_cfg_t *config = (esp_ae_alc_cfg_t *)OBJ_GET_CFG(handle);
+        if (config) {
+            for (uint8_t i = 0; i < config->channel; i++) {
+                ret |= esp_gmf_alc_set_gain(handle, i, gain);
+            }
+        }
+    } else {
+        ret = esp_gmf_alc_set_gain(handle, idx, gain);
+    }
+    return ret;
 }
 
 static esp_gmf_err_t __alc_get_gain(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
