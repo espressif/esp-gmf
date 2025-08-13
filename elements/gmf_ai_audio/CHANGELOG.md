@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.1
+
+### Features
+
+- Increased `esp-sr` dependency to version 2.1.5
+
 ## v0.7.0
 
 ### Features
