@@ -1,0 +1,15 @@
+board: test_board2
+chip: esp32s3
+version: 1.0.0
+
+peripherals:
+  - name: gpio_test_output
+    type: gpio
+    role: output
+    config:
+      pin: 6
+      mode: GPIO_MODE_OUTPUT
+      pull_up: false
+      pull_down: false
+      intr_type: GPIO_INTR_DISABLE
+      default_level: 0

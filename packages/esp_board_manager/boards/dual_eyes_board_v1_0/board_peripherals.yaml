@@ -1,0 +1,27 @@
+board: dual_eyes_board_v1_0
+chip: esp32s3
+version: 1.0.0
+# Peripherals Configuration for Dual Eyes Board V1.0
+peripherals:
+  # LCD SPI Configuration for GC9A01
+  - name: spi_display
+    type: spi
+    role: master
+    config:
+      # spi_bus_config_t fields
+      spi_bus_config:
+        spi_port: SPI2_HOST                 # 0: SPI1_HOST, 1: SPI2_HOST, 2: SPI3_HOST
+        data0_io_num: 38                    # GPIO38 - LCD_DATA0 (BSP_LCD_DATA0)
+        sclk_io_num: 45                     # GPIO45 - LCD_PCLK (BSP_LCD_PCLK)
+        max_transfer_sz: 57600              # Maximum transfer size in bytes (240*240*2/10)
+        isr_cpu_id: ESP_INTR_CPU_AFFINITY_1
+
+  # Backlight Control
+  - name: ledc_backlight
+    type: ledc
+    version: default
+    config:
+      timer_sel: 1                       # Timer 1
+      duty_resolution: 10                # 10-bit resolution
+      freq_hz: 5000                      # 5kHz frequency
+      gpio_num: 39                       # GPIO39 - LCD_BL (BSP_LCD_BL)

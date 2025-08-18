@@ -8,5 +8,12 @@
   disable:
     - if: TARGET_DIR_TYPE == "example"
 
+.disable_test_apps_esp32: &disable_test_apps_esp32
+  disable:
+    - if: TARGET_DIR_TYPE == "test_apps" AND IDF_TARGET == "esp32"
+
 gmf_core/test_apps:
   <<: *disable_example
+
+packages/esp_board_manager:
+  <<: *disable_test_apps_esp32

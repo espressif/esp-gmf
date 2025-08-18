@@ -1,0 +1,53 @@
+board: esp32_s3_korvo2l
+chip: esp32s3
+version: 1.0.0
+# Peripherals Configuration
+peripherals:
+  - name: i2c_master
+    type: i2c
+    role: master
+    config:
+      port: 0
+      pins:
+        sda: 17
+        scl: 18
+
+  # I2S Standard Configuration
+  - name: i2s_audio_out
+    type: i2s
+    role: master
+    format: std-out # std-out, std-in
+    config: &i2s_config
+      port: 0  # Explicitly specify I2S port number
+      # Clock configuration
+      sample_rate_hz: 48000           # Sample rate in Hz
+      mclk_multiple: 256              # Multiple of MCLK to sample rate (256 or 384 for 24-bit)
+
+      # Slot configuration
+      data_bit_width: 16              # Data bit width (valid data bits per sample)
+      slot_bit_width: I2S_SLOT_BIT_WIDTH_AUTO  # Total bits per slot (I2S_SLOT_BIT_WIDTH_AUTO or specific value)
+      slot_mode: I2S_SLOT_MODE_STEREO # I2S_SLOT_MODE_MONO or I2S_SLOT_MODE_STEREO
+      slot_mask: I2S_STD_SLOT_BOTH    # I2S_STD_SLOT_LEFT, I2S_STD_SLOT_RIGHT, or I2S_STD_SLOT_BOTH slots
+      ws_width: 16                    # WS signal width in BCLK ticks
+
+      # GPIO configuration
+      pins:
+        bclk: 9                       # GPIO number for BCLK
+        ws: 45                        # GPIO number for WS
+        dout: 8                      # GPIO number for DATA out
+        din: 10                       # GPIO number for DATA in
+
+  - name: i2s_audio_in
+    type: i2s
+    role: master
+    format: std-in
+    # i2s0 work on duplex mode, so reuse i2s_audio_out configuration
+    config: *i2s_config
+
+  - name: gpio_pa_control
+    type: gpio
+    role: io
+    config:
+      pin: 46                          # GPIO pin number
+      mode: GPIO_MODE_OUTPUT           # GPIO mode
+      pull_up: true                    # Enable pull-up resistor

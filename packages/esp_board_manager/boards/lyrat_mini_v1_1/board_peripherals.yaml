@@ -1,0 +1,13 @@
+board: esp32_lyrat_mini_v1_1
+chip: esp32
+version: 1.0.0
+# Peripherals Configuration
+peripherals:
+  - name: i2c_master
+    type: i2c
+    role: master
+    config:
+      port: 0
+      pins:
+        sda: 17
+        scl: 18

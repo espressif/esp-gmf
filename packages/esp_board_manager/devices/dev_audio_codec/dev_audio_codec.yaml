@@ -1,0 +1,49 @@
+# Example board_devices.yaml configuration for Audio Codec device
+# This shows how to integrate the Audio Codec device into a board configuration
+# All values shown are the actual default values from the device parser
+
+# Example Audio Codec device configuration (Generic - ADC + DAC)
+- name: audio_codec          # The name of the device, must be unique
+  chip: generic_codec        # Codec chip type (es8311, es7210, etc.)
+  type: audio_codec         # The type of the device, must be unique
+  version: default
+  dependencies:
+    espressif/esp_codec_dev:
+      require: public
+      version: ~1.4
+  config:
+    # ADC Configuration
+    adc_enabled: false                   # Enable ADC functionality (default: false)
+    adc_max_channel: 0                   # Maximum number of ADC channels (default: 0)
+    # The channel mask, 1-enable, 0-disable, from right to left layout: mic0,mic1,mic2,mic3
+    # e.g. "0111", bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable
+    adc_channel_mask: "0"                # ADC channel mask (default: "0")
+    adc_init_gain: 0                     # ADC initial gain in dB (default: 0)
+
+    # DAC Configuration
+    dac_enabled: false                   # Enable DAC functionality (default: false)
+    dac_max_channel: 0                   # Maximum number of DAC channels (default: 0)
+    # DAC channel mask, 1-enable, 0-disable, layout: left,right
+    dac_channel_mask: "0"                # DAC channel mask (default: "0")
+    dac_init_gain: 0                     # DAC initial gain in dB (default: 0)
+
+    # Audio processing settings
+    mclk_enabled: false                  # Enable MCLK output (default: false)
+    aec: false                           # Acoustic Echo Cancellation (default: false)
+    eq: false                            # Equalizer (default: false)
+    alc: false                           # Automatic Level Control (default: false)
+
+  # Peripheral configuration
+  peripherals:
+    # Power amplifier configuration
+    - name: gpio-0                       # GPIO peripheral for power amplifier control
+      gain: 0.0                          # Amplifier gain in dB (default: 0.0)
+      active_level: 0                    # Active level (0-low, 1-high) (default: 0)
+
+    # I2S interface configuration
+    - name: i2s-0                        # I2S peripheral for audio data interface
+
+    # I2C interface configuration
+    - name: i2c-0                        # I2C peripheral for codec control
+      address: 0x30                      # I2C device address (hex format) (default: 0x30)
+      frequency: 400000                  # I2C clock frequency in Hz (default: 400000)

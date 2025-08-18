@@ -1,0 +1,2 @@
+config BOARD_ESP32C5_SPOT
+    bool

@@ -1,0 +1,2 @@
+config BOARD_ESP32_S3_BOX_LITE
+    bool

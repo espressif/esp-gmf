@@ -1,0 +1,37 @@
+# GPIO Peripheral Default Configuration
+# This file shows the default values used by the GPIO peripheral parser
+# Based on periph_gpio.py parsing script
+
+gpio-0:
+  config:
+    # GPIO pin number (required, no default - must be >= 0)
+    pin: 0
+
+    # GPIO mode (default: GPIO_MODE_INPUT)
+    mode: "GPIO_MODE_INPUT"
+    # Valid modes:
+    # - GPIO_MODE_INPUT
+    # - GPIO_MODE_OUTPUT
+    # - GPIO_MODE_INPUT_OUTPUT
+    # - GPIO_MODE_OUTPUT_OD
+    # - GPIO_MODE_INPUT_OUTPUT_OD
+
+    # Pull-up resistor (default: false)
+    pull_up: false
+
+    # Pull-down resistor (default: false)
+    pull_down: false
+
+    # Interrupt type (default: GPIO_INTR_DISABLE)
+    intr_type: "GPIO_INTR_DISABLE"
+    # Valid interrupt types:
+    # - GPIO_INTR_DISABLE
+    # - GPIO_INTR_POSEDGE
+    # - GPIO_INTR_NEGEDGE
+    # - GPIO_INTR_ANYEDGE
+    # - GPIO_INTR_LOW_LEVEL
+    # - GPIO_INTR_HIGH_LEVEL
+
+    # Default output level (default: 0)
+    default_level: 0
+    # Valid values: 0 or 1

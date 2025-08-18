@@ -1,0 +1,390 @@
+# I2S Peripheral Default Configuration
+# This file shows the default values used by the I2S peripheral parser
+# Based on periph_i2s.py parsing script
+
+# =============================================================================
+# STANDARD I2S MODE CONFIGURATION (std-out, std-in)
+# =============================================================================
+
+i2s-0-0:
+  # Format string for Standard I2S mode
+  format: "std-out"
+  # Valid formats:
+  # - "std-out" (standard output)
+  # - "std-in" (standard input)
+
+  # Role (default: "master")
+  role: "master"
+  # Valid values: "master", "slave"
+
+  config:
+    # ===== CLOCK CONFIGURATION =====
+    # Sample rate in Hz (default: 48000)
+    sample_rate_hz: 48000
+
+    # Clock source (default: I2S_CLK_SRC_DEFAULT)
+    clk_src: "I2S_CLK_SRC_DEFAULT"
+    # Valid values:
+    # - I2S_CLK_SRC_DEFAULT
+    # - I2S_CLK_SRC_EXTERNAL
+    # - I2S_CLK_SRC_APB
+    # - I2S_CLK_SRC_PLL_F160M
+    # - I2S_CLK_SRC_PLL_F240M
+
+    # MCLK multiple (default: 256)
+    mclk_multiple: 256
+    # Valid values: 128, 192, 256, 384, 512, 576, 768, 1024, 1152
+
+    # ===== SLOT CONFIGURATION =====
+    # Data bit width (default: 16)
+    data_bit_width: 16
+    # Valid values: 8, 16, 24, 32
+
+    # Slot bit width (default: I2S_SLOT_BIT_WIDTH_AUTO)
+    slot_bit_width: "I2S_SLOT_BIT_WIDTH_AUTO"
+    # Valid values:
+    # - I2S_SLOT_BIT_WIDTH_AUTO
+    # - I2S_SLOT_BIT_WIDTH_8BIT
+    # - I2S_SLOT_BIT_WIDTH_16BIT
+    # - I2S_SLOT_BIT_WIDTH_24BIT
+    # - I2S_SLOT_BIT_WIDTH_32BIT
+
+    # Slot mode (default: I2S_SLOT_MODE_STEREO)
+    slot_mode: "I2S_SLOT_MODE_STEREO"
+    # Valid values:
+    # - I2S_SLOT_MODE_MONO
+    # - I2S_SLOT_MODE_STEREO
+
+    # Standard mode slot mask (default: I2S_STD_SLOT_BOTH)
+    slot_mask: "I2S_STD_SLOT_BOTH"
+    # Valid values:
+    # - I2S_STD_SLOT_LEFT
+    # - I2S_STD_SLOT_RIGHT
+    # - I2S_STD_SLOT_BOTH
+
+    # WS width (default: 16)
+    ws_width: 16
+
+    # WS polarity (default: false)
+    ws_pol: false
+
+    # Bit shift (default: true)
+    bit_shift: true
+
+    # Left align (default: true)
+    left_align: true
+
+    # Big endian (default: false)
+    big_endian: false
+
+    # Bit order LSB (default: false)
+    bit_order_lsb: false
+
+    # ===== GPIO CONFIGURATION =====
+    pins:
+      # Standard mode pins
+      mclk: -1
+      bclk: -1
+      ws: -1
+      dout: -1
+      din: -1
+
+    # Invert flags
+    invert_flags:
+      mclk_inv: false
+      bclk_inv: false
+      ws_inv: false
+
+# =============================================================================
+# TDM I2S MODE CONFIGURATION (tdm-out, tdm-in)
+# =============================================================================
+
+i2s-0-1:
+  # Format string for TDM I2S mode
+  format: "tdm-out"
+  # Valid formats:
+  # - "tdm-out" (TDM output)
+  # - "tdm-in" (TDM input)
+
+  # Role (default: "master")
+  role: "master"
+  # Valid values: "master", "slave"
+
+  config:
+    # ===== CLOCK CONFIGURATION =====
+    # Sample rate in Hz (default: 48000)
+    sample_rate_hz: 48000
+
+    # Clock source (default: I2S_CLK_SRC_DEFAULT)
+    clk_src: "I2S_CLK_SRC_DEFAULT"
+
+    # MCLK multiple (default: 256)
+    mclk_multiple: 256
+
+    # BCLK divider (default: 8)
+    bclk_div: 8
+
+    # ===== SLOT CONFIGURATION =====
+    # Data bit width (default: 16)
+    data_bit_width: 16
+
+    # Slot bit width (default: I2S_SLOT_BIT_WIDTH_AUTO)
+    slot_bit_width: "I2S_SLOT_BIT_WIDTH_AUTO"
+
+    # Slot mode (default: I2S_SLOT_MODE_STEREO)
+    slot_mode: "I2S_SLOT_MODE_STEREO"
+
+    # TDM slot mask (auto-generated based on slot_mode)
+    # For STEREO: I2S_TDM_SLOT0 | I2S_TDM_SLOT1
+    # For MONO: I2S_TDM_SLOT0
+
+    # WS width (default: 16)
+    ws_width: 16
+
+    # WS polarity (default: false)
+    ws_pol: false
+
+    # Bit shift (default: true)
+    bit_shift: true
+
+    # Left align (default: false for TDM)
+    left_align: false
+
+    # Big endian (default: false)
+    big_endian: false
+
+    # Bit order LSB (default: false)
+    bit_order_lsb: false
+
+    # Skip mask (default: false)
+    skip_mask: false
+
+    # Total slots (default: 2)
+    total_slot: 2
+
+    # ===== GPIO CONFIGURATION =====
+    pins:
+      # TDM mode pins (same as Standard mode)
+      mclk: -1
+      bclk: -1
+      ws: -1
+      dout: -1
+      din: -1
+
+    # Invert flags
+    invert_flags:
+      mclk_inv: false
+      bclk_inv: false
+      ws_inv: false
+
+# =============================================================================
+# PDM TX MODE CONFIGURATION (pdm-out)
+# =============================================================================
+
+i2s-1-0:
+  # Format string for PDM TX mode
+  format: "pdm-out"
+  # Valid formats:
+  # - "pdm-out" (PDM output)
+
+  # Role (default: "master")
+  role: "master"
+  # Valid values: "master", "slave"
+
+  config:
+    # ===== CLOCK CONFIGURATION =====
+    # Sample rate in Hz (default: 48000)
+    sample_rate_hz: 48000
+
+    # Clock source (default: I2S_CLK_SRC_DEFAULT)
+    clk_src: "I2S_CLK_SRC_DEFAULT"
+
+    # MCLK multiple (default: 256)
+    mclk_multiple: 256
+
+    # Up-sampling parameters (default: 960, 480)
+    up_sample_fp: 960
+    up_sample_fs: 480
+
+    # BCLK divider (default: 8)
+    bclk_div: 8
+
+    # ===== SLOT CONFIGURATION =====
+    # Data bit width (default: 16, fixed for PDM)
+    data_bit_width: 16
+
+    # Slot bit width (default: I2S_SLOT_BIT_WIDTH_AUTO)
+    slot_bit_width: "I2S_SLOT_BIT_WIDTH_AUTO"
+
+    # Slot mode (default: I2S_SLOT_MODE_STEREO)
+    slot_mode: "I2S_SLOT_MODE_STEREO"
+
+    # PDM slot mask (default: I2S_PDM_SLOT_BOTH)
+    slot_mask: "I2S_PDM_SLOT_BOTH"
+    # Valid values:
+    # - I2S_PDM_SLOT_LEFT
+    # - I2S_PDM_SLOT_RIGHT
+    # - I2S_PDM_SLOT_BOTH
+
+    # Data format (default: I2S_PDM_DATA_FMT_PCM)
+    data_fmt: "I2S_PDM_DATA_FMT_PCM"
+    # Valid values:
+    # - I2S_PDM_DATA_FMT_PCM
+    # - I2S_PDM_DATA_FMT_RAW
+
+    # Sigma-delta filter settings
+    sd_prescale: 0
+    sd_scale: "I2S_PDM_SIG_SCALING_MUL_1"
+    # Valid values:
+    # - I2S_PDM_SIG_SCALING_DIV_2
+    # - I2S_PDM_SIG_SCALING_MUL_1
+    # - I2S_PDM_SIG_SCALING_MUL_2
+    # - I2S_PDM_SIG_SCALING_MUL_4
+
+    # Filter scaling values
+    hp_scale: "I2S_PDM_SIG_SCALING_MUL_1"
+    lp_scale: "I2S_PDM_SIG_SCALING_MUL_1"
+    sinc_scale: "I2S_PDM_SIG_SCALING_MUL_1"
+
+    # Line mode (default: I2S_PDM_TX_ONE_LINE_CODEC)
+    line_mode: "I2S_PDM_TX_ONE_LINE_CODEC"
+    # Valid values:
+    # - I2S_PDM_TX_ONE_LINE_CODEC
+    # - I2S_PDM_TX_ONE_LINE_DAC
+    # - I2S_PDM_TX_TWO_LINE_DAC
+
+    # High pass filter settings
+    hp_en: true
+    hp_cut_off_freq_hz: 35.5
+
+    # Sigma-delta dither settings
+    sd_dither: 0
+    sd_dither2: 1
+
+    # ===== GPIO CONFIGURATION =====
+    pins:
+      # PDM TX mode pins
+      clk: -1
+      dout: -1
+      dout2: -1  # Second data pin for dual-line DAC mode
+
+    # Invert flags
+    invert_flags:
+      clk_inv: false
+
+# =============================================================================
+# PDM RX MODE CONFIGURATION (pdm-in)
+# =============================================================================
+
+i2s-1-1:
+  # Format string for PDM RX mode
+  format: "pdm-in"
+  # Valid formats:
+  # - "pdm-in" (PDM input)
+
+  # Role (default: "master")
+  role: "master"
+  # Valid values: "master", "slave"
+
+  config:
+    # ===== CLOCK CONFIGURATION =====
+    # Sample rate in Hz (default: 48000)
+    sample_rate_hz: 48000
+
+    # Clock source (default: I2S_CLK_SRC_DEFAULT)
+    clk_src: "I2S_CLK_SRC_DEFAULT"
+
+    # MCLK multiple (default: 256)
+    mclk_multiple: 256
+
+    # Down-sampling mode (default: I2S_PDM_DSR_8S)
+    dn_sample_mode: "I2S_PDM_DSR_8S"
+    # Valid values:
+    # - I2S_PDM_DSR_8S
+    # - I2S_PDM_DSR_16S
+
+    # BCLK divider (default: 8)
+    bclk_div: 8
+
+    # ===== SLOT CONFIGURATION =====
+    # Data bit width (default: 16, fixed for PDM)
+    data_bit_width: 16
+
+    # Slot bit width (default: I2S_SLOT_BIT_WIDTH_AUTO)
+    slot_bit_width: "I2S_SLOT_BIT_WIDTH_AUTO"
+
+    # Slot mode (default: I2S_SLOT_MODE_STEREO)
+    slot_mode: "I2S_SLOT_MODE_STEREO"
+
+    # PDM slot mask (default: I2S_PDM_SLOT_BOTH)
+    slot_mask: "I2S_PDM_SLOT_BOTH"
+    # Valid values for single-line mode:
+    # - I2S_PDM_SLOT_LEFT
+    # - I2S_PDM_SLOT_RIGHT
+    # - I2S_PDM_SLOT_BOTH
+    # Valid values for multi-line mode (ESP32S3/ESP32P4):
+    # - I2S_PDM_RX_LINE0_SLOT_LEFT
+    # - I2S_PDM_RX_LINE0_SLOT_RIGHT
+    # - I2S_PDM_RX_LINE1_SLOT_LEFT
+    # - I2S_PDM_RX_LINE1_SLOT_RIGHT
+    # - I2S_PDM_RX_LINE2_SLOT_LEFT
+    # - I2S_PDM_RX_LINE2_SLOT_RIGHT
+    # - I2S_PDM_RX_LINE3_SLOT_LEFT
+    # - I2S_PDM_RX_LINE3_SLOT_RIGHT
+    # - I2S_PDM_LINE_SLOT_ALL
+
+    # Data format (default: I2S_PDM_DATA_FMT_PCM)
+    data_fmt: "I2S_PDM_DATA_FMT_PCM"
+    # Valid values:
+    # - I2S_PDM_DATA_FMT_PCM
+    # - I2S_PDM_DATA_FMT_RAW
+
+    # High pass filter settings
+    hp_en: true
+    hp_cut_off_freq_hz: 35.5
+
+    # Amplification number (default: 1)
+    amplify_num: 1
+
+    # ===== GPIO CONFIGURATION =====
+    pins:
+      # PDM RX mode pins - Single line mode
+      clk: -1
+      din: -1
+
+      # PDM RX mode pins - Multi-line mode (ESP32S3/ESP32P4)
+      # Uncomment and configure for multi-line mode:
+      # din0: -1  # Line 0 data pin
+      # din1: -1  # Line 1 data pin
+      # din2: -1  # Line 2 data pin
+      # din3: -1  # Line 3 data pin
+
+    # Invert flags
+    invert_flags:
+      clk_inv: false
+
+# =============================================================================
+# NOTES
+# =============================================================================
+
+# 1. PDM Mode Limitations:
+#    - Data bit width is fixed to 16 bits for PDM mode
+#    - PDM RX multi-line mode is only supported on ESP32S3 and ESP32P4
+#    - PDM TX dual-line mode is supported on most chips except ESP32
+
+# 2. Clock Configuration:
+#    - Standard mode: No bclk_div parameter
+#    - TDM mode: Includes bclk_div parameter
+#    - PDM TX mode: Includes up_sample_fp/fs parameters
+#    - PDM RX mode: Includes dn_sample_mode parameter
+
+# 3. GPIO Configuration:
+#    - Standard/TDM: Uses mclk, bclk, ws, dout, din pins
+#    - PDM TX: Uses clk, dout, dout2 (optional) pins
+#    - PDM RX: Uses clk, din (single-line) or dins[4] (multi-line) pins
+
+# 4. Slot Mask Configuration:
+#    - Standard: I2S_STD_SLOT_LEFT/RIGHT/BOTH
+#    - TDM: I2S_TDM_SLOT0-15 (auto-generated based on slot_mode)
+#    - PDM TX: I2S_PDM_SLOT_LEFT/RIGHT/BOTH
+#    - PDM RX: I2S_PDM_SLOT_* (single-line) or I2S_PDM_RX_LINE*_SLOT_* (multi-line)

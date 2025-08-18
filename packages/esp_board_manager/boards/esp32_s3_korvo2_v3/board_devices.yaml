@@ -1,0 +1,63 @@
+board: esp32_s3_korvo2_v3
+chip: esp32s3
+version: 1.0.0
+# Devices Configuration
+devices:
+  - name: audio_dac
+    chip: es8311
+    type: audio_codec
+    version: default
+    dependencies:
+      espressif/esp_codec_dev:
+        require: public
+        version: ~1.4
+    config:
+      adc_enabled: false
+
+      dac_enabled: true
+      dac_max_channel: 1
+      # DAC channel mask, 1-enable, 0-disable, layout: left,right
+      dac_channel_mask: "1"     # Left enable
+
+    # Power amplifier configuration
+    peripherals:
+      - name: gpio_power_amp
+        gain: 6                    # dB
+        active_level: 1            # 0-low, 1-high
+      - name: i2s_audio_out
+      - name: i2c_master
+        address: 0x30
+        frequency: 400000          # Hz
+
+  - name: audio_adc
+    chip: es7210
+    type: audio_codec
+    version: default
+    dependencies:
+      espressif/esp_codec_dev:
+        require: public
+        version: ~1.4
+    config:
+      adc_enabled: true
+      adc_max_channel: 4
+      adc_channel_mask: "0111"
+      adc_init_gain: 0           # dB
+
+    # Power amplifier configuration
+    peripherals:
+      # I2S interface configuration
+      - name: i2s_audio_in
+      # I2C interface configuration
+      - name: i2c_master
+        address: 0x80
+        frequency: 400000          # Hz
+
+  - name: fs_sdcard
+    type: fatfs_sdcard
+    version: default
+    config:
+      bus_width: 1            # 1, 4, 8, not used on SPI type
+      pins:
+        clk: 15   # GPIO_NUM_15
+        cmd: 7   # GPIO_NUM_7
+        d0: 4     # GPIO_NUM_4

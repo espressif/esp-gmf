@@ -1,0 +1,27 @@
+# I2C Peripheral Default Configuration
+# This file shows the default values used by the I2C peripheral parser
+# Based on periph_i2c.py parsing script
+
+i2c-0:
+  config:
+    # I2C port number (default: -1 for auto selection)
+    port: -1
+    # Valid values: -1 (auto), 0, 1, etc.
+    # When -1, uses I2C_NUM_AUTO
+    # When >= 0, uses I2C_NUM_{port}
+
+    # I2C pins configuration
+    pins:
+      # SDA pin (default: -1, not set)
+      sda: -1
+      # SCL pin (default: -1, not set)
+      scl: -1
+
+    # Enable internal pullup resistors (default: true)
+    enable_internal_pullup: true
+
+    # Glitch filter count (default: 7)
+    glitch_count: 7
+
+    # Interrupt priority (default: 1)
+    intr_priority: 1

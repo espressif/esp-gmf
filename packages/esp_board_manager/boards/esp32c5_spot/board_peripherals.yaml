@@ -1,0 +1,60 @@
+board: esp32c5_spot
+chip: esp32c5
+version: 1.0.0
+# Peripherals Configuration for ESP32-C5 Spot AI Voice Interaction Module
+peripherals:
+  # I2C Configuration
+  - name: i2c_master
+    type: i2c
+    role: master
+    config:
+      port: 0
+      pins:
+        sda: 25                          # GPIO25 - I2C SDA
+        scl: 26                          # GPIO26 - I2C SCL
+
+  # I2S Audio Configuration
+  - name: i2s_audio_out
+    type: i2s
+    role: master
+    format: std-out                      # std-out, std-in
+    config:
+      port: 0  # Explicitly specify I2S port number
+      # Clock configuration
+      sample_rate_hz: 48000              # Sample rate in Hz
+      mclk_multiple: 256                 # Multiple of MCLK to sample rate (256 or 384 for 24-bit)
+      # Slot configuration
+      data_bit_width: 16                 # Data bit width (valid data bits per sample)
+      slot_bit_width: I2S_SLOT_BIT_WIDTH_AUTO  # Total bits per slot (I2S_SLOT_BIT_WIDTH_AUTO or specific value)
+      slot_mode: I2S_SLOT_MODE_STEREO    # I2S_SLOT_MODE_MONO or I2S_SLOT_MODE_STEREO
+      slot_mask: I2S_STD_SLOT_BOTH       # I2S_STD_SLOT_LEFT, I2S_STD_SLOT_RIGHT, or I2S_STD_SLOT_BOTH slots
+      ws_width: 16                       # WS signal width in BCLK ticks
+
+      # GPIO configuration
+      pins:
+        bclk: 7                          # GPIO7 - I2S BCLK
+        ws: 8                            # GPIO8 - I2S WS
+        dout: 9                          # GPIO9 - I2S DATA out
+        din: 6                           # GPIO6 - I2S DATA in
+
+  # Audio PA control GPIO
+  - name: gpio_pa_control
+    type: gpio
+    role: io
+    config:
+      pin: 23                           # Audio PA control
+      mode: GPIO_MODE_OUTPUT
+
+  - name: gpio_power_control
+    type: gpio
+    role: io
+    config:
+      pin: 2                           # MCU Power control
+      mode: GPIO_MODE_OUTPUT
+
+  - name: gpio_imu_interrupt
+    type: gpio
+    role: io
+    config:
+      pin: 3                           # IMU interrupt
+      mode: GPIO_MODE_INPUT

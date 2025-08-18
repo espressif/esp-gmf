@@ -1,0 +1,22 @@
+# Example board_devices.yaml configuration for GPIO control device
+# This shows how to integrate the GPIO control device into a board configuration
+
+# Example GPIO control device configuration
+- name: power_control          # The name of the device, must be unique
+  type: gpio_ctrl             # The type of the device, must be unique
+  version: default
+  config:
+    active_level: 1           # Active level (0 or 1) - GPIO level when device is active
+    default_level: 0          # Default level (0 or 1) - GPIO level when device is inactive
+  peripherals:
+    - name: gpio-2            # GPIO peripheral name (must reference a GPIO peripheral)
+
+# Example LCD power control configuration
+- name: lcd_power
+  type: gpio_ctrl
+  version: default
+  config:
+    active_level: 0           # Active low (0 = power on, 1 = power off)
+    default_level: 1          # Default to power off
+  peripherals:
+    - name: gpio-9            # GPIO peripheral for LCD power control

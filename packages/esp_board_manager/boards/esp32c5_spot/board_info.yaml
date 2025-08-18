@@ -1,0 +1,5 @@
+board: esp32c5_spot
+chip: esp32c5
+version: 1.0.0
+description: "ESP32-C5 Spot AI Voice Interaction Module"
+manufacturer: "ESPRESSIF"

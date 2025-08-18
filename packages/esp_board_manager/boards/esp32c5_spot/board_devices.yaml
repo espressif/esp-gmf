@@ -1,0 +1,58 @@
+board: esp32c5_spot
+chip: esp32c5
+version: 1.0.0
+# Devices Configuration for ESP32-C5 Spot AI Voice Interaction Module
+devices:
+  - name: audio_codec
+    chip: es8311
+    type: audio_codec
+    version: default
+    dependencies:
+      espressif/esp_codec_dev:
+        require: public
+        version: ~1.4
+    config:
+      adc_enabled: true
+      adc_max_channel: 1
+      # The channel mask, 1-enable, 0-disable, from right to left layout: mic0,mic1,mic2,mic3
+      # e.g. "0111", bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable, bit4: Mic4 disable
+      adc_channel_mask: "1"            # Mic0 enable
+      dac_enabled: true
+      dac_max_channel: 1
+      # DAC channel mask, 1-enable, 0-disable, layout: left,right
+      dac_channel_mask: "1"            # Left enable
+
+    peripherals:
+      - name: gpio_pa_control
+        gain: 0                        # dB
+        active_level: 1                # 0-low, 1-high
+      - name: i2s_audio_out
+      # I2C interface configuration
+      - name: i2c_master
+        address: 0x18
+        frequency: 400000              # Hz
+
+  - name: imu_sensor
+    chip: bmi270
+    type: imu
+    version: default
+    dependencies:
+      espressif/esp_bmi270: "*"
+    config:
+      peripherals:
+        # I2C interface configuration
+        - name: i2c_master
+          address: 0x68
+          frequency: 400000            # Hz
+        - name: gpio_imu_interrupt
+          intr_type: GPIO_INTR_NEGEDGE
+
+  # Power management and control devices
+  - name: power_control
+    type: gpio_ctrl
+    version: default
+    config:
+      active_level: 1
+      default_level: 0
+    peripherals:
+      - name: gpio_power_control

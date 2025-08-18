@@ -1,0 +1,175 @@
+menu "Board Selection"
+
+choice ESP_BOARD_SELECTION
+    prompt "Select board"
+    default ESP_BOARD_ECHOEAR_CORE_BOARD_V1_2
+    help
+        Select the board to use for this project.
+
+config BOARD_DUAL_EYES_BOARD_V1_0
+    bool "dual_eyes_board_v1_0"
+    help
+        Use dual_eyes_board_v1_0 board configuration.
+
+config BOARD_ECHOEAR_CORE_BOARD_V1_0
+    bool "echoear_core_board_v1_0"
+    help
+        Use echoear_core_board_v1_0 board configuration.
+
+config BOARD_ECHOEAR_CORE_BOARD_V1_2
+    bool "echoear_core_board_v1_2"
+    help
+        Use echoear_core_board_v1_2 board configuration.
+
+config BOARD_ESP32_P4_FUNCTION_EV_BOARD
+    bool "esp32_p4_function_ev_board"
+    help
+        Use esp32_p4_function_ev_board board configuration.
+
+config BOARD_ESP32_S3_KORVO2_V3
+    bool "esp32_s3_korvo2_v3"
+    help
+        Use esp32_s3_korvo2_v3 board configuration.
+
+config BOARD_ESP32_S3_KORVO2L
+    bool "esp32_s3_korvo2l"
+    help
+        Use esp32_s3_korvo2l board configuration.
+
+config BOARD_ESP32C5_SPOT
+    bool "esp32c5_spot"
+    help
+        Use esp32c5_spot board configuration.
+
+config BOARD_ESP_BOX_3
+    bool "esp_box_3"
+    help
+        Use esp_box_3 board configuration.
+
+config BOARD_LYRAT_MINI_V1_1
+    bool "lyrat_mini_v1_1"
+    help
+        Use lyrat_mini_v1_1 board configuration.
+
+endchoice
+
+config ESP_BOARD_NAME
+    string
+    default "echoear_core_board_v1_2" if BOARD_ECHOEAR_CORE_BOARD_V1_2
+    default "dual_eyes_board_v1_0" if BOARD_DUAL_EYES_BOARD_V1_0
+    default "echoear_core_board_v1_0" if BOARD_ECHOEAR_CORE_BOARD_V1_0
+    default "esp32_p4_function_ev_board" if BOARD_ESP32_P4_FUNCTION_EV_BOARD
+    default "esp32_s3_korvo2_v3" if BOARD_ESP32_S3_KORVO2_V3
+    default "esp32_s3_korvo2l" if BOARD_ESP32_S3_KORVO2L
+    default "esp32c5_spot" if BOARD_ESP32C5_SPOT
+    default "esp_box_3" if BOARD_ESP_BOX_3
+    default "lyrat_mini_v1_1" if BOARD_LYRAT_MINI_V1_1
+
+endmenu
+
+
+menu "Peripheral Support"
+
+config ESP_BOARD_PERIPH_GPIO_SUPPORT
+    bool "Peripheral gpio support"
+    default y
+    help
+        Enable gpio peripheral support.
+        This option enables the gpio peripheral driver.
+        The driver is located at: peripherals/periph_gpio
+
+config ESP_BOARD_PERIPH_I2C_SUPPORT
+    bool "Peripheral i2c support"
+    default y
+    help
+        Enable i2c peripheral support.
+        This option enables the i2c peripheral driver.
+        The driver is located at: peripherals/periph_i2c
+
+config ESP_BOARD_PERIPH_I2S_SUPPORT
+    bool "Peripheral i2s support"
+    default y
+    help
+        Enable i2s peripheral support.
+        This option enables the i2s peripheral driver.
+        The driver is located at: peripherals/periph_i2s
+
+config ESP_BOARD_PERIPH_LEDC_SUPPORT
+    bool "Peripheral ledc support"
+    default y
+    help
+        Enable ledc peripheral support.
+        This option enables the ledc peripheral driver.
+        The driver is located at: peripherals/periph_ledc
+
+config ESP_BOARD_PERIPH_SPI_SUPPORT
+    bool "Peripheral spi support"
+    default y
+    help
+        Enable spi peripheral support.
+        This option enables the spi peripheral driver.
+        The driver is located at: peripherals/periph_spi
+
+
+endmenu
+
+menu "Device Support"
+
+config ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT
+    bool "Device audio_codec support"
+    default y
+    help
+        Enable audio_codec device support.
+        This option enables the audio_codec device driver.
+        The driver is located at: devices/dev_audio_codec
+
+config ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
+    bool "Device display_lcd_spi support"
+    default y
+    help
+        Enable display_lcd_spi device support.
+        This option enables the display_lcd_spi device driver.
+        The driver is located at: devices/dev_display_lcd_spi
+
+config ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
+    bool "Device fatfs_sdcard support"
+    default y
+    help
+        Enable fatfs_sdcard device support.
+        This option enables the fatfs_sdcard device driver.
+        The driver is located at: devices/dev_fatfs_sdcard
+
+config ESP_BOARD_DEV_FS_SPIFFS_SUPPORT
+    bool "Device fs_spiffs support"
+    default y
+    help
+        Enable fs_spiffs device support.
+        This option enables the fs_spiffs device driver.
+        The driver is located at: devices/dev_fs_spiffs
+
+config ESP_BOARD_DEV_GPIO_CTRL_SUPPORT
+    bool "Device gpio_ctrl support"
+    default y
+    help
+        Enable gpio_ctrl device support.
+        This option enables the gpio_ctrl device driver.
+        The driver is located at: devices/dev_gpio_ctrl
+
+config ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT
+    bool "Device lcd_touch_i2c support"
+    default y
+    help
+        Enable lcd_touch_i2c device support.
+        This option enables the lcd_touch_i2c device driver.
+        The driver is located at: devices/dev_lcd_touch_i2c
+
+config ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
+    bool "Device ledc_ctrl support"
+    default y
+    help
+        Enable ledc_ctrl device support.
+        This option enables the ledc_ctrl device driver.
+        The driver is located at: devices/dev_ledc_ctrl
+
+
+endmenu

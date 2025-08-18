@@ -1,0 +1,5 @@
+board: dual_eyes_board_v1_0
+chip: esp32s3
+version: 1.0.0
+description: "Dual Eyes Board V1.0 - Dual LCD Display Development Board"
+manufacturer: "ESPRESSIF"

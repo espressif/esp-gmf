@@ -1,0 +1,2 @@
+config BOARD_LYRAT_MINI_V1_1
+    bool
