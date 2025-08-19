@@ -23,6 +23,7 @@
 
 typedef struct {
     esp_capture_audio_src_if_t  base;
+    const char                 *mic_layout;
     uint8_t                     channel;
     uint8_t                     channel_mask;
     esp_codec_dev_handle_t      handle;
@@ -37,8 +38,9 @@ typedef struct {
     uint8_t                     open     : 1;
     uint8_t                     in_quit  : 1;
     uint8_t                     stopping : 1;
-    const esp_afe_sr_iface_t   *aec_if;
-    esp_afe_sr_data_t          *aec_data;
+    const esp_afe_sr_iface_t   *afe_handle;
+    esp_afe_sr_data_t          *afe_data;
+    srmodel_list_t             *models;
 } audio_aec_src_t;
 
 static int cal_frame_length(esp_capture_audio_info_t *info)
@@ -49,23 +51,23 @@ static int cal_frame_length(esp_capture_audio_info_t *info)
 
 static esp_capture_err_t open_afe(audio_aec_src_t *src)
 {
-    afe_config_t afe_config = AFE_CONFIG_DEFAULT();
-    afe_config.vad_init = false;
-    afe_config.wakenet_init = false;
-    afe_config.afe_perferred_core = 1;
-    afe_config.afe_perferred_priority = 20;
-    // afe_config.memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_INTERNAL;
-    afe_config.pcm_config.mic_num = 1;
-    afe_config.pcm_config.ref_num = 1;
-    afe_config.pcm_config.total_ch_num = 1 + 1;
-    afe_config.aec_init = true;
-    afe_config.se_init = false;
-    afe_config.pcm_config.sample_rate = src->info.sample_rate;
-    afe_config.voice_communication_init = true;
-    src->aec_if = &ESP_AFE_VC_HANDLE;
-    src->aec_data = src->aec_if->create_from_config(&afe_config);
-    if (src->aec_data == NULL) {
-        return ESP_CAPTURE_ERR_NO_MEM;
+    src->models = esp_srmodel_init("model");
+    if (src->models == NULL) {
+        ESP_LOGW(TAG, "No model to load");
+    }
+
+    afe_config_t *afe_config = afe_config_init(src->mic_layout, src->models, AFE_TYPE_SR, AFE_MODE_LOW_COST);
+
+    src->afe_handle = esp_afe_handle_from_config(afe_config);
+    if (src->afe_handle == NULL) {
+        ESP_LOGE(TAG, "Failed to create AFE handle");
+        return ESP_CAPTURE_ERR_NOT_SUPPORTED;
+    }
+
+    src->afe_data = src->afe_handle->create_from_config(afe_config);
+    if (src->afe_data == NULL) {
+        ESP_LOGE(TAG, "Failed to create AFE data");
+        return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     return ESP_CAPTURE_ERR_OK;
 }
@@ -120,7 +122,7 @@ static void audio_aec_src_buffer_in_thread(void *arg)
                 ESP_LOGE(TAG, "Fail to read data %d", ret);
                 break;
             }
-            ret = src->aec_if->feed(src->aec_data, (int16_t *)feed_data);
+            ret = src->afe_handle->feed(src->afe_data, (int16_t *)feed_data);
             if (ret < 0) {
                 ESP_LOGE(TAG, "Fail to feed data %d", ret);
                 break;
@@ -154,7 +156,7 @@ static esp_capture_err_t audio_aec_src_start(esp_capture_audio_src_if_t *h)
         ESP_LOGE(TAG, "Failed to open AFE");
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
-    int audio_chunksize = src->aec_if->get_feed_chunksize(src->aec_data);
+    int audio_chunksize = src->afe_handle->get_feed_chunksize(src->afe_data);
     src->cache_size = audio_chunksize * (16 / 8);
 
     src->cached_frame = capture_calloc(1, src->cache_size * 2);
@@ -200,7 +202,7 @@ static esp_capture_err_t audio_aec_src_read_frame(esp_capture_audio_src_if_t *h,
         }
         src->cache_fill = 0;
         src->cached_read_pos = 0;
-        afe_fetch_result_t *res = src->aec_if->fetch(src->aec_data);
+        afe_fetch_result_t *res = src->afe_handle->fetch(src->afe_data);
         if (res->ret_value != ESP_OK) {
             ESP_LOGE(TAG, "Fail to read from AEC");
             return ESP_CAPTURE_ERR_INTERNAL;
@@ -221,15 +223,20 @@ static esp_capture_err_t audio_aec_src_stop(esp_capture_audio_src_if_t *h)
     audio_aec_src_t *src = (audio_aec_src_t *)h;
     if (src->in_quit == false) {
         // fetch once
-        src->aec_if->fetch(src->aec_data);
+        src->afe_handle->fetch(src->afe_data);
         src->stopping = true;
         while (src->in_quit == false) {
             capture_sleep(10);
         }
     }
-    if (src->aec_data) {
-        src->aec_if->destroy(src->aec_data);
-        src->aec_data = NULL;
+
+    if (src->models) {
+        esp_srmodel_deinit(src->models);
+        src->models = NULL;
+    }
+    if (src->afe_data) {
+        src->afe_handle->destroy(src->afe_data);
+        src->afe_data = NULL;
     }
     if (src->cached_frame) {
         capture_free(src->cached_frame);
@@ -263,6 +270,11 @@ esp_capture_audio_src_if_t *esp_capture_new_audio_aec_src(esp_capture_audio_aec_
     src->handle = cfg->record_handle;
     src->channel = cfg->channel ? cfg->channel : 2;
     src->channel_mask = cfg->channel_mask;
+    if (cfg->mic_layout == NULL) {
+        cfg->mic_layout = "MR";
+    } else {
+        src->mic_layout = cfg->mic_layout;
+    }
     return &src->base;
 }
 
