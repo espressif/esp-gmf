@@ -62,9 +62,9 @@ static esp_capture_err_t dvp_src_get_support_codecs(esp_capture_video_src_if_t *
 {
     static esp_capture_format_id_t dvp_codecs[] = {
         ESP_CAPTURE_FMT_ID_MJPEG,
-        ESP_CAPTURE_FMT_ID_YUV422P,
+        ESP_CAPTURE_FMT_ID_YUV422,
         ESP_CAPTURE_FMT_ID_YUV420,
-        ESP_CAPTURE_FMT_ID_RGB565,
+        ESP_CAPTURE_FMT_ID_RGB565_BE,
     };
     *codecs = dvp_codecs;
     *num = sizeof(dvp_codecs) / sizeof(dvp_codecs[0]);
@@ -124,9 +124,9 @@ static esp_capture_err_t dvp_src_init_camera(dvp_src_t *dvp_src, esp_capture_vid
     }
     if (vid_info->format_id == ESP_CAPTURE_FMT_ID_MJPEG) {
         camera_config.pixel_format = PIXFORMAT_JPEG;
-    } else if (vid_info->format_id == ESP_CAPTURE_FMT_ID_RGB565) {
+    } else if (vid_info->format_id == ESP_CAPTURE_FMT_ID_RGB565_BE) {
         camera_config.pixel_format = PIXFORMAT_RGB565;
-    } else if (vid_info->format_id == ESP_CAPTURE_FMT_ID_YUV422P || vid_info->format_id == ESP_CAPTURE_FMT_ID_YUV420) {
+    } else if (vid_info->format_id == ESP_CAPTURE_FMT_ID_YUV422 || vid_info->format_id == ESP_CAPTURE_FMT_ID_YUV420) {
         camera_config.pixel_format = PIXFORMAT_YUV422;
         if (vid_info->format_id == ESP_CAPTURE_FMT_ID_YUV420) {
             dvp_src->need_convert_420 = true;
@@ -183,7 +183,7 @@ static esp_capture_err_t dvp_src_negotiate_caps(esp_capture_video_src_if_t *src,
     if (in_cap->format_id == ESP_CAPTURE_FMT_ID_ANY) {
         // TODO here just return for yuv422
         *out_caps = *in_cap;
-        out_caps->format_id = ESP_CAPTURE_FMT_ID_YUV422P;
+        out_caps->format_id = ESP_CAPTURE_FMT_ID_YUV422;
         return ESP_CAPTURE_ERR_OK;
     }
     if (dvp_src_codec_supported(src, in_cap->format_id) == false) {

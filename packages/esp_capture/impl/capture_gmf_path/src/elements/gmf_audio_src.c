@@ -88,6 +88,7 @@ static void audio_src_thread(void *arg)
 {
     audio_src_t *audio_src = (audio_src_t *)arg;
     ESP_LOGI(TAG, "Start to fetch audio src data now");
+    bool err_exit = false;
     while (audio_src->fetching_audio) {
         // TODO how to calculate audio_frame_size
         int frame_size = sizeof(esp_capture_stream_frame_t) + audio_src->audio_frame_size;
@@ -109,6 +110,7 @@ static void audio_src_thread(void *arg)
         if (ret != ESP_CAPTURE_ERR_OK) {
             data_q_send_buffer(audio_src->audio_src_q, 0);
             ESP_LOGE(TAG, "Failed to read audio frame ret %d", ret);
+            err_exit = true;
             break;
         }
         if (audio_src->sync_handle) {
@@ -123,6 +125,10 @@ static void audio_src_thread(void *arg)
         }
         data_q_send_buffer(audio_src->audio_src_q, frame_size);
         audio_src->audio_frames++;
+    }
+    // Wakeup reader if read from device failed
+    if (err_exit) {
+        data_q_wakeup(audio_src->audio_src_q);
     }
     ESP_LOGI(TAG, "Audio src thread exited");
     capture_event_group_set_bits(audio_src->event_group, EVENT_GROUP_AUDIO_SRC_EXITED);
