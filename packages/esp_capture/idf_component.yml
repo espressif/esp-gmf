@@ -1,4 +1,4 @@
-version: "0.7.1"
+version: "0.7.2"
 description: Espressif Capture is a module for capture media stream from camera and microphone
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_capture
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_capture/README.md"

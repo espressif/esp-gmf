@@ -22,5 +22,4 @@ dependencies:
     version: "^0.5"
   espressif/esp_audio_codec:
     version: "^2.3"
-  tempotian/codec_board:
-    version: "^0.5.4"
+  

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.2
+
+- Remove the dependency on the `codec_board` component.
+
 ## v0.7.1
 
 ### Features

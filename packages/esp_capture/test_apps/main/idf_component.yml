@@ -17,4 +17,4 @@ dependencies:
   espressif/esp_video_codec:
     version: "^0.5"
   tempotian/codec_board:
-    version: "^0.5.4"
+    version: "^1.0"
