@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.7.1
+
+- Updated `esp-codec-dev` dependency to v1.4.0
+
 ## v0.7.0
 
 ### Features
