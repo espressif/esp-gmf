@@ -287,7 +287,6 @@ esp_gmf_job_err_t esp_gmf_element_process_close(esp_gmf_element_handle_t handle,
         ESP_LOGE(TAG, "There is no close function [%p-%s]", handle, OBJ_GET_TAG(handle));
         return ESP_GMF_ERR_FAIL;
     }
-    esp_gmf_job_err_t ret = el->ops.close(el, NULL);
     // Release port still have reference
     esp_gmf_port_t *in_port = ESP_GMF_ELEMENT_GET_IN_PORT(el);
     if (in_port && in_port->ref_count) {
@@ -296,6 +295,7 @@ esp_gmf_job_err_t esp_gmf_element_process_close(esp_gmf_element_handle_t handle,
         }
         in_port->ref_count = 0;
     }
+    esp_gmf_job_err_t ret = el->ops.close(el, NULL);
     return ret;
 }
 

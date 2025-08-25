@@ -1,5 +1,11 @@
 # Changelog
 
+## Un-Released
+
+### Bug Fixes
+
+- Fixed possible dead lock for released port after close
+
 ## v0.7.2
 
 ### Bug Fixes

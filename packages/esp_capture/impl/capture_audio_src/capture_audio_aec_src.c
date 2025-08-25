@@ -271,7 +271,7 @@ esp_capture_audio_src_if_t *esp_capture_new_audio_aec_src(esp_capture_audio_aec_
     src->channel = cfg->channel ? cfg->channel : 2;
     src->channel_mask = cfg->channel_mask;
     if (cfg->mic_layout == NULL) {
-        cfg->mic_layout = "MR";
+        src->mic_layout = "MR";
     } else {
         src->mic_layout = cfg->mic_layout;
     }

@@ -128,8 +128,6 @@ static esp_capture_err_t audio_dev_src_stop(esp_capture_audio_src_if_t *h)
 
 static esp_capture_err_t audio_dev_src_close(esp_capture_audio_src_if_t *h)
 {
-    audio_dev_src_t *src = (audio_dev_src_t *)h;
-    src->handle = NULL;
     return ESP_CAPTURE_ERR_OK;
 }
 
