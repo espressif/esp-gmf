@@ -175,8 +175,48 @@ esp_gmf_err_t esp_gmf_afe_set_event_cb(esp_gmf_element_handle_t handle, esp_gmf_
  *       - ESP_GMF_ERR_OK             Success
  *       - ESP_GMF_ERR_INVALID_ARG    Invalid argument
  *       - ESP_GMF_ERR_INVALID_STATE  Config not exist
+ *       - ESP_GMF_ERR_TIMEOUT        Command send timeout
  */
 esp_gmf_err_t esp_gmf_afe_keep_awake(esp_gmf_element_handle_t handle, bool enable);
+
+/**
+ * @brief  Manually trigger wakeup state
+ *
+ *         This function allows manual activation of the wakeup state without waiting
+ *         for automatic wakeword detection. It is useful in the following scenarios:
+ *
+ *         1. **Button-triggered activation**: When users press a physical button to
+ *            activate voice interaction, bypassing the need for wakewords
+ *         2. **External event-driven activation**: When the system needs to enter
+ *            wakeup state based on external triggers (sensors, timers, network events)
+ *
+ *         After calling this function, the AFE will enter wakeup state and begin
+ *         listening for voice commands (if voice command detection is enabled).
+ *         The system will generate ESP_GMF_AFE_EVT_WAKEUP_START event and remain
+ *         active according to the configured wakeup_time duration.
+ *
+ * @param[in]  handle  Handle to the GMF object
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK             Success
+ *       - ESP_GMF_ERR_INVALID_ARG    Invalid argument
+ *       - ESP_GMF_ERR_INVALID_STATE  Element not opened
+ *       - ESP_GMF_ERR_TIMEOUT        Command send timeout
+ */
+esp_gmf_err_t esp_gmf_afe_trigger_wakeup(esp_gmf_element_handle_t handle);
+
+/**
+ * @brief  Manually trigger sleep of wakeup state
+ *
+ * @param[in]  handle  Handle to the GMF object
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK             Success
+ *       - ESP_GMF_ERR_INVALID_ARG    Invalid argument
+ *       - ESP_GMF_ERR_INVALID_STATE  Element not opened
+ *       - ESP_GMF_ERR_TIMEOUT        Command send timeout
+ */
+esp_gmf_err_t esp_gmf_afe_trigger_sleep(esp_gmf_element_handle_t handle);
 
 #ifdef __cplusplus
 }

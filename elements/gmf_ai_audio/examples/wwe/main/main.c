@@ -36,7 +36,6 @@
 #else
 #define VCMD_ENABLE (false)
 #endif /* CONFIG_GMF_AI_AUDIO_VOICE_COMMAND_ENABLE */
-#define VAD_ENABLE     (true)
 #define QUIT_CMD_FOUND (BIT0)
 
 #define BOARD_LYRAT_MINI (0)
@@ -64,25 +63,21 @@
 #define INPUT_CH_NUM        (4)
 #define INPUT_CH_BITS       (16) /* For board `ESP32-S3-Korvo-2`, the es7210 is configured as 32-bit,
                                    2-channel mode to accommodate 16-bit, 4-channel data */
-#define INPUT_CH_ALLOCATION ("RMNM")
 #elif AUDIO_BOARD == BOARD_LYRAT_MINI
 #define ADC_I2S_CH          (2)
 #define ADC_I2S_BITS        (16)
 #define INPUT_CH_NUM        (ADC_I2S_CH)
 #define INPUT_CH_BITS       (ADC_I2S_BITS)
-#define INPUT_CH_ALLOCATION ("RM")
 #elif AUDIO_BOARD == BOARD_XD_AIOT_C3
 #define ADC_I2S_CH          (2)
 #define ADC_I2S_BITS        (16)
 #define INPUT_CH_NUM        (ADC_I2S_CH)
 #define INPUT_CH_BITS       (ADC_I2S_BITS)
-#define INPUT_CH_ALLOCATION ("MR")
 #elif AUDIO_BOARD == BOARD_ESP_SPOT
 #define ADC_I2S_CH          (2)
 #define ADC_I2S_BITS        (16)
 #define INPUT_CH_NUM        (ADC_I2S_CH)
 #define INPUT_CH_BITS       (ADC_I2S_BITS)
-#define INPUT_CH_ALLOCATION ("MR")
 #endif  /* AUDIO_BOARD == BOARD_KORVO_2 */
 
 #if WITH_AFE == true
@@ -98,7 +93,9 @@ static bool speeching = false;
 static bool wakeup    = false;
 #endif  /* WITH_AFE == true */
 static EventGroupHandle_t g_event_group = NULL;
+#if WITH_AFE == true
 static esp_gmf_element_handle_t g_afe   = NULL;
+#endif  /* WITH_AFE == true */
 
 static esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
@@ -118,8 +115,12 @@ void esp_gmf_afe_event_cb(esp_gmf_obj_handle_t obj, esp_gmf_afe_evt_t *event, vo
             esp_gmf_afe_vcmd_detection_cancel(obj);
             esp_gmf_afe_vcmd_detection_begin(obj);
 #endif  /* WAKENET_ENABLE == true && VCMD_ENABLE == true */
-            esp_gmf_afe_wakeup_info_t *info = event->event_data;
-            ESP_LOGI(TAG, "WAKEUP_START [%d : %d]", info->wake_word_index, info->wakenet_model_index);
+            if (event->event_data) {
+                esp_gmf_afe_wakeup_info_t *info = event->event_data;
+                ESP_LOGI(TAG, "WAKEUP_START [%d : %d]", info->wake_word_index, info->wakenet_model_index);
+            } else {
+                ESP_LOGI(TAG, "WAKEUP_START");
+            }
             break;
         }
         case ESP_GMF_AFE_EVT_WAKEUP_END: {
@@ -172,7 +173,7 @@ static void esp_gmf_wn_event_cb(esp_gmf_obj_handle_t obj, int32_t trigger_ch, vo
 
 static void voice_2_file(uint8_t *buffer, int len)
 {
-#if VOICE2FILE == true
+#if VOICE2FILE == true && WITH_AFE == true
 #define MAX_FNAME_LEN (50)
 
     static FILE *fp = NULL;
@@ -198,7 +199,7 @@ static void voice_2_file(uint8_t *buffer, int len)
             fp = NULL;
         }
     }
-#endif  /* VOICE2FILE == true */
+#endif  /* VOICE2FILE == true && WITH_AFE == true */
 }
 
 static esp_gmf_err_io_t outport_acquire_write(void *handle, esp_gmf_payload_t *load, int wanted_size, int block_ticks)
@@ -214,6 +215,7 @@ static esp_gmf_err_io_t outport_release_write(void *handle, esp_gmf_payload_t *l
     return ESP_GMF_IO_OK;
 }
 
+#if WITH_AFE == true
 static struct {
     struct arg_int *keep;
     struct arg_end *end;
@@ -235,6 +237,29 @@ static int keep_awake(int argc, char **argv)
     return ESP_OK;
 }
 
+static struct {
+    struct arg_str *cmd;
+    struct arg_end *end;
+} trigger_args;
+
+static int trigger(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&trigger_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, trigger_args.end, argv[0]);
+        return ESP_FAIL;
+    }
+    if (g_afe) {
+        if (strcmp(trigger_args.cmd->sval[0], "wakeup") == 0) {
+            esp_gmf_afe_trigger_wakeup(g_afe);
+        } else if (strcmp(trigger_args.cmd->sval[0], "sleep") == 0) {
+            esp_gmf_afe_trigger_sleep(g_afe);
+        }
+    }
+    return 0;
+}
+#endif  /* WITH_AFE == true */
+
 static int quit(int argc, char **argv)
 {
     xEventGroupSetBits(g_event_group, QUIT_CMD_FOUND);
@@ -243,6 +268,7 @@ static int quit(int argc, char **argv)
 
 static void wwe_cmds_register(void)
 {
+#if WITH_AFE == true
     esp_console_cmd_t cmd_keep = {
         .command = "keep",
         .help = "keep awake",
@@ -253,6 +279,18 @@ static void wwe_cmds_register(void)
     keep_args.keep = arg_int0(NULL, NULL, "<0 - 1>", "Keep awake");
     keep_args.end = arg_end(1);
     esp_console_cmd_register(&cmd_keep);
+
+    esp_console_cmd_t cmd_trigger_wakeup = {
+        .command = "trigger",
+        .help = "trigger wakeup or sleep",
+        .hint = NULL,
+        .func = &trigger,
+        .argtable = &trigger_args,
+    };
+    trigger_args.cmd = arg_str0(NULL, NULL, "<wakeup|sleep>", "Trigger wakeup or sleep");
+    trigger_args.end = arg_end(1);
+    esp_console_cmd_register(&cmd_trigger_wakeup);
+#endif  /* WITH_AFE == true */
 
     esp_console_cmd_t cmd_quit = {
         .command = "quit",

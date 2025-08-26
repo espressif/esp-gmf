@@ -9,7 +9,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "esp_gmf_obj.h"
 #include "freertos/idf_additions.h"
+#include "freertos/queue.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_gmf_audio_element.h"
@@ -57,8 +59,22 @@ typedef enum {
     ET_WWE_DECT,
     ET_WAKEUP_TIMER_EXPIRED,
     ET_KEEP_WAKE_MODIFIED,
+    ET_TRIGGER_WAKEUP,
+    ET_TRIGGER_SLEEP,
     ET_UNKNOWN
 } wakeup_event_t;
+
+typedef struct {
+    wakeup_event_t event;
+    union {
+        struct {
+            bool enable;
+        } keep_awake;
+        struct {
+            bool state;
+        } trigger;
+    } payload;
+} afe_evt_msg_t;
 
 /**
  * @brief  Structure representing the ESP GMF AFE component
@@ -68,6 +84,7 @@ typedef struct {
     esp_gmf_db_handle_t     in_db;
     esp_gmf_db_handle_t     out_db;
     wakeup_state_t          wakeup_state;
+    wakeup_event_t          last_event;
     bool                    origin_vad_enable;
     bool                    keep_wake;
     esp_timer_handle_t      wakeup_timer;
@@ -77,6 +94,7 @@ typedef struct {
     SemaphoreHandle_t       mn_lock;
     esp_mn_state_t          mn_state;
     esp_mn_iface_t         *multinet;
+    QueueHandle_t           msg_queue;
 } esp_gmf_afe_t;
 
 static const char *TAG = "GMF_AFE";
@@ -93,6 +111,8 @@ static const char *event_str[] = {
     "ET_WWE_DECT",
     "ET_WAKEUP_TIMER_EXPIRED",
     "ET_KEEP_WAKE_MODIFIED",
+    "ET_TRIGGER_WAKEUP",
+    "ET_TRIGGER_SLEEP",
     "ET_UNKNOWN",
 };
 
@@ -163,22 +183,21 @@ static void wakeup_state_update(esp_gmf_afe_t *gmf_afe, wakeup_event_t event, vo
 {
     esp_gmf_afe_cfg_t *cfg = OBJ_GET_CFG(gmf_afe);
     esp_gmf_afe_manager_features_t afe_feat = {0};
-    static wakeup_event_t last_event = ET_UNKNOWN;
     int32_t user_event = -1;
-    if (event == ET_KEEP_WAKE_MODIFIED || last_event != event) {
+    if (event == ET_KEEP_WAKE_MODIFIED || gmf_afe->last_event != event) {
         ESP_LOGV(TAG, "Recorder update state, cur %s, event %s", state_str[gmf_afe->wakeup_state], event_str[event]);
-        last_event = event;
+        gmf_afe->last_event = event;
     } else {
         return;
     }
     xSemaphoreTake(gmf_afe->wake_st_lock, portMAX_DELAY);
-    if (event == ET_WWE_DECT && gmf_afe->wakeup_state != ST_IDLE) {
+    if ((event == ET_WWE_DECT || event == ET_TRIGGER_WAKEUP) && gmf_afe->wakeup_state != ST_IDLE) {
         wakeup_state_reset(gmf_afe);
     }
     esp_gmf_afe_manager_get_features(cfg->afe_manager, &afe_feat);
     switch (gmf_afe->wakeup_state) {
         case ST_IDLE: {
-            if (event == ET_WWE_DECT) {
+            if (event == ET_WWE_DECT || event == ET_TRIGGER_WAKEUP) {
                 WAKEUP_ST_SET(gmf_afe, ST_WAKEUP);
                 if (!gmf_afe->keep_wake) {
                     wakeup_timer_start(gmf_afe);
@@ -208,6 +227,13 @@ static void wakeup_state_update(esp_gmf_afe_t *gmf_afe, wakeup_event_t event, vo
                 WAKEUP_ST_SET(gmf_afe, ST_IDLE);
                 esp_timer_stop(gmf_afe->wakeup_timer);
                 user_event = ESP_GMF_AFE_EVT_WAKEUP_END;
+            } else if (event == ET_TRIGGER_SLEEP) {
+                WAKEUP_ST_SET(gmf_afe, ST_IDLE);
+                esp_timer_stop(gmf_afe->wakeup_timer);
+                if (gmf_afe->origin_vad_enable) {
+                    esp_gmf_afe_manager_enable_features(cfg->afe_manager, ESP_AFE_FEATURE_VAD, false);
+                }
+                user_event = ESP_GMF_AFE_EVT_WAKEUP_END;
             }
             break;
         }
@@ -224,6 +250,12 @@ static void wakeup_state_update(esp_gmf_afe_t *gmf_afe, wakeup_event_t event, vo
                     WAKEUP_ST_SET(gmf_afe, ST_IDLE);
                 }
                 user_event = ESP_GMF_AFE_EVT_VAD_END;
+            } else if (event == ET_TRIGGER_SLEEP) {
+                WAKEUP_ST_SET(gmf_afe, ST_IDLE);
+                if (gmf_afe->origin_vad_enable) {
+                    esp_gmf_afe_manager_enable_features(cfg->afe_manager, ESP_AFE_FEATURE_VAD, false);
+                }
+                user_event = ESP_GMF_AFE_EVT_WAKEUP_END;
             }
             break;
         }
@@ -244,6 +276,13 @@ static void wakeup_state_update(esp_gmf_afe_t *gmf_afe, wakeup_event_t event, vo
                 } else {
                     wakeup_timer_start(gmf_afe);
                 }
+            } else if (event == ET_TRIGGER_SLEEP) {
+                WAKEUP_ST_SET(gmf_afe, ST_IDLE);
+                esp_timer_stop(gmf_afe->wakeup_timer);
+                if (gmf_afe->origin_vad_enable) {
+                    esp_gmf_afe_manager_enable_features(cfg->afe_manager, ESP_AFE_FEATURE_VAD, false);
+                }
+                user_event = ESP_GMF_AFE_EVT_WAKEUP_END;
             }
             break;
         }
@@ -322,7 +361,9 @@ static void mn_afe_monitor(afe_fetch_result_t *result, void *user_ctx)
                 esp_gmf_afe_vcmd_info_t vcmd_info = {
                     .phrase_id = mn_result->phrase_id[0],
                     .prob = mn_result->prob[0]};
-                memcpy(vcmd_info.str, mn_result->string, ESP_GMF_AFE_VCMD_MAX_LEN);
+                size_t max_copy = ESP_GMF_AFE_VCMD_MAX_LEN - 1;
+                strncpy(vcmd_info.str, mn_result->string, max_copy);
+                vcmd_info.str[max_copy] = '\0';
                 event_2_user(gmf_afe, vcmd_info.phrase_id, &vcmd_info, sizeof(esp_gmf_afe_vcmd_info_t));
 
                 break;
@@ -377,7 +418,7 @@ static int32_t esp_gmf_afe_read_cb(void *buffer, int buf_sz, void *user_ctx, Tic
     esp_gmf_data_bus_block_t blk = {0};
     blk.buf = buffer;
     blk.buf_length = buf_sz;
-    ESP_LOGD(TAG, "Feed %u", blk.buf_length);
+    ESP_LOGD(TAG, "Feed %zu", blk.buf_length);
     ESP_GMF_RET_ON_FAIL(TAG, esp_gmf_db_acquire_read(gmf_afe->in_db, &blk, buf_sz, ticks), { return 0;}, "DB failed to acquire read");
     ESP_GMF_RET_ON_FAIL(TAG, esp_gmf_db_release_read(gmf_afe->in_db, &blk, ticks), { return 0;}, "DB failed to release read");
     return buf_sz;
@@ -459,12 +500,20 @@ static esp_gmf_job_err_t esp_gmf_afe_open(esp_gmf_audio_element_handle_t self, v
     esp_gmf_db_new_ringbuf(1, buf_size * 2 + (cfg->delay_samples * sizeof(uint16_t)), &gmf_afe->out_db);
     esp_gmf_afe_manager_set_result_cb(cfg->afe_manager, esp_gmf_afe_result_proc, self);
     esp_gmf_afe_manager_set_read_cb(cfg->afe_manager, esp_gmf_afe_read_cb, self);
+    if (gmf_afe->msg_queue == NULL) {
+        gmf_afe->msg_queue = xQueueCreate(4, sizeof(afe_evt_msg_t));
+        ESP_GMF_NULL_CHECK(TAG, gmf_afe->msg_queue, goto __failed);
+    }
     esp_gmf_info_sound_t snd_info = {0};
     snd_info.sample_rates = 16000;
     snd_info.bits = 16;
     snd_info.channels = 1;
     esp_gmf_element_notify_snd_info(self, &snd_info);
     return ESP_GMF_JOB_ERR_OK;
+
+__failed:
+    esp_gmf_obj_delete(self);
+    return ESP_GMF_JOB_ERR_FAIL;
 }
 
 static esp_gmf_job_err_t esp_gmf_afe_close(esp_gmf_audio_element_handle_t self, void *para)
@@ -502,7 +551,37 @@ static esp_gmf_job_err_t esp_gmf_afe_close(esp_gmf_audio_element_handle_t self, 
         gmf_afe->multinet->destroy(gmf_afe->mn_handle);
         gmf_afe->mn_handle = NULL;
     }
-    return ESP_GMF_ERR_OK;
+    if (gmf_afe->msg_queue) {
+        vQueueDelete(gmf_afe->msg_queue);
+        gmf_afe->msg_queue = NULL;
+    }
+    return ESP_GMF_JOB_ERR_OK;
+}
+
+static void esp_gmf_afe_cmd_handler(esp_gmf_audio_element_handle_t self)
+{
+    esp_gmf_afe_t *gmf_afe = (esp_gmf_afe_t *)self;
+    if (gmf_afe->msg_queue) {
+        afe_evt_msg_t msg;
+        while (xQueueReceive(gmf_afe->msg_queue, &msg, 0) == pdTRUE) {
+            switch (msg.event) {
+                case ET_KEEP_WAKE_MODIFIED: {
+                    xSemaphoreTake(gmf_afe->wake_st_lock, portMAX_DELAY);
+                    gmf_afe->keep_wake = msg.payload.keep_awake.enable;
+                    xSemaphoreGive(gmf_afe->wake_st_lock);
+                    wakeup_state_update(gmf_afe, msg.event, NULL, 0);
+                    break;
+                }
+                case ET_TRIGGER_WAKEUP:
+                case ET_TRIGGER_SLEEP: {
+                    wakeup_state_update(gmf_afe, msg.event, NULL, 0);
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+    }
 }
 
 static esp_gmf_job_err_t esp_gmf_afe_proc(esp_gmf_audio_element_handle_t self, void *para)
@@ -514,6 +593,8 @@ static esp_gmf_job_err_t esp_gmf_afe_proc(esp_gmf_audio_element_handle_t self, v
     esp_gmf_payload_t *out_load = NULL;
     esp_gmf_afe_t *gmf_afe = (esp_gmf_afe_t *)self;
     esp_gmf_afe_cfg_t *cfg = OBJ_GET_CFG(self);
+
+    esp_gmf_afe_cmd_handler(self);
 
     ret = esp_gmf_port_acquire_in(in_port, &in_load, ESP_GMF_ELEMENT_GET(self)->in_attr.data_size, ESP_GMF_MAX_DELAY);
     if (ret < 0) {
@@ -646,6 +727,7 @@ esp_gmf_err_t esp_gmf_afe_init(void *config, esp_gmf_obj_handle_t *handle)
     el_cfg.dependency = false;
     ret = esp_gmf_audio_el_init(gmf_afe, &el_cfg);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto __failed, "Failed to initialize audio element");
+    gmf_afe->last_event = ET_UNKNOWN;
     ESP_GMF_ELEMENT_GET(gmf_afe)->ops.open = esp_gmf_afe_open;
     ESP_GMF_ELEMENT_GET(gmf_afe)->ops.process = esp_gmf_afe_proc;
     ESP_GMF_ELEMENT_GET(gmf_afe)->ops.close = esp_gmf_afe_close;
@@ -670,7 +752,7 @@ static esp_gmf_err_t esp_gmf_afe_set_vcmd_detection(esp_gmf_element_handle_t han
     esp_gmf_element_get_method((esp_gmf_element_handle_t)handle, &method_head);
     esp_gmf_method_found(method_head, ESP_GMF_METHOD_AFE_START_VCMD_DET, &method);
     uint8_t buf[1] = { enable };
-    esp_gmf_args_set_value(method->args_desc, ESP_GMF_METHOD_AFE_START_VCMD_DET, buf, (uint8_t *)&enable, sizeof(enable));
+    esp_gmf_args_set_value(method->args_desc, ESP_GMF_METHOD_AFE_START_VCMD_DET_ARG_EN, buf, buf, sizeof(uint8_t));
     return esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, ESP_GMF_METHOD_AFE_START_VCMD_DET, buf, sizeof(buf));
 }
 
@@ -697,16 +779,44 @@ esp_gmf_err_t esp_gmf_afe_set_event_cb(esp_gmf_element_handle_t handle, esp_gmf_
 esp_gmf_err_t esp_gmf_afe_keep_awake(esp_gmf_element_handle_t handle, bool enable)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG;);
-
     esp_gmf_afe_t *gmf_afe = (esp_gmf_afe_t *)handle;
-
-    if (gmf_afe->wake_st_lock) {
-        xSemaphoreTake(gmf_afe->wake_st_lock, portMAX_DELAY);
-        gmf_afe->keep_wake = enable;
-        xSemaphoreGive(gmf_afe->wake_st_lock);
-        wakeup_state_update(gmf_afe, ET_KEEP_WAKE_MODIFIED, &enable, sizeof(enable));
-        return ESP_GMF_ERR_OK;
-    } else {
+    if (gmf_afe->msg_queue == NULL) {
+        ESP_LOGE(TAG, "GMF AFE Message queue not initialized");
         return ESP_GMF_ERR_INVALID_STATE;
     }
+    afe_evt_msg_t msg = { 0 };
+    msg.event = ET_KEEP_WAKE_MODIFIED;
+    msg.payload.keep_awake.enable = enable;
+    BaseType_t ok = xQueueSend(gmf_afe->msg_queue, &msg, pdMS_TO_TICKS(1000));
+    return ok == pdTRUE ? ESP_GMF_ERR_OK : ESP_GMF_ERR_TIMEOUT;
+}
+
+esp_gmf_err_t esp_gmf_afe_trigger_wakeup(esp_gmf_element_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG;);
+    esp_gmf_afe_t *gmf_afe = (esp_gmf_afe_t *)handle;
+    if (gmf_afe->msg_queue == NULL) {
+        ESP_LOGE(TAG, "GMF AFE Message queue not initialized");
+        return ESP_GMF_ERR_INVALID_STATE;
+    }
+    afe_evt_msg_t msg = { 0 };
+    msg.event = ET_TRIGGER_WAKEUP;
+    msg.payload.trigger.state = true;
+    BaseType_t ok = xQueueSend(gmf_afe->msg_queue, &msg, pdMS_TO_TICKS(1000));
+    return ok == pdTRUE ? ESP_GMF_ERR_OK : ESP_GMF_ERR_TIMEOUT;
+}
+
+esp_gmf_err_t esp_gmf_afe_trigger_sleep(esp_gmf_element_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG;);
+    esp_gmf_afe_t *gmf_afe = (esp_gmf_afe_t *)handle;
+    if (gmf_afe->msg_queue == NULL) {
+        ESP_LOGE(TAG, "GMF AFE Message queue not initialized");
+        return ESP_GMF_ERR_INVALID_STATE;
+    }
+    afe_evt_msg_t msg = { 0 };
+    msg.event = ET_TRIGGER_SLEEP;
+    msg.payload.trigger.state = false;
+    BaseType_t ok = xQueueSend(gmf_afe->msg_queue, &msg, pdMS_TO_TICKS(1000));
+    return ok == pdTRUE ? ESP_GMF_ERR_OK : ESP_GMF_ERR_TIMEOUT;
 }
