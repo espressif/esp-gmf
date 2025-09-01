@@ -6,6 +6,8 @@
 
 - Replaced the interface for decoding reconfig
 - Supported placing the audio processing task stack in RAM or SPI-RAM using `stack_in_ext` in `esp_asp_cfg_t`
+- Fixed `esp_audio_simple_player_destroy` random crash for event group not created
+- Fixed include file missing for `esp_gmf_pipeline.h`
 
 ## v0.9.3
 

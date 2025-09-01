@@ -301,14 +301,18 @@ esp_gmf_err_t esp_audio_simple_player_new(esp_asp_cfg_t *cfg, esp_asp_handle_t *
     }
     task_cfg.thread.core = cfg->task_core;
     task_cfg.thread.stack_in_ext = cfg->task_stack_in_ext;
+    player->wait_event = (void *)xEventGroupCreate();
     esp_gmf_task_init(&task_cfg, &player->work_task);
-    if (player->work_task == NULL) {
-        ESP_LOGE(TAG, "Failed to create the pipeline task");
+    if (player->work_task == NULL || player->wait_event == NULL) {
+        ESP_LOGE(TAG, "No memory to create a new simple player");
+        if (player->wait_event) {
+            vEventGroupDelete(player->wait_event);
+        }
         esp_gmf_pool_deinit(player->pool);
         esp_gmf_oal_free(player);
         return ESP_GMF_ERR_MEMORY_LACK;
     }
-    esp_gmf_task_set_timeout(player->work_task, 3000);
+    esp_gmf_task_set_timeout(player->work_task, 5000);
     *handle = player;
     return ESP_GMF_ERR_OK;
 }
@@ -351,10 +355,6 @@ esp_gmf_err_t esp_audio_simple_player_run_to_end(esp_asp_handle_t handle, const 
     if ((player->state == ESP_ASP_STATE_RUNNING) || (player->state == ESP_ASP_STATE_PAUSED)) {
         ESP_LOGE(TAG, "The player still running, call stop first on sync play, st:%d", player->state);
         return ESP_GMF_ERR_INVALID_STATE;
-    }
-    if (player->wait_event == NULL) {
-        player->wait_event = (void *)xEventGroupCreate();
-        ESP_GMF_NULL_CHECK(TAG, player->wait_event, return ESP_GMF_ERR_MEMORY_LACK);
     }
     int ret = __setup_pipeline(player, uri, music_info);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to setup pipeline on sync play, ret:%x", ret);
