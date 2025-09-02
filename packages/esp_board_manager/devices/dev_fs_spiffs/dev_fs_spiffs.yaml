@@ -1,0 +1,12 @@
+# Example board_devices.yaml configuration for SPIFFS filesystem device
+# This shows how to integrate the SPIFFS filesystem device into a board configuration
+
+# Example SPIFFS filesystem device configuration
+- name: fs_spiffs          # The name of the device, must be unique
+  type: fs_spiffs          # The type of the device, must be unique
+  version: 1.0.0
+  config:
+    base_path: "/spiffs"            # The base path for mounting the SPIFFS filesystem
+    partition_label: NULL           # The partition label for the SPIFFS filesystem
+    max_files: 5                    # The maximum number of files that can be open simultaneously
+    format_if_mount_failed: false   # Format the card if mount fails

@@ -44,6 +44,7 @@ ESP-GMF 各个模块以组件的形式存在，组件又按功能分为**原子�
 |  [gmf_loader](./packages/gmf_loader) | 使用 `Kconfig` 选择的配置<br>设置给定的 GMF Pool | - `gmf_core`<br>- `gmf_io`<br>- `gmf_audio`<br>- `gmf_misc`<br>- `gmf_video`<br>- `gmf_ai_audio`<br>- `esp_codec_dev`<br>- `esp_audio_codec`<br>- `esp_video_codec` |
 |  [gmf_app_utils](./packages/gmf_app_utils) | 常用外设配置，单元测试工具<br>内存泄漏检测工具 | - `gmf_core`<br>- `protocol_examples_common`<br>- `codec_board` |
 |  [esp_capture](./packages/esp_capture) | 易用的音视频采集器 | - `gmf_core`<br>- `gmf-audio`<br>- `gmf-video`<br>- `esp_muxer`<br>- `esp_codec_dev`<br>- `esp-sr`<br>- `esp_video`<br>- `esp32-camera`|
+|  [esp_board_manager](./packages/esp_board_manager) | 智能、自动化的板子配置和管理工具，支持基于 YAML 的设置 | 根据选择的板子变化依赖 |
 
 # ESP-GMF 使用说明
 
@@ -53,4 +54,4 @@ GMF-Core API 的简单示例代码请参考 [test_apps](./gmf_core/test_apps/mai
 
 - **ESP-GMF 和 ESP-ADF 有什么区别？**
 
-  ESP-ADF 是一个包含很多模块的功能性仓库，比如 `audio_pipeline`、`services`、`peripherals` 和 `audio boards` 等，它常应用与比较复杂的项目中。ESP-GMF 是将 `audio_pipeline` 独立出来并进行功能扩展，使其支持音频、视频、图像等流式数据的应用场景。ESP-GMF 按功能分为不同的组件，灵活性优于 ESP-ADF 的 `audio_pipeline`，例如用于简单流式数据的处理，从 SD 卡/flash 播放一个音频，以及多个组件结合使用提供较复杂的功能模块（如音频播放器 `esp_audio_simple_player `）。ESP-ADF 的后期版本会使用 ESP-GMF 替代 `audio_pipeline` 模块。
+  ESP-ADF 是一个包含很多模块的功能性仓库，比如 `audio_pipeline`、`services`、`peripherals` 和 `audio boards` 等，它常应用于比较复杂的项目中。ESP-GMF 是将 `audio_pipeline` 独立出来并进行功能扩展，使其支持音频、视频、图像等流式数据的应用场景。ESP-GMF 按功能分为不同的组件，灵活性优于 ESP-ADF 的 `audio_pipeline`，例如用于简单流式数据的处理，从 SD 卡/flash 播放一个音频，以及多个组件结合使用提供较复杂的功能模块（如音频播放器 `esp_audio_simple_player `）。ESP-ADF 的后期版本会使用 ESP-GMF 替代 `audio_pipeline` 模块。

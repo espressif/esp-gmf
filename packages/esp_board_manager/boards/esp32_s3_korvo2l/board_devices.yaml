@@ -1,0 +1,69 @@
+board: esp32_s3_korvo2l
+chip: esp32s3
+version: 1.0.0
+# Devices Configuration
+devices:
+  - name: audio_dac
+    chip: es8311
+    type: audio_codec
+    version: default
+    dependencies:
+      espressif/esp_codec_dev:
+        require: public
+        version: ~1.4
+    config: &es8311_config
+      adc_enabled: true
+      adc_max_channel: 1
+      # The channel mask, 1-enable, 0-disable，from right to left layout: mic0,mic1,mic2,mic3
+      # e.g.“0111”, bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable, bit4: Mic4 disable
+      adc_channel_mask: "1"     # Mic0, Mic1 disable
+
+      dac_enabled: true
+      dac_max_channel: 1
+      # DAC channel mask, 1-enable, 0-disable, layout: left,right
+      dac_channel_mask: "1"     # Left enable
+
+    # Power amplifier configuration
+    peripherals: &es8311_peripherals
+      - name: gpio_pa_control
+        gain: 6                    # dB
+        active_level: 1            # 0-low, 1-high
+
+      # I2S interface configuration
+      - name: i2s_audio_out
+      # I2C interface configuration
+      - name: i2c_master
+        address: 0x30
+        frequency: 400000          # Hz
+
+  - name: audio_adc
+    chip: es8311
+    type: audio_codec
+    version: default
+    dependencies:
+      espressif/esp_codec_dev:
+        require: public
+        version: ~1.4
+    config: *es8311_config
+    # Power amplifier configuration
+    peripherals:
+      - *es8311_peripherals
+      # override i2s_audio_in
+      - name: i2s_audio_in
+
+  - name: fs_sdcard
+    type: fatfs_sdcard
+    version: default
+    config:
+      bus_width: 1            # 1, 4, 8, not used on SPI type
+      pins:
+        clk: 6    # GPIO_NUM_15
+        cmd: 7    # GPIO_NUM_7
+        d0: 4     # GPIO_NUM_4
+
+  - name: fs_spiffs          # The name of the device, must be unique
+    type: fs_spiffs          # The type of the device, must be unique
+    version: 1.0.0
+    config:
+      partition_label: NULL           # The partition label for the SPIFFS filesystem
+      format_if_mount_failed: true

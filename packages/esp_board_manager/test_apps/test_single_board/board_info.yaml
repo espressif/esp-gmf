@@ -1,0 +1,4 @@
+board: test_single_board
+chip: esp32s3
+version: 1.0.0
+description: "Test board 2 for recursive scanning"

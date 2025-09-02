@@ -1,0 +1,5 @@
+board: esp32_lyrat_mini_v1_1
+chip: esp32
+version: 1.0.0
+description: "ESP32 Lyrat Mini V1.1 Development Board"
+manufacturer: "ESPRESSIF"

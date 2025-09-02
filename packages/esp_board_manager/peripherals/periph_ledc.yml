@@ -1,0 +1,43 @@
+# LEDC Peripheral Default Configuration
+# This file shows the default values used by the LEDC peripheral parser
+# Based on periph_ledc.py parsing script
+
+ledc-0:
+  config:
+    # GPIO pin number (required, no default - must be >= 0)
+    gpio_num: 0
+
+    # LEDC channel (default: LEDC_CHANNEL_0)
+    channel: "LEDC_CHANNEL_0"
+    # Valid values: 0-7 or "LEDC_CHANNEL_0" to "LEDC_CHANNEL_7"
+
+    # LEDC timer (default: LEDC_TIMER_0)
+    timer: "LEDC_TIMER_0"
+    # Valid values: 0-3 or "LEDC_TIMER_0" to "LEDC_TIMER_3"
+
+    # PWM frequency in Hz (default: 4000)
+    freq_hz: 4000
+
+    # Initial duty cycle (default: 0)
+    duty: 0
+    # Valid values: 0 to 2^duty_resolution
+
+    # Duty resolution in bits (default: LEDC_TIMER_13_BIT)
+    duty_resolution: "LEDC_TIMER_13_BIT"
+    # Valid values: 1-20 or "LEDC_TIMER_1_BIT" to "LEDC_TIMER_20_BIT"
+
+    # Speed mode (default: LEDC_LOW_SPEED_MODE)
+    speed_mode: "LEDC_LOW_SPEED_MODE"
+    # Valid values:
+    # - LEDC_LOW_SPEED_MODE
+    # - LEDC_HIGH_SPEED_MODE
+
+    # Output inversion (default: false)
+    output_invert: false
+
+    # Sleep mode (default: LEDC_SLEEP_MODE_NO_ALIVE_NO_PD)
+    sleep_mode: "LEDC_SLEEP_MODE_NO_ALIVE_NO_PD"
+    # Valid values:
+    # - LEDC_SLEEP_MODE_NO_ALIVE_NO_PD
+    # - LEDC_SLEEP_MODE_NO_ALIVE_ALLOW_PD
+    # - LEDC_SLEEP_MODE_KEEP_ALIVE

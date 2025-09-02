@@ -1,0 +1,44 @@
+# Function to get device sources
+function(get_device_sources sources includes)
+    set(srcs "")
+    set(incs "")
+
+    if(CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_audio_codec/dev_audio_codec.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_audio_codec")
+    endif()
+
+    if(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fatfs_sdcard/dev_fatfs_sdcard.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fatfs_sdcard")
+    endif()
+
+    if(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_display_lcd_spi/dev_display_lcd_spi.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_display_lcd_spi")
+    endif()
+
+    if(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_lcd_touch_i2c")
+    endif()
+
+    if(CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_gpio_ctrl/dev_gpio_ctrl.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_gpio_ctrl")
+    endif()
+
+    if(CONFIG_ESP_BOARD_DEV_FS_SPIFFS_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fs_spiffs/dev_fs_spiffs.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fs_spiffs")
+    endif()
+
+    if(CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_ledc_ctrl/dev_ledc_ctrl.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_ledc_ctrl")
+    endif()
+
+    # Set output variables in parent scope
+    set(${sources} ${srcs} PARENT_SCOPE)
+    set(${includes} ${incs} PARENT_SCOPE)
+endfunction()

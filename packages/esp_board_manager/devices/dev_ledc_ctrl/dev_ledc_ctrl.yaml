@@ -1,0 +1,11 @@
+# Example board_devices.yaml configuration for LEDC control device
+# This shows how to integrate the LEDC control device into a board configuration
+
+# Example LEDC control device configuration for LCD brightness
+- name: lcd_brightness          # The name of the device, must be unique
+  type: ledc_ctrl             # The type of the device, must be unique
+  version: default
+  config:
+    default_percent: 100        # Default brightness percentage (0-100)
+  peripherals:
+    - name: ledc-44           # LEDC peripheral name (must reference an LEDC peripheral)

@@ -1,0 +1,5 @@
+board: ESP32_S3_Korvo_2L
+chip: esp32s3
+version: 1.0.0
+description: "ESP32-S3 Korvo 2L"
+manufacturer: "ESPRESSIF"

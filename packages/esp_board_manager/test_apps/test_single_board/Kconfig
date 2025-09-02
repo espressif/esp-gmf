@@ -1,0 +1,3 @@
+config BOARD_TEST_SINGLE_BOARD
+    bool "Test Single Board"
+    depends on SOC_ESP32S3

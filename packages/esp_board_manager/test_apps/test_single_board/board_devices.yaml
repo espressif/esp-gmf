@@ -1,0 +1,11 @@
+board: test_single_board
+chip: esp32s3
+version: 1.0.0
+
+devices:
+  - name: gpio_ctrl_0
+    type: gpio_ctrl
+    config:
+      enabled: true
+    peripherals:
+      - name: gpio_test_output

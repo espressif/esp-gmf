@@ -1,0 +1,62 @@
+# SPI Peripheral Default Configuration
+# This file shows the default values used by the SPI peripheral parser
+# Based on periph_spi.py parsing script
+
+spi-0:
+  config:
+    # SPI port (default: 0, maps to SPI1_HOST)
+    spi_port: 0
+    # Valid values: 0 (SPI1_HOST), 1 (SPI2_HOST), 2 (SPI3_HOST)
+    # Or use string: "SPI1_HOST", "SPI2_HOST", "SPI3_HOST"
+
+    # SPI bus configuration
+    spi_bus_config:
+      # Standard SPI pins (union fields - use either dataX_io_num or traditional names)
+      # MOSI pin (default: -1, not set)
+      mosi_io_num: -1
+      # Alternative: data0_io_num: -1
+
+      # MISO pin (default: -1, not set)
+      miso_io_num: -1
+      # Alternative: data1_io_num: -1
+
+      # SCLK pin (default: -1, not set)
+      sclk_io_num: -1
+
+      # Quad SPI pins (union fields)
+      # Quad Write Protect pin (default: -1, not set)
+      quadwp_io_num: -1
+      # Alternative: data2_io_num: -1
+
+      # Quad Hold pin (default: -1, not set)
+      quadhd_io_num: -1
+      # Alternative: data3_io_num: -1
+
+      # Octal mode pins (optional)
+      # Data pin 4 (default: -1, not set)
+      data4_io_num: -1
+      # Data pin 5 (default: -1, not set)
+      data5_io_num: -1
+      # Data pin 6 (default: -1, not set)
+      data6_io_num: -1
+      # Data pin 7 (default: -1, not set)
+      data7_io_num: -1
+
+      # Data IO default level (default: false)
+      data_io_default_level: false
+
+      # Maximum transfer size (default: 4092)
+      max_transfer_sz: 4092
+
+      # Flags (default: 0)
+      flags: 0
+
+      # ISR CPU affinity (default: ESP_INTR_CPU_AFFINITY_AUTO)
+      isr_cpu_id: "ESP_INTR_CPU_AFFINITY_AUTO"
+      # Valid values:
+      # - ESP_INTR_CPU_AFFINITY_AUTO
+      # - ESP_INTR_CPU_AFFINITY_CPU0
+      # - ESP_INTR_CPU_AFFINITY_CPU1
+
+      # Interrupt flags (default: 0)
+      intr_flags: 0
