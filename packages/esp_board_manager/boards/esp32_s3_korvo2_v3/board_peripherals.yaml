@@ -65,3 +65,15 @@ peripherals:
       pin: 48                           # GPIO48 - Power amplifier control
       mode: GPIO_MODE_OUTPUT
       default_level: 1
+
+  # LCD SPI Configuration for ST77916 QSPI
+  - name: spi_display
+    type: spi
+    role: master
+    config:
+      # spi_bus_config_t fields
+      spi_bus_config:
+        spi_port: SPI2_HOST              # 0: SPI1_HOST, 1: SPI2_HOST, 2: SPI3_HOST
+        mosi_io_num: 0                   # MOSI_IO_NUM
+        sclk_io_num: 1                   # SPI Clock signal
+        max_transfer_sz: 32000           # Maximum transfer size in bytes

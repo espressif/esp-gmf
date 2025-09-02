@@ -182,6 +182,7 @@ For comprehensive usage examples, refer to the test applications in the `test_ap
 - **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** - SD card operations and FATFS file system testing
 - **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** - SPIFFS file system testing
 - **[`test_dev_custom.c`](test_apps/main/test_dev_custom.c)** - Custom device testing and configuration
+- **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)** - GPIO expander device testing
 
 #### Peripheral Examples
 - **[`test_periph_ledc.c`](test_apps/main/test_periph_ledc.c)** - LEDC peripheral for PWM and backlight control
@@ -201,6 +202,7 @@ Board Manager's device names are recommended for user projects, while peripheral
 | `lcd_touch` | Touch screen device |
 | `lcd_power` | LCD power control |
 | `lcd_brightness` | LCD brightness control |
+| `gpio_expander` | GPIO expander device |
 
 ## YAML Configuration Rules
 For detailed YAML configuration rules and format specifications, please refer to [Device and Peripheral Rules](docs/device_and_peripheral_rules.md).
@@ -337,6 +339,7 @@ The ESP Board Manager supports board configuration through three different path 
 | GPIO Control | gpio_ctrl | - | gpio | ✅ Supported | GPIO control device | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
 | LEDC Control | ledc_ctrl | - | ledc | ✅ Supported | LEDC control device | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
 | Custom Device | custom | - | any | ✅ Supported | User-defined custom device | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
+| GPIO Expander | gpio_expander | TCA9554/TCA95XX/HT8574 | i2c | ✅ Supported | GPIO expander | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
 
 ### Supported Boards
 
@@ -345,7 +348,7 @@ The ESP Board Manager supports board configuration through three different path 
 | Echoear Core Board V1.0 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 |
 | Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (Dual) | ❌ |
 | ESP-BOX-3 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 |
-| ESP32-S3 Korvo2 V3 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ❌ | ❌ |
+| ESP32-S3 Korvo2 V3 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100 |
 | ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ |
 | Lyrat Mini V1.1 | ESP32 | ✅ ES8388 | ✅ SDMMC | ❌ | ❌ |
 | ESP32-C5 Spot | ESP32-C5 | ✅ ES8311 (Dual) | ❌ | ❌ | ❌ |

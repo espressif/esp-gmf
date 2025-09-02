@@ -5,6 +5,10 @@
 ### Features
 - Add init_skip field to control device auto-initialization
 - Add custom device type with test support
+- Add gpio expander device type with test support
+
+### Supported Boards
+- **ESP32-S3 Korvo2 V3**: Full LCD and LCD Touch support
 
 ## v0.3.0 (Initial Release)
 

@@ -5,7 +5,7 @@
  * See LICENSE file for details.
  */
 
- #include <string.h>
+#include <string.h>
 #include "esp_board_device.h"
 #include "esp_codec_dev.h"
 #include "esp_lcd_ili9341.h"
