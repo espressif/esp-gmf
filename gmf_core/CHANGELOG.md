@@ -5,6 +5,7 @@
 ### Bug Fixes
 
 - Fixed possible dead lock for released port after close
+- Fixed pipeline previous action state not cleared after stopped
 
 ## v0.7.2
 
