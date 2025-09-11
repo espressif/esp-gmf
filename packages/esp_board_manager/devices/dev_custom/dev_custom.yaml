@@ -1,0 +1,81 @@
+# Example board_devices.yaml configuration for custom device
+# This shows how to integrate the custom device into a board configuration
+
+# Example custom device configuration
+- name: my_custom_sensor          # The name of the device, must be unique
+  type: custom                   # The type of the device, must be unique
+  chip: esp32s3                  # Optional: Name of chip
+  version: default               # Optional: Parser version to use
+  init_skip: false               # Optional: skip initialization when the manager initializes all devices
+  config:
+    # Custom configuration parameters - these will be automatically generated as struct fields
+    sensor_id: 0x01              # Sensor ID (hex format)
+    sample_rate: 100             # Sample rate in Hz
+    enable_filter: true          # Enable digital filter
+    filter_cutoff: 50.5          # Filter cutoff frequency in Hz
+    timeout_ms: 1000             # Timeout in milliseconds
+    debug_mode: false            # Enable debug mode
+  peripherals:                   # Optional: List of used peripherals
+    - name: i2c_master           # I2C peripheral for communication
+    - name: gpio_pa_control      # GPIO peripheral for control
+  dependencies:                  # Optional: Component dependencies
+    esp_driver_i2c:
+      require: public
+      version: "^2.0.0"
+    esp_driver_gpio:
+      require: public
+      version: "^2.0.0"
+
+# Example custom actuator configuration
+- name: my_custom_actuator
+  type: custom
+  chip: esp32s3                  # Optional: Name of chip
+  version: default               # Optional: Parser version to use
+  init_skip: false               # Optional: skip initialization when the manager initializes all devices
+  config:
+    # Custom configuration parameters
+    actuator_type: "servo"       # Actuator type
+    min_position: 0              # Minimum position
+    max_position: 180            # Maximum position
+    default_position: 90         # Default position
+    speed: 1.5                   # Movement speed
+    enable_feedback: true        # Enable position feedback
+  peripherals:                   # Optional: List of used peripherals
+    - name: i2s_audio_out        # I2S peripheral for control
+    - name: gpio_pa_control      # GPIO peripheral for feedback
+  dependencies:                  # Optional: Component dependencies
+    esp_driver_ledc:
+      require: public
+      version: "^2.0.0"
+    esp_driver_adc:
+      require: public
+      version: "^2.0.0"
+
+- name: custom_temperature_sensor
+  type: custom
+  version: default
+  config:
+    # Integer parameters
+    sensor_id: 0x48                    # Sensor I2C address
+    sample_rate: 10                    # Sample rate in Hz
+    timeout_ms: 1000                   # Timeout in milliseconds
+
+    # Boolean parameters
+    enable_filter: true                # Enable digital filter
+    debug_mode: false                  # Enable debug output
+    auto_calibration: true             # Enable auto calibration
+
+    # Float parameters
+    filter_cutoff: 1.5                 # Filter cutoff frequency in Hz
+    calibration_offset: -0.5           # Calibration offset
+    temperature_threshold: 25.0        # Temperature threshold in Celsius
+
+    # String parameters
+    sensor_model: "DS18B20"            # Sensor model name
+    unit: "celsius"                    # Temperature unit
+
+    # Peripheral configuration
+    peripherals:
+      - name: i2c_master               # I2C peripheral for communication
+      - name: gpio-2                   # GPIO for interrupt
+

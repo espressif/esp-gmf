@@ -32,4 +32,5 @@ idf_component_register(
         esp_lcd
         spiffs
     LDFRAGMENTS
+        "linker.lf"
 )

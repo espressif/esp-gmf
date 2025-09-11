@@ -235,6 +235,7 @@ const esp_board_device_desc_t g_esp_board_devices[] = {
         .type = "gpio_ctrl",
         .cfg = &esp_bmgr_audio_power_cfg,
         .cfg_size = sizeof(esp_bmgr_audio_power_cfg),
+        .init_skip = false,
     },
     {
         .next = &g_esp_board_devices[2],
@@ -242,6 +243,7 @@ const esp_board_device_desc_t g_esp_board_devices[] = {
         .type = "gpio_ctrl",
         .cfg = &esp_bmgr_lcd_power_cfg,
         .cfg_size = sizeof(esp_bmgr_lcd_power_cfg),
+        .init_skip = false,
     },
     {
         .next = &g_esp_board_devices[3],
@@ -249,6 +251,7 @@ const esp_board_device_desc_t g_esp_board_devices[] = {
         .type = "audio_codec",
         .cfg = &esp_bmgr_audio_dac_cfg,
         .cfg_size = sizeof(esp_bmgr_audio_dac_cfg),
+        .init_skip = false,
     },
     {
         .next = &g_esp_board_devices[4],
@@ -256,6 +259,7 @@ const esp_board_device_desc_t g_esp_board_devices[] = {
         .type = "audio_codec",
         .cfg = &esp_bmgr_audio_adc_cfg,
         .cfg_size = sizeof(esp_bmgr_audio_adc_cfg),
+        .init_skip = false,
     },
     {
         .next = &g_esp_board_devices[5],
@@ -263,6 +267,7 @@ const esp_board_device_desc_t g_esp_board_devices[] = {
         .type = "fatfs_sdcard",
         .cfg = &esp_bmgr_fs_sdcard_cfg,
         .cfg_size = sizeof(esp_bmgr_fs_sdcard_cfg),
+        .init_skip = false,
     },
     {
         .next = &g_esp_board_devices[6],
@@ -270,6 +275,7 @@ const esp_board_device_desc_t g_esp_board_devices[] = {
         .type = "display_lcd_spi",
         .cfg = &esp_bmgr_display_lcd_cfg,
         .cfg_size = sizeof(esp_bmgr_display_lcd_cfg),
+        .init_skip = false,
     },
     {
         .next = &g_esp_board_devices[7],
@@ -277,6 +283,7 @@ const esp_board_device_desc_t g_esp_board_devices[] = {
         .type = "lcd_touch_i2c",
         .cfg = &esp_bmgr_lcd_touch_cfg,
         .cfg_size = sizeof(esp_bmgr_lcd_touch_cfg),
+        .init_skip = false,
     },
     {
         .next = NULL,
@@ -284,5 +291,6 @@ const esp_board_device_desc_t g_esp_board_devices[] = {
         .type = "ledc_ctrl",
         .cfg = &esp_bmgr_lcd_brightness_cfg,
         .cfg_size = sizeof(esp_bmgr_lcd_brightness_cfg),
+        .init_skip = false,
     },
 };

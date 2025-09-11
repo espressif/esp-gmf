@@ -55,11 +55,15 @@ peripherals:
 devices:
   - name: <device_name>       # Required: Unique identifier
     type: <device_type>       # Required: Type identifier
-    config: <configuration>   # Required: Device-specific config
+    chip: <chip_name>         # Optional: Name of chip
     version: <version>        # Optional: Parser version to use
-    peripherals:             # Optional: List of used peripherals
-      - name: <periph_name>  # Required if peripherals section exists
-    dependencies:            # Optional: Component dependencies
+    init_skip: false          # Optional: skip initialization when the manager initializes all devices.
+                              # Default is false (do not skip initialization). Set to true to skip automatic initialization.
+    config:
+      <configurations>        # Required: Device-specific config
+    peripherals:              # Optional: List of used peripherals
+      - name: <periph_name>   # Required if peripherals section exists
+    dependencies:             # Optional: Component dependencies
       <component_name>:
         require: <scope>
         version: <version>

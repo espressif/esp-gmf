@@ -211,6 +211,13 @@ esp_err_t esp_board_device_init_all(void)
 
     /* Initialize all devices in the list */
     while (desc && desc->name) {
+        /* Check if device should be skipped during initialization */
+        if (desc->init_skip) {
+            ESP_LOGD(TAG, "Skipping initialization of device: %s (init_skip=true)", desc->name);
+            desc = desc->next;
+            continue;
+        }
+
         ret = esp_board_device_init(desc->name);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to initialize device: %s", desc->name);

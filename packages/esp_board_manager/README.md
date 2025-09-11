@@ -181,6 +181,7 @@ For comprehensive usage examples, refer to the test applications in the `test_ap
 - **[`test_dev_pwr_ctrl.c`](test_apps/main/test_dev_pwr_ctrl.c)** - GPIO-based power management for LCD and audio devices
 - **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** - SD card operations and FATFS file system testing
 - **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** - SPIFFS file system testing
+- **[`test_dev_custom.c`](test_apps/main/test_dev_custom.c)** - Custom device testing and configuration
 
 #### Peripheral Examples
 - **[`test_periph_ledc.c`](test_apps/main/test_periph_ledc.c)** - LEDC peripheral for PWM and backlight control
@@ -266,6 +267,7 @@ For detailed YAML configuration rules and format specifications, please refer to
    devices:
      - name: <device_name>
        type: <device_type>
+       init_skip: false  # Optional: skip auto-initialization (default: false)
        config:
          # Device-specific configuration
        peripherals:
@@ -334,6 +336,7 @@ The ESP Board Manager supports board configuration through three different path 
 | SPIFFS Filesystem | fs_spiffs | - | - | ✅ Supported | SPIFFS filesystem | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) |
 | GPIO Control | gpio_ctrl | - | gpio | ✅ Supported | GPIO control device | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
 | LEDC Control | ledc_ctrl | - | ledc | ✅ Supported | LEDC control device | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
+| Custom Device | custom | - | any | ✅ Supported | User-defined custom device | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
 
 ### Supported Boards
 

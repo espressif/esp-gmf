@@ -36,8 +36,8 @@ def parse(name: str, config: dict) -> dict:
         if pin < 0:
             raise ValueError(f'Invalid GPIO pin number: {pin}. Must be >= 0.')
 
-        # Use pin number directly as pin_bit_mask (decimal value)
-        pin_bit_mask = pin
+        # Use BIT64(pin) format for pin_bit_mask
+        pin_bit_mask = f'BIT64({pin})'
 
         # Get GPIO mode with validation
         mode = cfg.get('mode', 'GPIO_MODE_INPUT')

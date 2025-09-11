@@ -28,9 +28,7 @@ static void wav_playback_task(void *pvParameters)
     FILE *fp = fopen(wav_file_path, "rb");
     if (fp == NULL) {
         ESP_LOGE(TAG, "Failed to open WAV file for playback: %s", wav_file_path);
-        playback_finished = true;
-        vTaskDelete(NULL);
-        return;
+        goto cleanup_playback;
     }
 
     // Read WAV header
@@ -39,10 +37,7 @@ static void wav_playback_task(void *pvParameters)
     esp_err_t ret = read_wav_header(fp, &sample_rate, &channels, &bits_per_sample);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read WAV header");
-        fclose(fp);
-        playback_finished = true;
-        vTaskDelete(NULL);
-        return;
+        goto cleanup_playback;
     }
 
     ESP_LOGI(TAG, "WAV file info: %" PRIu32 " Hz, %" PRIu16 " channels, %" PRIu16 " bits", sample_rate, channels, bits_per_sample);
@@ -55,9 +50,19 @@ static void wav_playback_task(void *pvParameters)
     };
 
     dev_audio_codec_config_t *dac_cfg = NULL;
-    esp_board_manager_get_device_config("audio_dac", (void**)&dac_cfg);
+    ret = esp_board_manager_get_device_config("audio_dac", (void**)&dac_cfg);
+    if (ret != ESP_OK || dac_cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to get audio_dac device config");
+        goto cleanup_playback;
+    }
+
     periph_i2s_config_t *i2s_tx_cfg = NULL;
-    esp_board_manager_get_periph_config(dac_cfg->i2s_cfg.name, (void**)&i2s_tx_cfg);
+    ret = esp_board_manager_get_periph_config(dac_cfg->i2s_cfg.name, (void**)&i2s_tx_cfg);
+    if (ret != ESP_OK || i2s_tx_cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to get I2S TX config for %s", dac_cfg->i2s_cfg.name);
+        goto cleanup_playback;
+    }
+
     if (i2s_tx_cfg->mode == I2S_COMM_MODE_TDM) {
         dac_config.channels = i2s_tx_cfg->i2s_cfg.tdm.slot_cfg.total_slot;
     } else {
@@ -67,20 +72,14 @@ static void wav_playback_task(void *pvParameters)
     dev_audio_codec_handles_t *dac_handles = NULL;
     ret = configure_codec("audio_dac", &dac_config, true, &dac_handles);
     if (ret != ESP_OK) {
-        fclose(fp);
-        playback_finished = true;
-        vTaskDelete(NULL);
-        return;
+        goto cleanup_playback;
     }
 
     const size_t buffer_size = 5 * 1024;
     uint8_t *playback_buffer = malloc(buffer_size);
     if (playback_buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate playback buffer");
-        fclose(fp);
-        playback_finished = true;
-        vTaskDelete(NULL);
-        return;
+        goto cleanup_playback;
     }
     size_t bytes_read;
     while ((bytes_read = fread(playback_buffer, 1, buffer_size, fp)) > 0) {
@@ -96,6 +95,14 @@ static void wav_playback_task(void *pvParameters)
     fclose(fp);
     playback_finished = true;
     vTaskDelete(NULL);
+    return;
+
+cleanup_playback:
+    if (fp) {
+        fclose(fp);
+    }
+    playback_finished = true;
+    vTaskDelete(NULL);
 }
 
 // Task for reading I2S data and saving (SD card version)
@@ -105,15 +112,23 @@ static void i2s_recording_task(void *pvParameters)
     FILE *fp = fopen(output_file_path, "wb");
     if (fp == NULL) {
         ESP_LOGE(TAG, "Failed to open file for recording: %s", output_file_path);
-        recording_finished = true;
-        vTaskDelete(NULL);
-        return;
+        goto cleanup_recording;
     }
 
     dev_audio_codec_config_t *adc_cfg = NULL;
-    esp_board_manager_get_device_config("audio_adc", (void**)&adc_cfg);
+    esp_err_t ret = esp_board_manager_get_device_config("audio_adc", (void**)&adc_cfg);
+    if (ret != ESP_OK || adc_cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to get audio_adc device config");
+        goto cleanup_recording;
+    }
+
     periph_i2s_config_t *i2s_rx_cfg = NULL;
-    esp_board_manager_get_periph_config(adc_cfg->i2s_cfg.name, (void**)&i2s_rx_cfg);
+    ret = esp_board_manager_get_periph_config(adc_cfg->i2s_cfg.name, (void**)&i2s_rx_cfg);
+    if (ret != ESP_OK || i2s_rx_cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to get I2S RX config for %s", adc_cfg->i2s_cfg.name);
+        goto cleanup_recording;
+    }
+
     // Configure ADC
     audio_config_t adc_config = {
         .sample_rate = i2s_rx_cfg->i2s_cfg.std.clk_cfg.sample_rate_hz,
@@ -127,31 +142,22 @@ static void i2s_recording_task(void *pvParameters)
         adc_config.channels = i2s_rx_cfg->i2s_cfg.std.slot_cfg.slot_mode == I2S_SLOT_MODE_STEREO ? 2 : 1;
     }
     dev_audio_codec_handles_t *adc_handles = NULL;
-    esp_err_t ret = configure_codec("audio_adc", &adc_config, false, &adc_handles);
+    ret = configure_codec("audio_adc", &adc_config, false, &adc_handles);
     if (ret != ESP_OK) {
-        fclose(fp);
-        recording_finished = true;
-        vTaskDelete(NULL);
-        return;
+        goto cleanup_recording;
     }
 
     // Write WAV header
     ret = write_wav_header(fp, adc_config.sample_rate, adc_config.channels, adc_config.bits_per_sample, adc_config.duration_seconds);
     if (ret != ESP_OK) {
-        fclose(fp);
-        recording_finished = true;
-        vTaskDelete(NULL);
-        return;
+        goto cleanup_recording;
     }
 
     const size_t buffer_size = 4096;
     uint8_t *recording_buffer = malloc(buffer_size);
     if (recording_buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate recording buffer");
-        fclose(fp);
-        recording_finished = true;
-        vTaskDelete(NULL);
-        return;
+        goto cleanup_recording;
     }
 
     ESP_LOGI(TAG, "Starting I2S recording...");
@@ -177,6 +183,14 @@ static void i2s_recording_task(void *pvParameters)
     ESP_LOGI(TAG, "I2S recording completed. Total bytes recorded: %" PRIu32, total_bytes);
     free(recording_buffer);
     fclose(fp);
+    recording_finished = true;
+    vTaskDelete(NULL);
+    return;
+
+cleanup_recording:
+    if (fp) {
+        fclose(fp);
+    }
     recording_finished = true;
     vTaskDelete(NULL);
 }

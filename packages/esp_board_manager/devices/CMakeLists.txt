@@ -38,6 +38,11 @@ function(get_device_sources sources includes)
         list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_ledc_ctrl")
     endif()
 
+    if(CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_custom/dev_custom.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_custom")
+    endif()
+
     # Set output variables in parent scope
     set(${sources} ${srcs} PARENT_SCOPE)
     set(${includes} ${incs} PARENT_SCOPE)

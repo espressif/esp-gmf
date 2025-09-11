@@ -10,7 +10,6 @@
 #include "esp_codec_dev.h"
 #include "esp_lcd_ili9341.h"
 #include "esp_lcd_touch_gt911.h"
-#include "esp_lvgl_port.h"
 #include "esp_log.h"
 
 static const ili9341_lcd_init_cmd_t vendor_specific_init[] = {

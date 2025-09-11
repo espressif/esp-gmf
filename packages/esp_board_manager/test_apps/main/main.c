@@ -40,6 +40,10 @@
 #include "test_dev_ledc.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
 
+#ifdef CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT
+#include "test_dev_custom.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT */
+
 static const char *TAG = "MAIN";
 
 #ifdef CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT
@@ -87,6 +91,14 @@ static void test_ledc_device(void)
 }
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
 
+#ifdef CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT
+static void test_custom_device(void)
+{
+    ESP_LOGI(TAG, "Starting Custom device tests...");
+    test_dev_custom();
+}
+#endif  /* CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT */
+
 
 #ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
 static void test_lcd_lvgl(void)
@@ -118,13 +130,16 @@ static void test_lcd_lvgl(void)
 void app_main(void)
 {
     ESP_LOGI(TAG, "Starting ESP Board Manager Test Application");
-    esp_board_manager_print_board_info();
-    // Initialize board manager
     int ret = esp_board_manager_init();
     if (ret != 0) {
         ESP_LOGE(TAG, "Board manager initialization failed: %d", ret);
         return;
     }
+    esp_board_manager_print_board_info();
+
+#ifdef CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT
+    test_custom_device();
+#endif  /* CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT */
 
 #ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
     test_lcd_lvgl();

@@ -13,6 +13,22 @@
 
 static const char *TAG = "PERIPH_GPIO";
 
+static int _periph_gpio_bit_mask_to_num(uint64_t pin_bit_mask)
+{
+    if (pin_bit_mask == 0) {
+        ESP_LOGE(TAG, "No bit set: 0x%llx", pin_bit_mask);
+        return -1;  // No bit set
+    }
+    // Check if only one bit is set (power of 2)
+    if ((pin_bit_mask & (pin_bit_mask - 1)) != 0) {
+        ESP_LOGE(TAG, "Multiple bits set: 0x%llx", pin_bit_mask);
+        return -1;  // Multiple bits set
+    }
+    // Use built-in function for optimal performance (GCC/Clang)
+    // This compiles to a single CPU instruction (BSF/CTZ)
+    return __builtin_ctzll(pin_bit_mask);
+}
+
 int periph_gpio_init(void *cfg, int cfg_size, void **periph_handle)
 {
     if (!cfg || cfg_size < sizeof(periph_gpio_config_t) || (periph_handle == NULL)) {
@@ -26,9 +42,13 @@ int periph_gpio_init(void *cfg, int cfg_size, void **periph_handle)
     }
     periph_gpio_config_t *periph_cfg = (periph_gpio_config_t *)cfg;
     gpio_config_t config = periph_cfg->gpio_config;
-    handle->gpio_num = config.pin_bit_mask;
-    // Configure GPIO
-    config.pin_bit_mask = BIT64(handle->gpio_num);
+    int gpio_num = _periph_gpio_bit_mask_to_num(config.pin_bit_mask);
+    if (gpio_num < 0) {
+        ESP_LOGE(TAG, "Invalid pin_bit_mask: 0x%llx", config.pin_bit_mask);
+        free(handle);
+        return -1;
+    }
+    handle->gpio_num = gpio_num;
     esp_err_t err = gpio_config(&config);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "gpio_config failed on pin %llu: %d", config.pin_bit_mask, err);
@@ -37,7 +57,7 @@ int periph_gpio_init(void *cfg, int cfg_size, void **periph_handle)
     // Set default level if it's an output pin
     if (config.mode == GPIO_MODE_OUTPUT || config.mode == GPIO_MODE_INPUT_OUTPUT ||
         config.mode == GPIO_MODE_OUTPUT_OD || config.mode == GPIO_MODE_INPUT_OUTPUT_OD) {
-        err = gpio_set_level(config.pin_bit_mask, periph_cfg->default_level);
+        err = gpio_set_level(handle->gpio_num, periph_cfg->default_level);
         ESP_LOGI(TAG, "Initialize success, pin: %d, set the default level: %d", handle->gpio_num, periph_cfg->default_level);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "gpio_set_level failed: %d", err);
