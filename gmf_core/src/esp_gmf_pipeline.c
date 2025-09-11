@@ -13,6 +13,7 @@
 #include "esp_gmf_pipeline.h"
 #include "esp_gmf_node.h"
 
+#define PIPELINE_PRE_STATE_NONE (0)
 #define PIPELINE_PRE_RUN_STATE  (1 << 0)
 #define PIPELINE_PRE_STOP_STATE (1 << 1)
 
@@ -498,6 +499,7 @@ esp_gmf_err_t esp_gmf_pipeline_stop(esp_gmf_pipeline_handle_t pipeline)
     ret = esp_gmf_pipeline_prev_stop(pipeline);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Fail to prev stop for %p", pipeline);
     ret = esp_gmf_task_stop(pipeline->thread);
+    pipeline->prev_state = PIPELINE_PRE_STATE_NONE;
     return ret;
 }
 
