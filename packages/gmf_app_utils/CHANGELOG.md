@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.3
+
+### Features
+
+- Optimized memory usage by utilizing PSRAM for `sys_monitor` task stack
+
+### Bug Fixes
+
+- Fixed resource leakage in `esp_gmf_app_wifi_disconnect()`
+
 ## 0.7.2
 
 - Updated `codec_board` dependency to v1.0.0

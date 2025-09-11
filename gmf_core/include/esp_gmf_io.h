@@ -71,6 +71,7 @@ typedef struct esp_gmf_io_ {
     esp_gmf_err_io_t (*acquire_write)(esp_gmf_io_handle_t handle, void *payload, uint32_t wanted_size, int block_ticks);  /*!< Acquire write callback function */
     esp_gmf_err_io_t (*release_write)(esp_gmf_io_handle_t handle, void *payload, int block_ticks);                        /*!< Release write callback function */
 
+    esp_gmf_io_cfg_t       task_cfg;
     esp_gmf_task_handle_t  task_hd;  /*!< Task handle */
     esp_gmf_io_dir_t       dir;      /*!< I/O direction */
     esp_gmf_io_type_t      type;     /*!< I/O type */

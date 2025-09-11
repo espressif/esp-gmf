@@ -19,9 +19,36 @@ esp_gmf_err_t esp_gmf_io_init(esp_gmf_io_handle_t handle, esp_gmf_io_cfg_t *io_c
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
-    esp_gmf_info_file_init(&io->attr);
+    if (io_cfg) {
+        memcpy(&io->task_cfg, io_cfg, sizeof(esp_gmf_io_cfg_t));
+    } else {
+        memset(&io->task_cfg, 0, sizeof(esp_gmf_io_cfg_t));
+    }
+    return esp_gmf_info_file_init(&io->attr);
+}
+
+esp_gmf_err_t esp_gmf_io_deinit(esp_gmf_io_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
+    if (io->task_hd) {
+        esp_gmf_task_deinit(io->task_hd);
+        io->task_hd = NULL;
+    }
+    return esp_gmf_info_file_deinit(&io->attr);
+}
+
+esp_gmf_err_t esp_gmf_io_open(esp_gmf_io_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
+    if (io->open == NULL) {
+        return ESP_GMF_ERR_NOT_READY;
+    }
+
     int ret = ESP_GMF_ERR_OK;
-    if (io_cfg && io_cfg->thread.stack > 0) {
+    esp_gmf_io_cfg_t *io_cfg = &io->task_cfg;
+    if (io->task_hd == NULL && io_cfg && io_cfg->thread.stack > 0) {
         esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
         cfg.thread.stack = io_cfg->thread.stack;
         cfg.thread.prio = io_cfg->thread.prio;
@@ -37,32 +64,10 @@ esp_gmf_err_t esp_gmf_io_init(esp_gmf_io_handle_t handle, esp_gmf_io_cfg_t *io_c
         char name[ESP_GMF_JOB_LABLE_MAX_LEN] = "";
         esp_gmf_job_str_cat(name, ESP_GMF_JOB_LABLE_MAX_LEN, OBJ_GET_TAG(io), ESP_GMF_JOB_STR_PROCESS, strlen(ESP_GMF_JOB_STR_PROCESS));
         ret = esp_gmf_task_register_ready_job(io->task_hd, name, io->process, ESP_GMF_JOB_TIMES_INFINITE, handle, true);
-    }
-    ESP_LOGD(TAG, "Initialize a GMF IO[%p-%s], stack:%d, thread:%p-%s", handle, OBJ_GET_TAG(io),
+        ESP_LOGD(TAG, "Initialize a GMF IO[%p-%s], stack:%d, thread:%p-%s", handle, OBJ_GET_TAG(io),
              io_cfg == NULL ? -1 : io_cfg->thread.stack, io->task_hd, OBJ_GET_TAG(io->task_hd));
-    return ret;
-}
-
-esp_gmf_err_t esp_gmf_io_deinit(esp_gmf_io_handle_t handle)
-{
-    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
-    esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
-    esp_gmf_info_file_deinit(&io->attr);
-    ESP_LOGD(TAG, "Deinitialize a GMF IO[%p-%s], thread:%p-%s", io, OBJ_GET_TAG(io), io->task_hd, OBJ_GET_TAG(io->task_hd));
-    if (io->task_hd) {
-        esp_gmf_task_deinit(io->task_hd);
     }
-    return ESP_GMF_ERR_OK;
-}
-
-esp_gmf_err_t esp_gmf_io_open(esp_gmf_io_handle_t handle)
-{
-    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
-    esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
-    if (io->open == NULL) {
-        return ESP_GMF_ERR_NOT_READY;
-    }
-    int ret = io->open(io);
+    ret = io->open(io);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "esp_gmf_io_open failed");
     if (io->task_hd) {
         ret = esp_gmf_task_run(io->task_hd);
