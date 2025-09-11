@@ -118,6 +118,16 @@ TEST_CASE("Auto audio only capture for dual path", "[esp_capture]")
     TEST_ESP_OK(auto_audio_only_path_test(1000, true));
 }
 
+TEST_CASE("Auto audio bypass capture for one path", "[esp_capture]")
+{
+    TEST_ESP_OK(auto_audio_only_bypass_test(1000, true));
+}
+
+TEST_CASE("Auto audio bypass capture for dual path", "[esp_capture]")
+{
+    TEST_ESP_OK(auto_audio_only_bypass_test(1000, true));
+}
+
 TEST_CASE("Manual audio only capture for one path", "[esp_capture]")
 {
     TEST_ESP_OK(manual_audio_only_path_test(1000, false));
@@ -175,9 +185,19 @@ TEST_CASE("Auto AV capture for one path", "[esp_capture]")
     TEST_ESP_OK(auto_av_path_test(1000, false));
 }
 
-TEST_CASE("Auto AV capture  for dual path", "[esp_capture]")
+TEST_CASE("Auto AV capture for dual path", "[esp_capture]")
 {
     TEST_ESP_OK(auto_av_path_test(1000, true));
+}
+
+TEST_CASE("Auto AV capture dynamic enable for one path", "[esp_capture]")
+{
+    TEST_ESP_OK(auto_av_path_dynamic_enable_test(1000, false));
+}
+
+TEST_CASE("Auto AV capture dynamic enable for dual path", "[esp_capture]")
+{
+    TEST_ESP_OK(auto_av_path_dynamic_enable_test(1000, false));
 }
 
 TEST_CASE("Manual AV capture for one path", "[esp_capture]")
@@ -294,6 +314,10 @@ void app_main(void)
     CAPTURE_TEST(auto_audio_only_path_test, 5000, false);
     CAPTURE_TEST(auto_audio_only_path_test, 5000, true);
 
+    // Test for audio only bypass mode
+    CAPTURE_TEST(auto_audio_only_bypass_test, 5000, false);
+    CAPTURE_TEST(auto_audio_only_bypass_test, 5000, true);
+
     // Test for audio only manual mode
     CAPTURE_TEST(manual_audio_only_path_test, 5000, false);
     CAPTURE_TEST(manual_audio_only_path_test, 5000, true);
@@ -317,6 +341,10 @@ void app_main(void)
     // Test for av both auto mode
     CAPTURE_TEST(auto_av_path_test, 5000, false);
     CAPTURE_TEST(auto_av_path_test, 5000, true);
+
+    // Test for av both auto dynamic enable
+    CAPTURE_TEST(auto_av_path_dynamic_enable_test, 5000, false);
+    CAPTURE_TEST(auto_av_path_dynamic_enable_test, 5000, true);
 
     // Test for av both manual mode
     CAPTURE_TEST(manual_av_path_test, 5000, false);

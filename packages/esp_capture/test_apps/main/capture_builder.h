@@ -58,6 +58,8 @@ int build_advance_video_only_capture_sys(capture_sys_t *capture_sys);
 
 int build_advance_av_capture_sys(capture_sys_t *capture_sys);
 
+void read_with_timeout(capture_sys_t *capture_sys, bool dual_sink, int timeout);
+
 int read_all_frames(capture_sys_t *capture_sys, bool dual_sink, int timeout);
 
 void destroy_capture_sys(capture_sys_t *capture_sys);

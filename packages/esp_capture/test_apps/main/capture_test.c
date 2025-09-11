@@ -30,6 +30,11 @@
     break;                                                           \
 }
 
+#define BREAK_ON_FALSE(ret) if (ret == false) {                      \
+    ESP_LOGE(TAG, "Fail on %s:%d ret:%d", __func__, __LINE__, ret);  \
+    break;                                                           \
+}
+
 #define RET_ON_FAIL(ret) if (ret != 0) {                             \
     ESP_LOGE(TAG, "Fail on %s:%d ret:%d", __func__, __LINE__, ret);  \
     return ret;                                                      \
@@ -608,6 +613,54 @@ static bool verify_test_result(capture_sys_t *capture_sys, bool dual, int flag, 
     return true;
 }
 
+static bool verify_test_result_for_path(capture_sys_t *capture_sys, int i, int flag, bool has_data)
+{
+    if (flag & TEST_RESULT_VERIFY_AUDIO) {
+        if (capture_sys->run_result.audio_frame_size[i] == 0 ||
+            capture_sys->run_result.audio_frame_count[i] == 0 ||
+            capture_sys->run_result.audio_pts[i] == 0) {
+            // Want data but not received
+            if (has_data) {
+                ESP_LOGE(TAG, "Sink %d audio not received", i);
+                return false;
+            }
+        } else if (has_data == false) {
+            // Received data but unwanted
+            ESP_LOGE(TAG, "Why sink %d audio received", i);
+            return false;
+        }
+    }
+    if (flag & TEST_RESULT_VERIFY_VIDEO) {
+        if (capture_sys->run_result.video_frame_count[i] == 0 ||
+            capture_sys->run_result.video_frame_size[i] == 0 ||
+            capture_sys->run_result.video_pts[i] == 0) {
+            if (has_data) {
+                ESP_LOGE(TAG, "Sink %d video not received", i);
+                return false;
+            }
+        } else if (has_data == false) {
+            // Received data but unwanted
+            ESP_LOGE(TAG, "Why sink %d video received", i);
+            return false;
+        }
+    }
+    if (flag & TEST_RESULT_VERIFY_MUXER) {
+        if (capture_sys->run_result.muxer_frame_count[i] == 0 ||
+            capture_sys->run_result.muxer_frame_size[i] == 0 ||
+            capture_sys->run_result.muxer_pts[i] == 0) {
+            if (has_data) {
+                ESP_LOGE(TAG, "Sink %d muxer not received", i);
+                return false;
+            }
+        } else if (has_data == false) {
+            // Received data but unwanted
+            ESP_LOGE(TAG, "Why sink %d muxer received", i);
+            return false;
+        }
+    }
+    return true;
+}
+
 int auto_audio_only_path_test(int timeout, bool dual)
 {
     capture_sys_t capture_sys = {0};
@@ -631,6 +684,48 @@ int auto_audio_only_path_test(int timeout, bool dual)
             esp_capture_sink_cfg_t sink_cfg_1 = {
                 .audio_info = {
                     .format_id = ESP_CAPTURE_FMT_ID_G711A,
+                    .sample_rate = 8000,
+                    .channel = 1,
+                    .bits_per_sample = 16,
+                },
+            };
+            ret = esp_capture_sink_setup(capture_sys.capture, 1, &sink_cfg_1, &capture_sys.capture_sink[1]);
+            BREAK_ON_FAIL(ret);
+        }
+        ret = read_all_frames(&capture_sys, dual, timeout);
+        BREAK_ON_FAIL(ret);
+        if (!verify_test_result(&capture_sys, dual, TEST_RESULT_VERIFY_AUDIO, timeout)) {
+            ESP_LOGE(TAG, "Failed to verify frame and PTS");
+            ret = -1;
+        }
+    } while (0);
+    destroy_capture_sys(&capture_sys);
+    return ret;
+}
+
+int auto_audio_only_bypass_test(int timeout, bool dual)
+{
+    capture_sys_t capture_sys = {0};
+    int ret = 0;
+    do {
+        // Build up capture system
+        ret = build_audio_only_capture_sys(&capture_sys);
+        BREAK_ON_FAIL(ret);
+
+        esp_capture_sink_cfg_t sink_cfg = {
+            .audio_info = {
+                .format_id = ESP_CAPTURE_FMT_ID_PCM,
+                .sample_rate = 48000,
+                .channel = 2,
+                .bits_per_sample = 16,
+            },
+        };
+        ret = esp_capture_sink_setup(capture_sys.capture, 0, &sink_cfg, &capture_sys.capture_sink[0]);
+        BREAK_ON_FAIL(ret);
+        if (dual) {
+            esp_capture_sink_cfg_t sink_cfg_1 = {
+                .audio_info = {
+                    .format_id = ESP_CAPTURE_FMT_ID_PCM,
                     .sample_rate = 8000,
                     .channel = 1,
                     .bits_per_sample = 16,
@@ -978,6 +1073,133 @@ int auto_av_path_test(int timeout, bool dual)
             ESP_LOGE(TAG, "Failed to verify frame and PTS");
             ret = -1;
         }
+        ESP_LOGW(TAG, "Rerun start and stop flow");
+        // Restart
+        ret = read_all_frames(&capture_sys, dual, timeout);
+        BREAK_ON_FAIL(ret);
+        if (!verify_test_result(&capture_sys, dual, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, timeout)) {
+            ESP_LOGE(TAG, "Failed to verify frame and PTS");
+            ret = -1;
+        }
+    } while (0);
+    destroy_capture_sys(&capture_sys);
+    return ret;
+}
+
+int auto_av_path_dynamic_enable_test(int timeout, bool dual)
+{
+    capture_sys_t capture_sys = {0};
+    int ret = 0;
+    do {
+        // Build up capture system
+        ret = build_av_capture_sys(&capture_sys);
+        BREAK_ON_FAIL(ret);
+#ifndef CONFIG_IDF_TARGET_ESP32P4
+        if (dual && capture_sys.vid_src) {
+            esp_capture_video_info_t fixed_caps = {
+                .format_id = ESP_CAPTURE_FMT_ID_RGB565,
+                .width = VIDEO_WIDTH,
+                .height = VIDEO_HEIGHT,
+                .fps = VIDEO_FPS,
+            };
+            capture_sys.vid_src->set_fixed_caps(capture_sys.vid_src, &fixed_caps);
+        }
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+
+        esp_capture_sink_cfg_t sink_cfg = {
+            .audio_info = {
+                .format_id = ESP_CAPTURE_FMT_ID_AAC,
+                .sample_rate = 48000,
+                .channel = 2,
+                .bits_per_sample = 16,
+            },
+            .video_info = {
+                .format_id = VIDEO_SINK_FMT_0,
+                .width = VIDEO_WIDTH,
+                .height = VIDEO_HEIGHT,
+                .fps = VIDEO_FPS,
+            },
+        };
+        ret = esp_capture_sink_setup(capture_sys.capture, 0, &sink_cfg, &capture_sys.capture_sink[0]);
+        BREAK_ON_FAIL(ret);
+        if (dual) {
+            esp_capture_sink_cfg_t sink_cfg_1 = {
+                .audio_info = {
+                    .format_id = ESP_CAPTURE_FMT_ID_G711A,
+                    .sample_rate = 8000,
+                    .channel = 1,
+                    .bits_per_sample = 16,
+                },
+                .video_info = {
+                    .format_id = VIDEO_SINK_FMT_1,
+                    .width = VIDEO_WIDTH,
+                    .height = VIDEO_HEIGHT,
+                    .fps = VIDEO_FPS / 2,
+                },
+            };
+            ret = esp_capture_sink_setup(capture_sys.capture, 1, &sink_cfg_1, &capture_sys.capture_sink[1]);
+            BREAK_ON_FAIL(ret);
+        }
+        if (dual) {
+            // Enable 0 and disable 1
+            if (capture_sys.capture_sink[0]) {
+                ret = esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_ALWAYS);
+                BREAK_ON_FAIL(ret);
+            }
+        }
+        ret = esp_capture_start(capture_sys.capture);
+        BREAK_ON_FAIL(ret);
+        read_with_timeout(&capture_sys, dual, timeout);
+        if (dual) {
+            // Sink 0 have data sink not has
+            ESP_LOGI(TAG, "Verify expect sink0 enabled sink1 disabled");
+            ret = verify_test_result_for_path(&capture_sys, 0, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, true);
+            BREAK_ON_FALSE(ret);
+            ret = verify_test_result_for_path(&capture_sys, 1, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, false);
+            BREAK_ON_FALSE(ret);
+            esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_DISABLE);
+            esp_capture_sink_enable(capture_sys.capture_sink[1], ESP_CAPTURE_RUN_MODE_ALWAYS);
+        } else {
+             // Sink 0 not enable yet
+            ESP_LOGI(TAG, "Verify expect sink0 disabled");
+            ret = verify_test_result_for_path(&capture_sys, 0, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, false);
+            BREAK_ON_FALSE(ret);
+            esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_ALWAYS);
+        }
+
+        read_with_timeout(&capture_sys, dual, timeout);
+        if (dual) {
+            // Sink 0 have data sink not has
+            ESP_LOGI(TAG, "Verify expect sink0 disabled sink1 enabled");
+            ret = verify_test_result_for_path(&capture_sys, 0, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, false);
+            BREAK_ON_FALSE(ret);
+            ret = verify_test_result_for_path(&capture_sys, 1, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, true);
+            BREAK_ON_FALSE(ret);
+            esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_ALWAYS);
+            esp_capture_sink_enable(capture_sys.capture_sink[1], ESP_CAPTURE_RUN_MODE_DISABLE);
+        } else {
+             // Sink 0 not enable yet
+            ESP_LOGI(TAG, "Verify expect sink0 enabled");
+            ret = verify_test_result_for_path(&capture_sys, 0, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, true);
+            BREAK_ON_FALSE(ret);
+            esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_DISABLE);
+        }
+        read_with_timeout(&capture_sys, dual, timeout);
+        if (dual) {
+            // Sink 0 have data sink not has
+            ESP_LOGI(TAG, "Verify expect sink0 enable sink1 disable");
+            ret = verify_test_result_for_path(&capture_sys, 0, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, true);
+            BREAK_ON_FALSE(ret);
+            ret = verify_test_result_for_path(&capture_sys, 1, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, false);
+            BREAK_ON_FALSE(ret);
+        } else {
+             // Sink 0 not enable yet
+            ESP_LOGI(TAG, "Verify expect sink0 disabled");
+            ret = verify_test_result_for_path(&capture_sys, 0, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, false);
+            BREAK_ON_FALSE(ret);
+        }
+        ret = 0;
+        esp_capture_stop(capture_sys.capture);
     } while (0);
     destroy_capture_sys(&capture_sys);
     return ret;
@@ -1062,6 +1284,13 @@ int manual_av_path_test(int timeout, bool dual)
                                                   vid_elements_1, ELEMS(vid_elements_1));
             BREAK_ON_FAIL(ret);
         }
+        ret = read_all_frames(&capture_sys, dual, timeout);
+        BREAK_ON_FAIL(ret);
+        if (!verify_test_result(&capture_sys, dual, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, timeout)) {
+            ESP_LOGE(TAG, "Failed to verify frame and PTS");
+            ret = -1;
+        }
+        // Restart again
         ret = read_all_frames(&capture_sys, dual, timeout);
         BREAK_ON_FAIL(ret);
         if (!verify_test_result(&capture_sys, dual, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, timeout)) {

@@ -22,6 +22,8 @@ int demo_video_capture_with_overlay(int timeout, bool dual);
 
 int auto_audio_only_path_test(int timeout, bool dual);
 
+int auto_audio_only_bypass_test(int timeout, bool dual);
+
 int manual_audio_only_path_test(int timeout, bool dual);
 
 int advance_audio_only_path_test(int timeout, bool dual);
@@ -33,6 +35,8 @@ int manual_video_only_path_test(int timeout, bool dual);
 int advance_video_only_path_test(int timeout, bool dual);
 
 int auto_av_path_test(int timeout, bool dual);
+
+int auto_av_path_dynamic_enable_test(int timeout, bool dual);
 
 int manual_av_path_test(int timeout, bool dual);
 
