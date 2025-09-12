@@ -1,5 +1,11 @@
 # Changelog
 
+## unreleased
+
+### Bug Fixes
+
+- Fixed audio_dec element failed to propagate is_done payload flag 
+
 ## v0.7.2
 
 ### Features

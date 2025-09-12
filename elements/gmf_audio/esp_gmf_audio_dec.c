@@ -317,6 +317,11 @@ static esp_gmf_job_err_t esp_gmf_audio_dec_process(esp_gmf_element_handle_t self
             if (audio_dec->in_load != NULL && audio_dec->in_data.len > 0) {
                 ESP_LOGD(TAG, "Return truncate, in len:%ld", audio_dec->in_data.len);
                 out_len = ESP_GMF_JOB_ERR_TRUNCATE;
+                goto __aud_proc_release;
+            }
+            out_load->is_done = audio_dec->in_load->is_done;
+            if (out_load->is_done) {
+                out_len = ESP_GMF_JOB_ERR_DONE;
             }
         } else {
             if (audio_dec->in_data.len > 0) {
