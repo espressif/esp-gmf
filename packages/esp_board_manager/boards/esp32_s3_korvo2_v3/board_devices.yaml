@@ -132,3 +132,33 @@ devices:
           swap_xy: false
           mirror_x: true
           mirror_y: false      
+
+  - name: camera_sensor
+    type: camera
+    version: default
+    dependencies:
+      espressif/esp_video: "^1.2.0"
+    config:
+      dev_path: "/dev/video2"
+      bus_type: "dvp"        # The bus type: dvp
+      dvp_config:
+        reset_io: -1
+        pwdn_io: -1
+        vsync_io: 21
+        data_width: CAM_CTLR_DATA_WIDTH_8
+        de_io: 38
+        pclk_io: 11
+        xclk_io: 40
+        xclk_freq: 10000000
+        data_io:
+          data_io_0: 13
+          data_io_1: 47
+          data_io_2: 14
+          data_io_3: 3
+          data_io_4: 12
+          data_io_5: 42
+          data_io_6: 41
+          data_io_7: 39
+    peripherals:
+      - name: "i2c_master"
+        frequency: 400000

@@ -31,6 +31,7 @@ extern "C" {
 #define ESP_BOARD_DEVICE_NAME_LCD_BRIGHTNESS  "lcd_brightness"  /*!< LCD brightness control device base name */
 #define ESP_BOARD_DEVICE_NAME_FS_SPIFFS       "fs_spiffs"       /*!< SPIFFS filesystem device base name */
 #define ESP_BOARD_DEVICE_NAME_GPIO_EXPANDER   "gpio_expander"   /*!< GPIO expander device base name */
+#define ESP_BOARD_DEVICE_NAME_CAMERA          "camera_sensor"   /*!< Camera device base name */
 
 /**
  * @brief  Device type keys
@@ -47,6 +48,7 @@ extern "C" {
 #define ESP_BOARD_DEVICE_TYPE_GPIO_CTRL        "gpio_ctrl"        /*!< GPIO control device type */
 #define ESP_BOARD_DEVICE_TYPE_LEDC_CTRL        "ledc_ctrl"        /*!< LEDC control device type */
 #define ESP_BOARD_DEVICE_TYPE_GPIO_EXPANDER    "gpio_expander"    /*!< GPIO expander device type */
+#define ESP_BOARD_DEVICE_TYPE_CAMERA           "camera"           /*!< Camera sensor device type */
 
 /**
  * @brief  Peripheral type keys

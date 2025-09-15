@@ -43,9 +43,14 @@
 #ifdef CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT
 #include "test_dev_custom.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT */
+
 #ifdef CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT
 #include "test_dev_gpio_expander.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT
+#include "test_dev_camera.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT */
 
 static const char *TAG = "MAIN";
 
@@ -138,6 +143,14 @@ static void test_gpio_expander(void)
 }
 #endif  /* CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT */
 
+#ifdef CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT
+static void test_camera(void)
+{
+    ESP_LOGI(TAG, "Starting ESP Video tests...");
+    test_dev_camera();
+}
+#endif  /* CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT */
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "Starting ESP Board Manager Test Application");
@@ -176,12 +189,15 @@ void app_main(void)
     test_ledc_device();
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
 
-
 #ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
     lvgl_port_stop();
     test_dev_lcd_touch_deinit();
     test_dev_lcd_lvgl_deinit();
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT
+    test_camera();
+#endif  /* CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT */
 
     ESP_LOGI(TAG, "Show all devices and peripherals status");
     esp_board_manager_print();

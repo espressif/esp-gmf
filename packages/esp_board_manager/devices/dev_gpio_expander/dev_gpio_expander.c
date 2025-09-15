@@ -5,6 +5,7 @@
  * See LICENSE file for details.
  */
 
+#include <inttypes.h>
 #include "esp_log.h"
 #include "esp_check.h"
 #include "esp_board_periph.h"
@@ -31,10 +32,11 @@ int dev_gpio_expander_init(void *cfg, int cfg_size, void **device_handle)
         return -1;
     }
 
+    i2c_master_bus_handle_t bus_handle = (i2c_master_bus_handle_t)i2c_handle;
     uint16_t dev_addr = 0xFF;
     for (size_t i = 0; i < config->i2c_addr_count; i++) {
-        if (i2c_master_probe((i2c_master_bus_handle_t)i2c_handle, config->i2c_addr[i] >> 1, 100) == ESP_OK) {
-            ESP_LOGI(TAG, "IO Expander found at address 0x%02X", config->i2c_addr[i]);
+        if (i2c_master_probe(bus_handle, config->i2c_addr[i] >> 1, 100) == ESP_OK) {
+            ESP_LOGI(TAG, "IO Expander found at address 0x%02x", (unsigned int)config->i2c_addr[i]);
             dev_addr = config->i2c_addr[i] >> 1;
             break;
         }
@@ -50,7 +52,7 @@ int dev_gpio_expander_init(void *cfg, int cfg_size, void **device_handle)
         return -1;
     }
 
-    ret = io_expander_factory_entry_t(i2c_handle, dev_addr, dev);
+    ret = io_expander_factory_entry_t(bus_handle, dev_addr, dev);
     if (ret != ESP_OK || !dev) {
         ESP_LOGE(TAG, "Failed to create IO expander handle\n");
         free(dev);
@@ -61,15 +63,15 @@ int dev_gpio_expander_init(void *cfg, int cfg_size, void **device_handle)
         uint32_t pin_mask = (1 << i);
         if (config->output_io_mask & pin_mask) {
             ESP_GOTO_ON_ERROR(esp_io_expander_set_dir(*dev, pin_mask, IO_EXPANDER_OUTPUT),
-                              io_expander_del, TAG, "Set IO expander pin %d as output failed", i);
+                              io_expander_del, TAG, "Set IO expander pin %" PRIu32 " as output failed", i);
             uint8_t level = (config->output_io_level_mask >> i) & 1;
             ESP_GOTO_ON_ERROR(esp_io_expander_set_level(*dev, pin_mask, level),
-                              io_expander_del, TAG, "Set IO expander pin %d default level failed", i);
-            ESP_LOGI(TAG, "Set IO expander pin %d as output, level: %d", i, level);
+                              io_expander_del, TAG, "Set IO expander pin %" PRIu32 " default level failed", i);
+            ESP_LOGI(TAG, "Set IO expander pin %" PRIu32 " as output, level: %d", i, level);
         } else if (config->input_io_mask & pin_mask) {
             ESP_GOTO_ON_ERROR(esp_io_expander_set_dir(*dev, pin_mask, IO_EXPANDER_INPUT),
-                              io_expander_del, TAG, "Set IO expander pin %d as input failed", i);
-            ESP_LOGI(TAG, "Set IO expander pin %d as input", i);
+                              io_expander_del, TAG, "Set IO expander pin %" PRIu32 " as input failed", i);
+            ESP_LOGI(TAG, "Set IO expander pin %" PRIu32 " as input", i);
         }
     }
 
@@ -84,7 +86,9 @@ io_expander_del:
 int dev_gpio_expander_deinit(void *device_handle)
 {
     esp_io_expander_handle_t *io_expander_dev = (esp_io_expander_handle_t *)device_handle;
-    esp_io_expander_del(*io_expander_dev);
+    if (*io_expander_dev) {
+        esp_io_expander_del(*io_expander_dev);
+    }
     free(io_expander_dev);
     return 0;
 }

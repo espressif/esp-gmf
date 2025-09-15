@@ -183,6 +183,7 @@ void app_main(void)
 - **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** - SPIFFS 文件系统测试
 - **[`test_dev_custom.c`](test_apps/main/test_dev_custom.c)** - 自定义设备测试和配置
 - **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)** - GPIO 扩展芯片测试
+- **[`test_dev_camera`](test_apps/main/test_dev_camera.c)** - 测试 Camera sensor 的视频流捕获能力
 
 #### 外设示例
 - **[`test_periph_ledc.c`](test_apps/main/test_periph_ledc.c)** - 用于 PWM 和背光控制的 LEDC 外设
@@ -203,6 +204,7 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
 | `lcd_power` | LCD 电源控制 |
 | `lcd_brightness` | LCD 亮度控制 |
 | `gpio_expander` | GPIO 扩展芯片 |
+| `camera_sensor` | 摄像头设备 |
 
 ## YAML 配置规则
 有关详细的 YAML 配置规则和格式规范，请参阅 [设备和外设规则](docs/device_and_peripheral_rules.md)。
@@ -340,18 +342,19 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | LEDC 控制 | ledc_ctrl | - | ledc | ✅ 支持 | LEDC 控制设备 | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
 | 自定义设备 | custom | - | any | ✅ 支持 | 用户定义的自定义设备 | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
 | GPIO 扩展芯片 | gpio_expander | TCA9554/TCA95XX/HT8574 | i2c | ✅ 支持 | GPIO 扩展芯片 | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
+| 摄像头 | camera | - | i2c | ✅ 支持 | 摄像头设备 | [`dev_gpio_expander.yaml`](devices/dev_camera/dev_camera.yaml) |
 
 ### 支持的板级
 
-| 板级名称 | 芯片 | 音频 | SD卡 | LCD | LCD 触摸 |
-|------------|------|-------|--------|-----|-----------|
-| Echoear Core Board V1.0 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 |
-| Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (双) | ❌ |
-| ESP-BOX-3 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 |
-| ESP32-S3 Korvo2 V3 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100 |
-| ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ |
-| Lyrat Mini V1.1 | ESP32 | ✅ ES8388 | ✅ SDMMC | ❌ | ❌ |
-| ESP32-C5 Spot | ESP32-C5 | ✅ ES8311 (双) | ❌ | ❌ | ❌ |
+| 板级名称 | 芯片 | 音频 | SD卡 | LCD | LCD 触摸 | 摄像头 |
+|------------|------|-------|--------|-----|-----------|-----------|
+| Echoear Core Board V1.0 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 | ❌ |
+| Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (双) | ❌ | ❌ |
+| ESP-BOX-3 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 | ❌ |
+| ESP32-S3 Korvo2 V3 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100 | ✅ SC030IOT |
+| ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ | ❌ |
+| Lyrat Mini V1.1 | ESP32 | ✅ ES8388 | ✅ SDMMC | ❌ | ❌ | ❌ |
+| ESP32-C5 Spot | ESP32-C5 | ✅ ES8311 (双) | ❌ | ❌ | ❌ | ❌ |
 
 ## 板级管理器设置
 
