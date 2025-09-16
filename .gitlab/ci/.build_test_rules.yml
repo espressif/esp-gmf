@@ -12,8 +12,30 @@
   disable:
     - if: TARGET_DIR_TYPE == "test_apps" AND IDF_TARGET == "esp32"
 
+.disable_example_esp32s3: &disable_example_esp32s3
+  disable:
+    - if: TARGET_DIR_TYPE == "example" AND IDF_TARGET == "esp32s3"
+
+.disable_example_esp32c3: &disable_example_esp32c3
+  disable:
+    - if: TARGET_DIR_TYPE == "example" AND IDF_TARGET == "esp32c3"
+
+.disable_example_esp32c5: &disable_example_esp32c5
+  disable:
+    - if: TARGET_DIR_TYPE == "example" AND IDF_TARGET == "esp32c5"
+
+.disable_example_esp32p4: &disable_example_esp32p4
+  disable:
+    - if: TARGET_DIR_TYPE == "example" AND IDF_TARGET == "esp32p4"
+
 gmf_core/test_apps:
   <<: *disable_example
 
 packages/esp_board_manager:
   <<: *disable_test_apps_esp32
+
+packages/esp_bt_audio:
+  <<: *disable_example_esp32s3
+  <<: *disable_example_esp32c3
+  <<: *disable_example_esp32c5
+  <<: *disable_example_esp32p4

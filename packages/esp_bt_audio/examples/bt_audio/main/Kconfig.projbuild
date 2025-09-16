@@ -1,0 +1,44 @@
+menu "BT Audio Basic Example (GMF)"
+
+    menu "Classic Audio Roles Configuration"
+        depends on BT_CLASSIC_ENABLED
+        default GMF_EXAMPLE_A2DP_SINK
+        choice GMF_EXAMPLE_A2DP_ROLE
+            prompt "A2DP role"
+            depends on BT_A2DP_ENABLE
+
+        config GMF_EXAMPLE_A2DP_SINK
+            bool "A2DP Sink"
+            help
+                Enable A2DP Sink role
+
+        config GMF_EXAMPLE_A2DP_SOURCE
+            bool "A2DP Source"
+            help
+                Enable A2DP Source role
+
+        endchoice
+
+        config GMF_EXAMPLE_HFP_HF
+            depends on BT_HFP_CLIENT_ENABLE && GMF_EXAMPLE_A2DP_SINK
+            bool "HFP Handsfree"
+            default y
+            help
+                Enable HFP Handsfree role
+
+        config GMF_EXAMPLE_AVRC_CT
+            depends on BT_AVRCP_ENABLED
+            bool "AVRC Controller"
+            default y
+            help
+                Enable AVRC Controller role
+
+        config GMF_EXAMPLE_AVRC_TG
+            depends on BT_AVRCP_ENABLED
+            bool "AVRC Target"
+            default y
+            help
+                Enable AVRC Target role
+    endmenu
+
+endmenu

@@ -36,6 +36,7 @@ ESP GMF Examples is a component that collects GMF-related examples, mainly desig
 | [simple_player](../packages/esp_audio_simple_player/test_apps) | Use `esp_audio_simple_player` for simple audio player example (SD card/Flash/HTTP playback) | Quick verification of multiple sources (no pipeline setup required) | SD card or Wi-Fi, Audio DAC, speaker |
 | [baidu_rtc](https://github.com/espressif/esp-adf/tree/master/examples/ai_agent/baidu_rtc) | Use Baidu RTC for real-time voice dialogue, ASR/TTS, network music, video call, and 3A audio processing | Smart speaker, voice interaction device, smart home, audio/video call | Microphone, Audio ADC, Audio DAC, speaker, Wi-Fi |
 | [coze_ws_app](https://github.com/espressif/esp-adf/tree/master/examples/ai_agent/coze_ws_app) | Use Coze WebSocket OpenAPI for bidirectional streaming voice dialogue with agent (direct/wake/key-trigger, 3A) | Voice assistant, agent conversation | Microphone, Audio ADC, Audio DAC, speaker, Wi-Fi |
+| [bt_audio](../packages/esp_bt_audio/examples/bt_audio) | Use (`esp_bt_audio`) with GMF pipeline for Bluetooth audio (audio sink, audio source, voice call, media control) | Bluetooth speaker, audio source | Bluetooth, Microphone, Audio ADC, Audio DAC, speaker, SD card |
 
 # Usage
 

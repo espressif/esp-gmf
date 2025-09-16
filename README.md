@@ -55,6 +55,7 @@ Advanced components are encapsulation modules in ESP-GMF that target specific ap
 | [esp_capture](./packages/esp_capture) | High-level multimedia capture module | [examples](./packages/esp_capture/examples) | - `gmf_core`<br>- `gmf-audio`<br>- `gmf-video`<br>- `esp_muxer`<br>- `esp_codec_dev`<br>- `esp-sr`<br>- `esp_video`<br>- `esp32-camera`|
 | [esp_board_manager](./packages/esp_board_manager) | Intelligent, automated board configuration and management utilities with YAML-based setup | [test_apps](./packages/esp_board_manager/test_apps) | Dependencies vary based on selected board |
 | [esp_audio_render](./packages/esp_audio_render) | Audio render module with mixer support | [examples](./packages/esp_audio_render/examples) | - `gmf_core`<br>- `gmf-audio`<br>|
+| [esp_bt_audio](./packages/esp_bt_audio) | Bluetooth audio module; event-driven stream API,<br>optional GMF IO integration | [examples](./packages/esp_bt_audio/examples) | - `esp_audio_codec`<br>- `gmf_core` (optional)<br>- `gmf_io` (optional) |
 
 # ESP-GMF Usage Guide
 
