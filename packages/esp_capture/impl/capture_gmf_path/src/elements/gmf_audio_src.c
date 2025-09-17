@@ -29,6 +29,7 @@ typedef struct {
     esp_gmf_audio_element_t      parent;
     esp_gmf_port_handle_t        in_port;
     esp_capture_sync_handle_t    sync_handle;
+    uint32_t                     base_pts;
     esp_capture_audio_src_if_t  *audio_src_if;
     esp_gmf_info_sound_t         aud_info;
     data_q_t                    *audio_src_q;
@@ -99,6 +100,14 @@ static void audio_src_thread(void *arg)
         }
         if (audio_src->frame_reached == false) {
             CAPTURE_PERF_MON(0, "Audio Src Frame Reached", {});
+            // Get base pts
+            if (audio_src->sync_handle) {
+                uint32_t cur_pts = 0;
+                esp_capture_sync_get_current(audio_src->sync_handle, &cur_pts);
+                if (cur_pts > CAPTURE_SYNC_TOLERANCE) {
+                    audio_src->base_pts = cur_pts;
+                }
+            }
             audio_src->frame_reached = true;
         }
         esp_capture_stream_frame_t *frame = (esp_capture_stream_frame_t *)data;
@@ -106,7 +115,7 @@ static void audio_src_thread(void *arg)
         frame->data = (data + sizeof(esp_capture_stream_frame_t));
         frame->size = audio_src->audio_frame_size;
         int ret = audio_src->audio_src_if->read_frame(audio_src->audio_src_if, frame);
-        frame->pts = calc_audio_pts(audio_src, audio_src->audio_frames);
+        frame->pts = calc_audio_pts(audio_src, audio_src->audio_frames) + audio_src->base_pts;
         if (ret != ESP_CAPTURE_ERR_OK) {
             data_q_send_buffer(audio_src->audio_src_q, 0);
             ESP_LOGE(TAG, "Failed to read audio frame ret %d", ret);
@@ -126,6 +135,7 @@ static void audio_src_thread(void *arg)
         data_q_send_buffer(audio_src->audio_src_q, frame_size);
         audio_src->audio_frames++;
     }
+    audio_src->audio_frames = 0;
     // Wakeup reader if read from device failed
     if (err_exit) {
         data_q_wakeup(audio_src->audio_src_q);

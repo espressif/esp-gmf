@@ -54,6 +54,21 @@ static esp_capture_err_t get_audio_encoder(gmf_capture_path_mngr_t *mngr, uint8_
     return ESP_CAPTURE_ERR_NOT_FOUND;
 }
 
+static esp_gmf_element_handle_t get_sink_tail_element(gmf_capture_path_mngr_t *mngr, audio_path_res_t *res)
+{
+    uint8_t path_mask = (1 << res->base.path);
+    for (int i = 0; i < mngr->pipeline_num; i++) {
+        esp_capture_gmf_pipeline_t *pipeline = &mngr->pipeline[i];
+        if ((pipeline->path_mask & path_mask) == 0) {
+            continue;
+        }
+        if (capture_pipeline_is_sink(pipeline->pipeline)) {
+            return ESP_GMF_PIPELINE_GET_LAST_ELEMENT(((esp_gmf_pipeline_handle_t)pipeline->pipeline));
+        }
+    }
+    return NULL;
+}
+
 static esp_capture_err_t set_audio_source_sync_handle(gmf_capture_path_mngr_t *mngr, esp_capture_sync_handle_t sync_handle)
 {
     for (int i = 0; i < mngr->pipeline_num; i++) {
@@ -99,10 +114,16 @@ static esp_gmf_err_io_t audio_sink_acquire(void *handle, esp_gmf_payload_t *load
     if (aud_frame == NULL) {
         return ESP_GMF_IO_FAIL;
     }
+
     aud_frame->stream_type = ESP_CAPTURE_STREAM_TYPE_AUDIO;
     aud_frame->data = ((void *)aud_frame) + sizeof(esp_capture_stream_frame_t);
-    load->buf = aud_frame->data;
-    load->buf_length = wanted_size;
+    if (load->buf) {
+        // In bypass case copy data directly
+        memcpy(aud_frame->data, load->buf, load->valid_size);
+    } else {
+        load->buf = aud_frame->data;
+        load->buf_length = wanted_size;
+    }
     return ESP_GMF_IO_OK;
 }
 
@@ -124,6 +145,10 @@ static esp_gmf_err_io_t audio_sink_release(void *handle, esp_gmf_payload_t *load
             ESP_LOGI(TAG, "Drop for disable");
             data_q_send_buffer(q, 0);
         }
+        if (load->buf == aud_frame->data) {
+            // Clear buf when not bypass case
+            load->buf = NULL;
+        }
     }
     return ESP_GMF_IO_OK;
 }
@@ -144,7 +169,11 @@ static esp_capture_err_t audio_path_prepare(gmf_capture_path_res_t *mngr_res)
         if (res->audio_q == NULL) {
             return ESP_CAPTURE_ERR_NO_MEM;
         }
-        esp_gmf_element_register_out_port(res->aenc_el, res->sink_port);
+        if (res->aenc_el) {
+            esp_gmf_element_register_out_port(res->aenc_el, res->sink_port);
+        } else {
+            esp_gmf_element_register_out_port(get_sink_tail_element(mngr_res->parent, res), res->sink_port);
+        }
     }
     return ESP_CAPTURE_ERR_OK;
 }

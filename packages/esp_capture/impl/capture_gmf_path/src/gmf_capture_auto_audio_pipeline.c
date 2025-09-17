@@ -321,6 +321,15 @@ static esp_capture_err_t buildup_pipelines(audio_pipeline_t *audio_pipe)
                 // TODO currently only support encoder
                 proc_elements[proc_num++] = element_name;
             }
+            if (proc_num == 0) {
+                // Add a dummy element in case no element can not form pipeline
+                const char *element_name = get_ops_element(audio_pipe, AUDIO_PATH_OPS_BIT_CVT);
+                if (element_name == NULL) {
+                    ESP_LOGE(TAG, "Can not find element for bit convert");
+                    return ESP_CAPTURE_ERR_INTERNAL;
+                }
+                proc_elements[proc_num++] = element_name;
+            }
 #if 0
             printf("Audio Pipeline %d: ", i);
             for (int j = 0; j < proc_num; j++) {

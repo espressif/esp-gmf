@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.7.4
+
+### Bug Fixes
+
+- Fixed failed to start audio capture with PCM format
+- Fixed dynamically enable disable sink failed after started
+- Added get sink handle with same configuration after started
+- Fixed sync lost if dynamical enable and disable sink
+- Added test cases for audio bypass
+- Added test cases for dynamically enable and disable sink
+- Added multiple start and stop test cases
+
 ## v0.7.3
 
 ### Bug Fixes

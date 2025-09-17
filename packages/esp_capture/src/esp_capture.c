@@ -510,6 +510,29 @@ static esp_capture_path_mngr_if_t *capture_get_mngr_by_stream_type(capture_t *ca
     return mngr;
 }
 
+static bool capture_same_sink_cfg(esp_capture_sink_cfg_t *old, esp_capture_sink_cfg_t *sink_cfg)
+{
+    if (old->audio_info.format_id != sink_cfg->audio_info.format_id ||
+        old->video_info.format_id != sink_cfg->video_info.format_id) {
+        return false;
+    }
+    if (old->audio_info.format_id) {
+        if (old->audio_info.sample_rate != sink_cfg->audio_info.sample_rate ||
+            old->audio_info.channel != sink_cfg->audio_info.channel ||
+            old->audio_info.bits_per_sample != sink_cfg->audio_info.bits_per_sample) {
+            return false;
+        }
+    }
+    if (old->video_info.format_id) {
+        if (old->video_info.width != sink_cfg->video_info.width ||
+            old->video_info.height != sink_cfg->video_info.height ||
+            old->video_info.fps != sink_cfg->video_info.fps) {
+            return false;
+        }
+    }
+    return true;
+}
+
 esp_capture_err_t esp_capture_set_thread_scheduler(esp_capture_thread_scheduler_cb_t thread_scheduler)
 {
     capture_thread_set_scheduler(thread_scheduler);
@@ -736,7 +759,14 @@ esp_capture_err_t esp_capture_sink_setup(esp_capture_handle_t h, uint8_t type, e
     capture_mutex_lock(capture->api_lock, CAPTURE_MAX_LOCK_TIME);
     esp_capture_err_t ret = ESP_CAPTURE_ERR_OK;
     do {
+        capture_path_t *cur = capture_get_path_by_index(capture, type);
         if (capture->started) {
+            if (cur && capture_same_sink_cfg(&cur->sink_cfg, sink_info)) {
+                // Allow get sink handle use same setup
+                *path = (esp_capture_sink_handle_t)cur;
+                ret = ESP_CAPTURE_ERR_OK;
+                break;
+            }
             ESP_LOGE(TAG, "Not support add path after started");
             CAPTURE_BREAK_SET_RETURN(ret, ESP_CAPTURE_ERR_INVALID_STATE);
         }
@@ -744,7 +774,6 @@ esp_capture_err_t esp_capture_sink_setup(esp_capture_handle_t h, uint8_t type, e
             ESP_LOGE(TAG, "Only support add sink for no path manager");
             CAPTURE_BREAK_SET_RETURN(ret, ESP_CAPTURE_ERR_NOT_SUPPORTED);
         }
-        capture_path_t *cur = capture_get_path_by_index(capture, type);
         // Path already added
         if (cur) {
             if (cur->enable && capture->started) {
@@ -1104,7 +1133,6 @@ esp_capture_err_t esp_capture_sink_acquire_frame(esp_capture_sink_handle_t h, es
     }
     // TODO not add lock user need care the timing
     if (path->enable == false) {
-        ESP_LOGE(TAG, "Capture path %d is not enabled", path->path_type);
         return ESP_CAPTURE_ERR_INVALID_STATE;
     }
     int ret = ESP_CAPTURE_ERR_NOT_SUPPORTED;
@@ -1153,7 +1181,6 @@ esp_capture_err_t esp_capture_sink_release_frame(esp_capture_sink_handle_t h, es
     }
     // TODO not add lock user need care the timing
     if (path->enable == false) {
-        ESP_LOGE(TAG, "Capture path %d is not enabled", path->path_type);
         return ESP_CAPTURE_ERR_INVALID_STATE;
     }
     int ret = ESP_CAPTURE_ERR_OK;

@@ -160,14 +160,26 @@ static esp_capture_err_t prepare_pipeline(gmf_capture_path_mngr_t *mngr, uint8_t
     gmf_capture_path_res_t *res = gmf_capture_path_mngr_get_path(mngr, path);
     uint8_t path_mask = (1 << path);
     if (res->negotiated == false) {
+        bool for_all = true;
+        for (int i = 0; i < mngr->path_num; i++) {
+            gmf_capture_path_res_t *each = gmf_capture_path_mngr_get_path(mngr, i);
+            if (each->negotiated) {
+                for_all = false;
+                break;
+            }
+        }
         if (mngr->pipeline_builder->negotiate) {
             int ret = ESP_CAPTURE_ERR_OK;
+            uint8_t nego_mask = for_all ? ESP_CAPTURE_PIPELINE_NEGO_ALL_MASK : path_mask;
             CAPTURE_PERF_MON(path, (mngr->stream_type == ESP_CAPTURE_STREAM_TYPE_AUDIO) ? "Negotiate Audio Sink" : "Negotiate Video Sink", {
-                ret = mngr->pipeline_builder->negotiate(mngr->pipeline_builder, path_mask);
+                ret = mngr->pipeline_builder->negotiate(mngr->pipeline_builder, nego_mask);
             });
             if (ret != ESP_CAPTURE_ERR_OK) {
                 ESP_LOGE(TAG, "Fail to negotiate audio pipeline");
                 return ret;
+            }
+            if (res->configured) {
+                res->negotiated = true;
             }
         }
     }
@@ -298,6 +310,12 @@ static void stop_pipelines(gmf_capture_path_mngr_t *mngr, uint8_t path, gmf_capt
             CAPTURE_PERF_MON(res->path, (mngr->stream_type == ESP_CAPTURE_STREAM_TYPE_AUDIO) ? "Prepare Stop Audio Sink" : "Prepare Stop Video Sink", {
                 stop_cb(res);
             });
+        } else {
+            // Src is stopped all related sink need re-negotiate
+            for (int i = 0; i < mngr->path_num; i++) {
+                gmf_capture_path_res_t *each = gmf_capture_path_mngr_get_idx(mngr, i);
+                each->negotiated = false;
+            }
         }
         ESP_LOGD(TAG, "Start to stop pipeline %d", sel_pipe);
         CAPTURE_PERF_MON(res->path, (mngr->stream_type == ESP_CAPTURE_STREAM_TYPE_AUDIO) ? "Stop Audio Pipeline" : "Stop Video Pipeline", {
@@ -353,6 +371,7 @@ static esp_capture_err_t stop_path(gmf_capture_path_mngr_t *mngr, uint8_t path, 
         return ESP_CAPTURE_ERR_OK;
     }
     res->started = false;
+    res->negotiated = false;
     stop_pipelines(mngr, path, stop_cb);
     release_pipelines(mngr, path, release_cb);
     ESP_LOGD(TAG, "Path %d stop finished\n", path);

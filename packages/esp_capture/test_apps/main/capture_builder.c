@@ -318,13 +318,72 @@ int build_advance_av_capture_sys(capture_sys_t *capture_sys)
     return 0;
 }
 
-int read_all_frames(capture_sys_t *capture_sys, bool dual_sink, int timeout)
+void read_with_timeout(capture_sys_t *capture_sys, bool dual_sink, int timeout)
 {
     capture_run_result_t *res = &capture_sys->run_result;
     memset(res, 0, sizeof(capture_run_result_t));
     uint32_t start_time = esp_timer_get_time() / 1000;
     uint32_t cur_time = start_time;
     int sink_num = dual_sink ? 2 : 1;
+    while (cur_time < start_time + timeout) {
+        // Following code acquire frame without wait for all supported sink
+        for (int i = 0; i < sink_num; i++) {
+            esp_capture_stream_frame_t frame = {
+                .stream_type = ESP_CAPTURE_STREAM_TYPE_AUDIO,
+            };
+            while (esp_capture_sink_acquire_frame(capture_sys->capture_sink[i], &frame, true) == ESP_CAPTURE_ERR_OK) {
+                res->audio_frame_count[i]++;
+                if (res->audio_frame_count[i] == 1) {
+                    ESP_LOGI(TAG, "[%d] First audio frame received pts %d", i, (int)frame.pts);
+                }
+                res->audio_frame_size[i] += frame.size;
+                res->audio_pts[i] = frame.pts;
+                esp_capture_sink_release_frame(capture_sys->capture_sink[i], &frame);
+            }
+            frame.stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO;
+            while (esp_capture_sink_acquire_frame(capture_sys->capture_sink[i], &frame, true) == ESP_CAPTURE_ERR_OK) {
+                res->video_frame_count[i]++;
+                if (res->video_frame_count[i] == 1) {
+                    ESP_LOGI(TAG, "[%d] First video frame received pts %d", i, (int)frame.pts);
+                }
+                res->video_frame_size[i] += frame.size;
+                res->video_pts[i] = frame.pts;
+                esp_capture_sink_release_frame(capture_sys->capture_sink[i], &frame);
+            }
+            frame.stream_type = ESP_CAPTURE_STREAM_TYPE_MUXER;
+            while (esp_capture_sink_acquire_frame(capture_sys->capture_sink[i], &frame, true) == ESP_CAPTURE_ERR_OK) {
+                res->muxer_frame_count[i]++;
+                if (res->muxer_frame_count[i] == 1) {
+                    ESP_LOGI(TAG, "[%d] First muxed frame received pts %d", i, (int)frame.pts);
+                }
+                res->muxer_frame_size[i] += frame.size;
+                res->muxer_pts[i] = frame.pts;
+                esp_capture_sink_release_frame(capture_sys->capture_sink[i], &frame);
+            }
+        }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+        cur_time = esp_timer_get_time() / 1000;
+    }
+
+    // Show capture results
+    for (int i = 0; i < sink_num; i++) {
+        if (res->audio_frame_count[i]) {
+            ESP_LOGW(TAG, "Audio Path %d frame_count:%d frame_size:%d pts:%d", i,
+                     res->audio_frame_count[i], res->audio_frame_size[i], res->audio_pts[i]);
+        }
+        if (res->video_frame_count[i]) {
+            ESP_LOGW(TAG, "Video Path %d frame_count:%d frame_size:%d pts:%d", i,
+                     res->video_frame_count[i], res->video_frame_size[i], res->video_pts[i]);
+        }
+        if (res->muxer_frame_count[i]) {
+            ESP_LOGW(TAG, "Muxer Path %d frame_count:%d frame_size:%d pts:%d", i,
+                     res->muxer_frame_count[i], res->muxer_frame_size[i], res->muxer_pts[i]);
+        }
+    }
+}
+
+int read_all_frames(capture_sys_t *capture_sys, bool dual_sink, int timeout)
+{
     if (capture_sys->capture_sink[0]) {
         esp_capture_sink_enable(capture_sys->capture_sink[0], ESP_CAPTURE_RUN_MODE_ALWAYS);
     }
@@ -336,62 +395,8 @@ int read_all_frames(capture_sys_t *capture_sys, bool dual_sink, int timeout)
         ESP_LOGE(TAG, "Fail to start capture");
         return -1;
     }
-    while (cur_time < start_time + timeout) {
-        // Following code acquire frame without wait for all supported sink
-        for (int i = 0; i < sink_num; i++) {
-            esp_capture_stream_frame_t frame = {
-                .stream_type = ESP_CAPTURE_STREAM_TYPE_AUDIO,
-            };
-            while (esp_capture_sink_acquire_frame(capture_sys->capture_sink[i], &frame, true) == ESP_CAPTURE_ERR_OK) {
-                res->audio_frame_count[i]++;
-                if (res->audio_frame_count[i] == 1) {
-                    ESP_LOGI(TAG, "[%d] First audio frame received", i);
-                }
-                res->audio_frame_size[i] += frame.size;
-                res->audio_pts[i] = frame.pts;
-                esp_capture_sink_release_frame(capture_sys->capture_sink[i], &frame);
-            }
-            frame.stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO;
-            while (esp_capture_sink_acquire_frame(capture_sys->capture_sink[i], &frame, true) == ESP_CAPTURE_ERR_OK) {
-                res->video_frame_count[i]++;
-                if (res->video_frame_count[i] == 1) {
-                    ESP_LOGI(TAG, "[%d] First video frame received", i);
-                }
-                res->video_frame_size[i] += frame.size;
-                res->video_pts[i] = frame.pts;
-                esp_capture_sink_release_frame(capture_sys->capture_sink[i], &frame);
-            }
-            frame.stream_type = ESP_CAPTURE_STREAM_TYPE_MUXER;
-            while (esp_capture_sink_acquire_frame(capture_sys->capture_sink[i], &frame, true) == ESP_CAPTURE_ERR_OK) {
-                res->muxer_frame_count[i]++;
-                if (res->muxer_frame_count[i] == 1) {
-                    ESP_LOGI(TAG, "[%d] First muxed frame received", i);
-                }
-                res->muxer_frame_size[i] += frame.size;
-                res->muxer_pts[i] = frame.pts;
-                esp_capture_sink_release_frame(capture_sys->capture_sink[i], &frame);
-            }
-        }
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-        cur_time = esp_timer_get_time() / 1000;
-    }
+    read_with_timeout(capture_sys, dual_sink, timeout);
     esp_capture_stop(capture_sys->capture);
-
-    // Show capture results
-    for (int i = 0; i < sink_num; i++) {
-        if (res->audio_frame_count[i]) {
-            ESP_LOGI(TAG, "Audio Path %d frame_count:%d frame_size:%d pts:%d", i,
-                     res->audio_frame_count[i], res->audio_frame_size[i], res->audio_pts[i]);
-        }
-        if (res->video_frame_count[i]) {
-            ESP_LOGI(TAG, "Video Path %d frame_count:%d frame_size:%d pts:%d", i,
-                     res->video_frame_count[i], res->video_frame_size[i], res->video_pts[i]);
-        }
-        if (res->muxer_frame_count[i]) {
-            ESP_LOGI(TAG, "Muxer Path %d frame_count:%d frame_size:%d pts:%d", i,
-                     res->muxer_frame_count[i], res->muxer_frame_size[i], res->muxer_pts[i]);
-        }
-    }
     return 0;
 }
 

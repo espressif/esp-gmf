@@ -52,6 +52,7 @@ esp_capture_err_t esp_capture_sync_on(esp_capture_sync_handle_t handle)
     }
     sync_t *sync = (sync_t *)handle;
     sync->started = true;
+    sync->last_update_pts = 0;
     sync->last_update_time = CUR();
     return ESP_CAPTURE_ERR_OK;
 }
