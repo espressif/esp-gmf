@@ -150,7 +150,7 @@ const static periph_ledc_config_t esp_bmgr_ledc_backlight_cfg = {
 
 const static periph_gpio_config_t esp_bmgr_gpio_power_lcd_cfg = {
     .gpio_config = {
-            .pin_bit_mask = 9,
+            .pin_bit_mask = BIT64(9),
             .mode = GPIO_MODE_OUTPUT,
             .pull_up_en = GPIO_PULLUP_DISABLE,
             .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -161,7 +161,7 @@ const static periph_gpio_config_t esp_bmgr_gpio_power_lcd_cfg = {
 
 const static periph_gpio_config_t esp_bmgr_gpio_power_audio_cfg = {
     .gpio_config = {
-            .pin_bit_mask = 48,
+            .pin_bit_mask = BIT64(48),
             .mode = GPIO_MODE_OUTPUT,
             .pull_up_en = GPIO_PULLUP_DISABLE,
             .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -172,7 +172,7 @@ const static periph_gpio_config_t esp_bmgr_gpio_power_audio_cfg = {
 
 const static periph_gpio_config_t esp_bmgr_gpio_pa_control_cfg = {
     .gpio_config = {
-            .pin_bit_mask = 15,
+            .pin_bit_mask = BIT64(15),
             .mode = GPIO_MODE_OUTPUT,
             .pull_up_en = GPIO_PULLUP_DISABLE,
             .pull_down_en = GPIO_PULLDOWN_DISABLE,

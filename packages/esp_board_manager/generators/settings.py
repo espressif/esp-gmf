@@ -16,7 +16,7 @@ class BoardManagerConfig:
     """Configuration class for ESP Board Manager"""
 
     # File extensions
-    SOURCE_EXTENSIONS = {'.c', '.cpp', '.cc', '.cxx'}
+    SOURCE_EXTENSIONS = {'.c', '.cpp', '.cc', '.cxx', '.h', '.hpp'}
     YAML_EXTENSIONS = {'.yml', '.yaml'}
     PYTHON_EXTENSIONS = {'.py'}
 
@@ -27,7 +27,8 @@ class BoardManagerConfig:
     # C constant prefixes
     C_CONSTANT_PREFIXES = {
         'GPIO_', 'I2C_', 'I2S_', 'SDMMC_', 'SPI_', 'UART_', 'PWM_', 'LEDC_',
-        'LCD_', 'SD_', 'ADC_', 'DAC_', 'RMT_', 'TWAI_', 'CAN_', 'USB_'
+        'LCD_', 'SD_', 'ADC_', 'DAC_', 'RMT_', 'TWAI_', 'CAN_', 'USB_',
+        'BIT64'
     }
 
     # Default values

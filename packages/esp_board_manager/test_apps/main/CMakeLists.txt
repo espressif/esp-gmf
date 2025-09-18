@@ -15,6 +15,7 @@ idf_component_register(
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT}>:test_dev_lcd_init.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT}>:test_dev_pwr_ctrl.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT}>:test_dev_ledc.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT}>:test_dev_custom.c>
 
         # Audio board manager test (conditionally included based on SD card support)
         $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>>:test_board_mgr_audio_sdcard.c>
@@ -23,7 +24,7 @@ idf_component_register(
         # Utility files (conditionally included)
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>:wav_header.c>
     INCLUDE_DIRS "."
-    REQUIRES esp_board_manager esp_lcd esp_timer esp_partition spiffs
+    REQUIRES esp_board_manager esp_lcd esp_timer esp_partition spiffs gen_bmgr_codes
     EMBED_TXTFILES audio_files/test.wav
 )
 

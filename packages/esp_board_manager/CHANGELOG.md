@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+- Add init_skip field to control device auto-initialization
+- Add custom device type with test support
+
 ## v0.3.0 (Initial Release)
 
 ### Core Features

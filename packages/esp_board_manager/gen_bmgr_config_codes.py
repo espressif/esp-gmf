@@ -109,7 +109,7 @@ class BoardConfigGenerator(LoggerMixin):
         macro_name = f'ESP_BOARD_{prefix}_{name.upper()}_SUPPORT'
 
         entry = f"""config {macro_name}
-    bool "{component_type} {name} support"
+    bool "{component_type} '{name}' support"
     default y
     help
         Enable {name} {component_type.lower()} support.
@@ -182,7 +182,7 @@ choice ESP_BOARD_SELECTION
             )
             periph_names.append(name)
 
-        kconfig_content += "\nendmenu\n\nmenu \"Device Support\"\n\n"
+        kconfig_content += "endmenu\n\nmenu \"Device Support\"\n\n"
 
         # Process devices using the root directory
         device_dir = self.devices_dir
@@ -219,7 +219,7 @@ choice ESP_BOARD_SELECTION
                 )
                 device_names.append(name)
 
-        kconfig_content += '\nendmenu\n'
+        kconfig_content += 'endmenu\n'
 
         self.logger.info(f'✅ Generated Kconfig for {len(periph_names)} peripherals: {periph_names}')
         self.logger.info(f'✅ Generated Kconfig for {len(device_names)} devices: {device_names}')
@@ -370,6 +370,43 @@ choice ESP_BOARD_SELECTION
                 f.write('    },\n')
             f.write('};\n')
 
+    def write_device_custom_h(self, device_structs, devices, out_path: str):
+        """Write custom device structure definitions to header file"""
+        # Check if there are any custom devices with struct definitions
+        custom_devices = []
+        for s, d in zip(device_structs, devices):
+            if 'struct_definition' in s:
+                custom_devices.append((s, d))
+
+        self.logger.debug(f'   Found {len(custom_devices)} custom devices with struct definitions')
+
+        if not custom_devices:
+            # No custom devices, create empty file
+            self.logger.debug(f'   Creating empty custom header file: {out_path}')
+            with open(out_path, 'w') as f:
+                f.write(self.get_license_header('Auto-generated custom device structure definitions'))
+                f.write('#pragma once\n\n')
+                f.write('// No custom device structures defined\n')
+            return
+
+        # Ensure output directory exists
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+
+        with open(out_path, 'w') as f:
+            f.write(self.get_license_header('Auto-generated custom device structure definitions'))
+            f.write('#pragma once\n\n')
+            f.write('#include <stdint.h>\n')
+            f.write('#include <stdbool.h>\n')
+            f.write('#include "dev_custom.h"\n\n')
+
+            f.write('// Custom device structure definitions\n')
+            f.write('// These structures are dynamically generated based on YAML configuration\n\n')
+
+            for s, d in custom_devices:
+                f.write(f'// Structure definition for {d.name}\n')
+                f.write(s['struct_definition'])
+                f.write('\n\n')
+
     def write_device_c(self, device_structs, devices, device_parsers, extra_configs, extra_includes, out_path: str):
         """Write device configuration C file"""
         # Ensure output directory exists
@@ -397,6 +434,11 @@ choice ESP_BOARD_SELECTION
             # Add extra headers from extra_dev configurations
             for include in sorted(extra_includes):
                 f.write(f'#include "{include}"\n')
+
+            # Check if there are custom devices and include custom header
+            has_custom_devices = any('struct_definition' in s for s in device_structs)
+            if has_custom_devices:
+                f.write('#include "gen_board_device_custom.h"\n')
 
             f.write('\n')
 
@@ -437,12 +479,15 @@ choice ESP_BOARD_SELECTION
                 else:
                     next_str = 'NULL'
                 struct_var = 'esp_bmgr_' + d.name.replace('-', '_') + '_cfg'
+                # Get init_skip value, default to false (do not skip initialization)
+                init_skip = getattr(d, 'init_skip', False)
                 f.write('    {\n')
                 f.write(f'        .next = {next_str},\n')
                 f.write(f'        .name = "{d.name}",\n')
                 f.write(f'        .type = "{d.type}",\n')
                 f.write(f'        .cfg = &{struct_var},\n')
                 f.write(f'        .cfg_size = sizeof({struct_var}),\n')
+                f.write(f'        .init_skip = {str(init_skip).lower()},\n')
                 f.write('    },\n')
             f.write('};\n')
 
@@ -701,11 +746,16 @@ choice ESP_BOARD_SELECTION
         self.logger.info(f'✅ Successfully validated {len(device_structs)} devices')
         self.logger.debug('   Writing device configuration files...')
         # Generate files directly to components/gen_bmgr_codes
-        if hasattr(self, 'project_root') and self.project_root:
-            gen_bmgr_codes_dir = os.path.join(self.project_root, 'components', 'gen_bmgr_codes')
-            os.makedirs(gen_bmgr_codes_dir, exist_ok=True)
-            self.write_device_c(device_structs, devices, device_parsers, extra_configs, extra_includes, out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_device_config.c'))
-            self.write_device_handles(devices, device_parsers, out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_device_handles.c'))
+        project_root = getattr(self, 'project_root', None)
+        if project_root is None:
+            project_root = os.getcwd()
+
+        gen_bmgr_codes_dir = os.path.join(project_root, 'components', 'gen_bmgr_codes')
+        os.makedirs(gen_bmgr_codes_dir, exist_ok=True)
+        # Generate custom device structure header first
+        self.write_device_custom_h(device_structs, devices, out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_device_custom.h'))
+        self.write_device_c(device_structs, devices, device_parsers, extra_configs, extra_includes, out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_device_config.c'))
+        self.write_device_handles(devices, device_parsers, out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_device_handles.c'))
 
         # Validate that extra_dev configurations are used in device configs
         self.logger.debug('   ✅ Validating extra device configurations...')
@@ -1077,9 +1127,9 @@ choice ESP_BOARD_SELECTION
     INCLUDE_DIRS "."
     REQUIRES esp_board_manager
 )
-set_property(TARGET ${COMPONENT_LIB} APPEND PROPERTY INTERFACE_LINK_LIBRARIES
-            "-u g_esp_board_devices -u g_esp_board_device_handles -u g_esp_board_peripherals -u g_esp_board_periph_handles -u g_esp_board_info")
-set_property(TARGET ${COMPONENT_LIB} APPEND PROPERTY INTERFACE_LINK_LIBRARIES "-u lcd_panel_factory_entry_t -u lcd_touch_factory_entry_t")
+
+# This is equivalent to adding WHOLE_ARCHIVE option to the idf_component_register call above:
+idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
 """
 
             cmakelists_path = os.path.join(gen_bmgr_codes_dir, 'CMakeLists.txt')
@@ -1104,11 +1154,14 @@ set_property(TARGET ${COMPONENT_LIB} APPEND PROPERTY INTERFACE_LINK_LIBRARIES "-
 
             self.logger.info(f'   Created idf_component.yml: {idf_component_path}')
 
-            # 4. Copy board C and H files
+            # 4. Copy board source files using unified configuration
             copied_files = []
             if board_path and os.path.exists(board_path):
+                # Get source extensions from settings
+                from generators.settings import BoardManagerConfig
+                copy_extensions = BoardManagerConfig.get_source_extensions()
                 for filename in os.listdir(board_path):
-                    if filename.endswith(('.c', '.h')):
+                    if any(filename.endswith(ext) for ext in copy_extensions):
                         src_path = os.path.join(board_path, filename)
                         dst_path = os.path.join(gen_bmgr_codes_dir, filename)
 

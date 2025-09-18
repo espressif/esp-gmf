@@ -181,6 +181,7 @@ void app_main(void)
 - **[`test_dev_pwr_ctrl.c`](test_apps/main/test_dev_pwr_ctrl.c)** - 基于 GPIO 的 LCD 和音频设备电源管理
 - **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** - SD 卡操作和 FATFS 文件系统测试
 - **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** - SPIFFS 文件系统测试
+- **[`test_dev_custom.c`](test_apps/main/test_dev_custom.c)** - 自定义设备测试和配置
 
 #### 外设示例
 - **[`test_periph_ledc.c`](test_apps/main/test_periph_ledc.c)** - 用于 PWM 和背光控制的 LEDC 外设
@@ -266,6 +267,7 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
    devices:
      - name: <device_name>
        type: <device_type>
+       init_skip: false  # 可选：跳过自动初始化（默认：false）
        config:
          # 设备特定配置
        peripherals:
@@ -334,6 +336,7 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | SPIFFS 文件系统 | fs_spiffs | - | - | ✅ 支持 | SPIFFS 文件系统 | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) |
 | GPIO 控制 | gpio_ctrl | - | gpio | ✅ 支持 | GPIO 控制设备 | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
 | LEDC 控制 | ledc_ctrl | - | ledc | ✅ 支持 | LEDC 控制设备 | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
+| 自定义设备 | custom | - | any | ✅ 支持 | 用户定义的自定义设备 | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
 
 ### 支持的板级
 

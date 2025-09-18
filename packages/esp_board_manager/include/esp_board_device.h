@@ -29,12 +29,13 @@ typedef int (*esp_board_device_deinit_func)(void *device_handle);
  * @brief  Structure representing a device descriptor
  */
 typedef struct esp_board_device_desc {
-    const struct esp_board_device_desc *next;      /*!< Pointer to next device descriptor */
-    const char                         *name;      /*!< Device name */
-    const char                         *chip;      /*!< Device chip type */
-    const char                         *type;      /*!< Device type */
-    const void                         *cfg;       /*!< Device configuration data */
-    int                                cfg_size;  /*!< Size of configuration data */
+    const struct esp_board_device_desc *next;          /*!< Pointer to next device descriptor */
+    const char                         *name;          /*!< Device name */
+    const char                         *chip;          /*!< Device chip type */
+    const char                         *type;          /*!< Device type */
+    const void                         *cfg;           /*!< Device configuration data */
+    int                                cfg_size;       /*!< Size of configuration data */
+    uint8_t                            init_skip : 1;  /*!< Skip initialization when manager initializes all devices */
 } esp_board_device_desc_t;
 
 /**

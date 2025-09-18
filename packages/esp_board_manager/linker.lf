@@ -1,0 +1,13 @@
+[sections:custom_devices_desc]
+entries:
+    .custom_devices_desc
+
+[scheme:custom_devices_desc_default]
+entries:
+    custom_devices_desc -> flash_rodata
+
+[mapping:custom_devices_desc]
+archive: *
+entries:
+    * (custom_devices_desc_default);
+        custom_devices_desc -> flash_rodata KEEP() SORT(name) SURROUND(custom_devices_array)

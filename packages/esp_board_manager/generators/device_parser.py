@@ -184,6 +184,10 @@ class DeviceParser(LoggerMixin):
                         self.logger.info(f"Device #{i+1}: {dev['name']}. Invalid peripheral reference: {periph_ref}")
                         continue
 
+                # Ensure init_skip field exists with default value
+                if 'init_skip' not in dev:
+                    dev['init_skip'] = False  # Default to False (do not skip initialization)
+
                 result_devices.append(dev)
                 device_types.append(dev['type'])
 
@@ -215,6 +219,7 @@ class DeviceParser(LoggerMixin):
             type: str
             config: dict
             peripherals: list
+            init_skip: bool = False  # Default to False (do not skip initialization)
 
         # Load YAML with includes
         try:
@@ -301,7 +306,8 @@ class DeviceParser(LoggerMixin):
                     name=name,
                     type=dev.get('type', ''),
                     config=dev.get('config', {}),
-                    peripherals=periph_list
+                    peripherals=periph_list,
+                    init_skip=dev.get('init_skip', False)  # Default to False (do not skip initialization)
                 ))
 
             except ValueError as e:

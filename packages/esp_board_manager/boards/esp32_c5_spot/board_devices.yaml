@@ -1,4 +1,4 @@
-board: esp32c5_spot
+board: esp32_c5_spot
 chip: esp32c5
 version: 1.0.0
 # Devices Configuration for ESP32-C5 Spot AI Voice Interaction Module
@@ -31,21 +31,6 @@ devices:
       - name: i2c_master
         address: 0x18
         frequency: 400000              # Hz
-
-  - name: imu_sensor
-    chip: bmi270
-    type: imu
-    version: default
-    dependencies:
-      espressif/esp_bmi270: "*"
-    config:
-      peripherals:
-        # I2C interface configuration
-        - name: i2c_master
-          address: 0x68
-          frequency: 400000            # Hz
-        - name: gpio_imu_interrupt
-          intr_type: GPIO_INTR_NEGEDGE
 
   # Power management and control devices
   - name: power_control

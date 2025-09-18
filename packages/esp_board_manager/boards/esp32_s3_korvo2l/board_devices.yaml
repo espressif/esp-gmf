@@ -67,3 +67,20 @@ devices:
     config:
       partition_label: NULL           # The partition label for the SPIFFS filesystem
       format_if_mount_failed: true
+
+  - name: my_custom_sensor          # The name of the device, must be unique
+    type: custom                   # The type of the device, must be unique
+    chip: esp32s3                  # Optional: Name of chip
+    version: default               # Optional: Parser version to use
+    init_skip: false               # Optional: skip initialization when the manager initializes all devices
+    config:
+      # Custom configuration parameters - these will be automatically generated as struct fields
+      sensor_id: 0x01              # Sensor ID (hex format)
+      sample_rate: 100             # Sample rate in Hz
+      enable_filter: true          # Enable digital filter
+      filter_cutoff: 50.5          # Filter cutoff frequency in Hz
+      timeout_ms: 1000             # Timeout in milliseconds
+      debug_mode: false            # Enable debug mode
+    peripherals:                   # Optional: List of used peripherals
+      - name: i2c_master           # I2C peripheral for communication
+      - name: gpio_pa_control      # GPIO peripheral for control

@@ -76,10 +76,6 @@ devices:
     version: default
     dependencies:
       espressif/esp_lcd_ili9341: "*"
-      esp_lvgl_port:
-        version: "*"
-        require: public
-      lvgl/lvgl: ^8.4.0
     config:
       mirror_x: true
       mirror_y: true
