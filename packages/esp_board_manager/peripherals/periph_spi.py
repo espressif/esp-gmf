@@ -133,7 +133,7 @@ def parse(name: str, config: dict) -> dict:
 
         # Parse ISR CPU affinity
         isr_cpu_id = spi_bus_config.get('isr_cpu_id', 'ESP_INTR_CPU_AFFINITY_AUTO')
-        valid_isr_cpu_ids = ['ESP_INTR_CPU_AFFINITY_AUTO', 'ESP_INTR_CPU_AFFINITY_CPU0', 'ESP_INTR_CPU_AFFINITY_CPU1']
+        valid_isr_cpu_ids = ['ESP_INTR_CPU_AFFINITY_AUTO', 'ESP_INTR_CPU_AFFINITY_0', 'ESP_INTR_CPU_AFFINITY_1']
         if isr_cpu_id not in valid_isr_cpu_ids:
             raise ValueError(f'Invalid isr_cpu_id: {isr_cpu_id}. Valid values: {valid_isr_cpu_ids}')
 

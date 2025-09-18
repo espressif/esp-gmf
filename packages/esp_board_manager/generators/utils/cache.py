@@ -17,7 +17,7 @@ import time
 
 
 class FileCache:
-    """Simple file-based cache for expensive operations"""
+    """Simple file-based cache for expensive operations with expiration and cleanup"""
 
     def __init__(self, cache_dir: Path = None):
         if cache_dir is None:

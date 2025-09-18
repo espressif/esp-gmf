@@ -15,23 +15,33 @@
     # ADC Configuration
     adc_enabled: false                   # Enable ADC functionality (default: false)
     adc_max_channel: 0                   # Maximum number of ADC channels (default: 0)
-    # The channel mask, 1-enable, 0-disable, from right to left layout: mic0,mic1,mic2,mic3
-    # e.g. "0111", bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable
+    # ADC channel mask: 1-enable, 0-disable, MSB to LSB: mic3,mic2,mic1,mic0
+    # Example: "0111" means Mic0=1(enable), Mic1=1(enable), Mic2=1(enable), Mic3=0(disable)
     adc_channel_mask: "0"                # ADC channel mask (default: "0")
+    # ADC channel logical labels (supports the following only), comma separated string, MSB to LSB:
+    # - FC: Front Center
+    # - RE: Reference
+    # - FL/FR: Front Left/Right
+    # - SL/SR: Side Left/Right
+    # - BL/BR: Back Left/Right
+    # - NA: Not Available/Not Enable
+    adc_channel_labels: []               # ADC logic labels (default: [])
+
     adc_init_gain: 0                     # ADC initial gain in dB (default: 0)
 
     # DAC Configuration
     dac_enabled: false                   # Enable DAC functionality (default: false)
     dac_max_channel: 0                   # Maximum number of DAC channels (default: 0)
-    # DAC channel mask, 1-enable, 0-disable, layout: left,right
+    # DAC channel mask: 1-enable, 0-disable, layout: left, right
+    # Example: "11" means both left and right channels enabled
     dac_channel_mask: "0"                # DAC channel mask (default: "0")
     dac_init_gain: 0                     # DAC initial gain in dB (default: 0)
 
     # Audio processing settings
-    mclk_enabled: false                  # Enable MCLK output (default: false)
-    aec: false                           # Acoustic Echo Cancellation (default: false)
-    eq: false                            # Equalizer (default: false)
-    alc: false                           # Automatic Level Control (default: false)
+    mclk_enabled: false                  # Enable MCLK (Master Clock) output (default: false)
+    aec: false                           # Enable Acoustic Echo Cancellation (default: false)
+    eq: false                            # Enable Equalizer (default: false)
+    alc: false                           # Enable Automatic Level Control (default: false)
 
   # Peripheral configuration
   peripherals:

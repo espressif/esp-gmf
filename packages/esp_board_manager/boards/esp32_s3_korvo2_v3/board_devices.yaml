@@ -17,7 +17,7 @@ devices:
       dac_enabled: true
       dac_max_channel: 1
       # DAC channel mask, 1-enable, 0-disable, layout: left,right
-      dac_channel_mask: "1"     # Left enable
+      dac_channel_mask: "1"        # Left enable
 
     # Power amplifier configuration
     peripherals:
@@ -41,6 +41,7 @@ devices:
       adc_enabled: true
       adc_max_channel: 4
       adc_channel_mask: "0111"
+      adc_channel_labels: ['NA', 'RE', 'FR', 'FL'] # MSB ~ LSB
       adc_init_gain: 0           # dB
 
     # Power amplifier configuration
@@ -61,7 +62,7 @@ devices:
         clk: 15   # GPIO_NUM_15
         cmd: 7    # GPIO_NUM_7
         d0: 4     # GPIO_NUM_4
-  
+
   - name: gpio_expander
     chip: tca9554
     type: gpio_expander
@@ -119,10 +120,10 @@ devices:
     config:
       # esp_lcd_panel_io_i2c_config_t fields for touch communication
       io_i2c_config:
-        dev_addr: 0x24            
+        dev_addr: 0x24
         lcd_cmd_bits: 16                  # Bit-width of LCD command
         peripherals:
-          - name: i2c_master                   # I2C peripheral for touch communication
+          - name: i2c_master              # I2C peripheral for touch communication
 
       # esp_lcd_touch_config_t fields for touch configuration
       touch_config:
@@ -131,7 +132,7 @@ devices:
         flags:
           swap_xy: false
           mirror_x: true
-          mirror_y: false      
+          mirror_y: false
 
   - name: camera_sensor
     type: camera

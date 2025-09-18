@@ -43,9 +43,10 @@ devices:
     config:
       adc_enabled: true
       adc_max_channel: 4
-      # The channel mask, 1-enable, 0-disable，from right to left layout: mic0,mic1,mic2,mic3
+      # The channel mask, 1-enable, 0-disable
       # e.g."0111", bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable, bit4: Mic4 disable
-      adc_channel_mask: "0011"
+      adc_channel_mask: "0111"
+      adc_channel_labels: ['NA', 'RE', 'FR', 'FL'] # MSB ~ LSB
       adc_init_gain: 0           # dB
 
     # Power amplifier configuration
@@ -61,7 +62,7 @@ devices:
     type: fatfs_sdcard
     version: default
     config:
-      bus_width: 4            # 1, 4, 8, not used on SPI type
+      bus_width: 4                 # 1, 4, 8, not used on SPI type
       pins:
         clk: 11   # GPIO_NUM_15
         cmd: 14   # GPIO_NUM_7
@@ -85,12 +86,12 @@ devices:
       io_spi_config:
         cs_gpio_num: 5                   # GPIO14 - LCD_CS (BSP_LCD_CS)
         dc_gpio_num: 4                   # GPIO45 - LCD_DC (BSP_LCD_DC)
-        spi_mode: 0                       # Traditional SPI mode (0~3)
-        pclk_hz: 20000000                 # Frequency of pixel clock
+        spi_mode: 0                      # Traditional SPI mode (0~3)
+        pclk_hz: 20000000                # Frequency of pixel clock
         flags:
           sio_mode: true                 # Single line mode
         peripherals:
-          - name: spi_display                  # SPI peripheral for LCD communication
+          - name: spi_display            # SPI peripheral for LCD communication
 
       lcd_panel_config:
         reset_gpio_num: 48
@@ -116,7 +117,7 @@ devices:
         dev_addr: [0x5D, 0x14]            # GT911 I2C address (ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS)
         lcd_cmd_bits: 16                  # Bit-width of LCD command
         peripherals:
-          - name: i2c_master                   # I2C peripheral for touch communication
+          - name: i2c_master              # I2C peripheral for touch communication
 
       # esp_lcd_touch_config_t fields for touch configuration
       touch_config:

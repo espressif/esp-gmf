@@ -14,9 +14,10 @@ devices:
     config: &es8311_config
       adc_enabled: true
       adc_max_channel: 1
-      # The channel mask, 1-enable, 0-disable，from right to left layout: mic0,mic1,mic2,mic3
+      # The channel mask, 1-enable, 0-disable
       # e.g.“0111”, bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable, bit4: Mic4 disable
-      adc_channel_mask: "1"     # Mic0, Mic1 disable
+      adc_channel_mask: "1"            # Mic0 enable
+      adc_channel_labels: ['RE','FC']  # Mic0 and reference enable, MSB ~ LSB
 
       dac_enabled: true
       dac_max_channel: 1
@@ -68,7 +69,7 @@ devices:
       partition_label: NULL           # The partition label for the SPIFFS filesystem
       format_if_mount_failed: true
 
-  - name: my_custom_sensor          # The name of the device, must be unique
+  - name: my_custom_sensor         # The name of the device, must be unique
     type: custom                   # The type of the device, must be unique
     chip: esp32s3                  # Optional: Name of chip
     version: default               # Optional: Parser version to use

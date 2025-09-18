@@ -31,12 +31,12 @@ typedef int (*custom_device_deinit_func_t)(void *device_handle);
 /**
  * @brief  Custom device handle structure
  *
- * This structure should be used as the device handle to store device information
- * for proper deinitialization.
+ *         This structure should be used as the device handle to store device information
+ *         for proper deinitialization.
  */
 typedef struct {
-    const char *device_name;  /*!< Device name for lookup */
     void       *user_handle;  /*!< User-defined device handle */
+    const char *device_name;  /*!< Device name for lookup */
 } custom_device_handle_t;
 
 /**

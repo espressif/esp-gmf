@@ -7,6 +7,10 @@
 - Add custom device type with test support
 - Add gpio expander device type with test support
 - Add camera device type with test support, support dvp bus type now
+- Instead of modifying idf_component.yml, the board manager uses a Kconfig option to handle dynamic dependencies
+- Add `adc_channel_labels` field to audio codec for better channel identification
+- Add board selection priority documentation and sdkconfig troubleshooting guide
+- Instead of copying board source files to gen_bmgr_codes, now reference them directly via SRC_DIRS and INCLUDE_DIRS to avoid duplication.
 
 ### Supported Boards
 - **ESP32-S3 Korvo2 V3**: Full LCD, LCD Touch, DVP Camera support

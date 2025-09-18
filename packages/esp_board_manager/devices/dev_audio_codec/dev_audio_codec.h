@@ -26,11 +26,11 @@ extern "C" {
  *         and codec interface.
  */
 typedef struct {
-    esp_codec_dev_handle_t codec_dev;  /*!< Codec device handle */
-    audio_codec_data_if_t *data_if;    /*!< Data interface handle */
-    audio_codec_ctrl_if_t *ctrl_if;    /*!< Control interface handle */
-    audio_codec_gpio_if_t *gpio_if;    /*!< GPIO interface handle */
-    audio_codec_if_t      *codec_if;   /*!< Codec interface handle */
+    esp_codec_dev_handle_t       codec_dev;  /*!< Codec device handle */
+    const audio_codec_data_if_t *data_if;    /*!< Data interface handle */
+    const audio_codec_ctrl_if_t *ctrl_if;    /*!< Control interface handle */
+    const audio_codec_gpio_if_t *gpio_if;    /*!< GPIO interface handle */
+    const audio_codec_if_t      *codec_if;   /*!< Codec interface handle */
 } dev_audio_codec_handles_t;
 
 /**
@@ -74,10 +74,18 @@ typedef struct {
     const char *type;  /*!< Codec type */
 
     /* ADC Configuration */
-    bool     adc_enabled;       /*!< Enable ADC functionality */
-    uint8_t  adc_max_channel;   /*!< Maximum number of ADC channels */
-    uint32_t adc_channel_mask;  /*!< ADC channel mask string */
-    int      adc_init_gain;     /*!< ADC initial gain in dB */
+    bool        adc_enabled;         /*!< Enable ADC functionality */
+    uint8_t     adc_max_channel;     /*!< Maximum number of ADC channels */
+    uint32_t    adc_channel_mask;    /*!< ADC channel mask string */
+    const char *adc_channel_labels;  /*!< ADC channel labels,
+                                        # - FC: Front Center
+                                        # - RE: Reference
+                                        # - FL/FR: Front Left/Right
+                                        # - SL/SR: Side Left/Right
+                                        # - BL/BR: Back Left/Right
+                                        # - NA: Not Available/Not Enable
+                                        */
+    int         adc_init_gain;       /*!< ADC initial gain in dB */
 
     /* DAC Configuration */
     bool     dac_enabled;       /*!< Enable DAC functionality */

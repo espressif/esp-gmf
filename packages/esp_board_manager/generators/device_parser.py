@@ -66,10 +66,10 @@ class DeviceParser(LoggerMixin):
         try:
             data = load_yaml_safe(Path(yaml_path))
         except FileNotFoundError:
-            self.logger.warning(f'Could not load {yaml_path}: File not found')
+            self.logger.warning(f'⚠️  Could not load {yaml_path}: File not found')
             return []
         except Exception as e:
-            self.logger.warning(f'Could not load {yaml_path}: {e}')
+            self.logger.warning(f'⚠️  Could not load {yaml_path}: {e}')
             return []
 
         # Check if file exists

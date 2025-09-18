@@ -6,4 +6,22 @@ issues: https://github.com/espressif/esp-gmf/issues
 tags:
 - gmf
 - board_manager
-dependencies: {}
+
+dependencies:
+  espressif/esp_codec_dev:
+    require: public
+    version: ~1.4
+    matches:
+      - if: "$CONFIG{ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT} == True"
+
+  espressif/esp_lcd_touch:
+    require: public
+    version: "*"
+    matches:
+      - if: "$CONFIG{ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT} == True"
+
+  espressif/esp_io_expander:
+    require: public
+    version: ^1.0.1
+    matches:
+      - if: "$CONFIG{ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT} == True"

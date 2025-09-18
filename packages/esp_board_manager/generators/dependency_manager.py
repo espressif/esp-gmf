@@ -17,7 +17,7 @@ from .utils.yaml_utils import load_yaml_safe, save_yaml_safe
 
 
 class DependencyManager(LoggerMixin):
-    """Manages component dependencies and idf_component.yml updates"""
+    """Manages component dependencies, idf_component.yml updates, and extra device configurations"""
 
     def __init__(self, script_dir: Path):
         super().__init__()
@@ -47,7 +47,7 @@ class DependencyManager(LoggerMixin):
             data = load_yaml_safe(Path(dev_yaml_path))
 
             if not data or 'devices' not in data:
-                self.logger.warning(f'No devices found in {dev_yaml_path}')
+                self.logger.warning(f'⚠️  No devices found in {dev_yaml_path}')
                 return dependencies
 
             for device in data['devices']:
@@ -176,7 +176,7 @@ class DependencyManager(LoggerMixin):
                 yaml_path = os.path.join(board_path, yaml_filename)
 
                 if not os.path.exists(yaml_path):
-                    self.logger.warning(f'Found {filename} but no corresponding {yaml_filename}')
+                    self.logger.warning(f'⚠️  Found {filename} but no corresponding {yaml_filename}')
                     continue
 
                 self.logger.info(f'Found extra_dev configuration: {config_name}')
@@ -205,7 +205,7 @@ class DependencyManager(LoggerMixin):
                             break
 
                     if config_func is None:
-                        self.logger.warning(f'No configuration function found in {filename}')
+                        self.logger.warning(f'⚠️  No configuration function found in {filename}')
                         continue
 
                     # Call the function to get the configuration
@@ -214,7 +214,7 @@ class DependencyManager(LoggerMixin):
                         extra_configs[config_name] = config_data
                         self.logger.info(f'Successfully loaded configuration for {config_name}')
                     else:
-                        self.logger.warning(f'Configuration function returned empty data for {config_name}')
+                        self.logger.warning(f'⚠️  Configuration function returned empty data for {config_name}')
 
                     # Look for get_includes function and collect headers
                     if hasattr(module, 'get_includes'):
@@ -281,10 +281,10 @@ class DependencyManager(LoggerMixin):
 
             if not found:
                 unused_configs.append(config_name)
-                self.logger.warning(f'⚠ {config_name} is not referenced in any device configuration')
+                self.logger.warning(f'⚠️  {config_name} is not referenced in any device configuration')
 
         if unused_configs:
-            self.logger.warning(f'Warning: {len(unused_configs)} extra_dev configurations are not used: {unused_configs}')
+            self.logger.warning(f'⚠️  Warning: {len(unused_configs)} extra_dev configurations are not used: {unused_configs}')
             return False
 
         self.logger.info(f'✅ All {len(used_configs)} extra_dev configurations are properly referenced')

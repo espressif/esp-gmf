@@ -25,15 +25,15 @@ peripherals:
 
       # Slot configuration
       data_bit_width: 16              # Data bit width (valid data bits per sample)
-      slot_bit_width: I2S_SLOT_BIT_WIDTH_AUTO            # Total bits per slot (AUTO or specific value)
+      slot_bit_width: I2S_SLOT_BIT_WIDTH_AUTO       # Total bits per slot (AUTO or specific value)
       slot_mode: I2S_SLOT_MODE_STEREO               # MONO or STEREO,I2S_SLOT_MODE_STEREO
-      slot_mask: I2S_STD_SLOT_BOTH                 # LEFT, RIGHT, or BOTH slots
+      slot_mask: I2S_STD_SLOT_BOTH                  # LEFT, RIGHT, or BOTH slots
       ws_width: 16                    # WS signal width in BCLK ticks
 
       # GPIO configuration
       pins:
         mclk: 2                       # GPIO number for MCLK
-        bclk: 17                       # GPIO number for BCLK
+        bclk: 17                      # GPIO number for BCLK
         ws: 45                        # GPIO number for WS
         dout: 15                      # GPIO number for DATA out
         din: 16                       # GPIO number for DATA in
@@ -53,9 +53,9 @@ peripherals:
       # spi_bus_config_t fields
       spi_bus_config:
         spi_port: SPI2_HOST               # 0: SPI1_HOST, 1: SPI2_HOST, 2: SPI3_HOST
-        data0_io_num: 6                  # MOSI_IO_NUM
-        sclk_io_num: 7                   # SPI Clock signal
-        max_transfer_sz: 72000             # Maximum transfer size in bytes
+        data0_io_num: 6                   # MOSI_IO_NUM
+        sclk_io_num: 7                    # SPI Clock signal
+        max_transfer_sz: 72000            # Maximum transfer size in bytes
 
   # PA CONTROL
   - name: gpio_pa_control
@@ -63,15 +63,15 @@ peripherals:
     role: io
     config:
       pin: 46                      # GPIO pin number
-      mode: GPIO_MODE_OUTPUT           # GPIO mode
-      pull_up: true              # Enable pull-up resistor
+      mode: GPIO_MODE_OUTPUT       # GPIO mode
+      pull_up: true                # Enable pull-up resistor
 
   # CHIP BLACKLIGHT POWER CONTROL
   - name: gpio_backlight_control
     type: gpio
     role: io
     config:
-      pin: 47                           # GPIO47 - BL_EN (CHIP BLACKLIGHT POWER CONTROL)
+      pin: 47                      # GPIO47 - BL_EN (CHIP BLACKLIGHT POWER CONTROL)
       mode: GPIO_MODE_OUTPUT
       default_level: 1
 
@@ -80,7 +80,7 @@ peripherals:
     type: gpio
     role: io
     config:
-      pin: 43                           # GPIO43 - SD power control
+      pin: 43                          # GPIO43 - SD power control
       mode: GPIO_MODE_OUTPUT
       default_level: 1
 

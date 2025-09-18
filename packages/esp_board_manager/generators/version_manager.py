@@ -15,7 +15,7 @@ from .utils.logger import LoggerMixin
 
 
 class VersionManager(LoggerMixin):
-    """Manages different versions of devices and peripherals"""
+    """Manages different versions of devices and peripherals with scanning and comparison"""
 
     def __init__(self, script_dir: Path):
         super().__init__()
@@ -113,7 +113,7 @@ class VersionManager(LoggerMixin):
                 return module.VERSION
 
         except Exception as e:
-            self.logger.warning(f'Failed to extract version from {file_path}: {e}')
+            self.logger.warning(f'⚠️  Failed to extract version from {file_path}: {e}')
 
         return None
 
@@ -127,7 +127,7 @@ class VersionManager(LoggerMixin):
                     return yaml_data['version']
 
         except Exception as e:
-            self.logger.warning(f'Failed to extract version from {file_path}: {e}')
+            self.logger.warning(f'⚠️  Failed to extract version from {file_path}: {e}')
 
         return None
 
@@ -167,7 +167,7 @@ class VersionManager(LoggerMixin):
                     dependencies = module.DEPENDENCIES
 
         except Exception as e:
-            self.logger.warning(f'Failed to extract dependencies from {file_path}: {e}')
+            self.logger.warning(f'⚠️  Failed to extract dependencies from {file_path}: {e}')
 
         return dependencies
 
@@ -215,7 +215,7 @@ class VersionManager(LoggerMixin):
         dependencies = component_info.get('dependencies', [])
         for dep in dependencies:
             if not self._check_dependency_availability(dep, target_chip):
-                self.logger.warning(f'Dependency {dep} not available for chip {target_chip}')
+                self.logger.warning(f'⚠️  Dependency {dep} not available for chip {target_chip}')
                 return False
 
         return True

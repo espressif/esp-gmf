@@ -13,7 +13,7 @@ from typing import Dict, Any, Set
 
 
 class BoardManagerConfig:
-    """Configuration class for ESP Board Manager"""
+    """Configuration class for ESP Board Manager with centralized settings and constants"""
 
     # File extensions
     SOURCE_EXTENSIONS = {'.c', '.cpp', '.cc', '.cxx', '.h', '.hpp'}

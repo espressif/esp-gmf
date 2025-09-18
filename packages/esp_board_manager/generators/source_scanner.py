@@ -18,7 +18,7 @@ from .settings import BoardManagerConfig
 
 
 class SourceScanner(LoggerMixin):
-    """Scans board directories for source files and manages CMakeLists.txt updates"""
+    """Scans board directories for source files and manages CMakeLists.txt updates with filtering"""
 
     def __init__(self, script_dir: Path):
         super().__init__()
@@ -48,7 +48,7 @@ class SourceScanner(LoggerMixin):
         source_files = []
 
         if not os.path.exists(board_path):
-            self.logger.warning(f'Board path does not exist: {board_path}')
+            self.logger.warning(f'⚠️  Board path does not exist: {board_path}')
             return source_files
 
         self.logger.info(f'   Scanning for source files in board directory: {board_path}')
@@ -81,9 +81,9 @@ class SourceScanner(LoggerMixin):
                         scan_recursive(item, depth + 1)
 
             except PermissionError:
-                self.logger.warning(f'Permission denied accessing {current_path}')
+                self.logger.warning(f'⚠️  Permission denied accessing {current_path}')
             except Exception as e:
-                self.logger.warning(f'Error scanning {current_path}: {e}')
+                self.logger.warning(f'⚠️  Error scanning {current_path}: {e}')
 
         # Start recursive scanning
         scan_recursive(board_path_obj)
@@ -149,7 +149,7 @@ class SourceScanner(LoggerMixin):
         match = re.search(srcs_pattern, content, re.MULTILINE | re.DOTALL)
 
         if not match:
-            self.logger.warning('Could not find SRCS section in CMakeLists.txt')
+            self.logger.warning('⚠️  Could not find SRCS section in CMakeLists.txt')
             return content
 
         # Insert BOARD_SRCS reference in SRCS section
@@ -170,7 +170,7 @@ class SourceScanner(LoggerMixin):
             if closing_match:
                 insert_pos += closing_match.start()
             else:
-                self.logger.warning('Could not find proper insertion point in CMakeLists.txt')
+                self.logger.warning('⚠️  Could not find proper insertion point in CMakeLists.txt')
                 return content
 
         # Insert the board sources reference
@@ -220,7 +220,7 @@ class SourceScanner(LoggerMixin):
                         self.logger.debug(f'  Previous: {existing_sources}')
                         self.logger.debug(f'  New: {board_source_files}')
                 else:
-                    self.logger.warning('BOARD_SETUP_SRCS found but could not parse existing sources')
+                    self.logger.warning('⚠️  BOARD_SETUP_SRCS found but could not parse existing sources')
                     return False
             else:
                 self.logger.info('BOARD_SETUP_SRCS not found - creating new section')
