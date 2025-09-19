@@ -1,0 +1,17 @@
+# Example board_devices.yaml configuration for IO expander device
+# This shows how to integrate the IO expander device into a board configuration
+
+devices:
+  # Example IO expander device configuration
+  - name: gpio_expander                 # The name of the device, must be unique
+    chip: tca9554                       # The chip of the IO expander
+    type: gpio_expander                 # The type of the device, must be unique
+    config:
+      max_pins: 8                       # Maximum number of IO pins supported
+      output_io_mask: [1, 2, 3]         # List of pins configured as output, maximum number is 32
+      output_io_level_mask : [1, 1, 1]  # List of output levels for output pins (eg. set io 1,2 to high level, 3 to low level)
+      default_level: 1                  # Default output level for output pins
+      input_io_mask: NULL               # List of pins configured as input (NULL if unused), maximum number is 32
+    peripherals:
+      - name: i2c_master                # I2C peripheral used by the IO expander
+        i2c_addr: [0x70, 0x7A]          # I2C address of the IO expander

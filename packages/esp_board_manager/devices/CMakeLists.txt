@@ -18,6 +18,11 @@ function(get_device_sources sources includes)
         list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_display_lcd_spi")
     endif()
 
+    if(CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_gpio_expander/dev_gpio_expander.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_gpio_expander")
+    endif()
+
     if(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT)
         list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.c")
         list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_lcd_touch_i2c")

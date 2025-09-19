@@ -43,6 +43,9 @@
 #ifdef CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT
 #include "test_dev_custom.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT */
+#ifdef CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT
+#include "test_dev_gpio_expander.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT */
 
 static const char *TAG = "MAIN";
 
@@ -127,6 +130,14 @@ static void test_lcd_lvgl(void)
 }
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT */
 
+#ifdef CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT
+static void test_gpio_expander(void)
+{
+    ESP_LOGI(TAG, "Starting GPIO expander tests...");
+    test_dev_gpio_expander();
+}
+#endif  /* CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT */
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "Starting ESP Board Manager Test Application");
@@ -140,6 +151,10 @@ void app_main(void)
 #ifdef CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT
     test_custom_device();
 #endif  /* CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT
+    test_gpio_expander();
+#endif  /* CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT */
 
 #ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
     test_lcd_lvgl();

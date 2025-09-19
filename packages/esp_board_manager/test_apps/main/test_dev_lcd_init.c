@@ -15,8 +15,10 @@
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_touch.h"
 #include "esp_lcd_types.h"
+#ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 #include "periph_ledc.h"
 #include "dev_ledc_ctrl.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
 
 #define TAG "LCD_INIT"
 
@@ -28,14 +30,16 @@
 #define LVGL_TASK_PRIORITY     5
 
 // Global handles
-static void                      *lcd_handle   = NULL;
-static void                      *touch_handle = NULL;
-static esp_lcd_panel_handle_t     panel_handle = NULL;
-static esp_lcd_panel_io_handle_t  io_handle    = NULL;
-static esp_lcd_touch_handle_t     tp           = NULL;
-static lv_display_t              *disp         = NULL;
-static lv_indev_t                *touch_indev  = NULL;
-static periph_ledc_handle_t      *ledc_handle  = NULL;
+static void                     *lcd_handle   = NULL;
+static void                     *touch_handle = NULL;
+static esp_lcd_panel_handle_t    panel_handle = NULL;
+static esp_lcd_panel_io_handle_t io_handle    = NULL;
+static esp_lcd_touch_handle_t    tp           = NULL;
+static lv_display_t             *disp         = NULL;
+static lv_indev_t               *touch_indev  = NULL;
+#ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
+static periph_ledc_handle_t *ledc_handle = NULL;
+#endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
 
 static esp_err_t lcd_lvgl_port_init(void)
 {
@@ -55,7 +59,7 @@ static esp_err_t lcd_lvgl_port_init(void)
     }
     return ESP_OK;
 }
-
+#ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 static esp_err_t lcd_backlight_set(int brightness_percent)
 {
     if (brightness_percent > 100) {
@@ -85,6 +89,7 @@ static esp_err_t lcd_backlight_set(int brightness_percent)
 
     return ESP_OK;
 }
+#endif
 
 esp_err_t test_dev_lcd_lvgl_init(void)
 {
@@ -96,8 +101,9 @@ esp_err_t test_dev_lcd_lvgl_init(void)
     }
 
     ESP_LOGI(TAG, "Initializing LCD display using Board Manager...");
+#ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
     lcd_backlight_set(100);
-
+#endif
     // Get LCD device handle from board manager
     esp_err_t ret = esp_board_manager_get_device_handle("display_lcd", &lcd_handle);
     if (ret != ESP_OK) {
