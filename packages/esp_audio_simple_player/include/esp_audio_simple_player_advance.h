@@ -10,6 +10,7 @@
 #include "esp_audio_simple_player.h"
 #include "esp_gmf_io.h"
 #include "esp_gmf_element.h"
+#include "esp_gmf_pipeline.h"
 
 #ifdef __cplusplus
 extern "C" {
