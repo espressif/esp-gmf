@@ -21,9 +21,12 @@ typedef struct {
     const char  *name;        /*!< Name for this instance */
     int          cache_size;  /*!< Cache size for file IO operations in bytes. If size <= 512, it will be set to 0.
                                    Note: Larger cache size will improve read and write performance but consume more memory */
-    int          cache_caps;  /*!< Cache memory capabilities, if zero then it will be set to (MALLOC_CAP_INTERNAL | MALLOC_CAP_CACHE_ALIGNED).
-                                   Note: If chips have SOC_SDMMC_PSRAM_DMA_CAPABLE capability(such as ESP32P4),
-                                         then you can set (MALLOC_CAP_SPIRAM | MALLOC_CAP_CACHE_ALIGNED) to save SRAM */
+    int          cache_caps;  /*!< Cache memory capabilities, if zero then it will be set to MALLOC_CAP_DMA.
+                                   Note:
+                                        1. If chips have SOC_SDMMC_PSRAM_DMA_CAPABLE capability(such as ESP32P4),
+                                            then you can set (MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA) to save SRAM
+                                        2. For ESP32, should use (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) or MALLOC_CAP_DMA caps to malloc cache
+                                        3. For ESP32Sxx and ESP32Cxx, can also use MALLOC_CAP_INTERNAL caps to malloc cache */
 } file_io_cfg_t;
 
 #define FILE_IO_CFG_DEFAULT() {     \
