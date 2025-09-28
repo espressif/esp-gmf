@@ -9,6 +9,7 @@
 
 #include "esp_capture_types.h"
 #include "capture_os.h"
+#include "capture_thread.h"
 #include "capture_mem.h"
 
 #ifdef __cplusplus

@@ -25,6 +25,25 @@ esp_capture_thread_scheduler_cb_t capture_thread_get_scheduler(void)
     return capture_scheduler;
 }
 
+void capture_thread_run_in_ram(void *arg)
+{
+    capture_thread_sync_run_arg_t *sync_arg = (capture_thread_sync_run_arg_t *)arg;
+    if (sync_arg->body) {
+        sync_arg->ret = sync_arg->body(sync_arg->arg);
+    }
+    if (sync_arg->sema) {
+        capture_sema_unlock(sync_arg->sema);
+    }
+    capture_thread_destroy(NULL);
+}
+
+int capture_thread_create(capture_thread_handle_t *handle, const char *name, esp_capture_thread_schedule_cfg_t *cfg,
+                          void (*body)(void *arg), void *arg)
+{
+    return esp_gmf_oal_thread_create((esp_gmf_oal_thread_t *)handle, name, body, arg, cfg->stack_size,
+                                     cfg->priority, cfg->stack_in_ext, cfg->core_id);
+}
+
 int capture_thread_create_from_scheduler(capture_thread_handle_t *handle, const char *name,
                                          void (*body)(void *arg), void *arg)
 {
@@ -33,9 +52,24 @@ int capture_thread_create_from_scheduler(capture_thread_handle_t *handle, const 
     if (capture_scheduler) {
         capture_scheduler(name, &cfg);
     }
-    esp_gmf_err_t ret = esp_gmf_oal_thread_create((esp_gmf_oal_thread_t *)handle, name, body, arg, cfg.stack_size,
-                                                  cfg.priority, cfg.stack_in_ext, cfg.core_id);
-    return ret;
+    return esp_gmf_oal_thread_create((esp_gmf_oal_thread_t *)handle, name, body, arg, cfg.stack_size,
+                                     cfg.priority, cfg.stack_in_ext, cfg.core_id);
+}
+
+void capture_thread_get_scheduler_cfg(const char *name, esp_capture_thread_schedule_cfg_t *cfg)
+{
+    if (cfg == NULL) {
+        return;
+    }
+    esp_capture_thread_schedule_cfg_t default_cfg = CAPTURE_DEFAULT_SCHEDULER();
+    *cfg = default_cfg;
+    if (name == NULL) {
+        // Get current task name
+        name = pcTaskGetName(NULL);
+    }
+    if (capture_scheduler) {
+        capture_scheduler(name, cfg);
+    }
 }
 
 void capture_thread_destroy(capture_thread_handle_t thread)
