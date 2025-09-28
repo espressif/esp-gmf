@@ -1,0 +1,28 @@
+# Example board_devices.yaml configuration for FATFS SPI SD card device
+# This shows how to integrate the FATFS SPI SD card device into a board configuration
+
+# Example FATFS SPI SD card device configuration
+- name: fs_sdcard          # The name of the device, must be unique
+  type: fatfs_sdcard_spi       # The type of the device, must be unique
+  version: default
+  config:
+    # Mount point configuration
+    mount_point: "/sdcard"            # The mount point path for the SPI SD card filesystem
+
+    # VFS (Virtual File System) configuration
+    vfs_config:
+      format_if_mount_failed: false   # Format the card if mount fails
+      max_files: 5                    # Maximum number of files that can be open simultaneously
+      allocation_unit_size: 16384     # Allocation unit size in bytes (0 for default)
+
+    # Due to the limitations of the SPI driver, 
+    # the SPI SD card does not exceed the speed of SDMMC_FREQ_DEFAULT 
+    # when transmitting and communicating with the main device via the SPI bus
+    frequency: SDMMC_FREQ_DEFAULT
+
+    # CS (Chip Select) GPIO configuration
+    cs_gpio_num: 15         # Chip select GPIO number
+
+    # SPI bus configuration, must match the SPI peripheral configuration)
+    peripherals:
+      - name: "spi_master"  # SPI bus name

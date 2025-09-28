@@ -52,6 +52,11 @@ function(get_device_sources sources includes)
         list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_camera/dev_camera.c")
         list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_camera")
     endif()
+    
+    if(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fatfs_sdcard_spi")
+    endif()
 
     # Set output variables in parent scope
     set(${sources} ${srcs} PARENT_SCOPE)

@@ -358,6 +358,7 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | LCD 显示屏 | display_lcd_spi | ST77916/GC9A01 | spi | ✅ 支持 | SPI LCD 显示屏 | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) |
 | 触摸屏 | lcd_touch_i2c | FT5x06 | i2c | ✅ 支持 | I2C 触摸屏 | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) |
 | SD 卡 | fatfs_sdcard | - | sdmmc | ✅ 支持 | SD 卡存储 | [`dev_fatfs_sdcard.yaml`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) |
+| SPI SD 卡 | fatfs_sdcard_spi | - | spi | ✅ 支持 | SD 卡存储 | [`dev_fatfs_sdcard_spi.yaml`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) |
 | SPIFFS 文件系统 | fs_spiffs | - | - | ✅ 支持 | SPIFFS 文件系统 | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) |
 | GPIO 控制 | gpio_ctrl | - | gpio | ✅ 支持 | GPIO 控制设备 | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
 | LEDC 控制 | ledc_ctrl | - | ledc | ✅ 支持 | LEDC 控制设备 | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |

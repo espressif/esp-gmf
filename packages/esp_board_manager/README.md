@@ -358,6 +358,7 @@ When multiple boards with the same name exist across different paths, the ESP Bo
 | LCD Display | display_lcd_spi | ST77916/GC9A01 | spi | ✅ Supported | SPI LCD display | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) |
 | Touch Screen | lcd_touch_i2c | FT5x06 | i2c | ✅ Supported | I2C touch screen | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) |
 | SD Card | fatfs_sdcard | - | sdmmc | ✅ Supported | SD card storage | [`dev_fatfs_sdcard.yaml`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) |
+| SPI SD Card | fatfs_sdcard_spi | - | spi | ✅ Supported | SD card storage | [`dev_fatfs_sdcard_spi.yaml`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) |
 | SPIFFS Filesystem | fs_spiffs | - | - | ✅ Supported | SPIFFS filesystem | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) |
 | GPIO Control | gpio_ctrl | - | gpio | ✅ Supported | GPIO control device | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
 | LEDC Control | ledc_ctrl | - | ledc | ✅ Supported | LEDC control device | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |

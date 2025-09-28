@@ -5,7 +5,6 @@
 #include <errno.h>
 #include "esp_log.h"
 #include "esp_board_device.h"
-#include "dev_fatfs_sdcard.h"
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
 
