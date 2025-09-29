@@ -50,9 +50,10 @@ devices:
     config:
       adc_enabled: true
       adc_max_channel: 4
-      # The channel mask, 1-enable, 0-disable, from right to left layout: mic0,mic1,mic2,mic3
+      # The channel mask, 1-enable, 0-disable
       # e.g."0111", bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable, bit4: Mic4 disable
       adc_channel_mask: "0111"           # Mic0, Mic1, Mic2 enable
+      adc_channel_labels: ['NA', 'RE', 'FR', 'FL']  # MSB ~ LSB
       adc_init_gain: 0                   # dB
 
     # I2S interface configuration
@@ -127,6 +128,6 @@ devices:
     type: ledc_ctrl
     version: default
     config:
-      default_percent: 100  # 0-100, default 0 percent
+      default_percent: 100                # 0-100, default 0 percent
     peripherals:
-      - name: ledc_backlight               # LEDC peripheral for GPIO 44
+      - name: ledc_backlight              # LEDC peripheral for GPIO 44

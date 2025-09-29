@@ -55,8 +55,8 @@ spi-0:
       isr_cpu_id: "ESP_INTR_CPU_AFFINITY_AUTO"
       # Valid values:
       # - ESP_INTR_CPU_AFFINITY_AUTO
-      # - ESP_INTR_CPU_AFFINITY_CPU0
-      # - ESP_INTR_CPU_AFFINITY_CPU1
+      # - ESP_INTR_CPU_AFFINITY_0
+      # - ESP_INTR_CPU_AFFINITY_1
 
       # Interrupt flags (default: 0)
       intr_flags: 0

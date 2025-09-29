@@ -102,7 +102,7 @@ class BoardConfigGenerator(LoggerMixin):
             return name[7:]  # Remove 'periph_' prefix
         return name
 
-    def generate_kconfig_entry(self, name, path, is_device):
+    def generate_kconfig_entry(self, name, path, is_device, default_value='n'):
         """Generate a Kconfig entry for a component."""
         component_type = 'Device' if is_device else 'Peripheral'
         prefix = 'DEV' if is_device else 'PERIPH'
@@ -110,7 +110,7 @@ class BoardConfigGenerator(LoggerMixin):
 
         entry = f"""config {macro_name}
     bool "{component_type} '{name}' support"
-    default y
+    default {default_value}
     help
         Enable {name} {component_type.lower()} support.
         This option enables the {name} {component_type.lower()} driver.
@@ -119,20 +119,30 @@ class BoardConfigGenerator(LoggerMixin):
 """
         return entry
 
-    def generate_board_kconfig(self, all_boards, board_customer_path=None):
+    def generate_board_kconfig(self, all_boards, board_customer_path=None, selected_board=None):
         """Generate board selection Kconfig content"""
         # Use the already scanned boards, no need to scan again
         if not all_boards:
             self.logger.error('No valid board directories found!')
             self.logger.info('Each board directory must contain a Kconfig file')
             return None
-        # Generate Kconfig content
 
-        kconfig_content = """menu "Board Selection"
+        # Determine the default board
+        if selected_board and selected_board in all_boards:
+            default_board = selected_board
+        else:
+            # Fallback to first available board if selected_board is not valid
+            default_board = sorted(all_boards.keys())[0]
+
+        # Convert board name to macro format
+        default_macro = 'BOARD_' + default_board.upper().replace('-', '_')
+
+        # Generate Kconfig content
+        kconfig_content = f"""menu "Board Selection"
 
 choice ESP_BOARD_SELECTION
     prompt "Select board"
-    default ESP_BOARD_ECHOEAR_CORE_BOARD_V1_2
+    default {default_macro}
     help
         Select the board to use for this project.
 
@@ -150,21 +160,19 @@ choice ESP_BOARD_SELECTION
         kconfig_content += 'endchoice\n\n'
 
         # Add default selection
-        kconfig_content += 'config ESP_BOARD_NAME\n'
+        kconfig_content += 'config BOARD_NAME\n'
         kconfig_content += '    string\n'
-        kconfig_content += '    default "echoear_core_board_v1_2" if BOARD_ECHOEAR_CORE_BOARD_V1_2\n'
 
         for board in sorted(all_boards.keys()):
-            if board != 'echoear_core_board_v1_2':  # Skip default
-                # Convert hyphens to underscores for macro names
-                macro = 'BOARD_' + board.upper().replace('-', '_')
-                kconfig_content += f'    default "{board}" if {macro}\n'
+            # Convert hyphens to underscores for macro names
+            macro = 'BOARD_' + board.upper().replace('-', '_')
+            kconfig_content += f'    default "{board}" if {macro}\n'
 
         kconfig_content += '\nendmenu\n\n'
 
         return kconfig_content
 
-    def generate_components_kconfig(self):
+    def generate_components_kconfig(self, peripheral_types=None, device_types=None):
         """Generate peripheral and device Kconfig content"""
 
         kconfig_content = "menu \"Peripheral Support\"\n\n"
@@ -175,10 +183,13 @@ choice ESP_BOARD_SELECTION
 
         for file in sorted(periph_dir.glob('periph_*.h')):
             name = self.get_component_name(file)
+            # Set default to 'y' if this peripheral type is used in the current board
+            default_value = 'y' if (peripheral_types and name in peripheral_types) else 'n'
             kconfig_content += self.generate_kconfig_entry(
                 name,
                 f'peripherals/periph_{name}',
-                False
+                False,
+                default_value
             )
             periph_names.append(name)
 
@@ -202,20 +213,26 @@ choice ESP_BOARD_SELECTION
                 header_file = device_folder / f'{device_type}.h'
                 if header_file.exists():
                     name = device_type[4:]  # Remove 'dev_' prefix
+                    # Set default to 'y' if this device type is used in the current board
+                    default_value = 'y' if (device_types and name in device_types) else 'n'
                     kconfig_content += self.generate_kconfig_entry(
                         name,
                         f'devices/{device_type}',
-                        True
+                        True,
+                        default_value
                     )
                     device_names.append(name)
         else:
             # Fallback to old structure for backward compatibility
             for file in sorted(device_dir.glob('dev_*.h')):
                 name = self.get_component_name(file)
+                # Set default to 'y' if this device type is used in the current board
+                default_value = 'y' if (device_types and name in device_types) else 'n'
                 kconfig_content += self.generate_kconfig_entry(
                     name,
                     f'devices/dev_{name}',
-                    True
+                    True,
+                    default_value
                 )
                 device_names.append(name)
 
@@ -274,21 +291,21 @@ choice ESP_BOARD_SELECTION
 
         return component_boards
 
-    def generate_kconfig(self, all_boards, board_customer_path=None):
+    def generate_kconfig(self, all_boards, board_customer_path=None, peripheral_types=None, device_types=None, selected_board=None):
         """Generate unified Kconfig content"""
         try:
             # Generate unified Kconfig content without the outer menu wrapper
             kconfig_content = ''
 
             # Add board selection
-            board_kconfig = self.generate_board_kconfig(all_boards, board_customer_path)
+            board_kconfig = self.generate_board_kconfig(all_boards, board_customer_path, selected_board)
             if board_kconfig is None:
                 self.logger.error('Failed to generate board Kconfig')
                 return False
             kconfig_content += board_kconfig + '\n'
 
-            # Add components configuration
-            kconfig_content += self.generate_components_kconfig()
+            # Add components configuration with actual types from board
+            kconfig_content += self.generate_components_kconfig(peripheral_types, device_types)
 
             # Write unified Kconfig file using the root directory
             kconfig_path = self.gen_codes_dir / 'Kconfig.in'
@@ -371,7 +388,7 @@ choice ESP_BOARD_SELECTION
             f.write('};\n')
 
     def write_device_custom_h(self, device_structs, devices, out_path: str):
-        """Write custom device structure definitions to header file"""
+        """Write custom device structure definitions to header file if any exist, otherwise create empty file"""
         # Check if there are any custom devices with struct definitions
         custom_devices = []
         for s, d in zip(device_structs, devices):
@@ -408,7 +425,7 @@ choice ESP_BOARD_SELECTION
                 f.write('\n\n')
 
     def write_device_c(self, device_structs, devices, device_parsers, extra_configs, extra_includes, out_path: str):
-        """Write device configuration C file"""
+        """Write device configuration C file with custom structures and extra configurations"""
         # Ensure output directory exists
         Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -492,7 +509,7 @@ choice ESP_BOARD_SELECTION
             f.write('};\n')
 
     def write_periph_handles(self, peripherals, periph_parsers, out_path: str):
-        """Write peripheral handles C file"""
+        """Write peripheral handle array C file with init/deinit function pointers"""
         # Ensure output directory exists
         Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -531,7 +548,7 @@ choice ESP_BOARD_SELECTION
             f.write('};\n')
 
     def write_device_handles(self, devices, device_parsers, out_path: str):
-        """Write device handles C file"""
+        """Write device handle array C file with init/deinit function pointers"""
         # Ensure output directory exists
         Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -566,11 +583,11 @@ choice ESP_BOARD_SELECTION
             f.write('};\n')
 
     def write_board_info(self, board_path: str, out_path: str):
-        """Write board information C file"""
+        """Write board information C file from board_info.yaml or use default values"""
         board_info_path = os.path.join(board_path, 'board_info.yaml')
 
         if not os.path.exists(board_info_path):
-            self.logger.warning(f'board_info.yaml not found at {board_info_path}')
+            self.logger.warning(f'⚠️  board_info.yaml not found at {board_info_path}')
             # Use default values
             board_name = 'unknown'
             chip = 'unknown'
@@ -605,7 +622,7 @@ choice ESP_BOARD_SELECTION
             f.write('};\n')
 
     def process_peripherals(self, periph_yaml_path: str) -> tuple:
-        """Process peripherals and generate configuration files"""
+        """Process peripherals from YAML and generate C configuration files, returns peripherals dict, name map, and types"""
         self.logger.debug('   Parsing peripheral YAML file...')
         peripherals = self.peripheral_parser.parse_peripherals_yaml_legacy(periph_yaml_path)
 
@@ -659,7 +676,7 @@ choice ESP_BOARD_SELECTION
 
     def process_devices(self, dev_yaml_path: str, peripherals_dict, periph_name_map,
                        board_path: Optional[str] = None, extra_configs: Dict = {}, extra_includes: set = set()):
-        """Process devices and generate configuration files"""
+        """Process devices from YAML and generate C configuration files, returns device types set"""
         self.logger.info('   Parsing device YAML file...')
         device_parsers = load_parsers([], prefix='dev_', base_dir=str(self.devices_dir))
 
@@ -764,7 +781,7 @@ choice ESP_BOARD_SELECTION
         return device_types
 
     def clear_gen_bmgr_codes_directory(self, project_root: str) -> bool:
-        """Clear all files in the gen_bmgr_codes directory before generating new ones"""
+        """Clear all files and directories in the gen_bmgr_codes directory before generating new ones"""
         try:
             gen_bmgr_codes_dir = os.path.join(project_root, 'components', 'gen_bmgr_codes')
 
@@ -792,7 +809,7 @@ choice ESP_BOARD_SELECTION
             return False
 
     def get_version_info(self):
-        """Get version information including git commit and component version"""
+        """Get version information including component version, git commit ID and date, and generation time"""
         import subprocess
         import json
         from datetime import datetime
@@ -812,7 +829,7 @@ choice ESP_BOARD_SELECTION
                     component_data = yaml.safe_load(f)
                     version_info['component_version'] = component_data.get('version', 'Unknown')
         except Exception as e:
-            self.logger.warning(f'Failed to read component version: {e}')
+            self.logger.warning(f'⚠️  Failed to read component version: {e}')
 
         # Get git commit information
         try:
@@ -846,12 +863,12 @@ choice ESP_BOARD_SELECTION
                 if result.returncode == 0:
                     version_info['git_commit_date'] = result.stdout.strip()
         except Exception as e:
-            self.logger.warning(f'Failed to get git information: {e}')
+            self.logger.warning(f'⚠️  Failed to get git information: {e}')
 
         return version_info
 
     def run(self, args):
-        """Run the configuration generation process"""
+        """Run the complete 8-step board configuration generation process"""
         self.logger.info('=== Board Manager Configuration Generator ===')
 
         # Initialize device and peripheral types sets
@@ -916,23 +933,8 @@ choice ESP_BOARD_SELECTION
         else:
             self.logger.warning(f"⚠️  Warning: Selected board '{selected_board}' not found in scanned boards")
 
-        # 3. Generate Kconfig if requested (THIRD STEP - after board selection)
-        if not args.sdkconfig_only:
-            self.logger.info('⚙️  Step 3/8: Generating Kconfig menu system...')
-
-            if not self.generate_kconfig(all_boards, args.board_customer_path):
-                self.logger.error('❌ Error: Kconfig generation failed!')
-                return False
-
-            self.logger.info('✅ Kconfig generation completed successfully')
-
-            # If only Kconfig generation is requested, exit early
-            if args.kconfig_only:
-                self.logger.info('ℹ️  Only Kconfig generation requested, skipping board configuration generation')
-                return True
-
-        # 4. Find configuration files for selected board
-        self.logger.info('⚙️  Step 4/8: Finding board configuration files...')
+        # 3. Find configuration files for selected board
+        self.logger.info('⚙️  Step 3/8: Finding board configuration files...')
         periph_yaml_path, dev_yaml_path = self.config_generator.find_board_config_files(selected_board, all_boards)
 
         if not periph_yaml_path or not dev_yaml_path:
@@ -955,7 +957,7 @@ choice ESP_BOARD_SELECTION
         device_dependencies = {}  # Initialize device_dependencies
 
         if not args.devices_only:
-            self.logger.info('⚙️  Step 5/8: Processing peripherals...')
+            self.logger.info('⚙️  Step 4/8: Processing peripherals...')
             try:
                 peripherals_dict, periph_name_map, peripheral_types = self.process_peripherals(periph_yaml_path)
                 self.logger.info(f'✅ Peripheral processing completed: {len(peripheral_types)} types found')
@@ -968,7 +970,7 @@ choice ESP_BOARD_SELECTION
         if not args.peripherals_only:
             if peripherals_dict is None:
                 # If we're only processing devices, we need to load peripherals for reference
-                self.logger.info('⚙️  Step 5/8: Processing peripherals... (LOADING FOR REFERENCE)')
+                self.logger.info('⚙️  Step 4/8: Processing peripherals... (LOADING FOR REFERENCE)')
                 self.logger.info('   4.1 Loading peripherals for device reference...')
                 try:
                     peripherals = self.peripheral_parser.parse_peripherals_yaml_legacy(periph_yaml_path)
@@ -993,7 +995,7 @@ choice ESP_BOARD_SELECTION
                     self.logger.error(f'❌ Error loading peripherals for reference: {e}')
                     return False
 
-            self.logger.info('⚙️  Step 6/8: Processing devices and dependencies...')
+            self.logger.info('⚙️  Step 5/8: Processing devices and dependencies...')
 
             # Get board path for extra_dev scanning
             board_path = all_boards.get(selected_board)
@@ -1008,8 +1010,9 @@ choice ESP_BOARD_SELECTION
             self.logger.debug('   Extracting device dependencies...')
             device_dependencies = self.dependency_manager.extract_device_dependencies(dev_yaml_path)
             # Update idf_component.yml with new dependencies
-            self.logger.debug('   Updating idf_component.yml...')
-            self.dependency_manager.update_idf_component_dependencies(device_dependencies)
+            # Disable updating idf_component.yml, instead, dynamic dependencies rely on a Kconfig option.
+            # self.logger.debug('   Updating idf_component.yml...')
+            # self.dependency_manager.update_idf_component_dependencies(device_dependencies)
 
             # Scan board source files and update CMakeLists.txt
             self.logger.debug('   Scanning board source files...')
@@ -1029,7 +1032,21 @@ choice ESP_BOARD_SELECTION
                 self.logger.error('❌ Error processing devices. See details above. Aborting.')
                 return False
         else:
-            self.logger.info('⏭️  Step 6/8: Processing devices... (SKIPPED)')
+            self.logger.info('⏭️  Step 5/8: Processing devices... (SKIPPED)')
+
+        # 6. Generate Kconfig if requested (SIXTH STEP - after device and peripheral processing)
+        self.logger.info('⚙️  Step 6/8: Generating Kconfig menu system...')
+
+        if not self.generate_kconfig(all_boards, args.board_customer_path, peripheral_types, device_types, selected_board):
+            self.logger.error('❌ Error: Kconfig generation failed!')
+            return False
+
+        self.logger.info('✅ Kconfig generation completed successfully')
+
+        # If only Kconfig generation is requested, exit early
+        if args.kconfig_only:
+            self.logger.info('ℹ️  Only Kconfig generation requested, skipping board configuration generation')
+            return True
 
         # 7. Update sdkconfig based on board device and peripheral types
         self.logger.info('⚙️  Step 7/8: Updating SDK configuration...')
@@ -1069,7 +1086,7 @@ choice ESP_BOARD_SELECTION
             if result['enabled']:
                 self.logger.info(f"✅ Updated {len(result['enabled'])} sdkconfig features")
 
-                # 8. Write board information and setup components/gen_bmgr_codes
+        # 8. Write board information and setup components/gen_bmgr_codes
         self.logger.info('⚙️  Step 8/8: Writing board information and setting up components...')
 
         # Write board info directly to components/gen_bmgr_codes
@@ -1121,15 +1138,27 @@ choice ESP_BOARD_SELECTION
                 os.makedirs(gen_bmgr_codes_dir)
                 self.logger.info(f'      Created gen_bmgr_codes directory: {gen_bmgr_codes_dir}')
 
-            # 2. Create CMakeLists.txt
-            cmakelists_content = """idf_component_register(
-    SRC_DIRS "."
-    INCLUDE_DIRS "."
+            # 2. Create CMakeLists.txt with board source paths
+            # Get board source files and create SRC_DIRS list
+            board_src_dirs = []
+            if board_path and os.path.exists(board_path):
+                # Calculate relative path from gen_bmgr_codes to board directory
+                board_relative_path = os.path.relpath(board_path, gen_bmgr_codes_dir)
+                board_src_dirs.append(f'"{board_relative_path}"')
+                self.logger.info(f'   Added board source directory: {board_relative_path}')
+
+            # Create SRC_DIRS and INCLUDE_DIRS strings
+            src_dirs_str = ' '.join(['"."'] + board_src_dirs) if board_src_dirs else '"."'
+            include_dirs_str = ' '.join(['"."'] + board_src_dirs) if board_src_dirs else '"."'
+
+            cmakelists_content = f"""idf_component_register(
+    SRC_DIRS {src_dirs_str}
+    INCLUDE_DIRS {include_dirs_str}
     REQUIRES esp_board_manager
 )
 
 # This is equivalent to adding WHOLE_ARCHIVE option to the idf_component_register call above:
-idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
+idf_component_set_property(${{COMPONENT_NAME}} WHOLE_ARCHIVE TRUE)
 """
 
             cmakelists_path = os.path.join(gen_bmgr_codes_dir, 'CMakeLists.txt')
@@ -1153,24 +1182,9 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
                 yaml.dump(idf_component_content, f, default_flow_style=False, sort_keys=False)
 
             self.logger.info(f'   Created idf_component.yml: {idf_component_path}')
-
-            # 4. Copy board source files using unified configuration
-            copied_files = []
-            if board_path and os.path.exists(board_path):
-                # Get source extensions from settings
-                from generators.settings import BoardManagerConfig
-                copy_extensions = BoardManagerConfig.get_source_extensions()
-                for filename in os.listdir(board_path):
-                    if any(filename.endswith(ext) for ext in copy_extensions):
-                        src_path = os.path.join(board_path, filename)
-                        dst_path = os.path.join(gen_bmgr_codes_dir, filename)
-
-                        import shutil
-                        shutil.copy2(src_path, dst_path)
-                        copied_files.append(filename)
-                        self.logger.info(f'   Copied: {filename}')
-
-            # 5. Files are already generated directly to components/gen_bmgr_codes
+            # 4. Board source files are now referenced via SRC_DIRS in CMakeLists.txt
+            # No need to copy files - they are referenced directly from board directory
+            self.logger.info(f'✅ Board source files will be compiled from: {board_path}')
             self.logger.info(f'✅ Generated files directly to components/gen_bmgr_codes completed successfully!')
 
             return True
@@ -1181,7 +1195,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
 
 
 def main():
-    """Main entry point"""
+    """Main entry point with command line argument parsing and error handling"""
     print('ESP Board Manager - Configuration Generator')
     print('=' * 60)
 

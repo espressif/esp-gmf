@@ -22,7 +22,7 @@ def parse_i2c_addresses(addr_input):
     """Parse I2C addresses from yaml"""
     if isinstance(addr_input, list):
         return [int(addr) if isinstance(addr, str) else addr for addr in addr_input]
-    
+
     elif isinstance(addr_input, str):
         if ',' in addr_input:
             addresses = []
@@ -38,10 +38,10 @@ def parse_i2c_addresses(addr_input):
                 return [int(addr_input, 16)]
             else:
                 return [int(addr_input)]
-    
+
     elif isinstance(addr_input, int):
         return [addr_input]
-    
+
     else:
         raise ValueError(f'❌ Unsupported i2c_addr format: {type(addr_input)}')
 
@@ -49,11 +49,11 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
     """Parse IO Expander device configuration from YAML to C structure"""
     # Parse the device name - use name directly for C naming
     c_name = name.replace('-', '_')  # Convert hyphens to underscores for C naming
-    
+
     # Get the device config
     device_config = config.get('config', {})
     peripherals = config.get('peripherals', [])
-    
+
     # Get chip and type from device level
     chip_name = config.get('chip', 'tca9554')
     device_type = config.get('type', 'tca9554')
@@ -80,7 +80,7 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
 
     # Get max pins
     max_pins = int(device_config.get('max_pins', 8))  # 8 is default
-    
+
     # Process output IO mask
     output_io_mask = 0
     output_io_level_mask = 0
@@ -101,7 +101,7 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
                 print(f'⚠️  WARNING: Pin {pin} out of range (0-{max_pins-1}), ignoring.')
         else:
             print(f'⚠️  WARNING: Invalid output pin specification {pin}, ignoring.')
-    
+
     # Process input IO mask
     input_io_mask = 0
     input_pins = device_config.get('input_io_mask', [])
@@ -112,7 +112,7 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
                 input_io_mask |= (1 << pin)
             else:
                 print(f'⚠️  WARNING: Invalid input pin specification {pin}, ignoring.')
-    
+
     result = {
         'struct_type': 'dev_io_expander_config_t',
         'struct_var': f'{c_name}_cfg',
@@ -129,5 +129,5 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
             'input_io_mask': input_io_mask
         }
     }
-    
+
     return result

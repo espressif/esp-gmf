@@ -19,7 +19,7 @@ import yaml
 
 
 class SDKConfigManager(LoggerMixin):
-    """Manages SDKConfig file operations and auto-enabling features"""
+    """Manages SDKConfig file operations, auto-enabling features, and board-specific configurations"""
 
     def __init__(self, script_dir: Path):
         super().__init__()
@@ -61,7 +61,7 @@ class SDKConfigManager(LoggerMixin):
             sdkconfig_path = self._find_sdkconfig_path()
 
         if not sdkconfig_path or not os.path.exists(sdkconfig_path):
-            self.logger.warning(f'sdkconfig file not found at {sdkconfig_path}')
+            self.logger.warning(f'    sdkconfig file not found at {sdkconfig_path}')
             return result
 
         self.logger.debug(f'   Updating sdkconfig: {sdkconfig_path}')
@@ -94,12 +94,12 @@ class SDKConfigManager(LoggerMixin):
         valid_device_types = {t for t in device_types if self._is_valid_type(t)}
         invalid_device_types = set(device_types) - valid_device_types
         if invalid_device_types:
-            self.logger.warning(f'Ignored invalid device types: {sorted(invalid_device_types)}')
+            self.logger.warning(f'⚠️  Ignored invalid device types: {sorted(invalid_device_types)}')
 
         valid_peripheral_types = {t for t in peripheral_types if self._is_valid_type(t)}
         invalid_periph_types = set(peripheral_types) - valid_peripheral_types
         if invalid_periph_types:
-            self.logger.warning(f'Ignored invalid peripheral types: {sorted(invalid_periph_types)}')
+            self.logger.warning(f'⚠️  Ignored invalid peripheral types: {sorted(invalid_periph_types)}')
 
         # Update Peripheral Support section
         if enable:
@@ -157,86 +157,6 @@ class SDKConfigManager(LoggerMixin):
 
         return result
 
-    def auto_enable_sdkconfig_features(self, dev_yaml_path: str, periph_yaml_path: str,
-                                      sdkconfig_path: Optional[str] = None,
-                                      enable: bool = True) -> Dict[str, List[str]]:
-        """
-        Automatically check and enable sdkconfig features based on YAML device and peripheral types.
-        Uses the existing Kconfig structure from Kconfig.in file.
-
-        Args:
-            dev_yaml_path: Path to device YAML file
-            periph_yaml_path: Path to peripheral YAML file
-            sdkconfig_path: Path to sdkconfig file (auto-detect if None)
-            enable: Whether to enable features (True) or just check (False)
-
-        Returns:
-            Dict with 'enabled' and 'checked' lists of config items
-        """
-        result = {'enabled': [], 'checked': []}
-
-        # Auto-detect sdkconfig path if not provided
-        if sdkconfig_path is None:
-            sdkconfig_path = self._find_sdkconfig_path()
-
-        if not sdkconfig_path or not os.path.exists(sdkconfig_path):
-            self.logger.warning(f'sdkconfig file not found at {sdkconfig_path}')
-            return result
-
-        # Read YAML files
-        try:
-            dev_data = load_yaml_safe(Path(dev_yaml_path))
-            periph_data = load_yaml_safe(Path(periph_yaml_path))
-
-            if not dev_data or not periph_data:
-                self.logger.error('Failed to load YAML files')
-                return result
-        except Exception as e:
-            self.logger.error(f'Error reading YAML files: {e}')
-            return result
-
-        # Extract device and peripheral types
-        device_types = set()
-        peripheral_types = set()
-
-        # Extract device types
-        for device in dev_data.get('devices', []):
-            device_type = device.get('type')
-            if device_type:
-                device_types.add(device_type)
-
-        # Extract peripheral types
-        for peripheral in periph_data.get('peripherals', []):
-            peripheral_type = peripheral.get('type')
-            if peripheral_type:
-                peripheral_types.add(peripheral_type)
-
-        # Use the new method to update sdkconfig
-        return self.update_sdkconfig_from_board_types(
-            device_types, peripheral_types, sdkconfig_path, enable
-        )
-
-    def auto_enable_from_board_dir(self, board_dir: str,
-                                   sdkconfig_path: Optional[str] = None,
-                                   enable: bool = True) -> Dict[str, List[str]]:
-        """Convenience wrapper: pass a board directory containing board_devices.yaml and
-        board_peripherals.yaml to update the sdkconfig accordingly.
-
-        Args:
-            board_dir: Path to a board directory (e.g. .../boards/esp_box)
-            sdkconfig_path: Optional explicit sdkconfig path
-            enable: Apply changes if True; check-only if False
-        """
-        board_path = Path(board_dir)
-        dev_yaml = board_path / 'board_devices.yaml'
-        periph_yaml = board_path / 'board_peripherals.yaml'
-        if not dev_yaml.exists() or not periph_yaml.exists():
-            self.logger.error(f'Board YAMLs not found under {board_dir}')
-            return {'enabled': [], 'checked': []}
-        return self.auto_enable_sdkconfig_features(str(dev_yaml), str(periph_yaml), sdkconfig_path, enable)
-
-
-
     def _apply_board_selection_updates(self, sdkconfig_content: str, board_name: str) -> Tuple[str, List[str]]:
         """
         Apply board selection updates to the sdkconfig content.
@@ -256,12 +176,12 @@ class SDKConfigManager(LoggerMixin):
 
         start_idx = sdkconfig_content.find(section_start)
         if start_idx == -1:
-            self.logger.warning('Board Selection section not found in sdkconfig')
+            self.logger.warning('⚠️  Board Selection section not found in sdkconfig')
             return sdkconfig_content, changes
 
         end_idx = sdkconfig_content.find(section_end, start_idx)
         if end_idx == -1:
-            self.logger.warning('Board Selection section end marker not found in sdkconfig')
+            self.logger.warning('⚠️  Board Selection section end marker not found in sdkconfig')
             return sdkconfig_content, changes
 
         # Extract the section content
@@ -274,7 +194,7 @@ class SDKConfigManager(LoggerMixin):
         board_configs = re.findall(r'CONFIG_BOARD_[A-Z0-9_]+', section_content)
 
         if not board_configs:
-            self.logger.warning('No board config options found in Board Selection section')
+            self.logger.warning('⚠️  No board config options found in Board Selection section')
             return sdkconfig_content, changes
 
         # Create updated section content
@@ -344,7 +264,7 @@ class SDKConfigManager(LoggerMixin):
             sdkconfig_path = self._find_sdkconfig_path()
 
         if not sdkconfig_path or not os.path.exists(sdkconfig_path):
-            self.logger.warning(f'sdkconfig file not found at {sdkconfig_path}')
+            self.logger.warning(f'    sdkconfig file not found at {sdkconfig_path}')
             return False
 
         try:
@@ -358,7 +278,7 @@ class SDKConfigManager(LoggerMixin):
                 self.logger.info('   Auto-config enabled via sdkconfig (or not set)')
                 return False
         except Exception as e:
-            self.logger.warning(f'Could not read sdkconfig to check auto-config setting: {e}')
+            self.logger.warning(f'⚠️  Could not read sdkconfig to check auto-config setting: {e}')
             return False
 
     def _build_type_to_config_mappings(self) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
@@ -394,7 +314,7 @@ class SDKConfigManager(LoggerMixin):
                 if device_mapping or peripheral_mapping:
                     return device_mapping, peripheral_mapping
             except Exception as e:
-                self.logger.warning(f'Failed parsing Kconfig.in: {e}')
+                self.logger.warning(f'⚠️  Failed parsing Kconfig.in: {e}')
 
         # 2) Fallback: parse devices/peripherals CMakeLists.txt (legacy names without DEV_/PERIPH_ prefix)
         # Parse devices CMakeLists.txt
@@ -475,7 +395,7 @@ class SDKConfigManager(LoggerMixin):
                 break
 
         if start_idx is None or end_idx is None or end_idx <= start_idx:
-            self.logger.warning(f"Section '{section_header}' not found in sdkconfig; skipping")
+            self.logger.warning(f"⚠️  Section '{section_header}' not found in sdkconfig; skipping")
             return sdkconfig_content, []
 
         # The actual configurable lines are between (start_idx+2) and (end_idx-1) typically,
@@ -545,6 +465,3 @@ class SDKConfigManager(LoggerMixin):
 
         updated_content = '\n'.join(lines) if apply_changes else sdkconfig_content
         return updated_content, changes
-
-
-

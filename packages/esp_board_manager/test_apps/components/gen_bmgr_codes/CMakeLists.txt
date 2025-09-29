@@ -1,6 +1,6 @@
 idf_component_register(
-    SRC_DIRS "."
-    INCLUDE_DIRS "."
+    SRC_DIRS "." "../../../boards/echoear_core_board_v1_2"
+    INCLUDE_DIRS "." "../../../boards/echoear_core_board_v1_2"
     REQUIRES esp_board_manager
 )
 

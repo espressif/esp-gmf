@@ -94,6 +94,14 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
         # Convert binary string to hex (e.g., "1110" -> 0xE)
         dac_channel_mask = int(dac_channel_mask, 2)
 
+    # Parse ADC channel labels
+    adc_channel_labels = device_config.get('adc_channel_labels', [])
+    # Convert list to comma-separated string if it's a list
+    if isinstance(adc_channel_labels, list):
+        adc_channel_labels_str = ','.join(adc_channel_labels) if adc_channel_labels else ''
+    else:
+        adc_channel_labels_str = str(adc_channel_labels) if adc_channel_labels else ''
+
     # Parse metadata if provided
     metadata = device_config.get('metadata', None)
     metadata_size = len(metadata) if metadata else 0
@@ -112,6 +120,7 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
             'adc_enabled': bool(device_config.get('adc_enabled', False)),
             'adc_max_channel': int(device_config.get('adc_max_channel', 0)),
             'adc_channel_mask': adc_channel_mask,
+            'adc_channel_labels': adc_channel_labels_str,
             'adc_init_gain': int(device_config.get('adc_init_gain', 0)),
             'dac_enabled': bool(device_config.get('dac_enabled', False)),
             'dac_max_channel': int(device_config.get('dac_max_channel', 0)),

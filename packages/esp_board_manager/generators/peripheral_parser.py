@@ -19,7 +19,7 @@ import re
 
 
 class PeripheralParser(LoggerMixin):
-    """Parser for peripheral configurations"""
+    """Parser for peripheral configurations with validation and nested list flattening"""
 
     def __init__(self, script_dir: Path):
         super().__init__()

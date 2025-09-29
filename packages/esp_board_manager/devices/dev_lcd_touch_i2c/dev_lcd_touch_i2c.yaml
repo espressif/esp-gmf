@@ -9,7 +9,6 @@
   version: default
   dependencies:
     espressif/esp_lcd_touch_generic: "*"  # Component dependency for the touch chip
-    esp_lvgl_port: "*"                    # Optional LVGL port dependency
   config:
     # esp_lcd_panel_io_i2c_config_t fields for I2C communication
     io_i2c_config:

@@ -6,6 +6,8 @@ devices:
   - name: gpio_expander                 # The name of the device, must be unique
     chip: tca9554                       # The chip of the IO expander
     type: gpio_expander                 # The type of the device, must be unique
+    dependencies:
+      espressif/esp_io_expander_tca9554: "^2"
     config:
       max_pins: 8                       # Maximum number of IO pins supported
       output_io_mask: [1, 2, 3]         # List of pins configured as output, maximum number is 32

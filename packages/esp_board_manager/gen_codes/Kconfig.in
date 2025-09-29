@@ -2,7 +2,7 @@ menu "Board Selection"
 
 choice ESP_BOARD_SELECTION
     prompt "Select board"
-    default ESP_BOARD_ECHOEAR_CORE_BOARD_V1_2
+    default BOARD_ECHOEAR_CORE_BOARD_V1_2
     help
         Select the board to use for this project.
 
@@ -53,11 +53,11 @@ config BOARD_LYRAT_MINI_V1_1
 
 endchoice
 
-config ESP_BOARD_NAME
+config BOARD_NAME
     string
-    default "echoear_core_board_v1_2" if BOARD_ECHOEAR_CORE_BOARD_V1_2
     default "dual_eyes_board_v1_0" if BOARD_DUAL_EYES_BOARD_V1_0
     default "echoear_core_board_v1_0" if BOARD_ECHOEAR_CORE_BOARD_V1_0
+    default "echoear_core_board_v1_2" if BOARD_ECHOEAR_CORE_BOARD_V1_2
     default "esp32_c5_spot" if BOARD_ESP32_C5_SPOT
     default "esp32_p4_function_ev_board" if BOARD_ESP32_P4_FUNCTION_EV_BOARD
     default "esp32_s3_korvo2_v3" if BOARD_ESP32_S3_KORVO2_V3
@@ -124,7 +124,7 @@ config ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT
 
 config ESP_BOARD_DEV_CUSTOM_SUPPORT
     bool "Device 'custom' support"
-    default y
+    default n
     help
         Enable custom device support.
         This option enables the custom device driver.
@@ -148,7 +148,7 @@ config ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
 
 config ESP_BOARD_DEV_FS_SPIFFS_SUPPORT
     bool "Device 'fs_spiffs' support"
-    default y
+    default n
     help
         Enable fs_spiffs device support.
         This option enables the fs_spiffs device driver.
@@ -161,6 +161,14 @@ config ESP_BOARD_DEV_GPIO_CTRL_SUPPORT
         Enable gpio_ctrl device support.
         This option enables the gpio_ctrl device driver.
         The driver is located at: devices/dev_gpio_ctrl
+
+config ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT
+    bool "Device 'gpio_expander' support"
+    default n
+    help
+        Enable gpio_expander device support.
+        This option enables the gpio_expander device driver.
+        The driver is located at: devices/dev_gpio_expander
 
 config ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT
     bool "Device 'lcd_touch_i2c' support"

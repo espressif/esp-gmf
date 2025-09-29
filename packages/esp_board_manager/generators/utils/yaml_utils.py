@@ -14,7 +14,7 @@ from .logger import LoggerMixin
 
 
 class YamlUtils(LoggerMixin):
-    """YAML utilities with logging support"""
+    """YAML utilities with logging support and error handling"""
 
     @staticmethod
     def load_yaml_safe(file_path: Path) -> Optional[Dict[str, Any]]:

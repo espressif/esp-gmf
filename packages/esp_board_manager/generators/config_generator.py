@@ -28,7 +28,7 @@ from .name_validator import parse_component_name
 
 
 class ConfigGenerator(LoggerMixin):
-    """Main configuration generator class"""
+    """Main configuration generator class for board scanning and configuration file discovery"""
 
     def __init__(self, script_dir: Path):
         super().__init__()
@@ -42,7 +42,7 @@ class ConfigGenerator(LoggerMixin):
             self.boards_dir = script_dir / 'boards'
 
     def is_c_constant(self, value: Any) -> bool:
-        """Check if a value is a C constant"""
+        """Check if a value is a C constant based on naming patterns and prefixes"""
         if not isinstance(value, str):
             return False
         if value.isupper() and '_' in value:
@@ -50,7 +50,7 @@ class ConfigGenerator(LoggerMixin):
         return any(value.startswith(prefix) for prefix in BoardManagerConfig.get_c_constant_prefixes())
 
     def dict_to_c_initializer(self, d: Dict[str, Any], indent: int = 4) -> List[str]:
-        """Convert dictionary to C initializer format"""
+        """Convert dictionary to C initializer format with proper type handling and formatting"""
         lines = []
         for k, v in d.items():
             if isinstance(v, dict):
@@ -86,13 +86,13 @@ class ConfigGenerator(LoggerMixin):
         return lines
 
     def extract_id_from_name(self, name: str) -> int:
-        """Extract ID from component name"""
+        """Extract numeric ID from component name using regex pattern matching"""
         import re
         m = re.search(r'(\d+)$', name)
         return int(m.group(1)) if m else -1
 
     def scan_board_directories(self, board_customer_path: Optional[str] = None) -> Dict[str, str]:
-        """Scan all board directories"""
+        """Scan all board directories including main, component, and customer boards"""
         all_boards = {}
 
         # 1. Scan main boards directory
@@ -154,12 +154,12 @@ class ConfigGenerator(LoggerMixin):
         return all_boards
 
     def _find_components_boards(self, project_root: str) -> List[str]:
-        """Find boards directories in components"""
+        """Find boards directories in all components, excluding board_manager to avoid duplication"""
         boards_dirs = []
         components_dir = os.path.join(project_root, 'components')
 
         if not os.path.exists(components_dir):
-            self.logger.warning(f'Components directory not found: {components_dir}')
+            self.logger.warning(f'⚠️  Components directory not found: {components_dir}')
             return boards_dirs
 
         for component in os.listdir(components_dir):
@@ -175,11 +175,11 @@ class ConfigGenerator(LoggerMixin):
         return boards_dirs
 
     def _scan_all_directories_for_boards(self, root_dir: str, dir_name: str) -> Dict[str, str]:
-        """Scan all subdirectories for boards (recursive)"""
+        """Recursively scan all subdirectories for boards with Kconfig files"""
         board_dirs = {}
 
         if not os.path.exists(root_dir):
-            self.logger.warning(f'{dir_name} directory does not exist: {root_dir}')
+            self.logger.warning(f'⚠️  {dir_name} directory does not exist: {root_dir}')
             return board_dirs
 
         self.logger.info(f'Scanning all directories in {dir_name} path: {root_dir}')
@@ -204,12 +204,12 @@ class ConfigGenerator(LoggerMixin):
         return board_dirs
 
     def _is_board_directory(self, path: str) -> bool:
-        """Check if a directory is a board directory (contains Kconfig file)"""
+        """Check if a directory is a valid board directory by verifying Kconfig file exists"""
         kconfig_path = os.path.join(path, 'Kconfig')
         return os.path.isdir(path) and os.path.isfile(kconfig_path)
 
     def get_selected_board_from_sdkconfig(self) -> str:
-        """Read sdkconfig file to determine which board is selected"""
+        """Read sdkconfig file to determine which board is selected, fallback to default if not found"""
         # First try to use PROJECT_DIR environment variable if available
         project_root = os.environ.get('PROJECT_DIR')
         if project_root:
@@ -218,12 +218,12 @@ class ConfigGenerator(LoggerMixin):
             # Look for sdkconfig file in project root
             project_root = find_project_root(Path(os.getcwd()))
             if not project_root:
-                self.logger.warning('Could not find project root, using default board')
+                self.logger.warning('⚠️  Could not find project root, using default board')
                 return BoardManagerConfig.DEFAULT_BOARD
 
         sdkconfig_path = Path(project_root) / 'sdkconfig'
         if not sdkconfig_path.exists():
-            self.logger.warning('sdkconfig file not found, using default board')
+            self.logger.warning('⚠️  sdkconfig file not found, using default board')
             return BoardManagerConfig.DEFAULT_BOARD
 
         self.logger.info(f'Reading sdkconfig from: {sdkconfig_path}')
@@ -242,7 +242,7 @@ class ConfigGenerator(LoggerMixin):
                     break
 
         if not selected_board:
-            self.logger.warning('No board selected in sdkconfig, using default board')
+            self.logger.warning('⚠️  No board selected in sdkconfig, using default board')
             return BoardManagerConfig.DEFAULT_BOARD
 
         return selected_board
