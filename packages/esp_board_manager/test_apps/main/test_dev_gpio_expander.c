@@ -1,3 +1,11 @@
+/*
+ * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
+ *
+ * See LICENSE file for details.
+ */
+
+#include <inttypes.h>
 #include "esp_log.h"
 #include "esp_check.h"
 #include "esp_board_device.h"
@@ -32,7 +40,7 @@ void test_dev_gpio_expander(void)
     for (uint32_t i = 0; i < gpio_config->max_pins; i++) {
         pin_mask = (1 << i);
         if (gpio_config->output_io_mask & pin_mask) {
-            ESP_LOGI(TAG, "Pin %d is configured as output, set this io as TEST_IO", i);
+            ESP_LOGI(TAG, "Pin %" PRIu32 " is configured as output, set this io as TEST_IO", i);
             break;
         }
     }
@@ -61,7 +69,7 @@ void test_dev_gpio_expander(void)
     ESP_LOGI(TAG, "TEST_IO level: %d", (level_mask & pin_mask) ? 1 : 0);
 
     vTaskDelay(pdMS_TO_TICKS(10));
-    ESP_LOGI(TAG, "Trying to reset TEST_IO to initial level: %d", initial_level);
+    ESP_LOGI(TAG, "Trying to reset TEST_IO to initial level: %" PRIu32, initial_level);
     vTaskDelay(pdMS_TO_TICKS(10));
     ESP_GOTO_ON_ERROR(esp_io_expander_set_level(*gpio_expander, pin_mask, initial_level), err, TAG, "Failed to set io level");
     esp_io_expander_get_level(*gpio_expander, pin_mask, &level_mask);

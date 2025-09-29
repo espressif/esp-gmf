@@ -6,19 +6,26 @@
  */
 
 #include <string.h>
+#include <fcntl.h>
 #include "esp_log.h"
+#include "esp_err.h"
 #include "esp_check.h"
 #include "esp_board_device.h"
+#include "esp_board_periph.h"
 #include "esp_lcd_ili9341.h"
 #include "esp_lcd_touch_tt21100.h"
 #include "dev_gpio_expander.h"
 #include "esp_io_expander_tca9554.h"
+#include "esp_video_init.h"
+#include "dev_camera.h"
+
+#define CAM_DEV_PATH "/dev/video2"
+
+static const char *TAG = "KORVO2_V3_SETUP_DEVICE";
 
 #define LCD_CTRL_GPIO (IO_EXPANDER_PIN_NUM_1)  // TCA9554_GPIO_NUM_1
 #define LCD_RST_GPIO  (IO_EXPANDER_PIN_NUM_2)  // TCA9554_GPIO_NUM_2
 #define LCD_CS_GPIO   (IO_EXPANDER_PIN_NUM_3)  // TCA9554_GPIO_NUM_3
-
-static const char *TAG = "KORVO2_V3_SETUP_DEVICE";
 
 esp_err_t io_expander_factory_entry_t(i2c_master_bus_handle_t i2c_handle, const uint16_t dev_addr, esp_io_expander_handle_t *handle_ret)
 {
@@ -72,5 +79,40 @@ esp_err_t lcd_touch_factory_entry_t(esp_lcd_panel_io_handle_t io, const esp_lcd_
         ESP_LOGE(TAG, "Failed to create TT21100 touch driver: %s", esp_err_to_name(ret));
         return ret;
     }
+    return ESP_OK;
+}
+
+esp_err_t camera_factory_entry_t(const dev_camera_config_t *camera_cfg, dev_camera_handle_t *ret_camera)
+{
+    ESP_LOGI(TAG, "Creating camera driver...");
+
+    void *i2c_handle = NULL;
+    esp_err_t ret = esp_board_periph_get_handle(camera_cfg->config.dvp.i2c_name, &i2c_handle);
+    if (ret != ESP_OK || !i2c_handle) {
+        ESP_LOGE(TAG, "Failed to get I2C handle\n");
+        return -1;
+    }
+
+    const esp_video_init_dvp_config_t s_dvp_config = {
+        .sccb_config.init_sccb = false,
+        .sccb_config.i2c_handle = i2c_handle,
+        .sccb_config.freq = camera_cfg->config.dvp.i2c_freq,
+        .reset_pin = camera_cfg->config.dvp.reset_io,
+        .pwdn_pin = camera_cfg->config.dvp.pwdn_io,
+        .dvp_pin = camera_cfg->config.dvp.dvp_io,
+        .xclk_freq = camera_cfg->config.dvp.xclk_freq,
+    };
+
+    const esp_video_init_config_t cam_config_ptr = {
+        .dvp = &s_dvp_config,
+    };
+
+    ret = esp_video_init(&cam_config_ptr);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize camera driver: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    ret_camera->dev_path = camera_cfg->dev_path;
     return ESP_OK;
 }

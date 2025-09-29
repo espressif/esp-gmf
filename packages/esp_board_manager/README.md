@@ -183,6 +183,7 @@ For comprehensive usage examples, refer to the test applications in the `test_ap
 - **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** - SPIFFS file system testing
 - **[`test_dev_custom.c`](test_apps/main/test_dev_custom.c)** - Custom device testing and configuration
 - **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)** - GPIO expander device testing
+- **[`test_dev_camera`](test_apps/main/test_dev_camera.c)** - Camera video stream capture capability testing
 
 #### Peripheral Examples
 - **[`test_periph_ledc.c`](test_apps/main/test_periph_ledc.c)** - LEDC peripheral for PWM and backlight control
@@ -203,6 +204,7 @@ Board Manager's device names are recommended for user projects, while peripheral
 | `lcd_power` | LCD power control |
 | `lcd_brightness` | LCD brightness control |
 | `gpio_expander` | GPIO expander device |
+| `camera_sensor` | Camera device |
 
 ## YAML Configuration Rules
 For detailed YAML configuration rules and format specifications, please refer to [Device and Peripheral Rules](docs/device_and_peripheral_rules.md).
@@ -340,18 +342,19 @@ The ESP Board Manager supports board configuration through three different path 
 | LEDC Control | ledc_ctrl | - | ledc | ✅ Supported | LEDC control device | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
 | Custom Device | custom | - | any | ✅ Supported | User-defined custom device | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
 | GPIO Expander | gpio_expander | TCA9554/TCA95XX/HT8574 | i2c | ✅ Supported | GPIO expander | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
+| Camera Sensor | camera | - | i2c | ✅ Supported | Camera sensor | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
 
 ### Supported Boards
 
-| Board Name | Chip | Audio | SDCard | LCD | LCD Touch |
-|------------|------|-------|--------|-----|-----------|
-| Echoear Core Board V1.0 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 |
-| Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (Dual) | ❌ |
-| ESP-BOX-3 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 |
-| ESP32-S3 Korvo2 V3 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100 |
-| ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ |
-| Lyrat Mini V1.1 | ESP32 | ✅ ES8388 | ✅ SDMMC | ❌ | ❌ |
-| ESP32-C5 Spot | ESP32-C5 | ✅ ES8311 (Dual) | ❌ | ❌ | ❌ |
+| Board Name | Chip | Audio | SDCard | LCD | LCD Touch | Camera Sensor |
+|------------|------|-------|--------|-----|-----------|-----------|
+| Echoear Core Board V1.0 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 | ❌ |
+| Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (双) | ❌ | ❌ |
+| ESP-BOX-3 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 | ❌ |
+| ESP32-S3 Korvo2 V3 | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100 | ✅ SC030IOT |
+| ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ | ❌ |
+| Lyrat Mini V1.1 | ESP32 | ✅ ES8388 | ✅ SDMMC | ❌ | ❌ | ❌ |
+| ESP32-C5 Spot | ESP32-C5 | ✅ ES8311 (双) | ❌ | ❌ | ❌ | ❌ |
 
 ## Board Manager Settings
 

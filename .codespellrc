@@ -1,4 +1,4 @@
 [codespell]
 skip = build,*.yuv,alice.txt,*.rgb
-ignore-words-list = ser,dout,rsource,fram,inout,shs,ans,aci,unstall,unstalling,hart,wheight,wel,ot,afe,muxer
+ignore-words-list = ser,dout,rsource,fram,inout,shs,ans,aci,unstall,unstalling,hart,wheight,wel,ot,afe,muxer,parm
 write-changes = true

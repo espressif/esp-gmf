@@ -17,6 +17,7 @@ idf_component_register(
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT}>:test_dev_ledc.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT}>:test_dev_custom.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT}>:test_dev_gpio_expander.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT}>:test_dev_camera.c>
 
         # Audio board manager test (conditionally included based on SD card support)
         $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>>:test_board_mgr_audio_sdcard.c>
