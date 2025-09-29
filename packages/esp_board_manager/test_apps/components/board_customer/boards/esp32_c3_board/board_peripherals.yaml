@@ -1,0 +1,15 @@
+board: esp32_c3_board
+chip: esp32c3
+version: 1.0.0
+# Peripherals Configuration for ESP32-C3-board V1.0
+peripherals:
+  # SPI Configuration for LCD
+  - name: spi_display
+    type: spi
+    role: master
+    config:
+      spi_bus_config:
+        spi_port: SPI2_HOST               # SPI2_HOST
+        data0_io_num: 11                  # MOSI_IO_NUM (LCD_SDA)
+        sclk_io_num: 12                   # SPI Clock signal (LCD_SCL)
+        max_transfer_sz: 4096             # Maximum transfer size in bytes

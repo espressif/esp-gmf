@@ -5,6 +5,30 @@ version: 1.0.0
 devices:
   - name: gpio_ctrl_0
     type: gpio_ctrl
+    dependencies:
+      espressif/esp_codec_dev1:
+        require: public
+        path: "${BOARD_PATH}/esp_codec_dev1"
+    config:
+      enabled: true
+    peripherals:
+      - name: gpio_test_output
+  - name: gpio_ctrl_2
+    type: gpio_ctrl
+    dependencies:
+      espressif/esp_codec_dev2:
+        require: public
+        path: "$BOARD_PATH/esp_codec_dev2"
+    config:
+      enabled: true
+    peripherals:
+      - name: gpio_test_output
+  - name: gpio_ctrl_3
+    type: gpio_ctrl
+    dependencies:
+      espressif/esp_codec_dev3:
+        require: public
+        path: "{{BOARD_PATH}}/esp_codec_dev3"
     config:
       enabled: true
     peripherals:

@@ -271,12 +271,34 @@ For detailed YAML configuration rules and format specifications, please refer to
    devices:
      - name: <device_name>
        type: <device_type>
-       init_skip: false  # Optional: skip auto-initialization (default: false)
+       init_skip: false   # Optional: skip auto-initialization (default: false)
+       dependencies:      # Optional, define component dependencies
+         espressif/gmf_core:
+            version: '*'  # Used version from espressif component registry
+            override_path: ${BOARD_PATH}/gmf_core
+            # Optional: Allows you to use a local component instead of the version
+            # downloaded from the component registry.
+            # You can specify either:
+            #   - An absolute path, or
+            #   - A relative path under ${BOARD_PATH} for easier management
+
        config:
          # Device-specific configuration
        peripherals:
          - name: <peripheral_name>
     ```
+
+> **⚙️ About `dependencies` Usage**
+>
+> - * The `dependencies` field in `board_devices.yaml` allows you to specify component dependencies for each device. This is especially useful for boards that require custom or local versions of components.
+> - * These dependency relationships will be copied to the `idf_component.yml` file in the `gen_bmgr_codes` folder. If dependencies with the same name exist, only the last one will be kept based on the YAML order.
+> - * The field supports all component registry features, including the `override_path` and `path` options. For more details, see [Component Dependencies](https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html#component-dependencies).
+> - * When using relative paths for local paths, note that they are relative to the `gen_bmgr_codes` directory. If users specify local paths under the board directory, use `${BOARD_PATH}` to simplify the path. See example: `./test_apps/test_custom_boards/my_boards/test_board1`.
+>
+> **⚙️ `${BOARD_PATH}` Variable:**
+> - * `${BOARD_PATH}` is a special variable that always points to the root directory of the current board definition (i.e., the folder containing your `board_devices.yaml`).
+> - * Always use `${BOARD_PATH}` when specifying local or board-specific component paths in `override_path` or `path` fields. For more details, see [local directory dependencies](https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html#local-directory-dependencies).
+> - * ❌ **Wrong**: `{{BOARD_PATH}}` or `$BOARD_PATH`
 
 ### Board Paths
 

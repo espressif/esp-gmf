@@ -1096,7 +1096,10 @@ choice ESP_BOARD_SELECTION
 
         gen_bmgr_codes_dir = os.path.join(project_root, 'components', 'gen_bmgr_codes')
         os.makedirs(gen_bmgr_codes_dir, exist_ok=True)
-        self.write_board_info(all_boards[selected_board], out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_info.c'))
+        if selected_board in all_boards:
+            self.write_board_info(all_boards[selected_board], out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_info.c'))
+        else:
+            self.logger.warning(f'⚠️  Cannot write board info: board "{selected_board}" not found in all_boards')
 
         # Setup components/gen_bmgr_codes directory and build system
         if not self.setup_gen_bmgr_codes_component(project_root, board_path, device_dependencies):
@@ -1181,6 +1184,37 @@ idf_component_set_property(${{COMPONENT_NAME}} WHOLE_ARCHIVE TRUE)
             with open(idf_component_path, 'w', encoding='utf-8') as f:
                 yaml.dump(idf_component_content, f, default_flow_style=False, sort_keys=False)
 
+            # Check if BOARD_PATH is used in dependencies and validate format
+            has_board_path_usage = False
+            has_replacement = False
+
+            # Check idf_component.yml dependencies and replace ${BOARD_PATH} immediately
+            for component, version in idf_component_content['dependencies'].items():
+                if isinstance(version, dict):
+                    for key, value in version.items():
+                        if key in ['path', 'override_path'] and isinstance(value, str) and 'BOARD_PATH' in value:
+                            has_board_path_usage = True
+                            if '${BOARD_PATH}' in value:
+                                if board_path:
+                                    absolute_board_path = os.path.abspath(board_path)
+                                    # Replace ${BOARD_PATH} in the current value
+                                    updated_value = value.replace('${BOARD_PATH}', absolute_board_path)
+                                    idf_component_content['dependencies'][component][key] = updated_value
+                                    has_replacement = True
+                                    self.logger.info(f'✅ Replaced ${{BOARD_PATH}} in {component}.{key}: {value} -> {updated_value}')
+                                else:
+                                    self.logger.warning(f'⚠️  Found valid ${{BOARD_PATH}} in {component}.{key} but no board path provided')
+                            else:
+                                self.logger.warning(f'⚠️  BOARD_PATH invalid syntax: Expected ${{BOARD_PATH}}, got "{value}" in {component}.{key}')
+
+            # Write updated idf_component.yml only if actual replacements were made
+            if has_replacement:
+                with open(idf_component_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(idf_component_content, f, default_flow_style=False, sort_keys=False)
+                self.logger.info(f'   Successfully updated idf_component.yml with board path replacements')
+            elif has_board_path_usage and not board_path:
+                self.logger.warning('⚠️  BOARD_PATH found in dependencies but no board path provided')
+
             self.logger.info(f'   Created idf_component.yml: {idf_component_path}')
             # 4. Board source files are now referenced via SRC_DIRS in CMakeLists.txt
             # No need to copy files - they are referenced directly from board directory
@@ -1192,7 +1226,6 @@ idf_component_set_property(${{COMPONENT_NAME}} WHOLE_ARCHIVE TRUE)
         except Exception as e:
             self.logger.error(f'❌ Error setting up gen_bmgr_codes component: {e}')
             return False
-
 
 def main():
     """Main entry point with command line argument parsing and error handling"""
