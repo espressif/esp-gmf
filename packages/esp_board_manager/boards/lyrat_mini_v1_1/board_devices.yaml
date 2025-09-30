@@ -9,7 +9,7 @@ devices:
     config:
       bus_width: 1            # 1, 4, 8, not used on SPI type
       pins:
-        clk: 15   # GPIO_NUM_15
+        clk: 15  # GPIO_NUM_15
         cmd: 7   # GPIO_NUM_7
-        d0: 4     # GPIO_NUM_4
+        d0: 4    # GPIO_NUM_4
 

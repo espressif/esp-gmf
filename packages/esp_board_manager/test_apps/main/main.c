@@ -32,9 +32,9 @@
 #include "test_dev_fs_spiffs.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_FS_SPIFFS_SUPPORT */
 
-#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
+#if defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT)
 #include "test_dev_fatfs_sdcard.h"
-#endif  /* CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT */
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT) */
 
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 #include "test_dev_ledc.h"
@@ -59,11 +59,12 @@ static void test_audio(void)
 {
     ESP_LOGI(TAG, "Starting audio tests...");
 
-#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
+#if defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT)
     ESP_LOGI(TAG, "Using SD card audio implementation...");
 #else
     ESP_LOGI(TAG, "Using embedded audio implementation...");
-#endif
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT) */
+
 #ifdef CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT
     test_dev_pwr_audio_ctrl(true);
 #endif  /* CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT */
@@ -80,16 +81,16 @@ static void test_spiffs_filesystem(void)
 }
 #endif  /* CONFIG_ESP_BOARD_DEV_FS_SPIFFS_SUPPORT */
 
-#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
+#if defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT)
 static void test_sdcard_filesystem(void)
 {
     ESP_LOGI(TAG, "Starting SD card filesystem tests...");
 #ifdef CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT
     test_dev_pwr_lcd_ctrl(true);
-#endif
+#endif  /* CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT */
     test_sdcard();
 }
-#endif  /* CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT */
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT) */
 
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 static void test_ledc_device(void)
@@ -181,9 +182,9 @@ void app_main(void)
     test_spiffs_filesystem();
 #endif  /* CONFIG_ESP_BOARD_DEV_FS_SPIFFS_SUPPORT */
 
-#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
+#if defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT)
     test_sdcard_filesystem();
-#endif  /* CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT */
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT) */
 
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
     test_ledc_device();
