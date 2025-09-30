@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.7.1
+
+### Bug Fixes
+- Fixed sonic bypass failed for first payload
+
+### Features
+
+- Added audio param setting for `aud_alc`, `aud_fade`, `aud_sonic`
+
 ## v0.7.0
 
 ### Features

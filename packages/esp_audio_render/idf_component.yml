@@ -1,0 +1,17 @@
+version: "0.7.0"
+description: Espressif Audio Render is a module for render PCM audio through output device
+url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_audio_render
+documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_audio_render/README.md"
+issues: "https://github.com/espressif/esp-gmf/issues"
+
+tags:
+   - "multimedia"
+   - "audio_render"
+   - "audio_mixer"
+   - "audio_post"
+
+dependencies:
+  idf : ">=4.4"
+  espressif/gmf_audio:
+    require: public
+    version: "^0.7"

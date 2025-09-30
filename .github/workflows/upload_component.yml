@@ -25,6 +25,7 @@ jobs:
             esp_capture: ./packages/esp_capture
             gmf_app_utils: ./packages/gmf_app_utils
             esp_board_manager: ./packages/esp_board_manager
+            esp_audio_render: ./packages/esp_audio_render
             gmf_examples: ./gmf_examples
           namespace: "espressif"
           api_token: ${{ secrets.IDF_COMPONENT_API_TOKEN }}

@@ -157,6 +157,7 @@ static esp_gmf_job_err_t esp_gmf_sonic_process(esp_gmf_element_handle_t self, vo
     esp_gmf_payload_t *in_load = NULL;
     esp_gmf_payload_t *out_load = NULL;
     bool is_done = false;
+    sonic->out_data_hd.needed_num = sonic->out_size / sonic->bytes_per_sample;
     if (sonic->speed == 1.0f && sonic->pitch == 1.0f && (sonic->out_data_hd.out_num < sonic->out_data_hd.needed_num)) {
         out_len = gmf_sonic_bypass_process(sonic, in_port, out_port, &in_load, &out_load);
         goto __sonic_release;
@@ -188,7 +189,6 @@ static esp_gmf_job_err_t esp_gmf_sonic_process(esp_gmf_element_handle_t self, vo
         }
         load_ret = esp_gmf_port_acquire_out(out_port, &out_load, sonic->out_size, ESP_GMF_MAX_DELAY);
         ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, load_ret, out_len, goto __sonic_release);
-        sonic->out_data_hd.needed_num = sonic->out_size / sonic->bytes_per_sample;
         sonic->out_data_hd.samples = out_load->buf;
         out_load->valid_size = 0;
         out_load->pts = sonic->cur_pts;
