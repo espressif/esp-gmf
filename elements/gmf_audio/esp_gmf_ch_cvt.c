@@ -124,6 +124,10 @@ static esp_gmf_job_err_t esp_gmf_ch_cvt_process(esp_gmf_element_handle_t self, v
     samples_num = in_load->valid_size / (ch_cvt->in_bytes_per_sample);
     bytes = samples_num * ch_cvt->out_bytes_per_sample;
     if ((ch_cvt->in_bytes_per_sample * samples_num != in_load->valid_size) || (load_ret < ESP_GMF_IO_OK)) {
+        if (load_ret == ESP_GMF_IO_ABORT) {
+            out_len = ESP_GMF_JOB_ERR_ABORT;
+            goto __ch_release;
+        }
         ESP_LOGE(TAG, "Invalid in load size %d, ret %d", in_load->valid_size, load_ret);
         out_len = ESP_GMF_JOB_ERR_FAIL;
         goto __ch_release;

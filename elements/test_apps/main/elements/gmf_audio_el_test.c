@@ -245,6 +245,7 @@ static esp_gmf_err_io_t audio_el_in_acquire(void *handle, esp_gmf_payload_t *loa
     esp_gmf_err_io_t ret = ESP_GMF_IO_OK;
     if (in_inst->is_done) {
         in_inst->in_acquire_count++;
+        ret = ESP_GMF_IO_ABORT;
         goto __acq_exit;
     }
     if (xQueueReceive(in_inst->sweep_queue1, &sweep_data, pdMS_TO_TICKS(wait_ticks)) == pdPASS) {

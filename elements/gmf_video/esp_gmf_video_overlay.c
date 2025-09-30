@@ -169,16 +169,9 @@ static esp_gmf_job_err_t gmf_vid_overlay_process(esp_gmf_element_handle_t self, 
     esp_gmf_payload_t *in_load = NULL;
     esp_gmf_payload_t *out_load = NULL;
     ret = esp_gmf_port_acquire_in(in_port, &in_load, ESP_GMF_ELEMENT_GET(self)->in_attr.data_size, ESP_GMF_MAX_DELAY);
-    if (ret < 0) {
-        ESP_LOGE(TAG, "Read data error, ret:%d, line:%d", ret, __LINE__);
-        return ret == ESP_GMF_IO_ABORT ? ESP_GMF_JOB_ERR_OK : ESP_GMF_JOB_ERR_FAIL;
-    }
-    if (in_load->is_done && in_load->valid_size == 0) {
-        esp_gmf_port_release_in(in_port, in_load, 0);
-        return ESP_GMF_JOB_ERR_DONE;
-    }
+    ESP_GMF_PORT_ACQUIRE_IN_CHECK(TAG, ret, ret, return ret);
     out_load = in_load;
-    if (overlay_mixer->overlay_enabled && overlay_mixer->overlay_port) {
+    if (in_load->valid_size > 0 && overlay_mixer->overlay_enabled && overlay_mixer->overlay_port) {
         // Fetch overlay data
         esp_gmf_payload_t *overlay_load = NULL;
         ret = esp_gmf_port_acquire_in(overlay_mixer->overlay_port, &overlay_load, ESP_GMF_ELEMENT_GET(self)->in_attr.data_size,
@@ -203,12 +196,12 @@ static esp_gmf_job_err_t gmf_vid_overlay_process(esp_gmf_element_handle_t self, 
         }
     }
     ret = esp_gmf_port_acquire_out(out_port, &out_load, in_load->valid_size, ESP_GMF_MAX_DELAY);
-    if (ret < 0) {
-        ESP_LOGE(TAG, "Write data error, ret:%d, line:%d", ret, __LINE__);
-        return ret == ESP_GMF_IO_ABORT ? ESP_GMF_JOB_ERR_OK : ESP_GMF_JOB_ERR_FAIL;
-    }
+    ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, ret, ret, esp_gmf_port_release_in(in_port, in_load, ESP_GMF_MAX_DELAY); return ret);
     esp_gmf_port_release_out(out_port, out_load, ESP_GMF_MAX_DELAY);
     esp_gmf_port_release_in(in_port, in_load, ESP_GMF_MAX_DELAY);
+    if (out_load->is_done) {
+        ret = ESP_GMF_JOB_ERR_DONE;
+    }
     return ret;
 }
 

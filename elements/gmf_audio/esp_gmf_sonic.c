@@ -170,6 +170,10 @@ static esp_gmf_job_err_t esp_gmf_sonic_process(esp_gmf_element_handle_t self, vo
             bytes = samples_num * sonic->bytes_per_sample;
             sonic->is_done = in_load->is_done;
             if ((bytes != in_load->valid_size) || (load_ret < ESP_GMF_IO_OK)) {
+                if (load_ret == ESP_GMF_IO_ABORT) {
+                    out_len = ESP_GMF_JOB_ERR_ABORT;
+                    goto __sonic_release;
+                }
                 ESP_LOGE(TAG, "Invalid in load size %d, ret %d", in_load->valid_size, load_ret);
                 out_len = ESP_GMF_JOB_ERR_FAIL;
                 goto __sonic_release;

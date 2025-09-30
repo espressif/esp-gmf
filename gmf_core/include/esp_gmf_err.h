@@ -29,6 +29,7 @@ typedef enum {
 typedef enum {
     ESP_GMF_ERR_OK             = ESP_OK,
     ESP_GMF_ERR_FAIL           = ESP_FAIL,
+    ESP_GMF_ERR_ABORT          = ESP_GMF_IO_ABORT,
     ESP_GMF_ERR_TIMEOUT        = ESP_GMF_IO_TIMEOUT,
     ESP_GMF_ERR_UNKNOWN        = ESP_GMF_ERR_CORE_BASE - 0,
     ESP_GMF_ERR_ALREADY_EXISTS = ESP_GMF_ERR_CORE_BASE - 1,

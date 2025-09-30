@@ -104,6 +104,10 @@ static esp_gmf_job_err_t esp_gmf_fade_process(esp_gmf_element_handle_t self, voi
     samples_num = in_load->valid_size / (fade->bytes_per_sample);
     bytes = samples_num * fade->bytes_per_sample;
     if ((bytes != in_load->valid_size) || (load_ret < ESP_GMF_IO_OK)) {
+        if (load_ret == ESP_GMF_IO_ABORT) {
+            out_len = ESP_GMF_JOB_ERR_ABORT;
+            goto __fade_release;
+        }
         ESP_LOGE(TAG, "Invalid in load size %d, ret %d", in_load->valid_size, load_ret);
         out_len = ESP_GMF_JOB_ERR_FAIL;
         goto __fade_release;
