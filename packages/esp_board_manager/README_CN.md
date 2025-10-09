@@ -272,11 +272,31 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
      - name: <device_name>
        type: <device_type>
        init_skip: false  # 可选：跳过自动初始化（默认：false）
+       dependencies:     # 可选，定义组件依赖关系
+         espressif/gmf_core:
+            version: '*'  # 使用来自 espressif 组件注册表的版本
+            override_path: ${BOARD_PATH}/gmf_core
+            # 可选：允许您使用本地组件而不是从组件注册表下载的版本。
+            # 您可以指定：
+            #   - 绝对路径，或
+            #   - 在 ${BOARD_PATH} 下的相对路径以便于管理
        config:
          # 设备特定配置
        peripherals:
          - name: <peripheral_name>
     ```
+
+> **⚙️ 关于 `dependencies` 使用说明**
+>
+> - * `board_devices.yaml` 中的 `dependencies` 字段允许您为每个设备指定组件依赖关系。这对于需要自定义或本地版本组件的板级特别有用。
+> - * 这些依赖关系将被复制到 `gen_bmgr_codes` 文件夹中的 `idf_component.yml` 文件中。如果存在相同名称的依赖关系，根据 YAML 顺序，只保留最后一个。
+> - * 该字段支持所有组件注册表功能，包括 `override_path` 和 `path` 选项。更多详情请参考[组件依赖](https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html#component-dependencies)。
+> - * 使用相对路径作为本地路径时，请注意它们是相对于 `gen_bmgr_codes` 目录的。如果用户指定本地路径在板级目录，可使用 `${BOARD_PATH}` 来简化路径。参考示例：`./test_apps/test_custom_boards/my_boards/test_board1`。
+>
+> **⚙️ `${BOARD_PATH}` 变量：**
+> - * `${BOARD_PATH}` 是一个特殊变量，始终指向当前板级定义的根目录（即包含您的 `board_devices.yaml` 的文件夹）。
+> - * 在 `override_path` 或 `path` 字段中指定本地或板级特定组件路径时，始终使用 `${BOARD_PATH}`。更多详情请参考[本地目录依赖](https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html#local-directory-dependencies)。
+> - * ❌ **错误**：`{{BOARD_PATH}}` 或 `$BOARD_PATH`
 
 ### 板级路径
 

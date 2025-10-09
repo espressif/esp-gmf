@@ -1,0 +1,5 @@
+board: esp32_c3_board
+chip: esp32c3
+version: 1.0.0
+description: "ESP32-C3 test Board"
+manufacturer: "ESPRESSIF"

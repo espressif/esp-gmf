@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Features
-- Add init_skip field to control device auto-initialization
+- Add `init_skip` field to control device auto-initialization
 - Add custom device type with test support
 - Add gpio expander device type with test support
 - Add camera device type with test support, support dvp bus type now
@@ -11,6 +11,8 @@
 - Add `adc_channel_labels` field to audio codec for better channel identification
 - Add board selection priority documentation and sdkconfig troubleshooting guide
 - Instead of copying board source files to gen_bmgr_codes, now reference them directly via SRC_DIRS and INCLUDE_DIRS to avoid duplication.
+- Add device dependencies support with `${BOARD_PATH}` variable resolution
+- Update README with dependencies usage guide
 
 ### Supported Boards
 - **ESP32-S3 Korvo2 V3**: Full LCD, LCD Touch, DVP Camera support
