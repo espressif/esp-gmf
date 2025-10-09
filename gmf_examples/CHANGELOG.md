@@ -7,6 +7,7 @@
 - Added play http music example
 - Added `pipeline_http_download_to_sdcard` example for HTTP file downloads to SD card
 - Added `pipeline_record_http` example for uploading the recorded audio to HTTP server
+- Added power manage support for recording example `pipeline_record_sdcard`
 
 ## v0.7.2~1
 

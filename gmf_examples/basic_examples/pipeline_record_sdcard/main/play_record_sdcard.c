@@ -8,20 +8,39 @@
 #include "freertos/event_groups.h"
 #include "esp_log.h"
 #include "esp_err.h"
+#include "esp_pm.h"
+#include "soc/rtc.h"
 #include "esp_gmf_element.h"
 #include "esp_gmf_pipeline.h"
 #include "esp_gmf_pool.h"
+#include "esp_amrnb_enc.h"
+#include "esp_amrwb_enc.h"
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_audio_helper.h"
-#include "esp_gmf_app_setup_peripheral.h"
+#include "esp_board_manager_includes.h"
 #include "esp_gmf_io_codec_dev.h"
 #include "gmf_loader_setup_defaults.h"
+#include "esp_gmf_app_sys.h"
 
 static const char *TAG = "REC_SDCARD";
 
-#define DEFAULT_RECORD_SAMPLE_RATE  16000
+#define DEFAULT_RECORD_SAMPLE_RATE  48000
 #define DEFAULT_RECORD_CHANNEL      1
 #define DEFAULT_RECORD_BITS         16
+#define DEFAULT_RECORD_BITRATE      90000
+#define DEFAULT_RECORD_OUTPUT_URL   "/sdcard/esp_gmf_rec001.aac"
+
+#if CONFIG_PM_ENABLE
+#if CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_ESP32P4_REV_MIN_300
+#define DEFAULT_CPU_FREQ_MHZ  100
+#else
+#define DEFAULT_CPU_FREQ_MHZ  90
+#endif
+#else
+#define DEFAULT_CPU_FREQ_MHZ  80
+#endif
+#endif // CONFIG_PM_ENABLE
 
 esp_gmf_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
@@ -31,24 +50,73 @@ esp_gmf_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
     return ESP_GMF_ERR_OK;
 }
 
+static void esp_enable_pm_with_freq(int min_freq, int max_freq)
+{
+    max_freq = max_freq < min_freq ? min_freq : max_freq;
+    rtc_cpu_freq_config_t cfg = {0};
+    if (!rtc_clk_cpu_freq_mhz_to_config(max_freq, &cfg)) {
+        ESP_LOGW(TAG, "Cannot config for max frequency(%d MHz)", max_freq);
+        return;
+    }
+    if (!rtc_clk_cpu_freq_mhz_to_config(min_freq, &cfg)) {
+        ESP_LOGW(TAG, "Cannot config for min frequency(%d MHz)", min_freq);
+        return;
+    }
+    esp_pm_config_t pm_config = {
+        .max_freq_mhz = max_freq,
+        .min_freq_mhz = min_freq,
+    };
+    ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
+}
+
+static int setup_peripheral(esp_codec_dev_handle_t *rec_handle)
+{
+    int ret = ESP_OK;
+    // Temporary changes to lyrat_mini_v1.1 board to enable SD card power control
+#ifdef CONFIG_ESP32_LYRAT_MINI_V1_BOARD
+    ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_SD_POWER);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to init SD card power");
+#endif  /* CONFIG_ESP32_LYRAT_MINI_V1_BOARD */
+    ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_FS_SDCARD);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to init SD card");
+    ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_ADC);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to init audio ADC");
+    dev_audio_codec_handles_t *rec_dev_handle = NULL;
+    esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&rec_dev_handle);
+    ESP_GMF_NULL_CHECK(TAG, rec_dev_handle, return ESP_GMF_ERR_NOT_FOUND);
+    esp_codec_dev_handle_t record_handle = rec_dev_handle->codec_dev;
+    ESP_GMF_NULL_CHECK(TAG, record_handle, return ESP_GMF_ERR_NOT_FOUND);
+    ret = esp_codec_dev_set_in_gain(record_handle, 32);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to set input gain");
+    esp_codec_dev_sample_info_t fs = {
+        .sample_rate = DEFAULT_RECORD_SAMPLE_RATE,
+        .channel = DEFAULT_RECORD_CHANNEL,
+        .bits_per_sample = DEFAULT_RECORD_BITS,
+    };
+#ifdef CONFIG_ESP32_LYRAT_MINI_V1_BOARD
+    if (fs.channel == 1) {
+        fs.channel = 2;
+        fs.channel_mask = 2;
+    }
+#endif  /* CONFIG_ESP32_LYRAT_MINI_V1_BOARD */
+    ret = esp_codec_dev_open(record_handle, &fs);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to open record codec");
+    *rec_handle = record_handle;
+    return ESP_OK;
+}
+
 void app_main(void)
 {
     esp_log_level_set("*", ESP_LOG_INFO);
+    esp_gmf_app_sys_monitor_start();
+#if CONFIG_PM_ENABLE
+    esp_enable_pm_with_freq(DEFAULT_CPU_FREQ_MHZ, DEFAULT_CPU_FREQ_MHZ);
+#endif // CONFIG_PM_ENABLE
     int ret = 0;
-    ESP_LOGI(TAG, "[ 1 ] Mount sdcard");
-    void *sdcard_handle = NULL;
-    esp_gmf_app_setup_sdcard(&sdcard_handle);
-
-    // Configuration of codec to be aligned with audio pipeline input
-    esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
-    codec_info.record_info.sample_rate = DEFAULT_RECORD_SAMPLE_RATE;
-    codec_info.record_info.bits_per_sample = DEFAULT_RECORD_BITS;
-    codec_info.record_info.channel = DEFAULT_RECORD_CHANNEL;
-    codec_info.play_info = codec_info.record_info;
-    esp_gmf_app_setup_codec_dev(&codec_info);
-
-    // Set default microphone gain
-    esp_codec_dev_set_in_gain((esp_codec_dev_handle_t)esp_gmf_app_get_record_handle(), 32);
+    ESP_LOGI(TAG, "[ 1 ] Setup peripheral for audio codec device and sdcard");
+    esp_codec_dev_handle_t record_handle = NULL;
+    ret = setup_peripheral(&record_handle);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to setup peripheral");
 
     ESP_LOGI(TAG, "[ 2 ] Register all the elements and set audio information to record codec device");
     esp_gmf_pool_handle_t pool = NULL;
@@ -62,12 +130,12 @@ void app_main(void)
     esp_gmf_pipeline_handle_t pipe = NULL;
     const char *name[] = {"aud_enc"};
     ret = esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), "io_file", &pipe);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, { return; }, "Failed to new pipeline");
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to new pipeline");
 
-    esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_IN_INSTANCE(pipe), esp_gmf_app_get_record_handle());
+    esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_IN_INSTANCE(pipe), record_handle);
 
     ESP_LOGI(TAG, "[ 3.1 ] Set audio url to record");
-    esp_gmf_pipeline_set_out_uri(pipe, "/sdcard/esp_gmf_rec001.aac");
+    esp_gmf_pipeline_set_out_uri(pipe, DEFAULT_RECORD_OUTPUT_URL);
 
     ESP_LOGI(TAG, "[ 3.2 ] Reconfig audio encoder type by url and audio information and report information to the record pipeline");
     esp_gmf_element_handle_t enc_el = NULL;
@@ -76,8 +144,14 @@ void app_main(void)
         .sample_rates = DEFAULT_RECORD_SAMPLE_RATE,
         .channels = DEFAULT_RECORD_CHANNEL,
         .bits = DEFAULT_RECORD_BITS,
-        .format_id = ESP_AUDIO_TYPE_AAC,
+        .bitrate = DEFAULT_RECORD_BITRATE,
     };
+    esp_gmf_audio_helper_get_audio_type_by_uri(DEFAULT_RECORD_OUTPUT_URL, &info.format_id);
+    if (info.format_id == ESP_AUDIO_TYPE_AMRWB) {
+        info.bitrate = ESP_AMRWB_ENC_BITRATE_MD885;
+    } else if (info.format_id == ESP_AUDIO_TYPE_AMRNB) {
+        info.bitrate = ESP_AMRNB_ENC_BITRATE_MR122;
+    }
     esp_gmf_audio_enc_reconfig_by_sound_info(enc_el, &info);
     esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info, sizeof(info));
 
@@ -85,9 +159,12 @@ void app_main(void)
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
     cfg.cb = NULL;
+    cfg.thread.stack = 40 * 1024; // If you encode to AMR, please make sure the stack is large enough
+    cfg.thread.stack_in_ext = true;
+    cfg.name = "gmf_rec";
     esp_gmf_task_handle_t work_task = NULL;
     ret = esp_gmf_task_init(&cfg, &work_task);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, { return;}, "Failed to create pipeline task");
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to create pipeline task");
     esp_gmf_pipeline_bind_task(pipe, work_task);
     esp_gmf_pipeline_loading_jobs(pipe);
 
@@ -108,6 +185,7 @@ void app_main(void)
     gmf_loader_teardown_audio_codec_default(pool);
     gmf_loader_teardown_io_default(pool);
     esp_gmf_pool_deinit(pool);
-    esp_gmf_app_teardown_sdcard(sdcard_handle);
-    esp_gmf_app_teardown_codec_dev();
+    esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_ADC);
+    esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_FS_SDCARD);
+    esp_gmf_app_sys_monitor_stop();
 }

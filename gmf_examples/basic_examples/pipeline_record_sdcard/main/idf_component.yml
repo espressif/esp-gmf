@@ -17,11 +17,3 @@ dependencies:
     override_path: ../../../../elements/gmf_video
   espressif/gmf_misc:
     override_path: ../../../../elements/gmf_misc
-  espressif/esp_wifi_remote:
-    version: '*'
-    rules:
-      - if: "target in [esp32p4]"
-  espressif/esp_hosted:
-    version: '*'
-    rules:
-      - if: "target in [esp32p4]"
