@@ -1,0 +1,63 @@
+board: esp32_p4_function_ev
+chip: esp32p4
+version: 0.1.0
+# Devices Configuration
+devices:
+  - name: audio_dac
+    chip: es8311  # Codec chip (ES8311)
+    type: audio_codec
+    version: default
+    config:
+      # DAC Configuration (for audio output)
+      dac_enabled: true
+      dac_max_channel: 1     # ES8311 support 1 DAC channel (default right channel, REG:0x09 - SDP_IN_SEL)
+      dac_channel_mask: "1"  # Enable left channel
+
+    peripherals:
+      - name: gpio_pa_control
+        gain: 6
+        active_level: 0
+
+      # I2S interface for audio output
+      - name: i2s_out
+
+      # I2C interface for codec control
+      - name: i2c_master
+        address: 0x30
+        frequency: 400000
+  
+  - name: audio_adc
+    chip: es8311  # Codec chip (ES8311)
+    type: audio_codec
+    version: default
+    config:
+      # ADC Configuration (for audio input)
+      adc_enabled: true
+      adc_max_channel: 2            # ES8311 support 1 ADC channel and 1 DAC echo channel, default:ADCL + DACR, refer 8311 datasheet REG44 `ADCDAT_SEL`
+      adc_channel_mask: "11"        # Enable both left and right channels
+      adc_channel_labels: [RE, FC]  # DAC reference and ADC microphone
+
+    # Peripheral configuration
+    peripherals:
+      # I2S interface for audio input
+      - name: i2s_in
+
+      # I2C interface for codec control
+      - name: i2c_master
+        address: 0x30
+        frequency: 400000
+  
+  - name: fs_sdcard
+    type: fatfs_sdcard
+    version: default
+    config:
+      bus_width: 4
+      pins:
+        clk: 43
+        cmd: 44
+        d0: 39
+        d1: 40
+        d2: 41
+        d3: 42
+      
+      ldo_chan_id: 4  # Use LDO_VO4 to power SDMMC IO

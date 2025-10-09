@@ -16,10 +16,6 @@ devices:
     chip: es8311
     type: audio_codec
     version: default
-    dependencies:
-      espressif/esp_codec_dev:
-        require: public
-        version: ~1.4
     config:
       adc_enabled: false
       dac_enabled: true
@@ -43,10 +39,6 @@ devices:
     chip: es7210
     type: audio_codec
     version: default
-    dependencies:
-      espressif/esp_codec_dev:
-        require: public
-        version: ~1.4
     config:
       adc_enabled: true
       adc_max_channel: 4

@@ -7,10 +7,6 @@
   chip: generic_codec        # Codec chip type (es8311, es7210, etc.)
   type: audio_codec         # The type of the device, must be unique
   version: default
-  dependencies:
-    espressif/esp_codec_dev:
-      require: public
-      version: ~1.4
   config:
     # ADC Configuration
     adc_enabled: false                   # Enable ADC functionality (default: false)

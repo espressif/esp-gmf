@@ -72,6 +72,9 @@ typedef struct {
     uint8_t                  bus_width;    /*!< Bus width (1, 4, or 8 bits) */
     uint16_t                 slot_flags;   /*!< Slot flags (SDMMC_HOST_FLAG_1BIT, SDMMC_HOST_FLAG_4BIT, SDMMC_HOST_FLAG_SPI) */
     dev_sdcard_pins_t        pins;         /*!< GPIO pin configuration */
+    int8_t                   ldo_chan_id;  /*!< Set to the appropriate LDO channel ID if using on-chip LDO for SDMMC power.
+                                                This is an optional configuration, and whether it needs to be configured depends on your board.
+                                                Please check the schematic diagram or other documentation to determine if SDMMC is powered by LDO. */
 } dev_fatfs_sdcard_config_t;
 
 /**

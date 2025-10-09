@@ -1,0 +1,52 @@
+board: esp32_p4_function_ev
+chip: esp32p4
+version: 1.0.0
+# Peripherals Configuration for ESP32-P4-Function-EV-Board
+peripherals:
+  # I2C Configuration
+  - name: i2c_master
+    type: i2c
+    role: master
+    config:
+      port: 0
+      pins:
+        sda: 7
+        scl: 8
+
+  # I2S configuration for full-duplex audio with ES8311
+  - name: i2s_out
+    type: i2s
+    format: "std-out"
+    role: master
+    config: &i2s_config
+      port: 0
+      sample_rate_hz: 48000
+      clk_src: "I2S_CLK_SRC_DEFAULT"
+      mclk_multiple: 256
+      data_bit_width: 16
+      slot_mode: "I2S_SLOT_MODE_STEREO"
+      slot_mask: "I2S_STD_SLOT_BOTH"
+      ws_width: 16
+      pins:
+        mclk: 13
+        bclk: 12
+        ws: 10
+        dout: 9
+        din: 11
+
+    # I2S configuration for full-duplex audio with ES8311
+  - name: i2s_in
+    type: i2s
+    format: "std-in"
+    role: slave
+    config: *i2s_config
+
+  # PA CONTROL
+  - name: gpio_pa_control
+    type: gpio
+    role: io
+    config:
+      pin: 53
+      mode: GPIO_MODE_OUTPUT
+      pull_up: true
+      default_level: 0

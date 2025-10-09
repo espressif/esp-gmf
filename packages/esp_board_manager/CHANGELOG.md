@@ -13,9 +13,12 @@
 - Instead of copying board source files to gen_bmgr_codes, now reference them directly via SRC_DIRS and INCLUDE_DIRS to avoid duplication.
 - Add device dependencies support with `${BOARD_PATH}` variable resolution
 - Update README with dependencies usage guide
+- Add sdspi sdcard device type
+- Refine dependency for esp_codec_dev
 
 ### Supported Boards
 - **ESP32-S3 Korvo2 V3**: Full LCD, LCD Touch, DVP Camera support
+- **ESP32-P4 Function-EV**: Codec, SD card supported
 
 ## v0.3.0 (Initial Release)
 
