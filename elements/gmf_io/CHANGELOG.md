@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.3
+
+### Bug Fixes
+
+- Fixed cache caps issues for esp32 in `io_file`
+
 ## v0.7.2
 
 ### Features

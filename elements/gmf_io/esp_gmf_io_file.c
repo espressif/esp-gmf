@@ -111,6 +111,7 @@ static esp_gmf_err_t _file_open(esp_gmf_io_handle_t io)
         ESP_GMF_MEM_VERIFY(TAG, file_io->cache, { fclose(file_io->file); return ESP_GMF_ERR_MEMORY_LACK;},
                             "file stream cache", file_io->cache_size);
         setvbuf(file_io->file, (char *)file_io->cache, _IOFBF, file_io->cache_size);
+        ESP_LOGD(TAG, "File_io cache: %p, size: %d, caps: 0x%x", file_io->cache, file_io->cache_size, file_io->cache_caps);
     }
 
     file_io->is_open = true;
@@ -287,10 +288,9 @@ esp_gmf_err_t esp_gmf_io_file_init(file_io_cfg_t *config, esp_gmf_io_handle_t *i
     if (cfg->cache_size <= IO_FILE_DEFAULT_CACHE_ALIGN) {
         file_io->cache_size = 0;
     } else {
-        file_io->cache_caps = (cfg->cache_caps == 0) ? (MALLOC_CAP_INTERNAL | MALLOC_CAP_CACHE_ALIGNED) : cfg->cache_caps;
+        file_io->cache_caps = (cfg->cache_caps == 0) ? (MALLOC_CAP_DMA) : cfg->cache_caps;
         file_io->cache_size = IO_FILE_ALIGN_UP(cfg->cache_size, IO_FILE_DEFAULT_CACHE_ALIGN);
     }
-    ESP_LOGD(TAG, "Initialization, %s-%p, cache_size: %d", OBJ_GET_TAG(obj), file_io, file_io->cache_size);
     return ESP_GMF_ERR_OK;
 _file_fail:
     esp_gmf_obj_delete(obj);
