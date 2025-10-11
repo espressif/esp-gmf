@@ -148,6 +148,8 @@ class ConfigGenerator(LoggerMixin):
                     # It's a directory containing multiple boards (recursive scan)
                     customer_boards = self._scan_all_directories_for_boards(board_customer_path, 'customer')
                     all_boards.update(customer_boards)
+            else:
+                self.logger.warning(f'⚠️  Warning: Customer boards path does not exist: {board_customer_path}')
         else:
             self.logger.info(f'   No customer boards path specified')
 

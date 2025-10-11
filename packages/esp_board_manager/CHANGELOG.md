@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.0
 
 ### Features
 - Add `init_skip` field to control device auto-initialization
@@ -15,6 +15,11 @@
 - Update README with dependencies usage guide
 - Add sdspi sdcard device type
 - Refine dependency for esp_codec_dev
+- Add esp_board_device_find_by_handle() API for finding device by handle
+- Add board information output to CMakeLists.txt generation
+- Update esp_codec_dev dependency to version `~1.5`
+- Clear the build directory to get the correct dependencies when switching boards
+- Update `CONFIG_IDF_TARGET` in sdkconfig according to the chip name specified in `board_info.yaml`
 
 ### Supported Boards
 - **ESP32-S3 Korvo2 V3**: Full LCD, LCD Touch, DVP Camera support

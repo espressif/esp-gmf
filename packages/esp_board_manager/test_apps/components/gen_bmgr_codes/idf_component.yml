@@ -1,6 +1,3 @@
 dependencies:
-  espressif/esp_codec_dev:
-    require: public
-    version: ~1.4
   espressif/esp_lcd_st77916: '*'
   espressif/esp_lcd_touch_cst816s: '*'

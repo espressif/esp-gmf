@@ -1,4 +1,4 @@
-version: 0.3.0
+version: 0.4.0
 description: Board manager for ESP-GMF
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_board_manager
 documentation: https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md
@@ -10,7 +10,7 @@ tags:
 dependencies:
   espressif/esp_codec_dev:
     require: public
-    version: ~1.4
+    version: ~1.5
     matches:
       - if: "$CONFIG{ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT} == True"
 

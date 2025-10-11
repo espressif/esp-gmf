@@ -29,17 +29,6 @@ typedef int (*custom_device_init_func_t)(void *config, int cfg_size, void **devi
 typedef int (*custom_device_deinit_func_t)(void *device_handle);
 
 /**
- * @brief  Custom device handle structure
- *
- *         This structure should be used as the device handle to store device information
- *         for proper deinitialization.
- */
-typedef struct {
-    void       *user_handle;  /*!< User-defined device handle */
-    const char *device_name;  /*!< Device name for lookup */
-} custom_device_handle_t;
-
-/**
  * @brief  Structure describing a custom device implementation
  *
  *         This structure is placed in a special linker section (.custom_devices_desc)

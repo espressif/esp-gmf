@@ -40,7 +40,8 @@ class SDKConfigManager(LoggerMixin):
 
     def update_sdkconfig_from_board_types(self, device_types: Set[str], peripheral_types: Set[str],
                                          sdkconfig_path: Optional[str] = None,
-                                         enable: bool = True, board_name: Optional[str] = None) -> Dict[str, List[str]]:
+                                         enable: bool = True, board_name: Optional[str] = None,
+                                         chip_name: str = None) -> Dict[str, List[str]]:
         """
         Update sdkconfig file based on board device and peripheral types.
 
@@ -50,6 +51,7 @@ class SDKConfigManager(LoggerMixin):
             sdkconfig_path: Path to sdkconfig file (auto-detect if None)
             enable: Whether to enable features (True) or just check (False)
             board_name: Optional board name to update board selection
+            chip_name: Chip name to set CONFIG_IDF_TARGET
 
         Returns:
             Dict with 'enabled' and 'checked' lists of config items
@@ -60,23 +62,33 @@ class SDKConfigManager(LoggerMixin):
         if sdkconfig_path is None:
             sdkconfig_path = self._find_sdkconfig_path()
 
-        if not sdkconfig_path or not os.path.exists(sdkconfig_path):
-            self.logger.warning(f'    sdkconfig file not found at {sdkconfig_path}')
+        if not sdkconfig_path:
+            self.logger.warning(f'    sdkconfig path not found')
             return result
 
-        self.logger.debug(f'   Updating sdkconfig: {sdkconfig_path}')
+        # Check if sdkconfig file exists, create if not
+        if not os.path.exists(sdkconfig_path):
+            self.logger.info(f'   sdkconfig file not found at {sdkconfig_path}, creating new one')
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(sdkconfig_path), exist_ok=True)
+            # Create empty sdkconfig file
+            sdkconfig_content = ''
+        else:
+            self.logger.debug(f'   Updating existing sdkconfig: {sdkconfig_path}')
+            # Read current sdkconfig
+            try:
+                with open(sdkconfig_path, 'r', encoding='utf-8') as f:
+                    sdkconfig_content = f.read()
+            except Exception as e:
+                self.logger.error(f'Error reading sdkconfig: {e}')
+                return result
+
         self.logger.debug(f'   Device types: {device_types}')
         self.logger.debug(f'   Peripheral types: {peripheral_types}')
         if board_name:
             self.logger.debug(f'   Board name: {board_name}')
-
-        # Read current sdkconfig
-        try:
-            with open(sdkconfig_path, 'r', encoding='utf-8') as f:
-                sdkconfig_content = f.read()
-        except Exception as e:
-            self.logger.error(f'Error reading sdkconfig: {e}')
-            return result
+        if chip_name:
+            self.logger.debug(f'   Chip name: {chip_name}')
 
         # Update board selection if board_name is provided
         if board_name and enable:
@@ -84,6 +96,13 @@ class SDKConfigManager(LoggerMixin):
                 sdkconfig_content, board_name
             )
             result['enabled'].extend(board_changes)
+
+            # Update CONFIG_IDF_TARGET with chip_name
+            if chip_name:
+                sdkconfig_content, target_changes = self._apply_target_updates(
+                    sdkconfig_content, chip_name
+                )
+                result['enabled'].extend(target_changes)
 
         # Build mapping from YAML types to sdkconfig options, separately for devices and peripherals
         device_mapping, peripheral_mapping = self._build_type_to_config_mappings()
@@ -145,12 +164,15 @@ class SDKConfigManager(LoggerMixin):
             )
             result['checked'].extend(dev_changes)
 
-        # Write updated content back to file if changes were made
-        if enable and (result['enabled'] or board_name):
+        # Write updated content back to file if changes were made or if we need to create/update CONFIG_IDF_TARGET
+        if enable and (result['enabled'] or board_name or chip_name):
             try:
                 with open(sdkconfig_path, 'w', encoding='utf-8') as f:
                     f.write(sdkconfig_content)
-                self.logger.info(f"   Successfully updated sdkconfig with {len(result['enabled'])} changes")
+                if result['enabled']:
+                    self.logger.info(f"   Successfully updated sdkconfig with {len(result['enabled'])} changes")
+                else:
+                    self.logger.info(f'   Successfully created/updated sdkconfig file')
             except Exception as e:
                 self.logger.error(f'Error writing sdkconfig: {e}')
                 return result
@@ -176,7 +198,7 @@ class SDKConfigManager(LoggerMixin):
 
         start_idx = sdkconfig_content.find(section_start)
         if start_idx == -1:
-            self.logger.warning('⚠️  Board Selection section not found in sdkconfig')
+            self.logger.info('   Board Selection section not found in sdkconfig')
             return sdkconfig_content, changes
 
         end_idx = sdkconfig_content.find(section_end, start_idx)
@@ -264,7 +286,7 @@ class SDKConfigManager(LoggerMixin):
             sdkconfig_path = self._find_sdkconfig_path()
 
         if not sdkconfig_path or not os.path.exists(sdkconfig_path):
-            self.logger.warning(f'    sdkconfig file not found at {sdkconfig_path}')
+            self.logger.warning(f'   sdkconfig file not found at {sdkconfig_path}')
             return False
 
         try:
@@ -395,7 +417,7 @@ class SDKConfigManager(LoggerMixin):
                 break
 
         if start_idx is None or end_idx is None or end_idx <= start_idx:
-            self.logger.warning(f"⚠️  Section '{section_header}' not found in sdkconfig; skipping")
+            self.logger.info(f"   Section '{section_header}' not found in sdkconfig; skipping")
             return sdkconfig_content, []
 
         # The actual configurable lines are between (start_idx+2) and (end_idx-1) typically,
@@ -465,3 +487,37 @@ class SDKConfigManager(LoggerMixin):
 
         updated_content = '\n'.join(lines) if apply_changes else sdkconfig_content
         return updated_content, changes
+
+    def _apply_target_updates(self, sdkconfig_content: str, chip_name: str) -> Tuple[str, List[str]]:
+        """
+        Apply CONFIG_IDF_TARGET updates to the sdkconfig content.
+
+        Args:
+            sdkconfig_content: Current sdkconfig content
+            chip_name: Chip name to set for CONFIG_IDF_TARGET
+
+        Returns:
+            Tuple of (updated_content, list_of_changes)
+        """
+        changes = []
+
+        # Check if CONFIG_IDF_TARGET already exists
+        target_pattern = r'^CONFIG_IDF_TARGET="[^"]*"'
+        target_match = re.search(target_pattern, sdkconfig_content, re.MULTILINE)
+
+        if target_match:
+            # Replace existing CONFIG_IDF_TARGET
+            old_target = target_match.group(0)
+            new_target = f'CONFIG_IDF_TARGET="{chip_name}"'
+            if old_target != new_target:
+                sdkconfig_content = sdkconfig_content.replace(old_target, new_target)
+                changes.append(f'Updated CONFIG_IDF_TARGET from {old_target} to {new_target}')
+            else:
+                self.logger.debug(f'CONFIG_IDF_TARGET already set to {chip_name}')
+        else:
+            # Add CONFIG_IDF_TARGET at the beginning of the file
+            sdkconfig_content = f'CONFIG_IDF_TARGET="{chip_name}"\n' + sdkconfig_content
+            changes.append(f'Added CONFIG_IDF_TARGET="{chip_name}"')
+
+        return sdkconfig_content, changes
+
