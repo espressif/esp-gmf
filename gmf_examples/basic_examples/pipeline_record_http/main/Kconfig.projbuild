@@ -1,0 +1,10 @@
+menu "GMF Example Configuration"
+
+config EXAMPLE_HTTP_SERVER_URL
+
+    string "HTTP SERVER URL"
+    default "http://192.168.1.101:8000/upload"
+    help
+        The HTTP server url with address, port and handle
+
+endmenu
