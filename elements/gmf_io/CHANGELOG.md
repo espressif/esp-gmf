@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.4
+
+### Bug Fixes
+
+- Fixed data bus init when direction is write in `io_http`
+
 ## v0.7.3
 
 ### Bug Fixes
