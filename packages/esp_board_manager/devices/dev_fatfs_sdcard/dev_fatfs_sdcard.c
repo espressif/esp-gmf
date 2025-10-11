@@ -16,6 +16,9 @@
 #include "sdmmc_cmd.h"
 #include "dev_fatfs_sdcard.h"
 #include "esp_board_periph.h"
+#ifdef SOC_GP_LDO_SUPPORTED
+#include "sd_pwr_ctrl_by_on_chip_ldo.h"
+#endif  // SOC_GP_LDO_SUPPORTED
 
 static const char *TAG = "DEV_FATFS_SDCARD";
 
@@ -29,7 +32,7 @@ int dev_fatfs_sdcard_init(void *cfg, int cfg_size, void **device_handle)
         ESP_LOGE(TAG, "Invalid config size");
         return -1;
     }
-
+    esp_err_t ret = ESP_FAIL;
     dev_fatfs_sdcard_handle_t *handle = calloc(1, sizeof(dev_fatfs_sdcard_handle_t));
     if (handle == NULL) {
         ESP_LOGE(TAG, "Failed to allocate memory");
@@ -41,6 +44,23 @@ int dev_fatfs_sdcard_init(void *cfg, int cfg_size, void **device_handle)
     handle->host = (sdmmc_host_t)SDMMC_HOST_DEFAULT();
     handle->host.max_freq_khz = config->frequency;
     handle->host.flags = config->slot;
+
+#ifdef SOC_GP_LDO_SUPPORTED
+    if (config->ldo_chan_id != -1) {
+        sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
+        sd_pwr_ctrl_ldo_config_t ldo_config = {
+            .ldo_chan_id = config->ldo_chan_id,
+        };
+        ret = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to create a new on-chip LDO power control driver");
+            goto cleanup;
+        }
+        handle->host.pwr_ctrl_handle = pwr_ctrl_handle;
+    } else {
+        ESP_LOGI(TAG, "LDO power control is not used");
+    }
+#endif  // SOC_GP_LDO_SUPPORTED
 
     // This initializes the slot without card detect (CD) and write protect (WP) signals.
     sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
@@ -73,8 +93,8 @@ int dev_fatfs_sdcard_init(void *cfg, int cfg_size, void **device_handle)
     ESP_LOGD(TAG, "mount_config: format_if_mount_failed=%d, max_files=%d, allocation_unit_size=%d",
              mount_config.format_if_mount_failed, mount_config.max_files, mount_config.allocation_unit_size);
 
-    int ret = esp_vfs_fat_sdmmc_mount(config->mount_point, &handle->host, &slot_config,
-                                      &mount_config, &handle->card);
+    ret = esp_vfs_fat_sdmmc_mount(config->mount_point, &handle->host, &slot_config,
+                                  &mount_config, &handle->card);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to mount filesystem");
         goto cleanup;

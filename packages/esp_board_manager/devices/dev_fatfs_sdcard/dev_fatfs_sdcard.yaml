@@ -43,3 +43,12 @@
       d7: -1                          # Data line 7 pin (-1 for not used, 8-bit mode only)
       cd: -1                          # Card detect pin (-1 for not used)
       wp: -1                          # Write protect pin (-1 for not used)
+    
+    # For SoCs where the SD power can be supplied both via an internal or external (e.g. on-board LDO) power supply.
+    # When using specific IO pins (which can be used for ultra high-speed SDMMC) to connect to the SD card
+    # and the internal LDO power supply, we need to initialize the power supply first.
+    # This is an optional configuration, You can determine the available channel ID by checking the SoC datasheet.
+    # whether it needs to be configured depends on your board.
+    # Please check the schematic diagram or other documentation to determine if SDMMC is powered by LDO.
+    # e.g., In ESP32-P4 Function-EV Board, VO4_LDO is connected to power the SDMMC IO. set it to 4 for VO4_LDO.
+    ldo_chan_id: -1

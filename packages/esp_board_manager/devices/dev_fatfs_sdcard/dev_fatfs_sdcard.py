@@ -134,6 +134,9 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
         'wp': pins.get('wp', -1)     # Write protect pin, not used
     }
 
+    # Get optional LDO channel ID for powering SDMMC IO (Optional)
+    ldo_chan_id = config.get('ldo_chan_id', -1)  # Default to not used
+
     return {
         'struct_type': 'dev_fatfs_sdcard_config_t',
         'struct_var': f'{name}_cfg',
@@ -149,6 +152,7 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
             'slot': slot,         # Use the slot value directly from YAML
             'bus_width': bus_width,
             'slot_flags': slot_flags,
-            'pins': pin_config
+            'pins': pin_config,
+            'ldo_chan_id': ldo_chan_id,
         }
     }
