@@ -153,6 +153,17 @@ static esp_gmf_err_t _http_open(esp_gmf_io_handle_t self)
         return ESP_GMF_ERR_FAIL;
     }
 
+    if (http->data_bus == NULL) {
+        err = esp_gmf_db_new_block(1, http_io_cfg->out_buf_size, &http->data_bus);
+        if (err != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to create the buffer for %d, sz: %d, %s-%p", http_io_cfg->dir, http_io_cfg->out_buf_size, OBJ_GET_TAG(http), http);
+            return err;
+        }
+        esp_gmf_data_bus_type_t db_type = 0;
+        esp_gmf_db_get_type(http->data_bus, &db_type);
+        http->base.type = db_type;
+    }
+
     if (http_io_cfg->dir == ESP_GMF_IO_DIR_WRITER) {
         err = esp_http_client_open(http->client, -1);
         if (err == ESP_GMF_ERR_OK) {
@@ -212,17 +223,6 @@ _stream_redirect:
         return ESP_GMF_ERR_FAIL;
     }
     esp_gmf_io_set_size(self, info.size);
-
-    if (http->data_bus == NULL) {
-        err = esp_gmf_db_new_block(1, http_io_cfg->out_buf_size, &http->data_bus);
-        if (err != ESP_GMF_ERR_OK) {
-            ESP_LOGE(TAG, "Failed to create the download buffer, sz: %d, %s-%p", http_io_cfg->out_buf_size, OBJ_GET_TAG(http), http);
-            return err;
-        }
-        esp_gmf_data_bus_type_t db_type = 0;
-        esp_gmf_db_get_type(http->data_bus, &db_type);
-        http->base.type = db_type;
-    }
 
     return ESP_GMF_ERR_OK;
 }
