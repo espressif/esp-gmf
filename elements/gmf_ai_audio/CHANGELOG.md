@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.2
+
+### Features
+
+- Added `esp_gmf_afe_trigger_wakeup` and `esp_gmf_afe_trigger_sleep` APIs to trigger wakeup and sleep events manually
+
 ## v0.7.1
 
 ### Features
