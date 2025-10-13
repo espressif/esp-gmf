@@ -242,3 +242,19 @@ esp_err_t esp_board_device_deinit_all(void)
     }
     return ESP_OK;
 }
+
+const esp_board_device_handle_t *esp_board_device_find_by_handle(void *device_handle)
+{
+    if (device_handle == NULL) {
+        ESP_LOGE(TAG, "Device handle is NULL in find_device_by_handle");
+        return NULL;
+    }
+    esp_board_device_handle_t *handle = g_esp_board_device_handles;
+    while (handle) {
+        if (handle->device_handle == device_handle) {
+            return handle;
+        }
+        handle = handle->next;
+    }
+    return NULL;
+}

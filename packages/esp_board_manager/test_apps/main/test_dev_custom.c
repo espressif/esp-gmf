@@ -19,7 +19,7 @@ void test_dev_custom(void)
 {
     ESP_LOGI(TAG, "=== Custom Device Test ===");
     /* Get the custom device handle */
-    custom_device_handle_t *custom_handle = NULL;
+    void *custom_handle = NULL;
     esp_err_t ret = esp_board_device_get_handle("my_custom_sensor", (void**)&custom_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get my_custom_sensor device handle: %s", esp_err_to_name(ret));
@@ -53,7 +53,11 @@ void test_dev_custom(void)
     if (custom_handle) {
         ESP_LOGI(TAG, "Custom device functionality test:");
         ESP_LOGI(TAG, "  Device handle obtained: %p", custom_handle);
-        ESP_LOGI(TAG, "  User handle: %p", custom_handle->user_handle);
+
+        uint32_t *user_handle = (uint32_t *)custom_handle;
+        if (*user_handle !=  0x99887766) {
+            ESP_LOGE(TAG, "User handle is not specified value 0x99887766, it's %p", user_handle);
+        }
 
         // Test configuration access
         ESP_LOGI(TAG, "  Configuration test:");

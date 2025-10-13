@@ -136,6 +136,7 @@ const static dev_fatfs_sdcard_config_t esp_bmgr_fs_sdcard_cfg = {
             .cd = -1,
             .wp = -1,
         },
+    .ldo_chan_id = -1,
 };
 
 const static dev_display_lcd_spi_config_t esp_bmgr_display_lcd_cfg = {

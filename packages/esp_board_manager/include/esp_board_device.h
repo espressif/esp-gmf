@@ -182,6 +182,20 @@ esp_err_t esp_board_device_init_all(void);
  */
 esp_err_t esp_board_device_deinit_all(void);
 
+/**
+ * @brief  Find device handle structure by device-specific handle
+ *
+ *         Searches through the device handle linked list to find the device
+ *         handle structure that contains the specified device-specific handle.
+ *
+ * @param[in]  device_handle  Device-specific handle to search for
+ *
+ * @return
+ *       - NULL    If not found or if device_handle is NULL
+ *       - Others  Pointer to device handle structure if found
+ */
+const esp_board_device_handle_t *esp_board_device_find_by_handle(void *device_handle);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

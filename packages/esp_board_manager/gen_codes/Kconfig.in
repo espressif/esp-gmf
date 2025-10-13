@@ -26,6 +26,11 @@ config BOARD_ESP32_C5_SPOT
     help
         Use esp32_c5_spot board configuration.
 
+config BOARD_ESP32_P4_FUNCTION_EV
+    bool "esp32_p4_function_ev"
+    help
+        Use esp32_p4_function_ev board configuration.
+
 config BOARD_ESP32_P4_FUNCTION_EV_BOARD
     bool "esp32_p4_function_ev_board"
     help
@@ -59,6 +64,7 @@ config BOARD_NAME
     default "echoear_core_board_v1_0" if BOARD_ECHOEAR_CORE_BOARD_V1_0
     default "echoear_core_board_v1_2" if BOARD_ECHOEAR_CORE_BOARD_V1_2
     default "esp32_c5_spot" if BOARD_ESP32_C5_SPOT
+    default "esp32_p4_function_ev" if BOARD_ESP32_P4_FUNCTION_EV
     default "esp32_p4_function_ev_board" if BOARD_ESP32_P4_FUNCTION_EV_BOARD
     default "esp32_s3_korvo2_v3" if BOARD_ESP32_S3_KORVO2_V3
     default "esp32_s3_korvo2l" if BOARD_ESP32_S3_KORVO2L
@@ -122,6 +128,14 @@ config ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT
         This option enables the audio_codec device driver.
         The driver is located at: devices/dev_audio_codec
 
+config ESP_BOARD_DEV_CAMERA_SUPPORT
+    bool "Device 'camera' support"
+    default n
+    help
+        Enable camera device support.
+        This option enables the camera device driver.
+        The driver is located at: devices/dev_camera
+
 config ESP_BOARD_DEV_CUSTOM_SUPPORT
     bool "Device 'custom' support"
     default n
@@ -145,6 +159,14 @@ config ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
         Enable fatfs_sdcard device support.
         This option enables the fatfs_sdcard device driver.
         The driver is located at: devices/dev_fatfs_sdcard
+
+config ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT
+    bool "Device 'fatfs_sdcard_spi' support"
+    default n
+    help
+        Enable fatfs_sdcard_spi device support.
+        This option enables the fatfs_sdcard_spi device driver.
+        The driver is located at: devices/dev_fatfs_sdcard_spi
 
 config ESP_BOARD_DEV_FS_SPIFFS_SUPPORT
     bool "Device 'fs_spiffs' support"

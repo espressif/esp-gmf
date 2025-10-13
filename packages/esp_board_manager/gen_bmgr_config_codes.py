@@ -780,6 +780,23 @@ choice ESP_BOARD_SELECTION
 
         return device_types
 
+    def clear_build_directory(self, project_root: str) -> bool:
+        """Clear the build directory to ensure clean build when switching boards"""
+        try:
+            build_dir = os.path.join(project_root, 'build')
+
+            if os.path.exists(build_dir):
+                self.logger.debug(f'   Clearing build directory: {build_dir}')
+                import shutil
+                shutil.rmtree(build_dir)
+                self.logger.info('   build directory cleared successfully')
+            else:
+                self.logger.debug(f'build directory does not exist: {build_dir}')
+            return True
+        except Exception as e:
+            self.logger.error(f'❌ Error clearing build directory: {e}')
+            return False
+
     def clear_gen_bmgr_codes_directory(self, project_root: str) -> bool:
         """Clear all files and directories in the gen_bmgr_codes directory before generating new ones"""
         try:
@@ -807,6 +824,28 @@ choice ESP_BOARD_SELECTION
         except Exception as e:
             self.logger.error(f'❌ Error clearing gen_bmgr_codes directory: {e}')
             return False
+
+    def get_chip_name_from_board_path(self, board_path: str) -> Optional[str]:
+        """Extract chip name from board_info.yaml file"""
+        board_info_path = os.path.join(board_path, 'board_info.yaml')
+
+        if not os.path.exists(board_info_path):
+            self.logger.warning(f'⚠️  board_info.yaml not found at {board_info_path}')
+            return None
+
+        try:
+            with open(board_info_path, 'r', encoding='utf-8') as f:
+                board_yml = yaml.safe_load(f)
+                chip = board_yml.get('chip')
+                if chip:
+                    self.logger.debug(f'   Found chip name: {chip}')
+                    return chip
+                else:
+                    self.logger.warning(f'⚠️  No chip field found in {board_info_path}')
+                    return None
+        except Exception as e:
+            self.logger.error(f'❌ Error reading board_info.yaml: {e}')
+            return None
 
     def get_version_info(self):
         """Get version information including component version, git commit ID and date, and generation time"""
@@ -899,6 +938,11 @@ choice ESP_BOARD_SELECTION
         if project_root:
             components_dir = os.path.join(project_root, 'components')
             self.logger.debug(f'      • Components boards: {components_dir}')
+
+            # Clear build directory to ensure clean build when switching boards
+            if not self.clear_build_directory(project_root):
+                self.logger.error('❌ Error: Failed to clear build directory!')
+                return False
 
             # Clear gen_bmgr_codes directory before generating new files
             if not self.clear_gen_bmgr_codes_directory(project_root):
@@ -1076,12 +1120,25 @@ choice ESP_BOARD_SELECTION
         else:
             # Default behavior: update sdkconfig based on board types and board selection
             self.logger.debug('   Updating sdkconfig based on board types and board selection...')
+
+            # Get chip name from board_info.yaml
+            board_path = all_boards.get(selected_board)
+            if not board_path:
+                self.logger.error(f'❌ Board path not found for {selected_board}')
+                return False
+
+            chip_name = self.get_chip_name_from_board_path(board_path)
+            if not chip_name:
+                self.logger.error(f'❌ Chip name not found in board_info.yaml for {selected_board}')
+                return False
+
             result = self.sdkconfig_manager.update_sdkconfig_from_board_types(
                 device_types=device_types,
                 peripheral_types=peripheral_types,
                 sdkconfig_path=str(Path.cwd()/'sdkconfig'),
                 enable=True,
-                board_name=selected_board
+                board_name=selected_board,
+                chip_name=chip_name
             )
             if result['enabled']:
                 self.logger.info(f"✅ Updated {len(result['enabled'])} sdkconfig features")
@@ -1102,14 +1159,14 @@ choice ESP_BOARD_SELECTION
             self.logger.warning(f'⚠️  Cannot write board info: board "{selected_board}" not found in all_boards')
 
         # Setup components/gen_bmgr_codes directory and build system
-        if not self.setup_gen_bmgr_codes_component(project_root, board_path, device_dependencies):
+        if not self.setup_gen_bmgr_codes_component(project_root, board_path, device_dependencies, selected_board):
             self.logger.error('❌ Error: Failed to setup components/gen_bmgr_codes!')
             return False
 
         self.logger.info(f'✅ === Board configuration generation completed successfully for board: {selected_board} ===')
         return True
 
-    def setup_gen_bmgr_codes_component(self, project_root: str, board_path: str, device_dependencies: dict) -> bool:
+    def setup_gen_bmgr_codes_component(self, project_root: str, board_path: str, device_dependencies: dict, selected_board: str = None) -> bool:
         """
         Setup components/gen_bmgr_codes directory and build system.
 
@@ -1117,6 +1174,7 @@ choice ESP_BOARD_SELECTION
             project_root: Path to the project root directory
             board_path: Path to the selected board directory
             device_dependencies: Dictionary of device dependencies
+            selected_board: Name of the selected board
 
         Returns:
             bool: True if setup was successful
@@ -1154,7 +1212,16 @@ choice ESP_BOARD_SELECTION
             src_dirs_str = ' '.join(['"."'] + board_src_dirs) if board_src_dirs else '"."'
             include_dirs_str = ' '.join(['"."'] + board_src_dirs) if board_src_dirs else '"."'
 
-            cmakelists_content = f"""idf_component_register(
+            # Add board information output to CMakeLists.txt
+            board_info_output = ''
+            if selected_board:
+                board_info_output = f"""# Board information output
+message(STATUS "Selected Board: {selected_board}")
+message(STATUS "Board Path: {board_path if board_path else 'Not specified'}")
+
+"""
+
+            cmakelists_content = f"""{board_info_output}idf_component_register(
     SRC_DIRS {src_dirs_str}
     INCLUDE_DIRS {include_dirs_str}
     REQUIRES esp_board_manager
@@ -1238,8 +1305,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    python gen_bmgr_config_codes.py                                   # Use sdkconfig and default boards
-    python gen_bmgr_config_codes.py -b echoear_core_board_v1_0        # Specify board directly
+    python gen_bmgr_config_codes.py                                   # Use sdkconfig and default boards (auto-sets CONFIG_IDF_TARGET)
+    python gen_bmgr_config_codes.py -b echoear_core_board_v1_0        # Specify board directly (auto-sets CONFIG_IDF_TARGET)
     python gen_bmgr_config_codes.py -c /custom/boards                 # Add customer boards directory
     python gen_bmgr_config_codes.py -c /path/to/single/board          # Add single board directory
     python gen_bmgr_config_codes.py -b my_board -c /custom/boards     # Both options

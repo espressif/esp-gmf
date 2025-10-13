@@ -382,7 +382,7 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | SPIFFS 文件系统 | fs_spiffs | - | - | ✅ 支持 | SPIFFS 文件系统 | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) |
 | GPIO 控制 | gpio_ctrl | - | gpio | ✅ 支持 | GPIO 控制设备 | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
 | LEDC 控制 | ledc_ctrl | - | ledc | ✅ 支持 | LEDC 控制设备 | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
-| 自定义设备 | custom | - | any | ✅ 支持 | 用户定义的自定义设备 | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
+| [自定义设备](devices/dev_custom/README.md | custom | - | any | ✅ 支持 | 用户定义的自定义设备 | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
 | GPIO 扩展芯片 | gpio_expander | TCA9554/TCA95XX/HT8574 | i2c | ✅ 支持 | GPIO 扩展芯片 | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
 | 摄像头 | camera | - | i2c | ✅ 支持 | 摄像头设备 | [`dev_gpio_expander.yaml`](devices/dev_camera/dev_camera.yaml) |
 

@@ -384,7 +384,7 @@ When multiple boards with the same name exist across different paths, the ESP Bo
 | SPIFFS Filesystem | fs_spiffs | - | - | ✅ Supported | SPIFFS filesystem | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) |
 | GPIO Control | gpio_ctrl | - | gpio | ✅ Supported | GPIO control device | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
 | LEDC Control | ledc_ctrl | - | ledc | ✅ Supported | LEDC control device | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
-| Custom Device | custom | - | any | ✅ Supported | User-defined custom device | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
+| [Custom Device](devices/dev_custom/README.md)  | custom | - | any | ✅ Supported | User-defined custom device | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
 | GPIO Expander | gpio_expander | TCA9554/TCA95XX/HT8574 | i2c | ✅ Supported | GPIO expander | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
 | Camera Sensor | camera | - | i2c | ✅ Supported | Camera sensor | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
 
