@@ -12,14 +12,14 @@
 - Add board selection priority documentation and sdkconfig troubleshooting guide
 - Instead of copying board source files to gen_bmgr_codes, now reference them directly via SRC_DIRS and INCLUDE_DIRS to avoid duplication.
 - Add device dependencies support with `${BOARD_PATH}` variable resolution
-- Update README with dependencies usage guide
 - Add sdspi sdcard device type
-- Refine dependency for esp_codec_dev
-- Add esp_board_device_find_by_handle() API for finding device by handle
+- Add `esp_board_device_find_by_handle()` API for finding device by handle
 - Add board information output to CMakeLists.txt generation
 - Update esp_codec_dev dependency to version `~1.5`
-- Clear the build directory to get the correct dependencies when switching boards
+- Refine dependency for esp_codec_dev
+- Update README with dependencies usage guide
 - Update `CONFIG_IDF_TARGET` in sdkconfig according to the chip name specified in `board_info.yaml`
+- Clear the build directory to get the correct dependencies when switching boards
 
 ### Supported Boards
 - **ESP32-S3 Korvo2 V3**: Full LCD, LCD Touch, DVP Camera support
