@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.4
+
+### Bug Fixes
+
+- Fixed incorrect bit shift in the macro converting FourCC code to a string
+
 ## v0.7.3
 
 ### Bug Fixes
