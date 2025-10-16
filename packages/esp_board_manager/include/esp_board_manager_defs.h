@@ -41,16 +41,16 @@ extern "C" {
  *         Format: lowercase letters, numbers, and underscores
  *         Must not be numbers only; must be unique within the configuration
  */
-#define ESP_BOARD_DEVICE_TYPE_AUDIO_CODEC       "audio_codec"      /*!< Audio codec device type */
-#define ESP_BOARD_DEVICE_TYPE_FATFS_SDCARD      "fatfs_sdcard"     /*!< FATFS SD card device type */
-#define ESP_BOARD_DEVICE_TYPE_FATFS_SDCARD_SPI  "fatfs_sdcard_spi"     /*!< FATFS SD card device type */
-#define ESP_BOARD_DEVICE_TYPE_FS_SPIFFS         "fs_spiffs"        /*!< SPIFFS filesystem device type */
-#define ESP_BOARD_DEVICE_TYPE_LCD_TOUCH_I2C     "lcd_touch_i2c"    /*!< LCD touch I2C device type */
-#define ESP_BOARD_DEVICE_TYPE_DISPLAY_LCD_SPI   "display_lcd_spi"  /*!< LCD display SPI device type */
-#define ESP_BOARD_DEVICE_TYPE_GPIO_CTRL         "gpio_ctrl"        /*!< GPIO control device type */
-#define ESP_BOARD_DEVICE_TYPE_LEDC_CTRL         "ledc_ctrl"        /*!< LEDC control device type */
-#define ESP_BOARD_DEVICE_TYPE_GPIO_EXPANDER     "gpio_expander"    /*!< GPIO expander device type */
-#define ESP_BOARD_DEVICE_TYPE_CAMERA            "camera"           /*!< Camera sensor device type */
+#define ESP_BOARD_DEVICE_TYPE_AUDIO_CODEC       "audio_codec"       /*!< Audio codec device type */
+#define ESP_BOARD_DEVICE_TYPE_FATFS_SDCARD      "fatfs_sdcard"      /*!< FATFS SD card device type */
+#define ESP_BOARD_DEVICE_TYPE_FATFS_SDCARD_SPI  "fatfs_sdcard_spi"  /*!< FATFS SD card device type */
+#define ESP_BOARD_DEVICE_TYPE_FS_SPIFFS         "fs_spiffs"         /*!< SPIFFS filesystem device type */
+#define ESP_BOARD_DEVICE_TYPE_LCD_TOUCH_I2C     "lcd_touch_i2c"     /*!< LCD touch I2C device type */
+#define ESP_BOARD_DEVICE_TYPE_DISPLAY_LCD_SPI   "display_lcd_spi"   /*!< LCD display SPI device type */
+#define ESP_BOARD_DEVICE_TYPE_GPIO_CTRL         "gpio_ctrl"         /*!< GPIO control device type */
+#define ESP_BOARD_DEVICE_TYPE_LEDC_CTRL         "ledc_ctrl"         /*!< LEDC control device type */
+#define ESP_BOARD_DEVICE_TYPE_GPIO_EXPANDER     "gpio_expander"     /*!< GPIO expander device type */
+#define ESP_BOARD_DEVICE_TYPE_CAMERA            "camera"            /*!< Camera sensor device type */
 
 /**
  * @brief  Peripheral type keys
@@ -64,6 +64,8 @@ extern "C" {
 #define ESP_BOARD_PERIPH_TYPE_SPI   "spi"   /*!< SPI peripheral type */
 #define ESP_BOARD_PERIPH_TYPE_LEDC  "ledc"  /*!< LEDC peripheral type */
 #define ESP_BOARD_PERIPH_TYPE_GPIO  "gpio"  /*!< GPIO peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_UART  "uart"  /*!< UART peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_ADC   "adc"   /*!< ADC peripheral type */
 
 /**
  * @brief  Peripheral role keys
@@ -71,9 +73,11 @@ extern "C" {
  *         These define valid values for the peripheral role field
  *         The role describes the peripheral's function (for example: master/slave, host/device)
  */
-#define ESP_BOARD_PERIPH_ROLE_MASTER  "master" /*!< Master role */
-#define ESP_BOARD_PERIPH_ROLE_SLAVE   "slave"  /*!< Slave role */
-#define ESP_BOARD_PERIPH_ROLE_NONE    "none"   /*!< No specific role */
+#define ESP_BOARD_PERIPH_ROLE_MASTER          "master"      /*!< Master role */
+#define ESP_BOARD_PERIPH_ROLE_SLAVE           "slave"       /*!< Slave role */
+#define ESP_BOARD_PERIPH_ROLE_ADC_CONTINUOUS  "continuous"  /*!< Continuous role */
+#define ESP_BOARD_PERIPH_ROLE_ADC_ONESHOT     "oneshot"     /*!< Oneshot role */
+#define ESP_BOARD_PERIPH_ROLE_NONE            "none"        /*!< No specific role */
 
 /**
  * @brief  Peripheral format keys (I2S)

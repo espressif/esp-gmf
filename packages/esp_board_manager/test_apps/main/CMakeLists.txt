@@ -4,8 +4,10 @@ idf_component_register(
         "main.c"
 
         # Peripheral tests (always included)
-        "test_periph_i2c.c"
-        "test_periph_gpio.c"
+        "periph/test_periph_i2c.c"
+        "periph/test_periph_gpio.c"
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_UART_SUPPORT}>:periph/test_periph_uart.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_ADC_SUPPORT}>:periph/test_periph_adc.c>
 
         # Device tests (conditionally included based on Kconfig)
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>:test_dev_audio_codec.c>
@@ -25,7 +27,7 @@ idf_component_register(
 
         # Utility files (conditionally included)
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>:wav_header.c>
-    INCLUDE_DIRS "."
+    INCLUDE_DIRS "." "./periph"
     REQUIRES esp_board_manager esp_lcd esp_timer esp_partition spiffs gen_bmgr_codes
     EMBED_TXTFILES audio_files/test.wav
 )

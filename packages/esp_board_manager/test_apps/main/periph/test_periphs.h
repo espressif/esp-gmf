@@ -15,6 +15,10 @@ void test_periph_gpio(void);
 
 void test_periph_i2c(void);
 
+void test_periph_uart(void);
+
+void test_periph_adc(void);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

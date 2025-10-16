@@ -188,11 +188,13 @@ void app_main(void)
 - **[`test_dev_custom.c`](test_apps/main/test_dev_custom.c)** - 自定义设备测试和配置
 - **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)** - GPIO 扩展芯片测试
 - **[`test_dev_camera`](test_apps/main/test_dev_camera.c)** - 测试 Camera sensor 的视频流捕获能力
+- **[`test_dev_ledc.c`](test_apps/main/test_dev_ledc.c)** - 用于 PWM 和背光控制的 LEDC 设备
 
 #### 外设示例
-- **[`test_periph_ledc.c`](test_apps/main/test_periph_ledc.c)** - 用于 PWM 和背光控制的 LEDC 外设
-- **[`test_periph_i2c.c`](test_apps/main/test_periph_i2c.c)** - 用于设备通信的 I2C 外设
-- **[`test_periph_gpio.c`](test_apps/main/test_periph_gpio.c)** - 用于数字 I/O 操作的 GPIO 外设
+- **[`test_periph_i2c.c`](test_apps/main/periph/test_periph_i2c.c)** - 用于设备通信的 I2C 外设
+- **[`test_periph_gpio.c`](test_apps/main/periph/test_periph_gpio.c)** - 用于数字 I/O 操作的 GPIO 外设
+- **[`test_periph_uart.c`](test_apps/main/periph/test_periph_uart.c)** - 用于串行端口操作的 UART 外设
+- **[`test_periph_adc.c`](test_apps/main/periph/test_periph_adc.c)** - 用于测量特定模拟 IO 管脚模拟信号的 ADC 外设
 
 #### 用户接口
 
@@ -385,11 +387,13 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 
 | 外设 | 类型 | 角色 | 状态 | 描述 | 参考 YAML |
 |------------|------|------|--------|-------------|----------------|
-| GPIO | gpio | none | ✅ 支持 | 通用 I/O | [`periph_gpio.yml`](peripherals/periph_gpio.yml) |
-| I2C | i2c | master/slave | ✅ 支持 | I2C 通信 | [`periph_i2c.yml`](peripherals/periph_i2c.yml) |
-| SPI | spi | master/slave | ✅ 支持 | SPI 通信 | [`periph_spi.yml`](peripherals/periph_spi.yml) |
-| I2S | i2s | master/slave | ✅ 支持 | 音频接口 | [`periph_i2s.yml`](peripherals/periph_i2s.yml) |
-| LEDC | ledc | none | ✅ 支持 | LED 控制/PWM | [`periph_ledc.yml`](peripherals/periph_ledc.yml) |
+| GPIO | gpio | none | ✅ 支持 | 通用 I/O | [`periph_gpio.yml`](peripherals/periph_gpio/periph_gpio.yml) |
+| I2C | i2c | master/slave | ✅ 支持 | I2C 通信 | [`periph_i2c.yml`](peripherals/periph_i2c/periph_i2c.yml) |
+| SPI | spi | master/slave | ✅ 支持 | SPI 通信 | [`periph_spi.yml`](peripherals/periph_spi/periph_spi.yml) |
+| I2S | i2s | master/slave | ✅ 支持 | 音频接口 | [`periph_i2s.yml`](peripherals/periph_i2s/periph_i2s.yml) |
+| LEDC | ledc | none | ✅ 支持 | LED 控制/PWM | [`periph_ledc.yml`](peripherals/periph_ledc/periph_ledc.yml) |
+| UART | uart | none | ✅ 支持 | UART 通信 | [`periph_uart.yml`](peripherals/periph_uart/periph_uart.yml) |
+| ADC | adc | none | ✅ 支持 | ADC 模数转换 | [`periph_adc.yml`](peripherals/periph_adc/periph_adc.yml) |
 
 ### 支持的设备类型
 

@@ -13,6 +13,12 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
 from .utils.logger import LoggerMixin
 
+# Constants for component prefixes
+DEV_PREFIX = 'dev_'
+PERIPH_PREFIX = 'periph_'
+DEV_PREFIX_LEN = len(DEV_PREFIX)
+PERIPH_PREFIX_LEN = len(PERIPH_PREFIX)
+
 
 class VersionManager(LoggerMixin):
     """Manages different versions of devices and peripherals with scanning and comparison"""
@@ -47,10 +53,10 @@ class VersionManager(LoggerMixin):
             return
 
         for device_folder in self.devices_dir.iterdir():
-            if not device_folder.is_dir() or not device_folder.name.startswith('dev_'):
+            if not device_folder.is_dir() or not device_folder.name.startswith(DEV_PREFIX):
                 continue
 
-            device_type = device_folder.name[4:]  # Remove 'dev_' prefix
+            device_type = device_folder.name[DEV_PREFIX_LEN:]  # Remove 'dev_' prefix
             self.device_versions[device_type] = {}
 
             # Look for version-specific files
@@ -67,23 +73,48 @@ class VersionManager(LoggerMixin):
             self.logger.info(f'Found {len(self.device_versions[device_type])} versions for device {device_type}')
 
     def _scan_peripheral_versions(self) -> None:
-        """Scan peripheral versions from peripheral files"""
+        """Scan peripheral versions from peripheral files and folders"""
         if not self.peripherals_dir.exists():
             return
 
-        for periph_file in self.peripherals_dir.glob('periph_*.py'):
-            periph_type = periph_file.stem[7:]  # Remove 'periph_' prefix
-            self.peripheral_versions[periph_type] = {}
+        # Helper function to extract version info from a peripheral file
+        def _extract_periph_version_info(periph_file: Path, periph_type: str) -> None:
+            """Extract version information from a peripheral file and add to versions dict"""
+            if periph_type not in self.peripheral_versions:
+                self.peripheral_versions[periph_type] = {}
 
-            # Extract version from Python file
             version = self._extract_version_from_python_file(periph_file)
             if version:
                 self.peripheral_versions[periph_type][version] = {
                     'parser_file': periph_file,
                     'dependencies': self._extract_dependencies(periph_file)
                 }
-
             self.logger.info(f'Found {len(self.peripheral_versions[periph_type])} versions for peripheral {periph_type}')
+
+        # First, scan subfolders (new structure: periph_xxx/periph_xxx.py)
+        for periph_folder in self.peripherals_dir.iterdir():
+            if not periph_folder.is_dir():
+                continue
+
+            # Check if folder name starts with 'periph_'
+            if not periph_folder.name.startswith(PERIPH_PREFIX):
+                continue
+
+            periph_type = periph_folder.name[PERIPH_PREFIX_LEN:]  # Remove 'periph_' prefix
+
+            # Look for Python parser file - folder name should match file name
+            periph_file = periph_folder / f'{periph_folder.name}.py'
+            if periph_file.exists():
+                _extract_periph_version_info(periph_file, periph_type)
+
+        # Then, scan direct files in peripherals directory (old structure: periph_xxx.py)
+        for periph_file in self.peripherals_dir.glob(f'{PERIPH_PREFIX}*.py'):
+            # Skip if it's inside a subfolder (already handled above)
+            if periph_file.parent != self.peripherals_dir:
+                continue
+
+            periph_type = periph_file.stem[PERIPH_PREFIX_LEN:]  # Remove 'periph_' prefix
+            _extract_periph_version_info(periph_file, periph_type)
 
     def _extract_version_from_file(self, file_path: Path) -> Optional[str]:
         """Extract version from file name or content"""

@@ -1,0 +1,104 @@
+# UART Peripheral Configuration
+# This section configures UART peripheral settings
+
+uart_1:
+  config:
+    # UART port number, valid values depend on SOC
+    # Can be configured as UART_NUM_0, UART_NUM_1, UART_NUM_2, ... or 0,1,2,... directly
+    # Valid values depend on SOC, please check soc/soc_caps.h
+    uart_num: 1
+
+    # RX buffer size in bytes (default: 256)
+    rx_buffer_size: 256
+
+    # TX buffer size in bytes (default: 256)
+    tx_buffer_size: 256
+
+    # GPIO number for TX pin (default: -1 for not used)
+    tx_io_num: -1
+
+    # GPIO number for RX pin (default: -1 for not used)
+    rx_io_num: -1
+
+    # GPIO number for RTS pin (default: -1 for not used)
+    rts_io_num: -1
+
+    # GPIO number for CTS pin (default: -1 for not used)
+    cts_io_num: -1
+
+    # UART operating mode (default: UART_MODE_UART)
+    uart_mode: UART_MODE_UART
+    # Valid values:
+    # - UART_MODE_UART
+    # - UART_MODE_RS485_HALF_DUPLEX
+    # - UART_MODE_IRDA
+    # - UART_MODE_RS485_COLLISION_DETECT
+    # - UART_MODE_RS485_APP_CTRL
+
+    # Flag to enable queue for UART events (default: false)
+    use_queue: false
+
+    # Interrupt allocation flags (default: 0)
+    intr_alloc_flags: 0
+
+    # UART configuration parameters
+    uart_config:
+      # Baud rate in bits per second (default: 115200)
+      baud_rate: 115200
+
+      # Number of data bits (default: UART_DATA_8_BITS)
+      data_bits: UART_DATA_8_BITS
+      # Valid values:
+      # - UART_DATA_5_BITS
+      # - UART_DATA_6_BITS
+      # - UART_DATA_7_BITS
+      # - UART_DATA_8_BITS
+
+      # Parity setting (default: UART_PARITY_DISABLE)
+      parity: UART_PARITY_DISABLE
+      # Valid values:
+      # - UART_PARITY_DISABLE
+      # - UART_PARITY_EVEN
+      # - UART_PARITY_ODD
+
+      # Number of stop bits (default: UART_STOP_BITS_1)
+      stop_bits: UART_STOP_BITS_1
+      # Valid values:
+      # - UART_STOP_BITS_1
+      # - UART_STOP_BITS_1_5
+      # - UART_STOP_BITS_2
+
+      # Flow control mode (default: UART_HW_FLOWCTRL_DISABLE)
+      flow_ctrl: UART_HW_FLOWCTRL_DISABLE
+      # Valid values:
+      # - UART_HW_FLOWCTRL_DISABLE
+      # - UART_HW_FLOWCTRL_RTS
+      # - UART_HW_FLOWCTRL_CTS
+      # - UART_HW_FLOWCTRL_CTS_RTS
+
+      # RX flow control threshold (default: 0)
+      # This is a optional configuration, used to control the hardware flow control threshold.
+      # Should be used together with the configuration flow_ctrl = UART_HW_FLOWCTRL_CTS_RTS
+      rx_flow_ctrl_thresh: 0
+
+      # Source clock for UART (default: UART_SCLK_DEFAULT)
+      # Valid values depend on SOC, please check soc/clk_tree_defs.h
+      source_clk: UART_SCLK_DEFAULT
+
+      # Source clock for LP UART (default: not used)
+      # This is a configuration related to the SOC, which requires the chip to have an LP UART controller
+      # You can check the ESP-IDF programming Guide for more details, or check
+      # the macro definition of SOC_UART_LP_NUM in the file soc/soc_caps.h to see if the chip supports LP UART directly
+      # If supported, you need to set the uart_num to a specific port, or directly set uart_num to LP_UART_NUM_0
+      # And the GPIO pins of the LP UART controller can only be selected from the LP GPIO pins
+      # This configuration and source_clk are mutually exclusive; please do not configure both options at the same time
+      # Valid values depend on SOC, please check soc/clk_tree_defs.h
+      lp_source_clk: NULL
+
+      flags:
+        # If set, driver allows the power domain to be powered off when system enters sleep mode.
+        # This can save power, but at the expense of more RAM being consumed to save register context.
+        allow_pd: 0
+
+        # @deprecated, same meaning as allow_pd
+        backup_before_sleep: 0

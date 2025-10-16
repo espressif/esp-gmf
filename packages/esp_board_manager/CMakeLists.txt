@@ -33,6 +33,8 @@ idf_component_register(
         fatfs
         esp_lcd
         spiffs
+        esp_adc
+        esp_driver_uart
     LDFRAGMENTS
         "linker.lf"
 )

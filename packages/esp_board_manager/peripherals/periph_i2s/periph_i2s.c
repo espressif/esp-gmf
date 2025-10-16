@@ -15,8 +15,8 @@ static const char *TAG = "PERIPH_I2S";
 typedef struct {
     i2s_chan_handle_t  chan_in;
     i2s_chan_handle_t  chan_out;
-    uint8_t            in_en:1;
-    uint8_t            out_en:1;
+    uint8_t            in_en  : 1;
+    uint8_t            out_en : 1;
 } periph_i2s_chan_t;
 
 static periph_i2s_chan_t i2s_chan_handles[SOC_I2S_NUM] = {0};

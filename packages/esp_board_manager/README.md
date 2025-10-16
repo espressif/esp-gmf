@@ -187,12 +187,14 @@ For comprehensive usage examples, refer to the test applications in the `test_ap
 - **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** - SPIFFS file system testing
 - **[`test_dev_custom.c`](test_apps/main/test_dev_custom.c)** - Custom device testing and configuration
 - **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)** - GPIO expander device testing
-- **[`test_dev_camera`](test_apps/main/test_dev_camera.c)** - Camera video stream capture capability testing
+- **[`test_dev_camera.c`](test_apps/main/test_dev_camera.c)** - Camera video stream capture capability testing
+- **[`test_dev_ledc.c`](test_apps/main/test_dev_ledc.c)** - LEDC device for PWM and backlight control
 
 #### Peripheral Examples
-- **[`test_periph_ledc.c`](test_apps/main/test_periph_ledc.c)** - LEDC peripheral for PWM and backlight control
-- **[`test_periph_i2c.c`](test_apps/main/test_periph_i2c.c)** - I2C peripheral for device communication
-- **[`test_periph_gpio.c`](test_apps/main/test_periph_gpio.c)** - GPIO peripheral for digital I/O operations
+- **[`test_periph_i2c.c`](test_apps/main/periph/test_periph_i2c.c)** - I2C peripheral for device communication
+- **[`test_periph_gpio.c`](test_apps/main/periph/test_periph_gpio.c)** - GPIO peripheral for digital I/O operations
+- **[`test_periph_uart.c`](test_apps/main/periph/test_periph_uart.c)** - UART peripheral for serila port operations
+- **[`test_periph_adc.c`](test_apps/main/periph/test_periph_adc.c)** - ADC peripheral for measure the analog signal
 
 #### User Interface
 
@@ -385,11 +387,13 @@ When multiple boards with the same name exist across different paths, the ESP Bo
 
 | Peripheral | Type | Role | Status | Description | Reference YAML |
 |------------|------|------|--------|-------------|----------------|
-| GPIO | gpio | none | ✅ Supported | General purpose I/O | [`periph_gpio.yml`](peripherals/periph_gpio.yml) |
-| I2C | i2c | master/slave | ✅ Supported | I2C communication | [`periph_i2c.yml`](peripherals/periph_i2c.yml) |
-| SPI | spi | master/slave | ✅ Supported | SPI communication | [`periph_spi.yml`](peripherals/periph_spi.yml) |
-| I2S | i2s | master/slave | ✅ Supported | Audio interface | [`periph_i2s.yml`](peripherals/periph_i2s.yml) |
-| LEDC | ledc | none | ✅ Supported | LED control/PWM | [`periph_ledc.yml`](peripherals/periph_ledc.yml) |
+| GPIO | gpio | none | ✅ Supported | General purpose I/O | [`periph_gpio.yml`](peripherals/periph_gpio/periph_gpio.yml) |
+| I2C | i2c | master/slave | ✅ Supported | I2C communication | [`periph_i2c.yml`](peripherals/periph_i2c/periph_i2c.yml) |
+| SPI | spi | master/slave | ✅ Supported | SPI communication | [`periph_spi.yml`](peripherals/periph_spi/periph_spi.yml) |
+| I2S | i2s | master/slave | ✅ Supported | Audio interface | [`periph_i2s.yml`](peripherals/periph_i2s/periph_i2s.yml) |
+| LEDC | ledc | none | ✅ Supported | LED control/PWM | [`periph_ledc.yml`](peripherals/periph_ledc/periph_ledc.yml) |
+| UART | uart | none | ✅ Supported | UART communication | [`periph_uart.yml`](peripherals/periph_uart/periph_uart.yml) |
+| ADC | adc | none | ✅ Supported | Analog-to-Digital Converter | [`periph_adc.yml`](peripherals/periph_adc/periph_adc.yml) |
 
 ### Supported Device types
 

@@ -1,0 +1,60 @@
+board: esp32_s3_devkitc
+chip: esp32s3
+version: 1.0.0
+# Peripherals Configuration
+peripherals:
+  # - name: uart_1
+  #   type: uart
+  #   role: master
+  #   config:
+  #     uart_num: UART_NUM_1
+  #     rx_buffer_size: 1024
+  #     tx_buffer_size: 1024
+  #     use_queue: false
+  #     intr_alloc_flags: 0
+
+  #     uart_config:
+  #       baud_rate: 115200
+  #       data_bits : UART_DATA_8_BITS
+  #       parity : UART_PARITY_DISABLE
+  #       stop_bits : UART_STOP_BITS_1
+  #       flow_ctrl : UART_HW_FLOWCTRL_DISABLE
+  #       source_clk : UART_SCLK_DEFAULT
+
+  #     tx_io_num: 18
+  #     rx_io_num: 17
+  #     rts_io_num: -1
+  #     cts_io_num: -1
+
+  #     uart_mode: UART_MODE_UART
+
+  - name: adc_handle
+    type: adc
+    role: continuous
+    config:
+      unit_id: ADC_UNIT_1
+      atten: ADC_ATTEN_DB_0
+      bit_width: ADC_BITWIDTH_12
+
+      max_store_buf_size: 1024
+      conv_frame_size: 256
+      flush_pool: 1
+      sample_freq_hz: 20000
+      format: ADC_DIGI_OUTPUT_FORMAT_TYPE2
+      conv_mode: ADC_CONV_SINGLE_UNIT_1
+
+      pattern_num: 1
+      channel_id: [4]
+
+  # - name: adc_handle
+  #   type: adc
+  #   role: oneshot
+  #   config:
+  #     role: oneshot
+  #     unit_id: ADC_UNIT_1
+  #     atten: ADC_ATTEN_DB_0
+  #     bit_width: ADC_BITWIDTH_12
+
+  #     # channel_id: 4
+  #     clk_src: SOC_MOD_CLK_RC_FAST
+  #     ulp_mode: ADC_ULP_MODE_DISABLE

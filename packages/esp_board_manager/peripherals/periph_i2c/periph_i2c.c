@@ -19,7 +19,7 @@ int periph_i2c_init(void *cfg, int cfg_size, void **periph_handle)
         return -1;
     }
     i2c_master_bus_handle_t handle = NULL;
-    esp_err_t err = i2c_new_master_bus((i2c_master_bus_config_t*)cfg, &handle);
+    esp_err_t err = i2c_new_master_bus((i2c_master_bus_config_t *)cfg, &handle);
     if (err != ESP_OK) {
         free(handle);
         ESP_LOGE(TAG, "i2c_new_master_bus failed: %s", esp_err_to_name(err));

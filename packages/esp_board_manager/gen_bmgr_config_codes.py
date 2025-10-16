@@ -180,7 +180,7 @@ help
         periph_dir = self.peripherals_dir
         periph_names = []
 
-        for file in sorted(periph_dir.glob('periph_*.h')):
+        for file in sorted(periph_dir.glob('periph_*/periph_*.h')):
             name = self.get_component_name(file)
             # Set default to 'y' if this peripheral type is used in the current board
             default_value = 'y' if (peripheral_types and name in peripheral_types) else 'n'
@@ -656,7 +656,7 @@ help
                 continue
             version, parse_func, _ = parse_entry  # Unpack only what we need here
             # Pass complete peripheral information
-            result = parse_func(p.name, {'format': p.format, 'config': p.config})
+            result = parse_func(p.name, {'format': p.format, 'role': p.role, 'config': p.config})
             periph_structs.append(result)
 
         self.logger.debug('   Writing peripheral configuration files...')
