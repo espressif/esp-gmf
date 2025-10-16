@@ -25,6 +25,7 @@ extern "C" {
 #define ESP_BOARD_DEVICE_NAME_AUDIO_DAC       "audio_dac"       /*!< Audio DAC device base name */
 #define ESP_BOARD_DEVICE_NAME_AUDIO_ADC       "audio_adc"       /*!< Audio ADC device base name */
 #define ESP_BOARD_DEVICE_NAME_FS_SDCARD       "fs_sdcard"       /*!< SD card device base name */
+#define ESP_BOARD_DEVICE_NAME_FS_FAT          "fs_fat"          /*!< FAT filesystem device base name */
 #define ESP_BOARD_DEVICE_NAME_LCD_TOUCH       "lcd_touch"       /*!< LCD touch device base name */
 #define ESP_BOARD_DEVICE_NAME_DISPLAY_LCD     "display_lcd"     /*!< LCD display device base name */
 #define ESP_BOARD_DEVICE_NAME_LCD_POWER       "lcd_power"       /*!< LCD power control device base name */
@@ -44,6 +45,7 @@ extern "C" {
 #define ESP_BOARD_DEVICE_TYPE_AUDIO_CODEC       "audio_codec"       /*!< Audio codec device type */
 #define ESP_BOARD_DEVICE_TYPE_FATFS_SDCARD      "fatfs_sdcard"      /*!< FATFS SD card device type */
 #define ESP_BOARD_DEVICE_TYPE_FATFS_SDCARD_SPI  "fatfs_sdcard_spi"  /*!< FATFS SD card device type */
+#define ESP_BOARD_DEVICE_TYPE_FS_FAT            "fs_fat"            /*!< FAT filesystem device type */
 #define ESP_BOARD_DEVICE_TYPE_FS_SPIFFS         "fs_spiffs"         /*!< SPIFFS filesystem device type */
 #define ESP_BOARD_DEVICE_TYPE_LCD_TOUCH_I2C     "lcd_touch_i2c"     /*!< LCD touch I2C device type */
 #define ESP_BOARD_DEVICE_TYPE_DISPLAY_LCD_SPI   "display_lcd_spi"   /*!< LCD display SPI device type */

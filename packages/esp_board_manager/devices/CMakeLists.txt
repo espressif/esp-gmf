@@ -58,6 +58,18 @@ function(get_device_sources sources includes)
         list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fatfs_sdcard_spi")
     endif()
 
+    if(CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fs_fat/dev_fs_fat.c")
+        if(CONFIG_ESP_BOARD_DEV_FS_FAT_SUB_SDMMC_SUPPORT)
+            list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fs_fat/dev_fs_fat_sub_sdmmc.c")
+        endif()
+        if(CONFIG_ESP_BOARD_DEV_FS_FAT_SUB_SPI_SUPPORT)
+            list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fs_fat/dev_fs_fat_sub_spi.c")
+
+        endif()
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fs_fat")
+    endif()
+
     # Set output variables in parent scope
     set(${sources} ${srcs} PARENT_SCOPE)
     set(${includes} ${incs} PARENT_SCOPE)

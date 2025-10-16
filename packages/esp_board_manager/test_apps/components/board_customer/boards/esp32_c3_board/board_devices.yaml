@@ -8,9 +8,8 @@ devices:
     type: display_lcd_spi
     version: default
     dependencies:
-      espressif/esp_lcd:
-        path: "${BOARD_PATH}/my_board/esp_lcd" # Fake path for test
-
+      my_sensor:
+        path: "${BOARD_PATH}/my_sensor" # Fake path for test
     config:
       x_max: 240                         # Default resolution
       y_max: 320                         # Default resolution
@@ -22,8 +21,52 @@ devices:
         flags:
           quad_mode: false               # Standard SPI mode
         peripherals:
-          - name: spi_display            # SPI peripheral for LCD communication
+          - name: spi_master            # SPI peripheral for LCD communication
       lcd_panel_config:
         reset_gpio_num: -1               # No reset pin
         flags:
           reset_active_high: false       # Reset pin active level
+  # Touch Panel Configuration
+  - name: lcd_touch
+    chip: tt21100
+    type: lcd_touch_i2c
+    version: default
+    dependencies:
+      esp_lcd_touch:
+        version: "*"
+        require: public
+      espressif/esp_lcd_touch_tt21100: ">=1.0.0"
+    config:
+      # esp_lcd_panel_io_i2c_config_t fields for touch communication
+      io_i2c_config:
+        dev_addr: 0x24
+        lcd_cmd_bits: 16                  # Bit-width of LCD command
+        peripherals:
+          - name: i2c_master              # I2C peripheral for touch communication
+
+      # esp_lcd_touch_config_t fields for touch configuration
+      touch_config:
+        x_max: 320                        # Maximum X coordinate (BSP_LCD_H_RES)
+        y_max: 240                        # Maximum Y coordinate (BSP_LCD_V_RES)
+        flags:
+          swap_xy: false
+          mirror_x: true
+          mirror_y: false
+
+  - name: my_fs_fat          # The name of the device, must be unique
+    type: fs_fat          # The type of the device, must be unique
+    version: default
+    sub_type: spi         # The sub type of the device, must be 'sdmmc' or 'spi'
+    config:
+      # Mount point configuration
+      mount_point: "/sdcard"            # The mount point path for the SD card filesystem
+      # VFS (Virtual File System) configuration
+      vfs_config:
+        format_if_mount_failed: false   # Format the card if mount fails
+        max_files: 5                    # Maximum number of files that can be open simultaneously
+        allocation_unit_size: 16384     # Allocation unit size in bytes (0 for default)
+
+      sub_config:
+        cs_gpio_num: 15         # Chip select GPIO number
+      peripherals:
+        - name: "spi_master"  # SPI bus name

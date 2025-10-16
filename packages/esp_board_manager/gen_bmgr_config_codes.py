@@ -119,6 +119,79 @@ class BoardConfigGenerator(LoggerMixin):
 """
         return entry
 
+    def generate_nested_kconfig_entry(self, name, path, is_device, default_value='n', sub_types=None, sub_type_separator='_SUB_'):
+        """Generate a nested Kconfig entry for a component with sub_types.
+
+        Args:
+            name: Component name
+            path: Component path
+            is_device: Whether this is a device (True) or peripheral (False)
+            default_value: Default value for the config
+            sub_types: List of sub-types for this component
+            sub_type_separator: Separator used in sub-type macro names (default: '_SUB_')
+        """
+        component_type = 'Device' if is_device else 'Peripheral'
+        prefix = 'DEV' if is_device else 'PERIPH'
+        macro_name = f'ESP_BOARD_{prefix}_{name.upper()}_SUPPORT'
+
+        entry = f"""config {macro_name}
+    bool "{component_type} '{name}' support"
+    default {default_value}
+    help
+        Enable {name} {component_type.lower()} support.
+        This option enables the {name} {component_type.lower()} driver.
+        The driver is located at: {path}
+
+"""
+
+        # Add sub_type configurations if they exist
+        if sub_types:
+            entry += f"""if {macro_name}
+
+"""
+            for sub_type in sorted(sub_types):
+                sub_macro_name = f'ESP_BOARD_{prefix}_{name.upper()}{sub_type_separator}{sub_type.upper()}_SUPPORT'
+                entry += f"""    config {sub_macro_name}
+        bool "{component_type} '{name}' {sub_type} sub-type support"
+        default {default_value}
+        help
+            Enable {name} {sub_type} sub-type support.
+            This option enables the {name} {sub_type} sub-type driver.
+
+"""
+            entry += f"""endif
+
+"""
+
+        return entry
+
+    def _generate_device_kconfig_entry(self, name, path, default_value, sub_types, device_names):
+        """Helper method to generate device Kconfig entry (reduces code duplication)."""
+        if sub_types:
+            # Generate nested Kconfig entry with sub_types
+            kconfig_content = self.generate_nested_kconfig_entry(
+                name,
+                path,
+                True,
+                default_value,
+                sub_types
+            )
+            device_names.append(name)
+            # Add sub_type names to device_names for logging
+            for sub_type in sub_types:
+                device_names.append(f'{name}_{sub_type}')
+        else:
+            # Generate regular Kconfig entry without sub_types
+            kconfig_content = self.generate_kconfig_entry(
+                name,
+                path,
+                True,
+                default_value
+            )
+            device_names.append(name)
+
+        return kconfig_content
+
     def generate_board_kconfig(self, all_boards, board_customer_path=None, selected_board=None):
         """Generate board selection Kconfig content"""
         # Use the already scanned boards, no need to scan again
@@ -171,7 +244,7 @@ help
 
         return kconfig_content
 
-    def generate_components_kconfig(self, peripheral_types=None, device_types=None):
+    def generate_components_kconfig(self, peripheral_types=None, device_types=None, device_subtypes=None):
         """Generate peripheral and device Kconfig content"""
 
         kconfig_content = "menu \"Peripheral Support\"\n\n"
@@ -214,26 +287,36 @@ help
                     name = device_type[4:]  # Remove 'dev_' prefix
                     # Set default to 'y' if this device type is used in the current board
                     default_value = 'y' if (device_types and name in device_types) else 'n'
-                    kconfig_content += self.generate_kconfig_entry(
+
+                    # Check if this device has sub_types
+                    sub_types = device_subtypes.get(name) if device_subtypes else None
+
+                    # Generate Kconfig entry using helper method
+                    kconfig_content += self._generate_device_kconfig_entry(
                         name,
                         f'devices/{device_type}',
-                        True,
-                        default_value
+                        default_value,
+                        sub_types,
+                        device_names
                     )
-                    device_names.append(name)
         else:
             # Fallback to old structure for backward compatibility
             for file in sorted(device_dir.glob('dev_*.h')):
                 name = self.get_component_name(file)
                 # Set default to 'y' if this device type is used in the current board
                 default_value = 'y' if (device_types and name in device_types) else 'n'
-                kconfig_content += self.generate_kconfig_entry(
+
+                # Check if this device has sub_types
+                sub_types = device_subtypes.get(name) if device_subtypes else None
+
+                # Generate Kconfig entry using helper method
+                kconfig_content += self._generate_device_kconfig_entry(
                     name,
                     f'devices/dev_{name}',
-                    True,
-                    default_value
+                    default_value,
+                    sub_types,
+                    device_names
                 )
-                device_names.append(name)
 
         kconfig_content += 'endmenu\n'
 
@@ -290,7 +373,7 @@ help
 
         return component_boards
 
-    def generate_kconfig(self, all_boards, board_customer_path=None, peripheral_types=None, device_types=None, selected_board=None):
+    def generate_kconfig(self, all_boards, board_customer_path=None, peripheral_types=None, device_types=None, device_subtypes=None, selected_board=None):
         """Generate unified Kconfig content"""
         try:
             # Generate unified Kconfig content without the outer menu wrapper
@@ -304,7 +387,7 @@ help
             kconfig_content += board_kconfig + '\n'
 
             # Add components configuration with actual types from board
-            kconfig_content += self.generate_components_kconfig(peripheral_types, device_types)
+            kconfig_content += self.generate_components_kconfig(peripheral_types, device_types, device_subtypes)
 
             # Write unified Kconfig file using the root directory
             kconfig_path = self.gen_codes_dir / 'Kconfig.in'
@@ -696,11 +779,17 @@ help
         self.logger.debug('   Loading device parsers...')
         device_structs = []
 
-        # Extract device types for Kconfig update
+        # Extract device types and sub_types for Kconfig update
         device_types = set()
+        device_subtypes = {}  # {device_type: set of sub_types}
         for d in devices:
             if hasattr(d, 'type') and d.type:
                 device_types.add(d.type)
+                # Check if device has sub_type information
+                if hasattr(d, 'sub_type') and d.sub_type:
+                    if d.type not in device_subtypes:
+                        device_subtypes[d.type] = set()
+                    device_subtypes[d.type].add(d.sub_type)
 
         self.logger.debug('   ⚙️  Generating device structures...')
         for d in devices:
@@ -721,9 +810,11 @@ help
             dev_yml = load_yaml_with_includes(dev_yaml_path)
             for dev in dev_yml.get('devices', []):
                 if dev.get('name') == d.name:
-                    # Add device-level fields like chip
+                    # Add device-level fields like chip and sub_type
                     if 'chip' in dev:
                         full_config['chip'] = dev['chip']
+                    if 'sub_type' in dev:
+                        full_config['sub_type'] = dev['sub_type']
                     # Parse peripheral names in the config
                     peripherals = []
 
@@ -773,7 +864,7 @@ help
         self.logger.debug('   ✅ Validating extra device configurations...')
         self.dependency_manager.validate_extra_dev_usage(extra_configs, devices)
 
-        return device_types
+        return device_types, device_subtypes
 
     def clear_gen_bmgr_codes_directory(self, project_root: str) -> bool:
         """Clear all files and directories in the gen_bmgr_codes directory before generating new ones"""
@@ -1052,7 +1143,7 @@ help
 
             self.logger.debug('   Processing device configurations...')
             try:
-                device_types = self.process_devices(dev_yaml_path, peripherals_dict, periph_name_map, board_path, extra_configs, extra_includes)
+                device_types, device_subtypes = self.process_devices(dev_yaml_path, peripherals_dict, periph_name_map, board_path, extra_configs, extra_includes)
                 self.logger.info(f'✅ Device processing completed: {len(device_types)} types found')
             except ValueError as e:
                 # Re-raise ValueError to stop the generation process
@@ -1067,7 +1158,7 @@ help
         # 6. Generate Kconfig if requested (SIXTH STEP - after device and peripheral processing)
         self.logger.info('⚙️  Step 6/8: Generating Kconfig menu system...')
 
-        if not self.generate_kconfig(all_boards, args.board_customer_path, peripheral_types, device_types, selected_board):
+        if not self.generate_kconfig(all_boards, args.board_customer_path, peripheral_types, device_types, device_subtypes, selected_board):
             self.logger.error('❌ Error: Kconfig generation failed!')
             return False
 

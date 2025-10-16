@@ -8,27 +8,23 @@
 #include <string.h>
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
-#include "periph_spi.h"
-#include "dev_fatfs_sdcard_spi.h"
+#include "dev_fs_fat.h"
+#include "esp_board_periph.h"
 #include "esp_board_device.h"
+#include "esp_board_entry.h"
+#include "periph_spi.h"
 
-static const char *TAG = "DEV_FATFS_SDCARD_SPI";
+static const char *TAG = "DEV_FS_FAT_SUB_SPI";
 
-int dev_fatfs_sdcard_spi_init(void *cfg, int cfg_size, void **device_handle)
+int dev_fs_fat_sub_spi_init(void *cfg, int cfg_size, void **device_handle)
 {
-    if (cfg == NULL || device_handle == NULL) {
-        ESP_LOGE(TAG, "Invalid parameters");
-        return -1;
-    }
-    if (cfg_size != sizeof(dev_fatfs_sdcard_spi_config_t)) {
-        ESP_LOGE(TAG, "Invalid config size");
-        return -1;
-    }
-
-    const dev_fatfs_sdcard_spi_config_t *config = (const dev_fatfs_sdcard_spi_config_t *)cfg;
+    // No need to check parameters here, it will be checked in dev_fs_fat_init
+    const dev_fs_fat_config_t *config = (const dev_fs_fat_config_t *)cfg;
+    const dev_fs_fat_spi_sub_config_t *spi_cfg = &config->sub_cfg.spi;
     periph_spi_handle_t *spi_handle = NULL;
-    if (config->spi_bus_name && config->spi_bus_name[0]) {
-        int ret = esp_board_periph_ref_handle(config->spi_bus_name, (void **)&spi_handle);
+    if (spi_cfg->spi_bus_name && spi_cfg->spi_bus_name[0]) {
+        // TODO Use the reference SPI peripheral handle
+        int ret = esp_board_periph_get_handle(spi_cfg->spi_bus_name, (void **)&spi_handle);
         if (ret != 0) {
             ESP_LOGE(TAG, "Failed to get SPI peripheral handle: %d", ret);
             return -1;
@@ -39,19 +35,14 @@ int dev_fatfs_sdcard_spi_init(void *cfg, int cfg_size, void **device_handle)
     }
 
     esp_err_t ret = 0;
-    dev_fatfs_sdcard_spi_handle_t *handle = (dev_fatfs_sdcard_spi_handle_t *)calloc(1, sizeof(dev_fatfs_sdcard_spi_handle_t));
-    if (handle == NULL) {
-        ESP_LOGE(TAG, "Failed to allocate memory");
-        return -1;
-    }
-
+    dev_fs_fat_handle_t *handle = (dev_fs_fat_handle_t *)*device_handle;
     // Use SDSPI host
     handle->host = (sdmmc_host_t)SDSPI_HOST_DEFAULT();
     handle->host.max_freq_khz = config->frequency;
     handle->host.slot = spi_handle->spi_port;
 
     sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
-    slot_config.gpio_cs = config->cs_gpio_num;
+    slot_config.gpio_cs = spi_cfg->cs_gpio_num;
     slot_config.host_id = handle->host.slot;
     esp_vfs_fat_mount_config_t mount_config = {
         .format_if_mount_failed = config->vfs_config.format_if_mount_failed,
@@ -69,48 +60,32 @@ int dev_fatfs_sdcard_spi_init(void *cfg, int cfg_size, void **device_handle)
     ret = esp_vfs_fat_sdspi_mount(config->mount_point, &handle->host, &slot_config, &mount_config, &handle->card);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to mount filesystem");
-        goto cleanup;
+        return -1;
     }
-
-    // Save mount point
-    handle->mount_point = strdup(config->mount_point);
-    if (handle->mount_point == NULL) {
-        ESP_LOGE(TAG, "Failed to allocate mount point");
-        esp_vfs_fat_sdcard_unmount(config->mount_point, handle->card);
-        goto cleanup;
-    }
-
-    ESP_LOGI(TAG, "Filesystem mounted, base path: %s", config->mount_point);
-    *device_handle = handle;
-
-    sdmmc_card_print_info(stdout, handle->card);
     return 0;
-cleanup:
-    free(handle);
-    return -1;
 }
 
-int dev_fatfs_sdcard_spi_deinit(void *device_handle)
+int dev_fs_fat_sub_spi_deinit(void *device_handle)
 {
     if (device_handle == NULL) {
         ESP_LOGE(TAG, "Invalid parameters");
         return -1;
     }
-
-    dev_fatfs_sdcard_spi_handle_t *handle = (dev_fatfs_sdcard_spi_handle_t *)device_handle;
+    dev_fs_fat_handle_t *handle = (dev_fs_fat_handle_t *)device_handle;
     if (handle->mount_point && handle->mount_point[0] && handle->card) {
         esp_vfs_fat_sdcard_unmount(handle->mount_point, handle->card);
     } else {
         ESP_LOGW(TAG, "Mount point or card handle is NULL, skipping unmount");
     }
-
-    dev_fatfs_sdcard_spi_config_t *cfg = NULL;
+    dev_fs_fat_config_t *cfg = NULL;
     esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
     if (cfg) {
-        esp_board_periph_unref_handle(cfg->spi_bus_name);
+        esp_err_t ret = esp_board_periph_unref_handle(cfg->sub_cfg.spi.spi_bus_name);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to unref SPI peripheral handle: %s", esp_err_to_name(ret));
+        }
     }
-
-    free((char *)handle->mount_point);
-    free(handle);
     return 0;
 }
+
+ESP_BOARD_ENTRY_IMPLEMENT(spi, dev_fs_fat_sub_spi_init, dev_fs_fat_sub_spi_deinit);

@@ -8,6 +8,7 @@
 #pragma once
 
 #include "esp_board_manager_err.h"
+#include "esp_board_entry.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,46 +18,6 @@ extern "C" {
  * @brief Maximum number of peripherals supported by custom device
  */
 #define MAX_PERIPHERALS 4
-
-/**
- * @brief  Function pointer type for custom device initialization
- */
-typedef int (*custom_device_init_func_t)(void *config, int cfg_size, void **device_handle);
-
-/**
- * @brief  Function pointer type for custom device deinitialization
- */
-typedef int (*custom_device_deinit_func_t)(void *device_handle);
-
-/**
- * @brief  Structure describing a custom device implementation
- *
- *         This structure is placed in a special linker section (.custom_devices_desc)
- *         and automatically discovered by the custom device system.
- */
-typedef struct {
-    const char                   *device_name;  /*!< Custom device name (must match YAML config) */
-    custom_device_init_func_t    init_func;     /*!< Device initialization function */
-    custom_device_deinit_func_t  deinit_func;   /*!< Device deinitialization function */
-} custom_device_desc_t;
-
-/**
- * @brief  Macro to define a custom device implementation
- *
- *         This macro places the device descriptor in the special linker section
- *         for automatic discovery by the custom device system
- *
- * @param  name         Device name (must match YAML config)
- * @param  init_func    Initialization function pointer
- * @param  deinit_func  Deinitialization function pointer
- */
-#define CUSTOM_DEVICE_IMPLEMENT(name, init_func_entry, deinit_func_entry) \
-    static const custom_device_desc_t __attribute__((section(".custom_devices_desc"), used)) \
-    custom_device_##name = { \
-        .device_name = #name, \
-        .init_func = init_func_entry, \
-        .deinit_func = deinit_func_entry \
-    }
 
 /**
  * @brief  Generic custom device configuration structure

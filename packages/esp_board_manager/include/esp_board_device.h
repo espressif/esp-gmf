@@ -103,6 +103,21 @@ esp_err_t esp_board_device_get_handle(const char *name, void **device_handle);
 esp_err_t esp_board_device_get_config(const char *name, void **config);
 
 /**
+ * @brief  Get device configuration by handle
+ *
+ *         Retrieves the configuration for a given device handle
+ *
+ * @param[in]   device_handle  Device handle
+ * @param[out]  config         Pointer to store the configuration
+ *
+ * @return
+ *       - ESP_OK                            On success
+ *       - ESP_BOARD_ERR_DEVICE_INVALID_ARG  If given handle is NULL
+ *       - ESP_BOARD_ERR_DEVICE_NOT_FOUND    If device handle or configuration not found
+ */
+esp_err_t esp_board_device_get_config_by_handle(void *device_handle, void **config);
+
+/**
  * @brief  Set device initialization and deinitialization functions
  *
  *         Associates custom init and deinit functions with a device. This allows

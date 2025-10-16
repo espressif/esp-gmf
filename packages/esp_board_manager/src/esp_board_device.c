@@ -87,6 +87,25 @@ esp_err_t esp_board_device_get_config(const char *name, void **config)
     return ESP_OK;
 }
 
+esp_err_t esp_board_device_get_config_by_handle(void *device_handle, void **config)
+{
+    if (device_handle == NULL) {
+        ESP_LOGE(TAG, "Invalid parameters");
+        return ESP_BOARD_ERR_DEVICE_INVALID_ARG;
+    }
+    const esp_board_device_handle_t *board_device = esp_board_device_find_by_handle(device_handle);
+    if (board_device == NULL) {
+        ESP_LOGE(TAG, "Device handle[%p] not found", device_handle);
+        return ESP_BOARD_ERR_DEVICE_NOT_FOUND;
+    }
+    esp_board_device_get_config(board_device->name, config);
+    if (*config == NULL) {
+        ESP_LOGE(TAG, "Get device %s config failed", board_device->name);
+        return ESP_BOARD_ERR_DEVICE_NOT_FOUND;
+    }
+    return ESP_OK;
+}
+
 esp_err_t esp_board_device_set_ops(const char *name, esp_board_device_init_func init, esp_board_device_deinit_func deinit)
 {
     ESP_BOARD_RETURN_ON_FALSE(name && init && deinit, ESP_BOARD_ERR_DEVICE_INVALID_ARG, TAG, "Invalid args");

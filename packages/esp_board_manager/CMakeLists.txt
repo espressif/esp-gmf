@@ -38,4 +38,5 @@ idf_component_register(
         esp_driver_rmt
     LDFRAGMENTS
         "linker.lf"
+    WHOLE_ARCHIVE
 )

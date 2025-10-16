@@ -57,10 +57,13 @@ devices:
     type: <device_type>       # Required: Type identifier
     chip: <chip_name>         # Optional: Name of chip
     version: <version>        # Optional: Parser version to use
+    sub_type: <sub_type>      # Optional: Sub device type string, each device has its own sub type or not
     init_skip: false          # Optional: skip initialization when the manager initializes all devices.
                               # Default is false (do not skip initialization). Set to true to skip automatic initialization.
     config:
       <configurations>        # Required: Device-specific config
+      sub_config:             # If the sub type exist
+        <configurations>      # Configurations
     peripherals:              # Optional: List of used peripherals
       - name: <periph_name>   # Required if peripherals section exists
     dependencies:             # Optional: Component dependencies

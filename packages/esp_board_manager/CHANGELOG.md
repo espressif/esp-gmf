@@ -81,6 +81,7 @@
 - Update the README to include information about how to add new boards and the development roadmap
 - Added the esp_board_periph_ref_handle and esp_board_periph_unref_handle APIs to obtain and release a handle
 - Added esp_board_find_utils.h and esp_board_manager_includes.h
+- Added `esp_board_device_get_config_by_handle()` API for finding device configuration by handle
 
 ### Bug Fixes
 

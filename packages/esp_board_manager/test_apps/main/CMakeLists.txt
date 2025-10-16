@@ -15,6 +15,7 @@ idf_component_register(
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>:test_dev_audio_codec.c>
         $<$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT}>>:test_dev_fatfs_sdcard.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_SPIFFS_SUPPORT}>:test_dev_fs_spiffs.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT}>:test_dev_fs_fat.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT}>:test_dev_lcd_lvgl.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT}>:test_dev_lcd_init.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT}>:test_dev_pwr_ctrl.c>

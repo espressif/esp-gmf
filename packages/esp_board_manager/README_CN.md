@@ -205,6 +205,7 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
 | `audio_dac`, `audio_adc` | 音频编解码器设备 |
 | `display_lcd` | LCD 显示设备 |
 | `fs_sdcard` | SD 卡设备 |
+| `fs_fat` | FAT 文件系统设备（支持 sub_type: sdmmc 或 spi） |
 | `fs_spiffs` | SPIFFS 文件系统设备 |
 | `lcd_touch` | 触摸屏设备 |
 | `lcd_power` | LCD 电源控制 |
@@ -286,6 +287,7 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
    devices:
      - name: <device_name>
        type: <device_type>
+       sub_type: <sub_type>   # 可选：子设备类型字符串，每个设备可能有自己的子类型或没有
        init_skip: false  # 可选：跳过自动初始化（默认：false）
        dependencies:     # 可选，定义组件依赖关系
          espressif/gmf_core:
@@ -297,6 +299,8 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
             #   - 在 ${BOARD_PATH} 下的相对路径以便于管理
        config:
          # 设备特定配置
+         sub_config:      # 可选：如果存在 sub_type，则提供子配置
+           # 子类型特定配置
        peripherals:
          - name: <peripheral_name>
     ```
@@ -387,31 +391,32 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 
 | 外设 | 类型 | 角色 | 状态 | 描述 | 参考 YAML |
 |------------|------|------|--------|-------------|----------------|
-| GPIO | gpio | none | ✅ 支持 | 通用 I/O | [`periph_gpio.yml`](peripherals/periph_gpio/periph_gpio.yml) |
-| I2C | i2c | master/slave | ✅ 支持 | I2C 通信 | [`periph_i2c.yml`](peripherals/periph_i2c/periph_i2c.yml) |
-| SPI | spi | master/slave | ✅ 支持 | SPI 通信 | [`periph_spi.yml`](peripherals/periph_spi/periph_spi.yml) |
-| I2S | i2s | master/slave | ✅ 支持 | 音频接口 | [`periph_i2s.yml`](peripherals/periph_i2s/periph_i2s.yml) |
-| LEDC | ledc | none | ✅ 支持 | LED 控制/PWM | [`periph_ledc.yml`](peripherals/periph_ledc/periph_ledc.yml) |
-| UART | uart | none | ✅ 支持 | UART 通信 | [`periph_uart.yml`](peripherals/periph_uart/periph_uart.yml) |
-| ADC | adc | none | ✅ 支持 | ADC 模数转换 | [`periph_adc.yml`](peripherals/periph_adc/periph_adc.yml) |
-| RMT | rmt | tx/rx | ✅ 支持 | 红外遥控 | [`periph_rmt.yml`](peripherals/periph_rmt/periph_rmt.yml) |
-| PCNT | pcnt | none | ✅ 支持 | 脉冲计数器 | [`periph_pcnt.yml`](peripherals/periph_pcnt/periph_pcnt.yml) |
+| GPIO | gpio | none | ✅ | 通用 I/O | [`periph_gpio.yml`](peripherals/periph_gpio/periph_gpio.yml) |
+| I2C | i2c | master/slave | ✅ | I2C 通信 | [`periph_i2c.yml`](peripherals/periph_i2c/periph_i2c.yml) |
+| SPI | spi | master/slave | ✅ | SPI 通信 | [`periph_spi.yml`](peripherals/periph_spi/periph_spi.yml) |
+| I2S | i2s | master/slave | ✅ | 音频接口 | [`periph_i2s.yml`](peripherals/periph_i2s/periph_i2s.yml) |
+| LEDC | ledc | none | ✅ | LED 控制/PWM | [`periph_ledc.yml`](peripherals/periph_ledc/periph_ledc.yml) |
+| UART | uart | none | ✅ | UART 通信 | [`periph_uart.yml`](peripherals/periph_uart/periph_uart.yml) |
+| ADC | adc | none | ✅ | ADC 模数转换 | [`periph_adc.yml`](peripherals/periph_adc/periph_adc.yml) |
+| RMT | rmt | tx/rx | ✅ | 红外遥控 | [`periph_rmt.yml`](peripherals/periph_rmt/periph_rmt.yml) |
+| PCNT | pcnt | none | ✅ | 脉冲计数器 | [`periph_pcnt.yml`](peripherals/periph_pcnt/periph_pcnt.yml) |
 
 ### 支持的设备类型
 
-| 设备 | 类型 | 芯片 | 外设 | 状态 | 描述 | 参考 YAML |
-|--------|------|------|------------|--------|-------------|----------------|
-| 音频编解码器 | audio_codec | ES8311/ES7210/ES8388 | i2s/i2c | ✅ 支持 | 带有 DAC/ADC 的音频编解码器 | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) |
-| LCD 显示屏 | display_lcd_spi | ST77916/GC9A01 | spi | ✅ 支持 | SPI LCD 显示屏 | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) |
-| 触摸屏 | lcd_touch_i2c | FT5x06 | i2c | ✅ 支持 | I2C 触摸屏 | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) |
-| SD 卡 | fatfs_sdcard | - | sdmmc | ✅ 支持 | SD 卡存储 | [`dev_fatfs_sdcard.yaml`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) |
-| SPI SD 卡 | fatfs_sdcard_spi | - | spi | ✅ 支持 | SD 卡存储 | [`dev_fatfs_sdcard_spi.yaml`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) |
-| SPIFFS 文件系统 | fs_spiffs | - | - | ✅ 支持 | SPIFFS 文件系统 | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) |
-| GPIO 控制 | gpio_ctrl | - | gpio | ✅ 支持 | GPIO 控制设备 | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
-| LEDC 控制 | ledc_ctrl | - | ledc | ✅ 支持 | LEDC 控制设备 | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
-| [自定义设备](devices/dev_custom/README.md) | custom | - | any | ✅ 支持 | 用户定义的自定义设备 | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
-| GPIO 扩展芯片 | gpio_expander | TCA9554/TCA95XX/HT8574 | i2c | ✅ 支持 | GPIO 扩展芯片 | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
-| 摄像头 | camera | - | i2c | ✅ 支持 | 摄像头设备 | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
+| 设备 | 类型 | 子类型 | 芯片 | 外设 | 状态 | 描述 | 参考 YAML |
+|--------|------|----------|------|------------|--------|-------------|----------------|
+| 音频编解码器 | audio_codec | - | ES8311/ES7210/ES8388 | i2s/i2c | ✅ | 带有 DAC/ADC 的音频编解码器 | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) |
+| LCD 显示屏 | display_lcd_spi | - | ST77916/GC9A01 | spi | ✅ | SPI LCD 显示屏 | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) |
+| 触摸屏 | lcd_touch_i2c | - | FT5x06 | i2c | ✅ | I2C 触摸屏 | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) |
+| SD 卡 | fatfs_sdcard | - | - | sdmmc | ✅ | SD 卡存储 | [`dev_fatfs_sdcard.yaml`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) |
+| SPI SD 卡 | fatfs_sdcard_spi | - | - | spi | ✅ | SD 卡存储 | [`dev_fatfs_sdcard_spi.yaml`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) |
+| FAT 文件系统 | fs_fat | sdmmc/spi | - | sdmmc/spi | ✅ | 带有 SDMMC 或 SPI 子设备的 FAT 文件系统 | [`dev_fs_fat.yaml`](devices/dev_fs_fat/dev_fs_fat.yaml) |
+| SPIFFS 文件系统 | fs_spiffs | - | - | - | ✅ | SPIFFS 文件系统 | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) |
+| GPIO 控制 | gpio_ctrl | - | - | gpio | ✅ | GPIO 控制设备 | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
+| LEDC 控制 | ledc_ctrl | - | - | ledc | ✅ | LEDC 控制设备 | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
+| [自定义设备](devices/dev_custom/README.md) | custom | - | - | any | ✅ | 用户定义的自定义设备 | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
+| GPIO 扩展芯片 | gpio_expander | - | TCA9554/TCA95XX/HT8574 | i2c | ✅ | GPIO 扩展芯片 | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
+| 摄像头 | camera | - | - | i2c | ✅ | 摄像头设备 | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
 
 ### 支持的板级
 

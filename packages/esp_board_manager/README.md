@@ -205,6 +205,7 @@ Board Manager's device names are recommended for user projects, while peripheral
 | `audio_dac`, `audio_adc` | Audio codec devices |
 | `display_lcd` | LCD display device |
 | `fs_sdcard` | SD card device |
+| `fs_fat` | FAT filesystem device (supports sub_type: sdmmc or spi) |
 | `fs_spiffs` | SPIFFS filesystem device |
 | `lcd_touch` | Touch screen device |
 | `lcd_power` | LCD power control |
@@ -283,6 +284,7 @@ For detailed YAML configuration rules and format specifications, please refer to
    devices:
      - name: <device_name>
        type: <device_type>
+       sub_type: <sub_type>   # Optional: Sub device type string, each device has its own sub type or not
        init_skip: false   # Optional: skip auto-initialization (default: false)
        dependencies:      # Optional, define component dependencies
          espressif/gmf_core:
@@ -296,6 +298,8 @@ For detailed YAML configuration rules and format specifications, please refer to
 
        config:
          # Device-specific configuration
+         sub_config:      # Optional: Sub configuration if sub_type exists
+           # Sub type specific configuration
        peripherals:
          - name: <peripheral_name>
     ```
@@ -387,31 +391,32 @@ When multiple boards with the same name exist across different paths, the ESP Bo
 
 | Peripheral | Type | Role | Status | Description | Reference YAML |
 |------------|------|------|--------|-------------|----------------|
-| GPIO | gpio | none | ✅ Supported | General purpose I/O | [`periph_gpio.yml`](peripherals/periph_gpio/periph_gpio.yml) |
-| I2C | i2c | master/slave | ✅ Supported | I2C communication | [`periph_i2c.yml`](peripherals/periph_i2c/periph_i2c.yml) |
-| SPI | spi | master/slave | ✅ Supported | SPI communication | [`periph_spi.yml`](peripherals/periph_spi/periph_spi.yml) |
-| I2S | i2s | master/slave | ✅ Supported | Audio interface | [`periph_i2s.yml`](peripherals/periph_i2s/periph_i2s.yml) |
-| LEDC | ledc | none | ✅ Supported | LED control/PWM | [`periph_ledc.yml`](peripherals/periph_ledc/periph_ledc.yml) |
-| UART | uart | none | ✅ Supported | UART communication | [`periph_uart.yml`](peripherals/periph_uart/periph_uart.yml) |
-| ADC | adc | none | ✅ Supported | Analog-to-Digital Converter | [`periph_adc.yml`](peripherals/periph_adc/periph_adc.yml) |
-| RMT | rmt | tx/rx | ✅ Supported | Remote Control Transceiver | [`periph_rmt.yml`](peripherals/periph_rmt/periph_rmt.yml) |
-| PCNT | pcnt | none | ✅ Supported | Pulse counter | [`periph_pcnt.yml`](peripherals/periph_pcnt/periph_pcnt.yml) |
+| GPIO | gpio | none | ✅ | General purpose I/O | [`periph_gpio.yml`](peripherals/periph_gpio/periph_gpio.yml) |
+| I2C | i2c | master/slave | ✅ | I2C communication | [`periph_i2c.yml`](peripherals/periph_i2c/periph_i2c.yml) |
+| SPI | spi | master/slave | ✅ | SPI communication | [`periph_spi.yml`](peripherals/periph_spi/periph_spi.yml) |
+| I2S | i2s | master/slave | ✅ | Audio interface | [`periph_i2s.yml`](peripherals/periph_i2s/periph_i2s.yml) |
+| LEDC | ledc | none | ✅ | LED control/PWM | [`periph_ledc.yml`](peripherals/periph_ledc/periph_ledc.yml) |
+| UART | uart | none | ✅ | UART communication | [`periph_uart.yml`](peripherals/periph_uart/periph_uart.yml) |
+| ADC | adc | none | ✅ | Analog-to-Digital Converter | [`periph_adc.yml`](peripherals/periph_adc/periph_adc.yml) |
+| RMT | rmt | tx/rx | ✅ | Remote Control Transceiver | [`periph_rmt.yml`](peripherals/periph_rmt/periph_rmt.yml) |
+| PCNT | pcnt | none | ✅ | Pulse counter | [`periph_pcnt.yml`](peripherals/periph_pcnt/periph_pcnt.yml) |
 
 ### Supported Device types
 
-| Device | Type | Chip | Peripheral | Status | Description | Reference YAML |
-|--------|------|------|------------|--------|-------------|----------------|
-| Audio Codec | audio_codec | ES8311/ES7210/ES8388 | i2s/i2c | ✅ Supported | Audio codec with DAC/ADC | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) |
-| LCD Display | display_lcd_spi | ST77916/GC9A01 | spi | ✅ Supported | SPI LCD display | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) |
-| Touch Screen | lcd_touch_i2c | FT5x06 | i2c | ✅ Supported | I2C touch screen | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) |
-| SD Card | fatfs_sdcard | - | sdmmc | ✅ Supported | SD card storage | [`dev_fatfs_sdcard.yaml`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) |
-| SPI SD Card | fatfs_sdcard_spi | - | spi | ✅ Supported | SD card storage | [`dev_fatfs_sdcard_spi.yaml`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) |
-| SPIFFS Filesystem | fs_spiffs | - | - | ✅ Supported | SPIFFS filesystem | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) |
-| GPIO Control | gpio_ctrl | - | gpio | ✅ Supported | GPIO control device | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
-| LEDC Control | ledc_ctrl | - | ledc | ✅ Supported | LEDC control device | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
-| [Custom Device](devices/dev_custom/README.md)  | custom | - | any | ✅ Supported | User-defined custom device | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
-| GPIO Expander | gpio_expander | TCA9554/TCA95XX/HT8574 | i2c | ✅ Supported | GPIO expander | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
-| Camera Sensor | camera | - | i2c | ✅ Supported | Camera sensor | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
+| Device | Type | Sub Type | Chip | Peripheral | Status | Description | Reference YAML |
+|--------|------|----------|------|------------|--------|-------------|----------------|
+| Audio Codec | audio_codec | - | ES8311/ES7210/ES8388 | i2s/i2c | ✅ | Audio codec with DAC/ADC | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) |
+| LCD Display | display_lcd_spi | - | ST77916/GC9A01 | spi | ✅ | SPI LCD display | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) |
+| Touch Screen | lcd_touch_i2c | - | FT5x06 | i2c | ✅ | I2C touch screen | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) |
+| SD Card | fatfs_sdcard | - | - | sdmmc | ✅ | SD card storage | [`dev_fatfs_sdcard.yaml`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) |
+| SPI SD Card | fatfs_sdcard_spi | - | - | spi | ✅ | SD card storage | [`dev_fatfs_sdcard_spi.yaml`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) |
+| FAT Filesystem | fs_fat | sdmmc/spi | - | sdmmc/spi | ✅ | FAT filesystem with SDMMC or SPI sub device | [`dev_fs_fat.yaml`](devices/dev_fs_fat/dev_fs_fat.yaml) |
+| SPIFFS Filesystem | fs_spiffs | - | - | - | ✅ | SPIFFS filesystem | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) |
+| GPIO Control | gpio_ctrl | - | - | gpio | ✅ | GPIO control device | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
+| LEDC Control | ledc_ctrl | - | - | ledc | ✅ | LEDC control device | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
+| [Custom Device](devices/dev_custom/README.md)  | custom | - | - | any | ✅ | User-defined custom device | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
+| GPIO Expander | gpio_expander | - | TCA9554/TCA95XX/HT8574 | i2c | ✅ | GPIO expander | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
+| Camera Sensor | camera | - | - | i2c | ✅ | Camera sensor | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
 
 ### Supported Boards
 

@@ -3,8 +3,17 @@ chip: esp32c3
 version: 1.0.0
 # Peripherals Configuration for ESP32-C3-board V1.0
 peripherals:
+  # I2C Configuration
+  - name: i2c_master
+    type: i2c
+    role: master
+    config:
+      port: 0
+      pins:
+        sda: 17
+        scl: 18
   # SPI Configuration for LCD
-  - name: spi_display
+  - name: spi_master
     type: spi
     role: master
     config:

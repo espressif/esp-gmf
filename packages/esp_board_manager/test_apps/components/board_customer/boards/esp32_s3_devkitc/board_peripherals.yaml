@@ -133,3 +133,14 @@ peripherals:
       mode: GPIO_MODE_OUTPUT
       default_level: 1
 
+  - name: spi_master
+    type: spi
+    role: master
+    config:
+      # spi_bus_config_t fields
+      spi_bus_config:
+        spi_port: SPI2_HOST
+        mosi_io_num: 4
+        miso_io_num: 5
+        sclk_io_num: 2
+        max_transfer_sz: 4000

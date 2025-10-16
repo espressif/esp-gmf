@@ -3,10 +3,19 @@ chip: esp32s3
 version: 1.0.0
 # Devices Configuration
 devices:
-- name: power_control          # The name of the device, must be unique
-  type: gpio_ctrl             # The type of the device, must be unique
-  config:
-    active_level: 1
-    default_level: 1
-  peripherals:
-    - name: gpio_power
+  - name: power_control          # The name of the device, must be unique
+    type: gpio_ctrl             # The type of the device, must be unique
+    config:
+      active_level: 1
+      default_level: 1
+    peripherals:
+      - name: gpio_power
+  - name: fatfs
+    type: fs_fat
+    version: default
+    sub_type: spi
+    config:
+      sub_config:
+        cs_gpio_num: 8
+      peripherals:
+        - name: "spi_master"  # SPI bus name

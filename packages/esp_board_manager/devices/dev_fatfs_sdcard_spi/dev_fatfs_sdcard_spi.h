@@ -41,11 +41,11 @@ typedef struct {
  */
 typedef struct {
     const char                  *name;
-    const char                  *mount_point;  /*!< Mount point path */
-    uint32_t                     frequency;    /*!< SPI SD card clock frequency in Hz */
-    dev_sdcard_spi_vfs_config_t  vfs_config;   /*!< VFS configuration */
-    int                          cs_gpio_num;  /*!< Chip select GPIO number */
-    const char                  *spi_bus_name;     /*!< SPI bus name */
+    const char                  *mount_point;   /*!< Mount point path */
+    uint32_t                     frequency;     /*!< SPI SD card clock frequency in Hz */
+    dev_sdcard_spi_vfs_config_t  vfs_config;    /*!< VFS configuration */
+    int                          cs_gpio_num;   /*!< Chip select GPIO number */
+    const char                  *spi_bus_name;  /*!< SPI bus name */
 } dev_fatfs_sdcard_spi_config_t;
 
 /**
