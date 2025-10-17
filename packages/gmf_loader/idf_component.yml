@@ -1,4 +1,4 @@
-version: "0.7.0"
+version: "0.7.1"
 description: Espressif GMF Loader is a module that loads elements and I/O components for the GMF pipeline
 url: https://github.com/espressif/esp-gmf/tree/main/packages/gmf_loader
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/gmf_loader/README.md"
