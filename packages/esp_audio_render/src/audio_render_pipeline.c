@@ -25,7 +25,7 @@ static inline void add_proc(const char *pipeline_tag[], const char *proc_tag, ui
     uint8_t n = *element_num;
     // Not add duplicate one
     for (int i = 0; i < n; i++) {
-        if (pipeline_tag[i] == proc_tag) {
+        if (strcmp(pipeline_tag[i], proc_tag) == 0) {
             return;
         }
     }
@@ -312,6 +312,12 @@ esp_audio_render_err_t audio_render_pipeline_open(audio_render_pipeline_cfg_t *p
                                         pipeline);
     if (ret != ESP_GMF_ERR_OK) {
         ESP_LOGE(TAG, "Failed to new pipeline ret %d", ret);
+        if (proc_cfg->in_port) {
+            esp_gmf_port_deinit(proc_cfg->in_port);
+        }
+        if (proc_cfg->out_port) {
+            esp_gmf_port_deinit(proc_cfg->out_port);
+        }
         return ESP_AUDIO_RENDER_ERR_NO_RESOURCE;
     }
     esp_gmf_element_handle_t head_element = ESP_GMF_PIPELINE_GET_FIRST_ELEMENT((*pipeline));

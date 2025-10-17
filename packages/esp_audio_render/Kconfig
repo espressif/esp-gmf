@@ -9,5 +9,5 @@ menu "Espressif Audio Render Configuration"
 
     config ESP_AUDIO_RENDER_MIXER_THREAD_PRIORITY
         int "Audio render mixer thread priority"
-        default 5
+        default 20
 endmenu

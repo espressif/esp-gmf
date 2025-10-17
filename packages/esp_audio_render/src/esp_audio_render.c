@@ -25,6 +25,7 @@
 #define AUDIO_RENDER_DEFAULT_BIT_PER_SAMPLE (16)
 #define AUDIO_RENDER_DEFAULT_CHANNEL        (2)
 #define ESP_AUDIO_RENDER_MIXED_STREAM       ESP_AUDIO_RENDER_STREAM_ID(0xFF)
+#define AUDIO_RENDER_DEFAULT_BUF_ALIGN      (16)
 #define AUDIO_RENDER_PERIOD                 (20)
 #define AUDIO_RENDER_MIN_PERIOD             (5)
 #define SAMPLE_SIZE(info)                   ((info).bits_per_sample * (info).channel / 8)
@@ -33,7 +34,6 @@
 #define MIXER_EXITED_BIT                    (1 << 0)
 #define MIXER_STREAM_EXIT_BIT(stream_id)    (1 << (1 + (stream_id)))
 #define IS_VALID_SAMPLE_INFO(info)          ((info) && (info)->sample_rate && (info)->bits_per_sample && (info)->channel)
-#define SAME_SAMPLE_INFO(a, b)              (a.sample_rate == b.sample_rate && a.bits_per_sample == b.bits_per_sample && a.channel == b.channel)
 
 #define AUDIO_RENDER_STREAM_STATE_RUNNING  (1 << 0)
 #define AUDIO_RENDER_STREAM_STATE_WRITING  (1 << 1)
@@ -71,10 +71,12 @@ typedef struct {
     esp_gmf_rb_handle_t            rb;
     uint8_t                       *mixed_in_buf;
     bool                           mixer_empty;
+    esp_audio_render_mixer_gain_t  mixer_gain;
 } audio_render_stream_t;
 
 struct audio_render_t {
     esp_audio_render_cfg_t           cfg;
+    esp_gmf_task_config_t            task_cfg;
     esp_audio_render_event_cb_t      event_cb;
     void                            *event_ctx;
     audio_render_stream_t           *streams;
@@ -115,7 +117,11 @@ static inline int write_rb(esp_gmf_rb_handle_t rb, uint8_t *data, uint32_t size)
     esp_gmf_err_io_t ret = esp_gmf_rb_acquire_write(rb, &blk, size, AUDIO_RENDER_PERIOD * 2);
     // TODO this logic is error
     ret = esp_gmf_rb_release_write(rb, &blk, AUDIO_RENDER_PERIOD * 2);
-    return ret == ESP_GMF_IO_OK ? 0 : -1;
+    if (ret == ESP_GMF_IO_TIMEOUT) {
+        ESP_LOGW(TAG, "Write to mixer ringbuffer timeout, mixer may too slow");
+        ret = 0;
+    }
+    return ret;
 }
 
 static int audio_render_post_writer(uint8_t *pcm_data, uint32_t len, void *ctx)
@@ -283,7 +289,7 @@ static esp_audio_render_err_t open_post_stream(audio_render_t *audio_render)
     audio_render->mixer_block_size = SAMPLE_SIZE_OF_PERIOD(audio_render->cfg.process_period, audio_render->cfg.out_sample_info);
     for (int i = 0; i < actual_stream; i++) {
         audio_render_stream_t* in_stream = &audio_render->streams[i];
-        in_stream->mixed_in_buf = audio_render_malloc_align( audio_render->mixer_block_size, 16);
+        in_stream->mixed_in_buf = audio_render_malloc_align(audio_render->mixer_block_size, audio_render->cfg.process_buf_align);
         if (in_stream->mixed_in_buf == NULL) {
             ESP_LOGE(TAG, "Failed to allocate for mixer input %d", i);
             return ESP_AUDIO_RENDER_ERR_NO_RESOURCE;
@@ -293,7 +299,7 @@ static esp_audio_render_err_t open_post_stream(audio_render_t *audio_render)
     }
 
     // Create mixer output buffer
-    audio_render->mixed_out_buf = audio_render_malloc_align(audio_render->mixer_block_size, 16);
+    audio_render->mixed_out_buf = audio_render_malloc_align(audio_render->mixer_block_size, audio_render->cfg.process_buf_align);
     if (audio_render->mixed_out_buf == NULL) {
         ESP_LOGE(TAG, "Failed to allocate for mixer output");
         return ESP_AUDIO_RENDER_ERR_NO_RESOURCE;
@@ -305,9 +311,17 @@ static esp_audio_render_err_t open_post_stream(audio_render_t *audio_render)
     esp_ae_mixer_info_t src_info[actual_stream];
     memset(src_info, 0, sizeof(esp_ae_mixer_info_t) * actual_stream);
     for (int i = 0; i < actual_stream; i++) {
-        src_info[i].weight1 = 0;
-        src_info[i].weight2 = mixer_weight;
-        src_info[i].transit_time = 100;
+        audio_render_stream_t* in_stream = &audio_render->streams[i];
+        if (in_stream->mixer_gain.target_gain > 0.0) {
+            src_info[i].weight1 = in_stream->mixer_gain.initial_gain;
+            src_info[i].weight2 = in_stream->mixer_gain.target_gain;
+            src_info[i].transit_time = in_stream->mixer_gain.transition_time;
+        } else {
+            // Use default mixer gain settings
+            src_info[i].weight1 = 0;
+            src_info[i].weight2 = mixer_weight;
+            src_info[i].transit_time = 100;
+        }
     }
     esp_ae_mixer_cfg_t cfg = {
         .sample_rate = audio_render->cfg.out_sample_info.sample_rate,
@@ -337,10 +351,11 @@ static esp_audio_render_err_t open_post_stream(audio_render_t *audio_render)
         audio_render_proc_set_writer(stream->proc_handle, audio_render_post_writer, audio_render);
     }
     audio_render->running = true;
-    if (ESP_GMF_ERR_OK != esp_gmf_oal_thread_create(NULL, "Mixer", audio_render_task, audio_render,
-                                                    CONFIG_ESP_AUDIO_RENDER_MIXER_THREAD_STACK_SIZE,
-                                                    CONFIG_ESP_AUDIO_RENDER_MIXER_THREAD_PRIORITY, true,
-                                                    CONFIG_ESP_AUDIO_RENDER_MIXER_THREAD_CORE_ID)) {
+    esp_gmf_task_config_t *task_cfg = &audio_render->task_cfg;
+    if (ESP_GMF_ERR_OK != esp_gmf_oal_thread_create(NULL, "AudioRender", audio_render_task, audio_render,
+                                                    task_cfg->stack,
+                                                    task_cfg->prio, task_cfg->stack_in_ext,
+                                                    task_cfg->core)) {
         ESP_LOGE(TAG, "Failed to create mixer thread");
         audio_render->running = false;
         return ESP_AUDIO_RENDER_ERR_NO_RESOURCE;
@@ -393,6 +408,7 @@ static esp_audio_render_err_t try_close_post_stream(audio_render_t *audio_render
         audio_render_event_grp_destroy(audio_render->event_grp);
         audio_render->event_grp = NULL;
     }
+    AUDIO_RENDER_STREAM_CLR_RUNNING(stream->state);
     return ESP_AUDIO_RENDER_ERR_OK;
 }
 
@@ -445,16 +461,20 @@ static esp_audio_render_err_t open_stream(audio_render_t *audio_render, audio_re
                 break;
             }
         }
-        ret = audio_render_proc_open(stream->proc_handle, sample_info, &audio_render->cfg.out_sample_info);
-        if (ret != ESP_AUDIO_RENDER_ERR_OK) {
-            ESP_LOGE(TAG, "Failed to create processor for %d ret %d", stream->stream_id, ret);
-            break;
-        }
-        // Set process writer
-        if (audio_render->stream_num == 1) {
-            audio_render_proc_set_writer(stream->proc_handle, audio_render_post_writer, audio_render);
+        if (SAME_SAMPLE_INFO(audio_render->cfg.out_sample_info, (*sample_info)) && stream->proc_handle == NULL) {
+            // Allow direct write with out processor
         } else {
-            audio_render_proc_set_writer(stream->proc_handle, audio_render_stream_writer, stream);
+            ret = audio_render_proc_open(stream->proc_handle, sample_info, &audio_render->cfg.out_sample_info);
+            if (ret != ESP_AUDIO_RENDER_ERR_OK) {
+                ESP_LOGE(TAG, "Failed to create processor for %d ret %d", stream->stream_id, ret);
+                break;
+            }
+            // Set process writer
+            if (audio_render->stream_num == 1) {
+                audio_render_proc_set_writer(stream->proc_handle, audio_render_post_writer, audio_render);
+            } else {
+                audio_render_proc_set_writer(stream->proc_handle, audio_render_stream_writer, stream);
+            }
         }
         // Create mixer related resource
         if (audio_render->mixer) {
@@ -516,6 +536,7 @@ esp_audio_render_err_t esp_audio_render_create(esp_audio_render_cfg_t *cfg, esp_
                     ESP_LOGE(TAG, "Failed to create processor");
                     break;
                 }
+                audio_render_proc_set_buf_align(streams[i].proc_handle, cfg->process_buf_align);
             }
             streams[i].parent = audio_render;
         }
@@ -525,6 +546,9 @@ esp_audio_render_err_t esp_audio_render_create(esp_audio_render_cfg_t *cfg, esp_
         audio_render->streams = streams;
         audio_render->stream_num = stream_num;
         audio_render->cfg = *cfg;
+        if (audio_render->cfg.process_buf_align == 0) {
+            audio_render->cfg.process_buf_align = AUDIO_RENDER_DEFAULT_BUF_ALIGN;
+        }
         // Set default post output sample information
         if (cfg->out_sample_info.sample_rate == 0) {
             audio_render->cfg.out_sample_info.sample_rate = AUDIO_RENDER_DEFAULT_SAMPLE_RATE;
@@ -539,6 +563,10 @@ esp_audio_render_err_t esp_audio_render_create(esp_audio_render_cfg_t *cfg, esp_
             ESP_LOGW(TAG, "Force to convert process period to minimum %d", AUDIO_RENDER_MIN_PERIOD);
             audio_render->cfg.process_period = AUDIO_RENDER_MIN_PERIOD;
         }
+        audio_render->task_cfg.stack = CONFIG_ESP_AUDIO_RENDER_MIXER_THREAD_STACK_SIZE;
+        audio_render->task_cfg.prio = CONFIG_ESP_AUDIO_RENDER_MIXER_THREAD_PRIORITY;
+        audio_render->task_cfg.core = CONFIG_ESP_AUDIO_RENDER_MIXER_THREAD_CORE_ID;
+        audio_render->task_cfg.stack_in_ext = true;
         *render = audio_render;
         return ESP_AUDIO_RENDER_ERR_OK;
     } while (0);
@@ -559,12 +587,27 @@ esp_audio_render_err_t esp_audio_render_set_event_cb(esp_audio_render_handle_t r
                                                     esp_audio_render_event_cb_t event_cb, void *ctx)
 {
     if (render == NULL || event_cb == NULL) {
-        ESP_LOGE(TAG, "render:%p, event_cb:%p", render, event_cb);
+        ESP_LOGE(TAG, "Invalid argument for render:%p, event_cb:%p", render, event_cb);
         return ESP_AUDIO_RENDER_ERR_INVALID_ARG;
     }
     audio_render_t *audio_render = (audio_render_t *)render;
     audio_render->event_cb = event_cb;
     audio_render->event_ctx = ctx;
+    return ESP_AUDIO_RENDER_ERR_OK;
+}
+
+esp_audio_render_err_t esp_audio_render_task_reconfigure(esp_audio_render_handle_t render, esp_gmf_task_config_t *cfg)
+{
+    if (render == NULL || cfg == NULL) {
+        ESP_LOGE(TAG, "Invalid argument for render:%p, cfg:%p", render, cfg);
+        return ESP_AUDIO_RENDER_ERR_INVALID_ARG;
+    }
+    audio_render_t *audio_render = (audio_render_t *)render;
+    if (audio_render->running) {
+        ESP_LOGW(TAG, "Not allow to reconfigure task during running");
+        return ESP_AUDIO_RENDER_ERR_INVALID_STATE;
+    }
+    audio_render->task_cfg = *cfg;
     return ESP_AUDIO_RENDER_ERR_OK;
 }
 
@@ -636,6 +679,23 @@ esp_audio_render_err_t esp_audio_render_stream_get(esp_audio_render_handle_t ren
     return ESP_AUDIO_RENDER_ERR_OK;
 }
 
+esp_audio_render_err_t esp_audio_render_stream_set_mixer_gain(esp_audio_render_stream_handle_t stream_handle,
+                                                              esp_audio_render_mixer_gain_t *mixer_gain)
+{
+    if (stream_handle == NULL || mixer_gain == NULL || mixer_gain->target_gain < mixer_gain->initial_gain) {
+        ESP_LOGE(TAG, "Invalid argument for stream:%p mixer_gain:%p", stream_handle, mixer_gain);
+        return ESP_AUDIO_RENDER_ERR_INVALID_ARG;
+    }
+    audio_render_stream_t* stream = (audio_render_stream_t*)stream_handle;
+    audio_render_t *audio_render = stream->parent;
+    if (audio_render->running) {
+        ESP_LOGE(TAG, "Can not set mixer gain during running");
+        return ESP_AUDIO_RENDER_ERR_INVALID_STATE;
+    }
+    stream->mixer_gain = *mixer_gain;
+    return ESP_AUDIO_RENDER_ERR_OK;
+}
+
 esp_audio_render_err_t esp_audio_render_stream_open(esp_audio_render_stream_handle_t stream_handle,
                                                     esp_audio_render_sample_info_t *sample_info)
 {
@@ -663,6 +723,10 @@ esp_audio_render_err_t esp_audio_render_stream_add_proc(esp_audio_render_stream_
         return ESP_AUDIO_RENDER_ERR_INVALID_ARG;
     }
     audio_render_stream_t* stream = (audio_render_stream_t*)stream_handle;
+    if (stream->proc_handle == NULL) {
+        ESP_LOGE(TAG, "Not supported for no proc handle");
+        return ESP_AUDIO_RENDER_ERR_NOT_SUPPORTED;
+    }
     audio_render_t *audio_render = stream->parent;
     // Do pre filter
     if (audio_render->stream_num > 1) {
@@ -715,6 +779,27 @@ esp_audio_render_err_t esp_audio_render_stream_write(esp_audio_render_stream_han
     }
     int ret = audio_render_post_writer(pcm_data, pcm_size, audio_render);
     return ret == 0 ? ESP_AUDIO_RENDER_ERR_OK : ESP_AUDIO_RENDER_ERR_FAIL;
+}
+
+esp_audio_render_err_t esp_audio_render_stream_set_fade(esp_audio_render_stream_handle_t stream_handle,
+                                                        bool fade_in)
+{
+    if (stream_handle == NULL) {
+        ESP_LOGE(TAG, "Invalid argument for stream:%p", stream_handle);
+        return ESP_AUDIO_RENDER_ERR_INVALID_ARG;
+    }
+    audio_render_stream_t* stream = (audio_render_stream_t*)stream_handle;
+    audio_render_t *audio_render = stream->parent;
+    if (audio_render->running == false) {
+        ESP_LOGE(TAG, "Mixer is not running yet");
+        return ESP_AUDIO_RENDER_ERR_NOT_SUPPORTED;
+    }
+    if (fade_in) {
+        esp_ae_mixer_set_mode(audio_render->mixer, (int)stream->stream_id, ESP_AE_MIXER_MODE_FADE_UPWARD);
+    } else {
+        esp_ae_mixer_set_mode(audio_render->mixer, (int)stream->stream_id, ESP_AE_MIXER_MODE_FADE_DOWNWARD);
+    }
+    return ESP_AUDIO_RENDER_ERR_OK;
 }
 
 esp_audio_render_err_t esp_audio_render_stream_pause(esp_audio_render_stream_handle_t stream_handle, bool pause)

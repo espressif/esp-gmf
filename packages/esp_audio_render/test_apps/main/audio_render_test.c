@@ -707,38 +707,61 @@ int audio_render_dual_stream_no_proc(int write_count)
         esp_audio_render_stream_get(render, ESP_AUDIO_RENDER_SECOND_STREAM, &stream[1]);
         BREAK_ON_FAIL(stream[1] == NULL);
 
-        for (int i = 0; i < 2; i++) {
-            ret = esp_audio_render_stream_open(stream[i], &in_sample_info);
-            BREAK_ON_FAIL(ret);
-        }
-        BREAK_ON_FAIL(ret);
-
-        for (int i = 0; i < write_count; i++) {
-            for (int j = 0; j < 2; j++) {
-                ret = esp_audio_render_stream_write(stream[j], write_data, sizeof(write_data));
+        int run_loop = 2;
+        while (run_loop-- > 0) {
+            memset(&res, 0, sizeof(res));
+            for (int i = 0; i < 2; i++) {
+                if (i == 0) {
+                    esp_audio_render_mixer_gain_t mixer_gain = {
+                        .initial_gain = 0.2,
+                        .target_gain = 0.5,
+                        .transition_time = 200,
+                    };
+                    ret = esp_audio_render_stream_set_mixer_gain(stream[i], &mixer_gain);
+                    BREAK_ON_FAIL(ret);
+                }
+                ret = esp_audio_render_stream_open(stream[i], &in_sample_info);
                 BREAK_ON_FAIL(ret);
+            }
+            BREAK_ON_FAIL(ret);
+
+            for (int i = 0; i < write_count; i++) {
+                for (int j = 0; j < 2; j++) {
+                    ret = esp_audio_render_stream_write(stream[j], write_data, sizeof(write_data));
+                    BREAK_ON_FAIL(ret);
+                }
+                BREAK_ON_FAIL(ret);
+                if (i == write_count / 2) {
+                    ret = esp_audio_render_stream_set_fade(stream[0], false);
+                    BREAK_ON_FAIL(ret);
+                    ret = esp_audio_render_stream_set_fade(stream[1], true);
+                    BREAK_ON_FAIL(ret);
+                }
+            }
+            BREAK_ON_FAIL(ret);
+            vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL));
+            for (int i = 0; i < 2; i++) {
+                ret = esp_audio_render_stream_close(stream[i]);
+                BREAK_ON_FAIL(ret);
+            }
+            BREAK_ON_FAIL(ret);
+            // Verify result
+            if (res.is_open == false || res.is_close == false) {
+                ESP_LOGE(TAG, "Failed to verify open:%d close:%d", res.is_open, res.is_close);
+                ret = -1;
+                break;
+            }
+            expected = sizeof(write_data) * write_count;
+            expected = expected * SAMPLE_SIZE_PER_SECOND(out_info) / SAMPLE_SIZE_PER_SECOND(in_sample_info);
+            ESP_LOGI(TAG, "Expected %d actually render %d", (int)expected, (int)res.total_write);
+            if (res.total_write < expected) {
+                ESP_LOGW(TAG, "Render output not as expected");
+                ret = -1;
+                break;
             }
             BREAK_ON_FAIL(ret);
         }
         BREAK_ON_FAIL(ret);
-        vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL));
-        for (int i = 0; i < 2; i++) {
-            ret = esp_audio_render_stream_close(stream[i]);
-            BREAK_ON_FAIL(ret);
-        }
-        BREAK_ON_FAIL(ret);
-        // Verify result
-        if (res.is_open == false || res.is_close == false) {
-            ESP_LOGE(TAG, "Failed to verify open:%d close:%d", res.is_open, res.is_close);
-            break;
-        }
-        expected = sizeof(write_data) * write_count;
-        expected = expected * SAMPLE_SIZE_PER_SECOND(out_info) / SAMPLE_SIZE_PER_SECOND(in_sample_info);
-        ESP_LOGI(TAG, "Expected %d actually render %d", (int)expected, (int)res.total_write);
-        if (res.total_write < expected) {
-            ESP_LOGW(TAG, "Render output not as expected");
-            break;
-        }
         success = true;
     } while (0);
     if (render) {
@@ -959,14 +982,14 @@ int audio_render_dual_stream_one_slow(int write_count)
                 // Write first half
                 ret = esp_audio_render_stream_write(stream[0], write_data, frame_size / 2);
                 BREAK_ON_FAIL(ret);
-                vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL / 2));
+                vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL / 2) - 1);
                 // Write second half
                 ret = esp_audio_render_stream_write(stream[0], write_data + frame_size / 2, frame_size / 2);
                 BREAK_ON_FAIL(ret);
                 vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL / 2));
             } else {
                 // Not write data let mixer output 0 data
-                vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL));
+                vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL) - 1);
             }
         }
 
@@ -1014,5 +1037,68 @@ int audio_render_dual_stream_one_slow(int write_count)
         free(write_data);
     }
     destroy_default_pool((esp_gmf_pool_handle_t)cfg.pool);
+    return success ? 0 : -1;
+}
+
+int audio_render_with_no_pool(int write_count)
+{
+    render_out_res_t res = {};
+    esp_audio_render_cfg_t cfg = {
+        .max_stream_num = 1,
+        .out_sample_info = {
+            .sample_rate = 48000,
+            .bits_per_sample = 16,
+            .channel = 2,
+        },
+        .out_writer = render_post_write_hdlr,
+        .out_ctx = &res,
+    };
+    esp_audio_render_err_t ret;
+    esp_audio_render_handle_t render = NULL;
+    bool success = false;
+    uint8_t write_data[256*3];
+    uint64_t expected;
+    do {
+        ret = esp_audio_render_create(&cfg, &render);
+        BREAK_ON_FAIL(ret);
+        ret = esp_audio_render_set_event_cb(render, render_event_hdlr, &res);
+        BREAK_ON_FAIL(ret);
+
+        esp_audio_render_stream_handle_t stream = NULL;
+        esp_audio_render_stream_get(render, ESP_AUDIO_RENDER_FIRST_STREAM, &stream);
+        BREAK_ON_FAIL(stream == NULL);
+        esp_audio_render_proc_type_t procs[] = {
+            ESP_AUDIO_RENDER_PROC_ALC,
+            ESP_AUDIO_RENDER_PROC_ENC,
+        };
+        ret = esp_audio_render_stream_add_proc(stream, procs, sizeof(procs)/sizeof(procs[0]));
+        if (ret == ESP_AUDIO_RENDER_ERR_OK) {
+            BREAK_ON_FAIL(-1);
+        }
+        ret = esp_audio_render_stream_open(stream, &cfg.out_sample_info);
+        BREAK_ON_FAIL(ret);
+        for (int i = 0; i < write_count; i++) {
+            ret = esp_audio_render_stream_write(stream, write_data, sizeof(write_data));
+            BREAK_ON_FAIL(ret);
+        }
+        BREAK_ON_FAIL(ret);
+
+        ret = esp_audio_render_stream_close(stream);
+        // Verify result
+        if (res.is_open == false || res.is_close == false) {
+            ESP_LOGE(TAG, "Failed to verify open:%d close:%d", res.is_open, res.is_close);
+            break;
+        }
+        expected = sizeof(write_data) * write_count;
+        ESP_LOGI(TAG, "Expected %d actually render %d", (int)expected, (int)res.total_write);
+        if (res.total_write != expected) {
+            ESP_LOGE(TAG, "Render output not as expected");
+            break;
+        }
+        success = true;
+    } while (0);
+    if (render) {
+        esp_audio_render_destroy(render);
+    }
     return success ? 0 : -1;
 }

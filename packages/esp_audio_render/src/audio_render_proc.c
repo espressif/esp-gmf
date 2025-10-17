@@ -14,14 +14,12 @@
 
 #define TAG "AUD_RENDER_PROC"
 
-#define SAME_SAMPLE_INFO(from, to) \
-    ((from).sample_rate == (to).sample_rate && (from).bits_per_sample == (to).bits_per_sample && (from).channel == (to).channel)
-
 typedef struct {
     esp_gmf_pool_handle_t          pool;
     esp_audio_render_proc_type_t  *procs;
     esp_gmf_element_handle_t      *proc_elements;
     uint8_t                        proc_num;
+    uint8_t                        buf_align;
     esp_gmf_pipeline_handle_t      pipeline;
     bool                           is_opened;
     bool                           is_error;
@@ -80,6 +78,18 @@ static esp_gmf_err_io_t sink_acquire(void *handle, esp_gmf_payload_t *load, uint
         return ESP_GMF_IO_OK;
     }
     if (proc->out_pcm_size < wanted_size) {
+        if (proc->buf_align) {
+            if (proc->out_pcm) {
+                audio_render_free(proc->out_pcm);
+                proc->out_pcm_size = 0;
+            }
+            proc->out_pcm = audio_render_malloc_align(wanted_size, proc->buf_align);
+            if (proc->out_pcm == NULL) {
+                // Not enough memory
+                return ESP_GMF_IO_FAIL;
+            }
+            proc->out_pcm_size = wanted_size;
+        }
         uint8_t *out_pcm = audio_render_realloc(proc->out_pcm, wanted_size);
         if (out_pcm == NULL) {
             // Not enough memory
@@ -167,6 +177,17 @@ esp_audio_render_err_t audio_render_proc_create(esp_gmf_pool_handle_t pool, audi
     return ESP_AUDIO_RENDER_ERR_OK;
 }
 
+esp_audio_render_err_t audio_render_proc_set_buf_align(audio_render_proc_handle_t handle, uint8_t buf_align)
+{
+    if (handle == NULL) {
+        ESP_LOGE(TAG, "Invalid arg for handle:%p", handle);
+        return ESP_AUDIO_RENDER_ERR_INVALID_ARG;
+    }
+    audio_proc_t *proc = (audio_proc_t*)handle;
+    proc->buf_align = buf_align;
+    return ESP_AUDIO_RENDER_ERR_OK;
+}
+
 esp_audio_render_err_t audio_render_proc_add(audio_render_proc_handle_t handle, esp_audio_render_proc_type_t *procs,
                                              uint8_t proc_num)
 {
@@ -235,6 +256,12 @@ esp_audio_render_err_t audio_render_proc_open(audio_render_proc_handle_t handle,
             out_port = NEW_ESP_GMF_PORT_OUT_BLOCK(sink_acquire, sink_release, NULL, proc, 0, ESP_GMF_MAX_DELAY);
             if (in_port == NULL || out_port == NULL) {
                 ESP_LOGE(TAG, "Fail to create port");
+                if (in_port) {
+                    esp_gmf_port_deinit(in_port);
+                }
+                if (out_port) {
+                    esp_gmf_port_deinit(out_port);
+                }
                 break;
             }
             audio_render_pipeline_cfg_t pipeline_cfg = {
@@ -246,6 +273,7 @@ esp_audio_render_err_t audio_render_proc_open(audio_render_proc_handle_t handle,
                 .proc_elements = proc->proc_elements,
                 .proc_num = proc->proc_num,
             };
+            // When create pipeline success port will takeover by pipeline
             ret = audio_render_pipeline_open(&pipeline_cfg, &proc->pipeline);
             if (ret != ESP_AUDIO_RENDER_ERR_OK) {
                 ESP_LOGE(TAG, "Fail to create pipeline");
@@ -258,12 +286,6 @@ esp_audio_render_err_t audio_render_proc_open(audio_render_proc_handle_t handle,
         proc->is_opened = true;
         return ret;
     } while (0);
-    if (in_port) {
-        esp_gmf_port_deinit(in_port);
-    }
-    if (out_port) {
-        esp_gmf_port_deinit(out_port);
-    }
     audio_render_proc_close((audio_render_proc_handle_t) proc);
     return ESP_AUDIO_RENDER_ERR_NO_RESOURCE;
 }

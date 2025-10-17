@@ -56,6 +56,15 @@ typedef struct {
 } esp_audio_render_sample_info_t;
 
 /**
+ * @brief  Audio render mixer gain
+ */
+typedef struct {
+    float     initial_gain;     /*!< Initial gain for mixer stream */
+    float     target_gain;      /*!< Target gain for mixer stream */
+    uint32_t  transition_time;  /*!< Transition time to smooth from initial to target or versa (unit ms) */
+} esp_audio_render_mixer_gain_t;
+
+/**
  * @brief  Audio render writer callback
  *
  * @param[in]  pcm_data  PCM data to be written
