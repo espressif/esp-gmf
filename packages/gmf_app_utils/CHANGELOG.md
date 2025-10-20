@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.6
+
+### Features
+
+- Updated dependency `esp_board_manager` instead of `codec_board`
+
 ## 0.7.5
 
 ### Bug Fixes

@@ -31,8 +31,7 @@ GMF 应用工具包（gmf_app_utils）是一个为方便 ESP GMF 开发应用程
   - SD 卡初始化和挂载
 - 连接管理
   - Wi-Fi 初始化连接
-- 通过 Menuconfig 选择支持的开发板
-  - 其他开发板支持请参阅 [其他开发板支持](#其他开发板支持) 小节
+- 通过 `esp_board_manager` 选择支持的开发板或自定义开发板，请参阅 [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager)
 
 ### 系统工具（`esp_gmf_app_sys.h`）
 提供系统资源监控功能的启动/停止，便于用户运行时性能跟踪以及资源使用情况监控，使用时需要在 menuconfig 中开启 `CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID` 和 `CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS`。
@@ -69,43 +68,3 @@ GMF 应用工具包（gmf_app_utils）是一个为方便 ESP GMF 开发应用程
   - 使用`esp_gmf_app_test_case_uses_tcpip()`进行网络测试项资源预分配
   - 支持通过测试项描述如 `[leaks]` 或 `[leaks=1024]` 控制泄漏检查阈值
   - main 函数调用 `esp_gmf_app_test_main()` 创建单元测试线程
-
-### 其他开发板支持
-
-外设管理目前使用 `codec_board` 作为参考板卡实现，便于快速验证。若要在自定义开发板上使用支持的外设，请按照以下步骤操作：
-
-1. **获取 `codec_board`** 并将其放入项目的 `components` 文件夹
-   
-   可以使用以下任一方法：
-   
-   1.1 首先构建代码以触发自动下载，然后复制到项目文件夹：
-   ```bash
-   idf.py build
-   mkdir -p components/codec_board
-   cp -rf managed_components/tempotian__codec_board components/codec_board
-   ```
-   
-   1.2 从组件注册表下载 [codec_board](https://components.espressif.com/components/tempotian/codec_board/) 并手动复制到项目文件夹
-
-2. **在 `components/codec_board/board_cfg.txt` 中添加新的开发板配置节**，例如：
-   ```
-   Board: MY_BOARD
-   i2c: {sda: 1, scl: 2}
-   i2s: {mclk: 42, bclk: 40, ws: 41, dout: 39}
-   out: {codec: ES8311, pa: 38, use_mclk: 0, pa_gain: 6}
-   ```
-
-3. **在调用任何外设 API 之前，在应用代码中设置板卡类型**：
-   ```c
-   #include "codec_board.h"
-   void app_main(void)
-   {
-       set_codec_board_type("MY_BOARD");
-   }
-   ```
-
-4. **重新构建代码使修改生效**：
-   ```bash
-   idf.py fullclean
-   idf.py -p /dev/XXXXX flash monitor
-   ```

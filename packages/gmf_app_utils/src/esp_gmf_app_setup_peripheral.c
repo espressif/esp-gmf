@@ -11,13 +11,9 @@
 #include "nvs_flash.h"
 #include "esp_event.h"
 #include "protocol_examples_common.h"
-#include "codec_init.h"
-#include "codec_board.h"
+#include "esp_board_manager_includes.h"
 #include "esp_gmf_app_setup_peripheral.h"
-
-#ifndef CONFIG_AUDIO_BOARD
-#define CONFIG_AUDIO_BOARD "NULL"
-#endif  /* CONFIG_AUDIO_BOARD */
+#include "esp_codec_dev.h"
 
 #define SETUP_AUDIO_FORCED_CHANNELS 2
 #define DEFAULT_VOLUME              60.0
@@ -55,61 +51,62 @@ static void setup_create_codec_dev(esp_gmf_app_codec_info_t *codec_info)
 
 void esp_gmf_app_setup_sdcard(void **sdcard_handle)
 {
-    set_codec_board_type(CONFIG_AUDIO_BOARD);
-    mount_sdcard();
+    ESP_ERROR_CHECK(esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_FS_SDCARD));
     if (sdcard_handle) {
-        *sdcard_handle = get_sdcard_handle();
+        esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_FS_SDCARD, sdcard_handle);
     }
 }
 
 void esp_gmf_app_teardown_sdcard(void *sdcard_handle)
 {
-    unmount_sdcard();
+    ESP_ERROR_CHECK(esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_FS_SDCARD));
 }
 
 void esp_gmf_app_setup_codec_dev(esp_gmf_app_codec_info_t *codec_info)
 {
-    set_codec_board_type(CONFIG_AUDIO_BOARD);
+    ESP_ERROR_CHECK(esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC));
+    ESP_ERROR_CHECK(esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_ADC));
     if (codec_info) {
-        codec_init_cfg_t codec_cfg = {
-            .in_mode = codec_info->record_info.mode,
-            .out_mode = codec_info->play_info.mode,
-            .in_use_tdm = false,
-            .reuse_dev = false,
-        };
-        ESP_ERROR_CHECK(init_codec(&codec_cfg));
         setup_create_codec_dev(codec_info);
     } else {
         esp_gmf_app_codec_info_t _info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
-        codec_init_cfg_t codec_cfg = {
-            .in_mode = _info.record_info.mode,
-            .out_mode = _info.play_info.mode,
-            .in_use_tdm = false,
-            .reuse_dev = false,
-        };
-        ESP_ERROR_CHECK(init_codec(&codec_cfg));
         setup_create_codec_dev(&_info);
     }
 }
 
 void *esp_gmf_app_get_i2c_handle(void)
 {
-    return get_i2c_bus_handle(0);
+    void *i2c_handle = NULL;
+    esp_board_manager_get_periph_handle("i2c_master", &i2c_handle);
+    return i2c_handle;
 }
 
 void *esp_gmf_app_get_playback_handle(void)
 {
-    return get_playback_handle();
+    void *playback_handle = NULL;
+    dev_audio_codec_handles_t *device_handle = NULL;
+    esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&device_handle);
+    if (device_handle) {
+        playback_handle = device_handle->codec_dev;
+    }
+    return playback_handle;
 }
 
 void *esp_gmf_app_get_record_handle(void)
 {
-    return get_record_handle();
+    void *record_handle = NULL;
+    dev_audio_codec_handles_t *device_handle = NULL;
+    esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&device_handle);
+    if (device_handle) {
+        record_handle = device_handle->codec_dev;
+    }
+    return record_handle;
 }
 
 void esp_gmf_app_teardown_codec_dev(void)
 {
-    deinit_codec();
+    ESP_ERROR_CHECK(esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_ADC));
+    ESP_ERROR_CHECK(esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC));
 }
 
 void esp_gmf_app_wifi_connect(void)
