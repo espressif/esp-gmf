@@ -12,6 +12,9 @@ ESP Board Manager IDF Action Extension
 This module provides IDF action integration for the ESP Board Manager configuration generator.
 It converts the standalone gen_bmgr_config_codes.py script into an IDF action accessible via:
     idf.py gen-bmgr-config [options]
+
+This extension is automatically discovered by ESP-IDF v6.0+ when placed as 'idf_ext.py' in a component
+directory. The extension will be loaded after project configuration with 'idf.py reconfigure' or 'idf.py build'.
 """
 
 import os
@@ -236,6 +239,7 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
 
     # Define the actions
     esp_actions = {
+        'version': '1',
         'actions': {
             'gen-bmgr-config': {
                 'callback': esp_gen_bmgr_config_callback,

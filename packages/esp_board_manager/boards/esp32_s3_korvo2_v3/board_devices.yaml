@@ -54,7 +54,7 @@ devices:
         clk: 15  # GPIO_NUM_15
         cmd: 7   # GPIO_NUM_7
         d0: 4    # GPIO_NUM_4
-  
+
   - name: gpio_expander
     chip: tca9554
     type: gpio_expander
@@ -68,7 +68,7 @@ devices:
       input_io_mask: NULL
     peripherals:
       - name: i2c_master
-        i2c_addr: [0x70, 0x7A]         # I2C address of the IO expander
+        i2c_addr: [0x70, 0x40]         # I2C address of the IO expander
 
   - name: display_lcd
     chip: ili9341

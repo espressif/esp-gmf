@@ -34,6 +34,7 @@ extern "C" {
 #define ESP_BOARD_ERR_PERIPH_NO_INIT            (ESP_BOARD_ERR_PERIPH_BASE - 0x03)  /*!< No init function */
 #define ESP_BOARD_ERR_PERIPH_INIT_FAILED        (ESP_BOARD_ERR_PERIPH_BASE - 0x04)  /*!< Init failed */
 #define ESP_BOARD_ERR_PERIPH_DEINIT_FAILED      (ESP_BOARD_ERR_PERIPH_BASE - 0x05)  /*!< Deinit failed */
+#define ESP_BOARD_ERR_PERIPH_NOT_SUPPORTED      (ESP_BOARD_ERR_PERIPH_BASE - 0x06)  /*!< No configuration supported */
 
 /* Device Error Codes */
 #define ESP_BOARD_ERR_DEVICE_NOT_FOUND          (ESP_BOARD_ERR_DEVICE_BASE - 0x00)  /*!< Device not found */
@@ -42,6 +43,7 @@ extern "C" {
 #define ESP_BOARD_ERR_DEVICE_NO_INIT            (ESP_BOARD_ERR_DEVICE_BASE - 0x03)  /*!< No init function */
 #define ESP_BOARD_ERR_DEVICE_INIT_FAILED        (ESP_BOARD_ERR_DEVICE_BASE - 0x04)  /*!< Init failed */
 #define ESP_BOARD_ERR_DEVICE_DEINIT_FAILED      (ESP_BOARD_ERR_DEVICE_BASE - 0x05)  /*!< Deinit failed */
+#define ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED      (ESP_BOARD_ERR_DEVICE_BASE - 0x06)  /*!< No configuration supported */
 
 /* Error handling macros with ## operator for flexible usage */
 #define ESP_BOARD_RETURN_ON_FALSE(condition, error_code, tag, ...) do {  \

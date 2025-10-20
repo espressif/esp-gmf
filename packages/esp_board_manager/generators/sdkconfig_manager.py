@@ -182,6 +182,7 @@ class SDKConfigManager(LoggerMixin):
     def _apply_board_selection_updates(self, sdkconfig_content: str, board_name: str) -> Tuple[str, List[str]]:
         """
         Apply board selection updates to the sdkconfig content.
+        First sets all existing CONFIG_BOARD_*** to n, then adds the new CONFIG_BOARD_***.
 
         Args:
             sdkconfig_content: Current sdkconfig content
@@ -192,56 +193,76 @@ class SDKConfigManager(LoggerMixin):
         """
         changes = []
 
-        # Find Board Selection section
-        section_start = '# Board Selection'
-        section_end = '# end of Board Selection'
-
-        start_idx = sdkconfig_content.find(section_start)
-        if start_idx == -1:
-            self.logger.info('   Board Selection section not found in sdkconfig')
-            return sdkconfig_content, changes
-
-        end_idx = sdkconfig_content.find(section_end, start_idx)
-        if end_idx == -1:
-            self.logger.warning('⚠️  Board Selection section end marker not found in sdkconfig')
-            return sdkconfig_content, changes
-
-        # Extract the section content
-        section_content = sdkconfig_content[start_idx:end_idx + len(section_end)]
-
         # Convert board name to config macro format
         board_config_macro = f'CONFIG_BOARD_{board_name.upper().replace("-", "_")}'
 
-        # Find all board config options in the section
-        board_configs = re.findall(r'CONFIG_BOARD_[A-Z0-9_]+', section_content)
+        # First, find and disable all existing CONFIG_BOARD_*** options in the entire sdkconfig
+        # This handles cases where board configs might be outside the Board Selection section
+        # Note: Don't modify CONFIG_BOARD_NAME as it's not a board selection config
+        board_config_pattern = r'^CONFIG_BOARD_[A-Z0-9_]+=y$'
+        lines = sdkconfig_content.split('\n')
+        updated_lines = []
 
-        if not board_configs:
-            self.logger.warning('⚠️  No board config options found in Board Selection section')
+        for line in lines:
+            if re.match(board_config_pattern, line.strip()) and not line.strip().startswith('CONFIG_BOARD_NAME='):
+                # Set existing board configs to n (but not CONFIG_BOARD_NAME)
+                config_name = line.split('=')[0]
+                updated_lines.append(f'{config_name}=n')
+                changes.append(f'Set {config_name}=n')
+            else:
+                updated_lines.append(line)
+
+        # Update the content with disabled board configs
+        sdkconfig_content = '\n'.join(updated_lines)
+
+        # Find Board Selection section - it's between Board Manager Setting and Peripheral Support
+        board_manager_end = '# end of Board Manager Setting'
+        peripheral_support_start = '# Peripheral Support'
+
+        # Find the end of Board Manager Setting section
+        board_manager_end_idx = sdkconfig_content.find(board_manager_end)
+        if board_manager_end_idx == -1:
+            self.logger.info('   Board Manager Setting section not found in sdkconfig')
+            # If no Board Manager Setting section, add the new board config at the end
+            sdkconfig_content += f'\n# default:\n'
+            sdkconfig_content += f'{board_config_macro}=y\n'
+            sdkconfig_content += f'# default:\n'
+            sdkconfig_content += f'CONFIG_BOARD_NAME="{board_name}"\n'
+            changes.append(f'Added {board_config_macro}=y')
             return sdkconfig_content, changes
 
-        # Create updated section content
-        updated_section = section_start + '\n'
+        # Find the start of Peripheral Support section
+        peripheral_start_idx = sdkconfig_content.find(peripheral_support_start, board_manager_end_idx)
+        if peripheral_start_idx == -1:
+            self.logger.warning('⚠️  Peripheral Support section not found in sdkconfig')
+            # If no Peripheral Support section, add the new board config after Board Manager Setting
+            insertion_point = board_manager_end_idx + len(board_manager_end)
+            sdkconfig_content = (sdkconfig_content[:insertion_point] +
+                               f'\n# default:\n' +
+                               f'{board_config_macro}=y\n' +
+                               f'# default:\n' +
+                               f'CONFIG_ESP_BOARD_NAME="{board_name}"\n' +
+                               sdkconfig_content[insertion_point:])
+            changes.append(f'Added {board_config_macro}=y')
+            return sdkconfig_content, changes
 
-        for config in board_configs:
-            if config == board_config_macro:
-                # Enable the selected board
-                updated_section += f'{config}=y\n'
-                changes.append(f'Enabled {config}')
-            else:
-                # Disable other boards
-                updated_section += f'# {config} is not set\n'
-                changes.append(f'Disabled {config}')
+        # Extract the Board Selection section content (between Board Manager Setting and Peripheral Support)
+        section_start_idx = board_manager_end_idx + len(board_manager_end)
+        section_content = sdkconfig_content[section_start_idx:peripheral_start_idx]
 
-        updated_section += f"\nCONFIG_ESP_BOARD_NAME=\"{board_name}\"\n"
-        updated_section += section_end
+        # Create updated Board Selection section content - only keep the new board selection
+        updated_section = f'\n\n# default:\n'
+        updated_section += f'{board_config_macro}=y\n'
+        updated_section += f'# default:\n'
+        updated_section += f'CONFIG_ESP_BOARD_NAME="{board_name}"\n\n'
+        changes.append(f'Added {board_config_macro}=y')
 
-        # Replace the section in the original content
+        # Replace the Board Selection section in the original content
         updated_content = (
-            sdkconfig_content[:start_idx] +
+            sdkconfig_content[:section_start_idx] +
             updated_section +
-            sdkconfig_content[end_idx + len(section_end):]
+            sdkconfig_content[peripheral_start_idx:]
         )
-
         return updated_content, changes
 
     def _find_sdkconfig_path(self) -> Optional[str]:

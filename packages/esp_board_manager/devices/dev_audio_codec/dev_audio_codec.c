@@ -14,6 +14,7 @@
 #include "esp_board_periph.h"
 #include "esp_board_manager_defs.h"
 #include "es8389_codec.h"
+#include "esp_board_device.h"
 
 static const char *TAG = "DEV_AUDIO_CODEC";
 
@@ -234,12 +235,12 @@ int dev_audio_codec_init(void *cfg, int cfg_size, void **device_handle)
     audio_codec_i2s_cfg_t i2s_cfg = {0};
     if (strcmp(codec_cfg->name, ESP_BOARD_DEVICE_NAME_AUDIO_ADC) == 0) {
         ESP_LOGI(TAG, "ADC is ENABLED");
-        esp_board_periph_get_handle(codec_cfg->i2s_cfg.name, &i2s_cfg.rx_handle);
+        esp_board_periph_ref_handle(codec_cfg->i2s_cfg.name, &i2s_cfg.rx_handle);
 
         dev_type |= ESP_CODEC_DEV_TYPE_IN;
     } else if (strcmp(codec_cfg->name, ESP_BOARD_DEVICE_NAME_AUDIO_DAC) == 0) {
         codec_handles->gpio_if = (audio_codec_gpio_if_t *)audio_codec_new_gpio();
-        esp_board_periph_get_handle(codec_cfg->i2s_cfg.name, &i2s_cfg.tx_handle);
+        esp_board_periph_ref_handle(codec_cfg->i2s_cfg.name, &i2s_cfg.tx_handle);
         ESP_LOGI(TAG, "DAC is ENABLED");
         dev_type |= ESP_CODEC_DEV_TYPE_OUT;
     }
@@ -249,7 +250,7 @@ int dev_audio_codec_init(void *cfg, int cfg_size, void **device_handle)
              codec_cfg->name, codec_cfg->i2s_cfg.name, i2s_cfg.rx_handle, i2s_cfg.tx_handle, codec_handles->data_if);
 
     audio_codec_i2c_cfg_t i2c_cfg = {0};
-    esp_board_periph_get_handle(codec_cfg->i2c_cfg.name, &i2c_cfg.bus_handle);
+    esp_board_periph_ref_handle(codec_cfg->i2c_cfg.name, &i2c_cfg.bus_handle);
     i2c_cfg.addr = codec_cfg->i2c_cfg.address;
     codec_handles->ctrl_if = (audio_codec_ctrl_if_t *)audio_codec_new_i2c_ctrl(&i2c_cfg);
 
@@ -300,6 +301,7 @@ int dev_audio_codec_init(void *cfg, int cfg_size, void **device_handle)
 int dev_audio_codec_deinit(void *device_handle)
 {
     dev_audio_codec_handles_t *codec_handles = (dev_audio_codec_handles_t *)device_handle;
+
     esp_codec_dev_delete(codec_handles->codec_dev);
     codec_handles->codec_dev = NULL;
     audio_codec_delete_codec_if(codec_handles->codec_if);
@@ -311,6 +313,19 @@ int dev_audio_codec_deinit(void *device_handle)
         codec_handles->gpio_if = NULL;
     }
     audio_codec_delete_data_if(codec_handles->data_if);
+
+    const char *name = NULL;
+    const esp_board_device_handle_t *device_handle_struct = esp_board_device_find_by_handle(device_handle);
+    if (device_handle_struct) {
+        name = device_handle_struct->name;
+    }
+    dev_audio_codec_config_t *cfg = NULL;
+    esp_board_device_get_config(name, (void **)&cfg);
+    if (cfg) {
+        esp_board_periph_unref_handle(cfg->i2s_cfg.name);
+        esp_board_periph_unref_handle(cfg->i2c_cfg.name);
+    }
+
     codec_handles->data_if = NULL;
     free(codec_handles);
     return 0;

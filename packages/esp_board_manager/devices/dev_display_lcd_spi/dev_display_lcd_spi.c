@@ -21,6 +21,7 @@
 #include "dev_display_lcd_spi.h"
 #include "esp_board_periph.h"
 #include "periph_spi.h"
+#include "esp_board_device.h"
 
 static const char *TAG = "DEV_DISPLAY_LCD_SPI";
 
@@ -39,7 +40,7 @@ int dev_display_lcd_spi_init(void *cfg, int cfg_size, void **device_handle)
     ESP_LOGI(TAG, "Initializing LCD display: %s, chip: %s", lcd_cfg->name, lcd_cfg->chip);
     periph_spi_handle_t *spi_handle = NULL;
     if (lcd_cfg->spi_name && strlen(lcd_cfg->spi_name) > 0) {
-        int ret = esp_board_periph_get_handle(lcd_cfg->spi_name, (void**)&spi_handle);
+        int ret = esp_board_periph_ref_handle(lcd_cfg->spi_name, (void**)&spi_handle);
         if (ret != 0) {
             ESP_LOGE(TAG, "Failed to get SPI peripheral handle: %d", ret);
             free(lcd_handles);
@@ -124,6 +125,16 @@ int dev_display_lcd_spi_deinit(void *device_handle)
         lcd_handles->io_handle = NULL;
     }
 
+    const char *name = NULL;
+    const esp_board_device_handle_t *device_handle_struct = esp_board_device_find_by_handle(device_handle);
+    if (device_handle_struct) {
+        name = device_handle_struct->name;
+    }
+    dev_display_lcd_spi_config_t *cfg = NULL;
+    esp_board_device_get_config(name, (void **)&cfg);
+    if (cfg) {
+        esp_board_periph_unref_handle(cfg->spi_name);
+    }
     free(lcd_handles);
     return 0;
 }
