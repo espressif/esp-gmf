@@ -9,10 +9,13 @@
 
 #include <stdint.h>
 
-#define ESP_FOURCC_VERSION ("v1.0.0")
+#define ESP_FOURCC_VERSION ("v1.0.1")
 
 /**
 # Changelog
+
+## [v1.0.1]
+   - Fixed incorrect bit shift in the macro converting FourCC code to a string
 
 ## [v1.0.0]
     - Add audio, video and pixel format with fourcc(four character code)
@@ -25,7 +28,7 @@ typedef uint32_t esp_fourcc_t;  // 32-bit FOURCC code
 // Convert 32-bit FOURCC to string
 static inline void gmf_fourcc_to_str(uint32_t fourcc, char out[5]) {
     for (int i = 0; i < 4; i++) {
-        out[i] = (char)((fourcc >> (i * 4)) & 0xFF);
+        out[i] = (char)((fourcc >> (i * 8)) & 0xFF);
     }
     out[4] = '\0';
 }
