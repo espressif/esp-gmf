@@ -9,8 +9,8 @@ VERSION = 'v1.0.0'
 # Define valid enum values for SDMMC configuration
 VALID_SDMMC_ENUMS = {
     'slot': [
+        'SDMMC_HOST_SLOT_0',
         'SDMMC_HOST_SLOT_1',
-        'SDMMC_HOST_SLOT_2'
     ],
     'frequency': [
         'SDMMC_FREQ_DEFAULT',      # 20000
@@ -115,14 +115,14 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     frequency_raw = config.get('frequency', 'SDMMC_FREQ_HIGHSPEED')
     frequency = get_enum_value(frequency_raw, 'SDMMC_FREQ_HIGHSPEED', 'frequency')
     bus_width = config.get('bus_width', 1)  # Default to 1-bit mode
-    slot_flags = config.get('slot_flags', 'SDMMC_SLOT_FLAG_INTERNAL_PULLUP')  # Default slot flags
+    slot_flags = config.get('slot_flags', 0)  # Default slot flags
 
     # Get GPIO pins with default values from board_devices.yaml
     pins = config.get('pins', {})
     pin_config = {
-        'clk': pins.get('clk', 15),  # GPIO_NUM_15
-        'cmd': pins.get('cmd', 7),   # GPIO_NUM_7
-        'd0': pins.get('d0', 4),     # GPIO_NUM_4
+        'clk': pins.get('clk', -1),  # Not used
+        'cmd': pins.get('cmd', -1),  # Not used
+        'd0': pins.get('d0', -1),    # Not used
         'd1': pins.get('d1', -1),    # Not used
         'd2': pins.get('d2', -1),    # Not used
         'd3': pins.get('d3', -1),    # Not used

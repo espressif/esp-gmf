@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+- Fixed the configuration of the sdmmc sdcard host slot, ensuring the configuration for the host slot in the yml file takes effect correctly
+- Using slot 0 to drive the sdcard for p4_function board, avoiding conflict with wifi hosted
+
 ## v0.4.0
 
 ### Features

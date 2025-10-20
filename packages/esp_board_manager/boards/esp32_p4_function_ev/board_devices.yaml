@@ -25,7 +25,7 @@ devices:
       - name: i2c_master
         address: 0x30
         frequency: 400000
-  
+
   - name: audio_adc
     chip: es8311  # Codec chip (ES8311)
     type: audio_codec
@@ -46,18 +46,27 @@ devices:
       - name: i2c_master
         address: 0x30
         frequency: 400000
-  
+
   - name: fs_sdcard
     type: fatfs_sdcard
     version: default
     config:
+      # Use SDMMC slot 0
+      slot: SDMMC_HOST_SLOT_0
+      frequency: SDMMC_FREQ_HIGHSPEED
       bus_width: 4
+      # If using slot 0, the pin must be configured as 0, the IO pins actually used are configured by the SDMMC driver
+      # For more details, please check https://github.com/espressif/esp-idf/blob/v5.5.1/components/esp_driver_sdmmc/src/sdmmc_host.c#L668
       pins:
-        clk: 43
-        cmd: 44
-        d0: 39
-        d1: 40
-        d2: 41
-        d3: 42
-      
+        clk: 0
+        cmd: 0
+        d0: 0
+        d1: 0
+        d2: 0
+        d3: 0
+        d4: 0
+        d5: 0
+        d6: 0
+        d7: 0
+
       ldo_chan_id: 4  # Use LDO_VO4 to power SDMMC IO

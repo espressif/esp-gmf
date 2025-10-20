@@ -43,7 +43,7 @@ int dev_fatfs_sdcard_init(void *cfg, int cfg_size, void **device_handle)
     // Use SDMMC host
     handle->host = (sdmmc_host_t)SDMMC_HOST_DEFAULT();
     handle->host.max_freq_khz = config->frequency;
-    handle->host.flags = config->slot;
+    handle->host.slot = config->slot;
 
 #ifdef SOC_GP_LDO_SUPPORTED
     if (config->ldo_chan_id != -1) {
@@ -57,6 +57,7 @@ int dev_fatfs_sdcard_init(void *cfg, int cfg_size, void **device_handle)
             goto cleanup;
         }
         handle->host.pwr_ctrl_handle = pwr_ctrl_handle;
+        ESP_LOGI(TAG, "LDO power control is initialized");
     } else {
         ESP_LOGI(TAG, "LDO power control is not used");
     }
