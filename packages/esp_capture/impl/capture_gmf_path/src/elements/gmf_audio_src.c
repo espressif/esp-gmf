@@ -14,7 +14,7 @@
 #include "esp_capture_audio_src_if.h"
 #include "esp_gmf_info.h"
 #include "capture_audio_src_el.h"
-#include "capture_os.h"
+#include "capture_utils.h"
 #include "esp_gmf_audio_element.h"
 #include "data_queue.h"
 #include "esp_capture_sync.h"
@@ -203,10 +203,14 @@ static esp_gmf_job_err_t audio_src_el_process(esp_gmf_audio_element_handle_t sel
         ESP_LOGE(TAG, "Acquire on in port, ret:%d", ret);
         return ret == ESP_GMF_IO_ABORT ? ESP_GMF_JOB_ERR_OK : ESP_GMF_JOB_ERR_FAIL;
     }
-    out_load = in_load;
-    ret = esp_gmf_port_acquire_out(out, &out_load, out_load->valid_size, -1);
-    if (ret >= 0) {
-        esp_gmf_port_release_out(out, out_load, 0);
+    if (in_load->valid_size) {
+        out_load = in_load;
+        ret = esp_gmf_port_acquire_out(out, &out_load, out_load->valid_size, -1);
+        if (ret >= 0) {
+            esp_gmf_port_release_out(out, out_load, 0);
+        }
+    } else {
+        ret = ESP_GMF_JOB_ERR_CONTINUE;
     }
     if (in_load->is_done) {
         ret = ESP_GMF_JOB_ERR_DONE;

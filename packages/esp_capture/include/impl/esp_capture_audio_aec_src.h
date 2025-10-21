@@ -40,6 +40,12 @@ typedef struct {
     uint8_t     channel;        /*!< Audio channel */
     uint8_t     channel_mask;   /*!< Bit mask to select which channels to process
                                       (e.g. 0x1 for left channel, 0x2 for right channel) */
+    bool        data_on_vad;    /*!< If enabled, only fetch and send audio data when voice activity is detected (between VAD start and end)
+                                     This optimizes resource usage by avoiding continuous encoding/transmission of silent audio
+                                     When enabled:
+                                       - CPU is saved by skipping full processing during non-voice periods
+                                       - Data is only sent when VAD confirms voice presence
+                                     Recommended for chat applications to reduce bandwidth and computational overhead */
 } esp_capture_audio_aec_src_cfg_t;
 
 /**

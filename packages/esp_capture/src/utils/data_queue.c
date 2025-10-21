@@ -222,6 +222,7 @@ void *data_q_get_buffer(data_q_t *q, int size)
                 q->wp = q->rp = 0;
             }
             q->fill_end = q->wp;
+            q->last_fill_end = q->wp;
             q->wp = 0;
             avail = get_available_size(q);
         }
@@ -274,6 +275,7 @@ int data_q_send_buffer(data_q_t *q, int size)
             *(int *)0 = 0;
         }
         q->wp += size;
+        q->fixed_wr_wize = size;
         q->filled += size;
         q->user--;
         data_queue_notify_data(q);
@@ -330,7 +332,6 @@ int data_q_read_lock(data_q_t *q, void **buffer, int *size)
         if (data_size < 0 || data_size > q->size) {
             *(int *)0 = 0;
         }
-        q->filled -= data_size;
         *buffer = data_buffer + DATA_Q_ALLOC_HEAD_SIZE;
         *size = data_size - DATA_Q_ALLOC_HEAD_SIZE;
         q->user++;
@@ -365,6 +366,7 @@ int data_q_read_unlock(data_q_t *q)
                 *(int *)0 = 0;
             }
             q->rp += size;
+            q->filled -= size;
             if (q->fill_end && q->rp >= q->fill_end) {
                 q->fill_end = 0;
                 q->rp = 0;
@@ -376,6 +378,61 @@ int data_q_read_unlock(data_q_t *q)
         _MUTEX_UNLOCK(q->lock);
         return 0;
     }
+    return ret;
+}
+
+int data_q_rewind(data_q_t *q, int blocks)
+{
+    int ret = -1;
+    if (q == NULL) {
+        return ret;
+    }
+    _MUTEX_LOCK(q->lock);
+    if (q->fixed_wr_wize == 0) {
+        _MUTEX_UNLOCK(q->lock);
+        return ret;
+    }
+    uint8_t *cur_wp_end = (uint8_t *)q->buffer + q->wp;
+    int move_rp = q->rp;
+    uint8_t *cur_wp_start = q->buffer;
+    int loop_count = q->last_fill_end ? 2 : 1;
+    int filled_size = 0;
+    for (int i = 0; i < loop_count; i++) {
+        bool valid_block = false;
+        while (blocks > 0) {
+            if (cur_wp_end > cur_wp_start) {
+                uint8_t *rp = (uint8_t *)cur_wp_end - q->fixed_wr_wize;
+                if (rp >= cur_wp_start) {
+                    int size = *(int *)rp;
+                    if (size == q->fixed_wr_wize) {
+                        valid_block = true;
+                        blocks--;
+                        move_rp = (int) (rp - (uint8_t *)q->buffer);
+                        cur_wp_end = rp;
+                        filled_size += q->fixed_wr_wize;
+                        continue;
+                    }
+                }
+                blocks = 0;
+            }
+            break;
+        }
+        if (blocks == 0) {
+            if (valid_block) {
+                // Change rp and fill_end and filled_size when success
+                q->rp = move_rp;
+                if (i == 1) {
+                    q->fill_end = q->last_fill_end;
+                }
+                q->filled = filled_size;
+                ret = 0;
+            }
+            break;
+        }
+        cur_wp_start = (uint8_t *)q->buffer + q->wp;
+        cur_wp_end = (uint8_t *)q->buffer + q->last_fill_end;
+    }
+    _MUTEX_UNLOCK(q->lock);
     return ret;
 }
 

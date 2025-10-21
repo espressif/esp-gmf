@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.7.5
+
+### Bug Fixes
+
+- Fixed AEC audio source not support multiple microphone
+- Fixed can not create task stack in RAM
+
+### Features
+
+- Added `data_on_vad` option for AEC audio source to support only send data when VAD active
+- Added `data_q_rewind` to support resend from old position
+
 ## v0.7.4
 
 ### Bug Fixes

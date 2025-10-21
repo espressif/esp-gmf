@@ -20,17 +20,19 @@ extern "C" {
  *         It adds a fill_end member to record fifo write end position before ring back
  */
 typedef struct {
-    void  *buffer;      /*!< Buffer for queue */
-    int    size;        /*!< Buffer size */
-    int    fill_end;    /*!< Buffer write position before ring back */
-    int    wp;          /*!< Write pointer */
-    int    rp;          /*!< Read pointer */
-    int    filled;      /*!< Buffer filled size */
-    int    user;        /*!< Buffer reference by reader or writer */
-    int    quit;        /*!< Buffer quit flag */
-    void  *lock;        /*!< Protect lock */
-    void  *write_lock;  /*!< Write lock to let only one writer at same time */
-    void  *event;       /*!< Event group to wake up reader or writer */
+    void  *buffer;        /*!< Buffer for queue */
+    int    size;          /*!< Buffer size */
+    int    fill_end;      /*!< Buffer write position before ring back */
+    int    last_fill_end; /*!< Memorized last fill end for rewind */
+    int    fixed_wr_wize; /*!< Fixed write size */
+    int    wp;            /*!< Write pointer */
+    int    rp;            /*!< Read pointer */
+    int    filled;        /*!< Buffer filled size */
+    int    user;          /*!< Buffer reference by reader or writer */
+    int    quit;          /*!< Buffer quit flag */
+    void  *lock;          /*!< Protect lock */
+    void  *write_lock;    /*!< Write lock to let only one writer at same time */
+    void  *event;         /*!< Event group to wake up reader or writer */
 } data_q_t;
 
 /**
@@ -117,6 +119,21 @@ int data_q_read_lock(data_q_t *q, void **buffer, int *size);
  *       - Others  Fail to unlock reader
  */
 int data_q_read_unlock(data_q_t *q);
+
+/**
+ * @brief  Rewind and send from old position
+ *
+ * @note  Only support when write in fixed size
+ *        It will move read pointer to previous blocks, if write blocks less than setting blocks will rewind to write head
+ *
+ * @param[in]  q       Data queue instance
+ * @param[in]  blocks  Rewind blocks
+ *
+ * @return
+ *       - 0       On success
+ *       - Others  Fail to rewind
+ */
+int data_q_rewind(data_q_t *q, int blocks);
 
 /**
  * @brief  Peak data unlock, call `data_q_read_lock` to read data with block

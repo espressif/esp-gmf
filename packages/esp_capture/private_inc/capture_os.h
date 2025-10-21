@@ -11,7 +11,6 @@
 #include "freertos/event_groups.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
-#include "capture_thread.h"
 #include "capture_mem.h"
 
 #ifdef __cplusplus

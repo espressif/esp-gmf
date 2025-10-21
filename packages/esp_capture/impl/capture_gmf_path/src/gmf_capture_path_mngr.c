@@ -209,10 +209,12 @@ static esp_capture_err_t prepare_pipeline(gmf_capture_path_mngr_t *mngr, uint8_t
                 .priority = CAPTURE_GMF_TASK_DEFAULT_PRIORITY,
                 .stack_size = CAPTURE_GMF_TASK_DEFAULT_STACK_SIZE,
             };
+            scheduler_cfg.stack_in_ext = true;
             scheduler(mngr->pipeline[i].name, &scheduler_cfg);
             cfg.thread.core = scheduler_cfg.core_id;
             cfg.thread.prio = scheduler_cfg.priority;
             cfg.thread.stack = scheduler_cfg.stack_size;
+            cfg.thread.stack_in_ext = scheduler_cfg.stack_in_ext;
         }
         cfg.name = mngr->pipeline[i].name;
         CAPTURE_PERF_MON(path, (mngr->stream_type == ESP_CAPTURE_STREAM_TYPE_AUDIO) ? "Create Audio Task" : "Create Video Task", {
