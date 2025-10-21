@@ -9,6 +9,7 @@
 - Added `pipeline_record_http` example for uploading the recorded audio to HTTP server
 - Added power manage support for recording example `pipeline_record_sdcard`
 - Added `pipeline_audio_effects` example demonstrating audio effects (ALC, EQ, FADE, SONIC, DRC, MBC) usage in GMF pipeline
+- Added `pipeline_loop_play_no_gap` example for seamless playback of music file
 
 ## v0.7.2~1
 
