@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.5
+
+### Bug Fixes
+
+- Fixed the issue where idf_build_set_property is not a valid function for component
+
 ## v0.7.4
 
 ### Bug Fixes
