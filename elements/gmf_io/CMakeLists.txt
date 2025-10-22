@@ -12,7 +12,6 @@ list(APPEND io_srcs "esp_gmf_io_file.c" "esp_gmf_io_embed_flash.c" "esp_gmf_io_i
 if(index EQUAL -1)
     set(io_inc "")
 else()
-    idf_build_set_property(COMPILE_DEFINITIONS USE_ESP_GMF_ESP_CODEC_DEV_IO APPEND)
     message(STATUS "The esp_codec_dev is installed")
     list(APPEND io_srcs "codec_dev_io/esp_gmf_io_codec_dev.c")
     set(io_inc "codec_dev_io")
