@@ -11,6 +11,20 @@ menu "GMF IO Writer"
         help
             Initialize GMF file writer
 
+        menu "IO File Configuration"
+            depends on GMF_IO_INIT_FILE_WRITER
+
+            config GMF_IO_FILE_WRITE_CACHE_SIZE
+                int "IO File Write Cache Size"
+                default 4096
+                range 0 65536
+                help
+                    Configure the buffer size for the GMF IO File Writer.
+                    This setting affects the performance of file writing operations.
+                    Larger buffer sizes may improve write performance but consume more memory.
+                    If the SOC does not have the SOC_SDMMC_PSRAM_DMA_CAPABLE capability, internal memory will be used.
+        endmenu
+
     config GMF_IO_INIT_HTTP_WRITER
         bool "Initialize GMF HTTP Writer"
         default n
@@ -50,7 +64,7 @@ menu "GMF IO Writer"
             config GMF_IO_HTTP_WRITER_OUT_BUF_SIZE
                 int "HTTP Writer Output Buffer Size"
                 default 8192
-                range 1024 16384
+                range 1024 131072
                 help
                     Configure the size of the output buffer for the GMF HTTP Writer.
 

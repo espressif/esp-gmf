@@ -6,6 +6,10 @@
  */
 
 #include "esp_gmf_err.h"
+#include "esp_heap_caps.h"
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+#include "esp_crt_bundle.h"
+#endif  /* CONFIG_MBEDTLS_CERTIFICATE_BUNDLE */
 #include "esp_gmf_io.h"
 #include "esp_gmf_io_codec_dev.h"
 #include "esp_gmf_io_embed_flash.h"
@@ -42,6 +46,19 @@ static esp_gmf_err_t gmf_loader_setup_default_fs_io(esp_gmf_pool_handle_t pool, 
 
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     file_io_cfg_t fs_cfg = FILE_IO_CFG_DEFAULT();
+    fs_cfg.cache_caps = MALLOC_CAP_DMA;
+    if (dir == ESP_GMF_IO_DIR_READER) {
+#if CONFIG_GMF_IO_INIT_FILE_READER
+        fs_cfg.cache_size = CONFIG_GMF_IO_FILE_READ_CACHE_SIZE;
+#endif
+    } else {
+#if CONFIG_GMF_IO_INIT_FILE_WRITER
+        fs_cfg.cache_size = CONFIG_GMF_IO_FILE_WRITE_CACHE_SIZE;
+#endif
+    }
+#if SOC_SDMMC_PSRAM_DMA_CAPABLE
+    fs_cfg.cache_caps |= MALLOC_CAP_SPIRAM;
+#endif
     esp_gmf_io_handle_t hd = NULL;
     fs_cfg.dir = dir;
     ret = esp_gmf_io_file_init(&fs_cfg, &hd);
@@ -113,6 +130,12 @@ static esp_gmf_err_t gmf_loader_setup_default_http_io(esp_gmf_pool_handle_t pool
         http_cfg.task_prio = CONFIG_GMF_IO_HTTP_WRITER_TASK_PRIORITY;
 #endif  /* CONFIG_GMF_IO_INIT_HTTP_WRITER */
     }
+
+#ifdef CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY
+    http_cfg.cert_pem = NULL;
+#elif defined(CONFIG_MBEDTLS_CERTIFICATE_BUNDLE)
+    http_cfg.crt_bundle_attach = esp_crt_bundle_attach;
+#endif
 
     ret = esp_gmf_io_http_init(&http_cfg, &hd);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init http io");
