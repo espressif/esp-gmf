@@ -10,6 +10,20 @@ menu "GMF IO Reader"
         help
             Initialize GMF File Reader
 
+        menu "IO File Configuration"
+            depends on GMF_IO_INIT_FILE_READER
+
+            config GMF_IO_FILE_READ_CACHE_SIZE
+                int "IO File Read Cache Size"
+                default 2048
+                range 0 65536
+                help
+                    Configure the buffer size for the GMF IO File Reader.
+                    This setting affects the performance of file reading operations.
+                    Larger buffer sizes may improve read performance but consume more memory.
+                    If the SOC does not have the SOC_SDMMC_PSRAM_DMA_CAPABLE capability, internal memory will be used.
+        endmenu
+
     config GMF_IO_INIT_HTTP_READER
         bool "Initialize GMF HTTP Reader"
         default y
@@ -49,7 +63,7 @@ menu "GMF IO Reader"
             config GMF_IO_HTTP_READER_OUT_BUF_SIZE
                 int "HTTP Reader Output Buffer Size"
                 default 8192
-                range 1024 16384
+                range 1024 131072
                 help
                     Configure the size of the output buffer for the GMF HTTP Reader.
 

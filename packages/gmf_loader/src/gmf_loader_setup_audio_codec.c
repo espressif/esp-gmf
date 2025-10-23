@@ -16,8 +16,13 @@
 #include "sdkconfig.h"
 
 static const char *TAG               = "GMF_SETUP_AUD_CODEC";
+
+#ifdef CONFIG_GMF_AUDIO_CODEC_INIT_ENCODER
 static int8_t      _init_encoder_cnt = 0;
+#endif  /* CONFIG_GMF_AUDIO_CODEC_INIT_ENCODER */
+#ifdef CONFIG_GMF_AUDIO_CODEC_INIT_DECODER
 static int8_t      _init_decoder_cnt = 0;
+#endif  /* CONFIG_GMF_AUDIO_CODEC_INIT_DECODER */
 
 #if defined(CONFIG_GMF_AUDIO_CODEC_INIT_ENCODER)
 static esp_gmf_err_t gmf_loader_setup_default_enc(esp_gmf_pool_handle_t pool)
