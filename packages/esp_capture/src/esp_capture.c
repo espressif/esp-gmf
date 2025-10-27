@@ -1110,15 +1110,15 @@ esp_capture_err_t esp_capture_sink_set_bitrate(esp_capture_sink_handle_t h, esp_
     int ret = ESP_CAPTURE_ERR_NOT_SUPPORTED;
     if (stream_type == ESP_CAPTURE_STREAM_TYPE_VIDEO) {
         type = ESP_CAPTURE_PATH_SET_TYPE_VIDEO_BITRATE;
-        esp_capture_path_mngr_if_t *audio_path = &capture->cfg.audio_path->base;
-        if (audio_path) {
-            audio_path->set(audio_path, path->path_type, type, &bitrate, sizeof(uint32_t));
+        esp_capture_path_mngr_if_t *video_path = &capture->cfg.video_path->base;
+        if (video_path && video_path->set) {
+            ret = video_path->set(video_path, path->path_type, type, &bitrate, sizeof(uint32_t));
         }
     } else if (stream_type == ESP_CAPTURE_STREAM_TYPE_AUDIO) {
         type = ESP_CAPTURE_PATH_SET_TYPE_AUDIO_BITRATE;
-        esp_capture_path_mngr_if_t *video_path = &capture->cfg.video_path->base;
-        if (video_path) {
-            video_path->set(video_path, path->path_type, type, &bitrate, sizeof(uint32_t));
+        esp_capture_path_mngr_if_t *audio_path = &capture->cfg.audio_path->base;
+        if (audio_path && audio_path->set) {
+            ret = audio_path->set(audio_path, path->path_type, type, &bitrate, sizeof(uint32_t));
         }
     }
     capture_mutex_unlock(capture->api_lock);
