@@ -56,8 +56,8 @@ typedef struct esp_board_device_handle {
  * @brief  Initialize a device by name
  *
  *         This function initializes a device with reference counting support. If the device
- *         is already initialized, it increments the reference count instead of reinitializing.
- *         The device is only actually initialized when the reference count reaches 1.
+ *         is already initialized, it increments the reference count instead of reinitializing
+ *         The device is only actually initialized when the reference count reaches 1
  *
  * @param[in]  name  Device name to initialize
  *
@@ -74,7 +74,7 @@ esp_err_t esp_board_device_init(const char *name);
  * @brief  Get device handle by name
  *
  *         Retrieves the device handle for a given device name. For GPIO devices,
- *         the handle is dereferenced to get the actual pin number.
+ *         the handle is dereferenced to get the actual pin number
  *
  * @param[in]   name           Device name
  * @param[out]  device_handle  Pointer to store the device handle
@@ -89,16 +89,16 @@ esp_err_t esp_board_device_get_handle(const char *name, void **device_handle);
 /**
  * @brief  Get device configuration by name
  *
- *         Retrieves the configuration for a given device name.
+ *         Retrieves the configuration for a given device name
  *
  * @param[in]   name    Device name
  * @param[out]  config  Pointer to store the configuration
  *
  * @return
- *       - ESP_OK                            On success
- *       - ESP_BOARD_ERR_DEVICE_INVALID_ARG  If name or config is NULL
- *       - ESP_BOARD_ERR_DEVICE_NOT_FOUND    If device configuration not found
- *       - ESP_ERR_NOT_FOUND                 If device has no configuration
+ *       - ESP_OK                              On success
+ *       - ESP_BOARD_ERR_DEVICE_INVALID_ARG    If name or config is NULL
+ *       - ESP_BOARD_ERR_DEVICE_NOT_FOUND      If device configuration not found
+ *       - ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED  If device has no configuration
  */
 esp_err_t esp_board_device_get_config(const char *name, void **config);
 
@@ -106,7 +106,7 @@ esp_err_t esp_board_device_get_config(const char *name, void **config);
  * @brief  Set device initialization and deinitialization functions
  *
  *         Associates custom init and deinit functions with a device. This allows
- *         runtime configuration of device behavior.
+ *         runtime configuration of device behavior
  *
  * @param[in]  name    Device name
  * @param[in]  init    Initialization function pointer
@@ -124,7 +124,7 @@ esp_err_t esp_board_device_set_ops(const char *name, esp_board_device_init_func 
  *
  *         Decrements the reference count for a device. The device is only actually
  *         deinitialized when the reference count reaches 0. If the device is not
- *         initialized, this function returns success.
+ *         initialized, this function returns success
  *
  * @param[in]  name  Device name to deinitialize
  *
@@ -143,7 +143,7 @@ esp_err_t esp_board_device_deinit(const char *name);
  *         Displays detailed information about devices. If name is NULL, shows
  *         information for all devices. Otherwise, shows information for the
  *         specified device including type, configuration size, handle status,
- *         and reference count.
+ *         and reference count
  *
  * @param[in]  name  Device name (NULL for all devices)
  *
@@ -156,15 +156,15 @@ esp_err_t esp_board_device_show(const char *name);
 /**
  * @brief  Initialize all devices
  *
- *         Iterates through all device descriptors and initializes each device.
- *         Continues initializing even if some devices fail, but logs errors.
+ *         Iterates through all device descriptors and initializes each device
+ *         Continues initializing even if some devices fail, but logs errors
  *
- *   NOTE: Device initialization strictly follows the order defined in board_devices.yaml.
+ *   NOTE: Device initialization strictly follows the order defined in board_devices.yaml
  *         If a device depends on a peripheral for power-on, it must be initialized
  *         after that peripheral. For example, the LCD power control device should be
- *         listed before the Display LCD device in board_devices.yaml.
+ *         listed before the Display LCD device in board_devices.yaml
  *         If initialization fails due to unresolved dependencies, either reorder the
- *         YAML entries or manually call the device initialization function.
+ *         YAML entries or manually call the device initialization function
  *
  * @return
  *       - ESP_OK  On success (always returns ESP_OK, errors are logged)
@@ -174,8 +174,8 @@ esp_err_t esp_board_device_init_all(void);
 /**
  * @brief  Deinitialize all devices
  *
- *         Iterates through all device handles and deinitializes each device.
- *         Continues deinitializing even if some devices fail, but logs errors.
+ *         Iterates through all device handles and deinitializes each device
+ *         Continues deinitializing even if some devices fail, but logs errors
  *
  * @return
  *       - ESP_OK  On success (always returns ESP_OK, errors are logged)
@@ -186,7 +186,7 @@ esp_err_t esp_board_device_deinit_all(void);
  * @brief  Find device handle structure by device-specific handle
  *
  *         Searches through the device handle linked list to find the device
- *         handle structure that contains the specified device-specific handle.
+ *         handle structure that contains the specified device-specific handle
  *
  * @param[in]  device_handle  Device-specific handle to search for
  *

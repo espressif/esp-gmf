@@ -18,6 +18,7 @@
 
 #include "dev_lcd_touch_i2c.h"
 #include "esp_board_periph.h"
+#include "esp_board_device.h"
 
 static const char *TAG = "DEV_LCD_TOUCH_I2C";
 
@@ -39,7 +40,7 @@ int dev_lcd_touch_i2c_init(void *cfg, int cfg_size, void **device_handle)
     void *i2c_bus_handle = NULL;
     int ret = 0;
     if (touch_cfg->i2c_name && strlen(touch_cfg->i2c_name) > 0) {
-        ret = esp_board_periph_get_handle(touch_cfg->i2c_name, &i2c_bus_handle);
+        ret = esp_board_periph_ref_handle(touch_cfg->i2c_name, &i2c_bus_handle);
         if (ret != 0) {
             ESP_LOGE(TAG, "Failed to get I2C peripheral handle: %d", ret);
             free(touch_handles);
@@ -108,6 +109,17 @@ int dev_lcd_touch_i2c_deinit(void *device_handle)
     if (touch_handles->io_handle) {
         esp_lcd_panel_io_del(touch_handles->io_handle);
         touch_handles->io_handle = NULL;
+    }
+
+    const char *name = NULL;
+    const esp_board_device_handle_t *device_handle_struct = esp_board_device_find_by_handle(device_handle);
+    if (device_handle_struct) {
+        name = device_handle_struct->name;
+    }
+    dev_lcd_touch_i2c_config_t *cfg = NULL;
+    esp_board_device_get_config(name, (void **)&cfg);
+    if (cfg) {
+        esp_board_periph_unref_handle(cfg->i2c_name);
     }
 
     free(touch_handles);

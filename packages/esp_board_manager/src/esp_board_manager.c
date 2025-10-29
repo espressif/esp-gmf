@@ -11,7 +11,7 @@
 #include "esp_board_manager.h"
 #include "esp_board_periph.h"
 #include "esp_board_manager_err.h"
-// #include "gen_codes/gen_board_info.c"
+#include "esp_board_find_utils.h"
 
 static const char *TAG = "BOARD_MANAGER";
 
@@ -23,31 +23,6 @@ extern esp_board_periph_entry_t g_esp_board_periph_handles[];
 
 /* Manager state */
 static bool s_manager_initialized = false;
-
-static esp_board_device_handle_t *find_device_handle(const char *name)
-{
-    esp_board_device_handle_t *handle = g_esp_board_device_handles;
-    while (handle) {
-        if (strcmp(handle->name, name) == 0) {
-            return handle;
-        }
-        handle = handle->next;
-    }
-    return NULL;
-}
-
-/* Find device descriptor by name */
-static const esp_board_device_desc_t *find_device_desc(const char *name)
-{
-    const esp_board_device_desc_t *desc = g_esp_board_devices;
-    while (desc) {
-        if (strcmp(desc->name, name) == 0) {
-            return desc;
-        }
-        desc = desc->next;
-    }
-    return NULL;
-}
 
 esp_err_t esp_board_manager_init(void)
 {
@@ -79,8 +54,7 @@ esp_err_t esp_board_manager_init(void)
 
 esp_err_t esp_board_manager_get_periph_handle(const char *periph_name, void **periph_handle)
 {
-    ESP_BOARD_RETURN_ON_FALSE(s_manager_initialized, ESP_BOARD_ERR_MANAGER_NOT_INIT, TAG, "Board manager not initialized");
-    ESP_BOARD_RETURN_ON_FALSE(periph_name && periph_handle, ESP_ERR_INVALID_ARG, TAG, "Invalid arguments");
+    ESP_BOARD_RETURN_ON_FALSE(periph_name && periph_handle, ESP_BOARD_ERR_MANAGER_INVALID_ARG, TAG, "Invalid arguments");
 
     esp_err_t ret = esp_board_periph_get_handle(periph_name, periph_handle);
     if (ret != ESP_OK) {
@@ -93,13 +67,12 @@ esp_err_t esp_board_manager_get_periph_handle(const char *periph_name, void **pe
 
 esp_err_t esp_board_manager_get_device_handle(const char *dev_name, void **device_handle)
 {
-    ESP_BOARD_RETURN_ON_FALSE(s_manager_initialized, ESP_BOARD_ERR_MANAGER_NOT_INIT, TAG, "Board manager not initialized");
-    ESP_BOARD_RETURN_ON_FALSE(dev_name && device_handle, ESP_ERR_INVALID_ARG, TAG, "Invalid arguments");
+    ESP_BOARD_RETURN_ON_FALSE(dev_name && device_handle, ESP_BOARD_ERR_MANAGER_INVALID_ARG, TAG, "Invalid arguments");
 
     /* Find device handle */
     esp_err_t ret = esp_board_device_get_handle(dev_name, device_handle);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Device %s not found", dev_name);
+        ESP_LOGE(TAG, "Device %s not found, error: %d", dev_name, ret);
         return ESP_BOARD_ERR_MANAGER_DEVICE_NOT_FOUND;
     }
 
@@ -108,8 +81,7 @@ esp_err_t esp_board_manager_get_device_handle(const char *dev_name, void **devic
 
 esp_err_t esp_board_manager_get_device_config(const char *dev_name, void **config)
 {
-    ESP_BOARD_RETURN_ON_FALSE(s_manager_initialized, ESP_BOARD_ERR_MANAGER_NOT_INIT, TAG, "Board manager not initialized");
-    ESP_BOARD_RETURN_ON_FALSE(dev_name && config, ESP_ERR_INVALID_ARG, TAG, "Invalid arguments");
+    ESP_BOARD_RETURN_ON_FALSE(dev_name && config, ESP_BOARD_ERR_MANAGER_INVALID_ARG, TAG, "Invalid arguments");
 
     esp_err_t ret = esp_board_device_get_config(dev_name, config);
     return ret;
@@ -117,8 +89,7 @@ esp_err_t esp_board_manager_get_device_config(const char *dev_name, void **confi
 
 esp_err_t esp_board_manager_get_periph_config(const char *periph_name, void **config)
 {
-    ESP_BOARD_RETURN_ON_FALSE(s_manager_initialized, ESP_BOARD_ERR_MANAGER_NOT_INIT, TAG, "Board manager not initialized");
-    ESP_BOARD_RETURN_ON_FALSE(periph_name && config, ESP_ERR_INVALID_ARG, TAG, "Invalid arguments");
+    ESP_BOARD_RETURN_ON_FALSE(periph_name && config, ESP_BOARD_ERR_MANAGER_INVALID_ARG, TAG, "Invalid arguments");
 
     esp_err_t ret = esp_board_periph_get_config(periph_name, config);
     return ret;
@@ -126,7 +97,7 @@ esp_err_t esp_board_manager_get_periph_config(const char *periph_name, void **co
 
 esp_err_t esp_board_manager_get_board_info(esp_board_info_t *board_info)
 {
-    ESP_BOARD_RETURN_ON_FALSE(board_info, ESP_ERR_INVALID_ARG, TAG, "Invalid arguments");
+    ESP_BOARD_RETURN_ON_FALSE(board_info, ESP_BOARD_ERR_MANAGER_INVALID_ARG, TAG, "Invalid arguments");
     *board_info = g_esp_board_info;
     return ESP_OK;
 }
@@ -155,11 +126,10 @@ esp_err_t esp_board_manager_register_device_handle(esp_board_device_handle_t *re
 
 esp_err_t esp_board_manager_init_device_by_name(const char *dev_name)
 {
-    ESP_BOARD_RETURN_ON_FALSE(s_manager_initialized, ESP_BOARD_ERR_MANAGER_NOT_INIT, TAG, "Board manager not initialized");
-    ESP_BOARD_RETURN_ON_FALSE(dev_name, ESP_ERR_INVALID_ARG, TAG, "Invalid arguments");
+    ESP_BOARD_RETURN_ON_FALSE(dev_name, ESP_BOARD_ERR_MANAGER_INVALID_ARG, TAG, "Invalid arguments");
 
     /* First check if device exists */
-    const esp_board_device_desc_t *dev_desc = find_device_desc(dev_name);
+    const esp_board_device_desc_t *dev_desc = esp_board_find_device_desc(dev_name);
     if (dev_desc == NULL) {
         ESP_LOGE(TAG, "Device %s not found", dev_name);
         return ESP_BOARD_ERR_MANAGER_DEVICE_NOT_FOUND;
@@ -178,8 +148,7 @@ esp_err_t esp_board_manager_init_device_by_name(const char *dev_name)
 
 esp_err_t esp_board_manager_deinit_device_by_name(const char *dev_name)
 {
-    ESP_BOARD_RETURN_ON_FALSE(s_manager_initialized, ESP_BOARD_ERR_MANAGER_NOT_INIT, TAG, "Board manager not initialized");
-    ESP_BOARD_RETURN_ON_FALSE(dev_name, ESP_ERR_INVALID_ARG, TAG, "Invalid arguments");
+    ESP_BOARD_RETURN_ON_FALSE(dev_name, ESP_BOARD_ERR_MANAGER_INVALID_ARG, TAG, "Invalid arguments");
 
     /* Deinitialize the device */
     esp_err_t ret = esp_board_device_deinit(dev_name);
@@ -207,8 +176,6 @@ esp_err_t esp_board_manager_print_board_info(void)
 
 esp_err_t esp_board_manager_print(void)
 {
-    ESP_BOARD_RETURN_ON_FALSE(s_manager_initialized, ESP_BOARD_ERR_MANAGER_NOT_INIT, TAG, "Board manager not initialized");
-
     printf("\r\n");
     ESP_LOGI(TAG, "Board Manager Status:");
     ESP_LOGI(TAG, "-------------------");
@@ -222,7 +189,7 @@ esp_err_t esp_board_manager_print(void)
     ESP_LOGI(TAG, "Device-Peripheral Associations:");
     const esp_board_device_desc_t *dev_desc = g_esp_board_devices;
     while (dev_desc) {
-        esp_board_device_handle_t *dev_handle = find_device_handle(dev_desc->name);
+        esp_board_device_handle_t *dev_handle = esp_board_find_device_handle(dev_desc->name);
         if (dev_handle && dev_handle->device_handle) {
             ESP_LOGI(TAG, "  Device: %s (%s)", dev_desc->name, dev_desc->type);
         }
@@ -245,6 +212,7 @@ esp_err_t esp_board_manager_deinit(void)
         ESP_LOGE(TAG, "Failed to deinitialize all devices");
         return ret;
     }
+    ESP_LOGI(TAG, "All devices deinitialized");
 
     /* Then deinitialize all peripherals */
     ret = esp_board_periph_deinit_all();

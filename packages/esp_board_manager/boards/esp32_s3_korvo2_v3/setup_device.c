@@ -87,7 +87,7 @@ esp_err_t camera_factory_entry_t(const dev_camera_config_t *camera_cfg, dev_came
     ESP_LOGI(TAG, "Creating camera driver...");
 
     void *i2c_handle = NULL;
-    esp_err_t ret = esp_board_periph_get_handle(camera_cfg->config.dvp.i2c_name, &i2c_handle);
+    esp_err_t ret = esp_board_periph_ref_handle(camera_cfg->config.dvp.i2c_name, &i2c_handle);
     if (ret != ESP_OK || !i2c_handle) {
         ESP_LOGE(TAG, "Failed to get I2C handle\n");
         return -1;

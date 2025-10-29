@@ -23,6 +23,7 @@ idf_component_register(
     INCLUDE_DIRS
         "."
         "include"
+        "private_inc"
         ${PERIPH_INCLUDES}  # Add peripheral includes
         ${DEVICE_INCLUDES}  # Add device includes
     REQUIRES

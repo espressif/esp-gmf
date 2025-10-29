@@ -27,7 +27,7 @@ int dev_ledc_ctrl_init(void *cfg, int cfg_size, void **device_handle)
         ESP_LOGE(TAG, "No LEDC peripheral name configured for device: %s", config->name);
         return -1;
     }
-    int ret = esp_board_periph_get_handle(config->ledc_name, (void*)&ledc_handle);
+    int ret = esp_board_periph_ref_handle(config->ledc_name, (void*)&ledc_handle);
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed to get LEDC peripheral handle '%s': %d", config->ledc_name, ret);
         return -1;
@@ -79,6 +79,17 @@ int dev_ledc_ctrl_deinit(void *device_handle)
         ESP_LOGE(TAG, "ledc_stop failed: %s", esp_err_to_name(err));
         return err;
     }
+    const char *name = NULL;
+    const esp_board_device_handle_t *device_handle_struct = esp_board_device_find_by_handle(device_handle);
+    if (device_handle_struct) {
+        name = device_handle_struct->name;
+    }
+    dev_ledc_ctrl_config_t *cfg = NULL;
+    esp_board_device_get_config(name, (void **)&cfg);
+    if (cfg) {
+        esp_board_periph_unref_handle(cfg->ledc_name);
+    }
+
     ESP_LOGI(TAG, "LEDC control device channel %d deinitialized", ledc_handle->channel);
     return 0;
 }

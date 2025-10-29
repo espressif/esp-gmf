@@ -10,6 +10,7 @@
 #include "esp_vfs_fat.h"
 #include "periph_spi.h"
 #include "dev_fatfs_sdcard_spi.h"
+#include "esp_board_device.h"
 
 static const char *TAG = "DEV_FATFS_SDCARD_SPI";
 
@@ -27,7 +28,7 @@ int dev_fatfs_sdcard_spi_init(void *cfg, int cfg_size, void **device_handle)
     const dev_fatfs_sdcard_spi_config_t *config = (const dev_fatfs_sdcard_spi_config_t *)cfg;
     periph_spi_handle_t *spi_handle = NULL;
     if (config->spi_bus_name && config->spi_bus_name[0]) {
-        int ret = esp_board_periph_get_handle(config->spi_bus_name, (void **)&spi_handle);
+        int ret = esp_board_periph_ref_handle(config->spi_bus_name, (void **)&spi_handle);
         if (ret != 0) {
             ESP_LOGE(TAG, "Failed to get SPI peripheral handle: %d", ret);
             return -1;
@@ -102,6 +103,18 @@ int dev_fatfs_sdcard_spi_deinit(void *device_handle)
     } else {
         ESP_LOGW(TAG, "Mount point or card handle is NULL, skipping unmount");
     }
+
+    const char *name = NULL;
+    const esp_board_device_handle_t *device_handle_struct = esp_board_device_find_by_handle(device_handle);
+    if (device_handle_struct) {
+        name = device_handle_struct->name;
+    }
+    dev_fatfs_sdcard_spi_config_t *cfg = NULL;
+    esp_board_device_get_config(name, (void **)&cfg);
+    if (cfg) {
+        esp_board_periph_unref_handle(cfg->spi_name);
+    }
+
     free((char *)handle->mount_point);
     free(handle);
     return 0;

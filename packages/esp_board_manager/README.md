@@ -53,7 +53,7 @@ esp_board_manager/
 │   ├── CMakeLists.txt
 │   └── idf_component.yml
 ├── gen_bmgr_config_codes.py   # Main code generation script (unified)
-├── esp_board_manager_ext.py   # IDF action extension
+├── idf_ext.py                 # IDF action extension (Auto-discovery in v6.0+)
 ├── README.md                  # This file
 └── README_CN.md               # Chinese version Readme
 ```
@@ -62,7 +62,9 @@ esp_board_manager/
 
 ### 1. Setup IDF Action Extension
 
-The ESP Board Manager now supports IDF action extension, providing seamless integration with the ESP-IDF build system. Set the `IDF_EXTRA_ACTIONS_PATH` environment variable to include the ESP Board Manager directory:
+The ESP Board Manager now supports IDF action extension, providing seamless integration with the ESP-IDF build system. This feature allows you to use `idf.py gen-bmgr-config` command directly instead of running the Python script manually.
+
+Set the `IDF_EXTRA_ACTIONS_PATH` environment variable to include the ESP Board Manager directory:
 
 **Ubuntu and Mac:**
 
@@ -91,7 +93,9 @@ export IDF_EXTRA_ACTIONS_PATH=YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__es
 Note:
 > **Note:** If you use `idf.py add-dependency xxx` to add **esp_board_manager** as a dependency, the directory `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager` will not be available on the first build or after cleaning the `managed_components` folder. We recommend running `idf.py set-target`, `idf.py menuconfig`, or `idf.py build` to automatically download the **esp_board_manager** component into `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager`.
 
-> **Version Requirement:** Supports ESP-IDF v5.4 and later versions
+> **Version Requirement:** Compatible with ESP-IDF v5.4 and v5.5 branches. **Note:** Versions prior to v5.4.2 or v5.5.1 may encounter Kconfig dependency issues.
+
+> **Note:** IDF action extension auto-discovery is available starting from ESP-IDF v6.0. No need to set `IDF_EXTRA_ACTIONS_PATH` beginning with IDF v6.0, as it automatically discovers the IDF action extension.
 
 If you encounter any issues, please refer to the [## Troubleshooting](#troubleshooting) section.
 
@@ -247,6 +251,9 @@ For detailed YAML configuration rules and format specifications, please refer to
    ```
 
 5. **Define Peripherals**
+   - Find similar peripheral configuration YML files in `boards` for reference
+   - Configure based on supported peripheral YML files under `peripherals`
+   The basic structure for each peripheral is as follows:
    ```yaml
    # board_peripherals.yaml
    board: <board_name>
@@ -262,6 +269,9 @@ For detailed YAML configuration rules and format specifications, please refer to
    ```
 
 6. **Define Devices**
+   - Find similar device configuration YML files in `boards` for reference
+   - Configure based on supported device YML files under `devices`
+   The basic structure for each device is as follows:
    ```yaml
    # board_devices.yaml
    board: <board_name>
@@ -287,6 +297,15 @@ For detailed YAML configuration rules and format specifications, please refer to
        peripherals:
          - name: <peripheral_name>
     ```
+
+7. **Custom Code in Board Directory**
+   - When using certain devices, additional custom code may be required, such as for `display_lcd`, `lcd_touch`, and `custom` devices.
+   - This is to improve board adaptation, allowing users to select the actual device initialization function based on their board's specific requirements. For `display_lcd` and `lcd_touch`, refer to `esp_board_manager/boards/echoear_core_board_v1_2/setup_device.c`.
+
+8. **Custom Device Description**
+   - For devices and peripherals not yet included in esp_board_manager, it is recommended to add them through `custom` type devices.
+   - Implementation code should be placed in the `board` directory. Refer to `esp_board_manager/boards/esp32_s3_korvo2l/custom_device.c`.
+   - When the board is selected, a `gen_board_device_custom.h` header file will be generated in the `gen_bmgr_codes` directory for application use.
 
 > **⚙️ About `dependencies` Usage**
 >
@@ -376,7 +395,7 @@ When multiple boards with the same name exist across different paths, the ESP Bo
 
 | Device | Type | Chip | Peripheral | Status | Description | Reference YAML |
 |--------|------|------|------------|--------|-------------|----------------|
-| Audio Codec | audio_codec | ES8311/ES7210 | i2s/i2c | ✅ Supported | Audio codec with DAC/ADC | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) |
+| Audio Codec | audio_codec | ES8311/ES7210/ES8388 | i2s/i2c | ✅ Supported | Audio codec with DAC/ADC | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) |
 | LCD Display | display_lcd_spi | ST77916/GC9A01 | spi | ✅ Supported | SPI LCD display | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) |
 | Touch Screen | lcd_touch_i2c | FT5x06 | i2c | ✅ Supported | I2C touch screen | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) |
 | SD Card | fatfs_sdcard | - | sdmmc | ✅ Supported | SD card storage | [`dev_fatfs_sdcard.yaml`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) |
@@ -564,14 +583,14 @@ python gen_bmgr_config_codes.py --sdkconfig-only
 
 ## Roadmap
 
-Future development plans for the ESP Board Manager:
-- **Build Workflow**: Improve the efficiency and streamline the build workflow
+Future development plans for the ESP Board Manager (prioritized from high to low):
+- **Support More Peripherals and Devices**: Add more peripherals, devices, and boards
+- **Web Visual Configuration**: Combine with large models to achieve visual and intelligent board configuration through web interface
+- **Documentation Enhancement**: Add more documentation, such as establishing clear rules to facilitate customer addition of peripherals and devices
+- **Enhanced Validation**: Comprehensive YAML format checking, schema validation, input validation, and enhanced rule validation
+- **Enhanced data structure**: Enhance the data or YAML structure to improve performance
 - **Version Management**: Support different version codes and parsers for devices and peripherals
 - **Plugin Architecture**: Extensible plugin system for custom device and peripheral support
-- **Enhanced Validation**: Comprehensive YAML format checking, schema validation, input validation, and enhanced rule validation with improved error reporting
-- **Enhanced Initialization Flow**: Support for skipping specific components or calling initialization on different cores
-- **Clear Definition Rules**: Establish clear rules to facilitate customer addition of peripherals and devices
-- **Extended Component Support**: Add more peripherals, devices, and boards
 
 ## Troubleshooting
 

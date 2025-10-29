@@ -9,6 +9,8 @@
 #include "esp_log.h"
 #include "esp_video_init.h"
 #include "dev_camera.h"
+#include "esp_board_device.h"
+#include "esp_board_periph.h"
 
 static const char *TAG = "DEV_CAMERA";
 
@@ -47,6 +49,18 @@ int dev_camera_deinit(void *device_handle)
     }
     dev_camera_handle_t *camera_handles = (dev_camera_handle_t *)device_handle;
     esp_video_deinit();
+
+    const char *name = NULL;
+    const esp_board_device_handle_t *device_handle_struct = esp_board_device_find_by_handle(device_handle);
+    if (device_handle_struct) {
+        name = device_handle_struct->name;
+    }
+    dev_camera_config_t *cfg = NULL;
+    esp_board_device_get_config(name, (void **)&cfg);
+    if (cfg) {
+        esp_board_periph_unref_handle(cfg->config.dvp.i2c_name);
+    }
+
     free(camera_handles);
     return 0;
 }

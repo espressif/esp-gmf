@@ -1,10 +1,19 @@
 # Changelog
 
-## Unreleased
+## v0.4.1
+
+### Features
+- Renamed esp_board_manager_ext.py to idf_ext.py for compatibility with ESP-IDF v6.0 auto-discovery
+- Update `Kconfig.in` with new configuration options to hide the board selection menu
+- Update the README to include information about how to add new boards and the development roadmap
+- Added the esp_board_periph_ref_handle and esp_board_periph_unref_handle APIs to obtain and release a handle
+- Added esp_board_find_utils.h and esp_board_manager_includes.h
 
 ### Bug Fixes
+- Delete only `build/CMakeCache.txt` to avoid a full clean when switching boards
 - Fixed the configuration of the sdmmc sdcard host slot, ensuring the configuration for the host slot in the yml file takes effect correctly
 - Using slot 0 to drive the sdcard for p4_function board, avoiding conflict with wifi hosted
+- Correct the error codes
 
 ## v0.4.0
 

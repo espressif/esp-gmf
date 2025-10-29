@@ -12,6 +12,7 @@
 #include "driver/i2c_master.h"
 #include "dev_gpio_expander.h"
 #include "esp_io_expander.h"
+#include "esp_board_device.h"
 
 static const char *TAG = "DEV_IO_EXPANDER";
 
@@ -26,7 +27,7 @@ int dev_gpio_expander_init(void *cfg, int cfg_size, void **device_handle)
 
     const dev_io_expander_config_t *config = (const dev_io_expander_config_t *)cfg;
     void *i2c_handle = NULL;
-    esp_err_t ret = esp_board_periph_get_handle(config->i2c_name, &i2c_handle);
+    esp_err_t ret = esp_board_periph_ref_handle(config->i2c_name, &i2c_handle);
     if (ret != ESP_OK || !i2c_handle) {
         ESP_LOGE(TAG, "Failed to get I2C (%s) handle, ret:%d, i2c_handle:%p\n", config->i2c_name, ret, i2c_handle);
         return -1;
@@ -74,7 +75,7 @@ int dev_gpio_expander_init(void *cfg, int cfg_size, void **device_handle)
             ESP_LOGI(TAG, "Set IO expander pin %" PRIu32 " as input", i);
         }
     }
-
+    ESP_LOGD(TAG, "Successfully initialized: %s, dev: %p", config->name, dev);
     *device_handle = dev;
     return 0;
 
@@ -89,6 +90,17 @@ int dev_gpio_expander_deinit(void *device_handle)
     if (*io_expander_dev) {
         esp_io_expander_del(*io_expander_dev);
     }
+    const char *name = NULL;
+    const esp_board_device_handle_t *device_handle_struct = esp_board_device_find_by_handle(device_handle);
+    if (device_handle_struct) {
+        name = device_handle_struct->name;
+    }
+    dev_io_expander_config_t *cfg = NULL;
+    esp_board_device_get_config(name, (void **)&cfg);
+    if (cfg) {
+        esp_board_periph_unref_handle(cfg->i2c_name);
+    }
+    ESP_LOGD(TAG, "Successfully deinitialized: %s, dev: %p", name, io_expander_dev);
     free(io_expander_dev);
     return 0;
 }

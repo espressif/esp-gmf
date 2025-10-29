@@ -53,7 +53,7 @@ esp_board_manager/
 │   ├── CMakeLists.txt
 │   └── idf_component.yml
 ├── gen_bmgr_config_codes.py   # 主代码生成脚本（统一）
-├── esp_board_manager_ext.py   # IDF action 扩展
+├── idf_ext.py                 # IDF action 扩展（v6.0+ 自动发现）
 ├── README.md                  # 此文件
 └── README_CN.md               # 中文版本说明
 ```
@@ -62,7 +62,9 @@ esp_board_manager/
 
 ### 1. 设置 IDF Action 扩展
 
-ESP Board Manager 现在支持 IDF action 扩展，提供与 ESP-IDF 构建系统的无缝集成。设置 `IDF_EXTRA_ACTIONS_PATH` 环境变量以包含 ESP Board Manager 目录：
+ESP Board Manager 现在支持 IDF action 扩展，提供与 ESP-IDF 构建系统的无缝集成。此功能允许您直接使用 `idf.py gen-bmgr-config` 命令，而无需手动运行 Python 脚本。
+
+设置 `IDF_EXTRA_ACTIONS_PATH` 环境变量以包含 ESP Board Manager 目录：
 
 **Ubuntu and Mac:**
 
@@ -90,7 +92,9 @@ export IDF_EXTRA_ACTIONS_PATH=YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__es
 
 > **注意:** 如果您使用 `idf.py add-dependency xxx` 将 **esp_board_manager** 添加为依赖组件，在首次构建或清理 `managed_components` 文件夹后，目录 `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager` 将不可见。我们建议运行 `idf.py set-target`、`idf.py menuconfig` 或 `idf.py build` 来自动将 **esp_board_manager** 组件下载到 `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager`。
 
-> **版本要求:** 支持 ESP-IDF v5.4 及以后的版本
+> **版本要求:** 兼容 ESP-IDF v5.4 和 v5.5 分支。**注意:** v5.4.2 或 v5.5.1 之前的版本可能会遇到 Kconfig 依赖问题。
+
+> **注意:** IDF action 扩展自动发现功能从 ESP-IDF v6.0 开始可用。从 IDF v6.0 开始无需设置 `IDF_EXTRA_ACTIONS_PATH`，因为它会自动发现 IDF action 扩展。
 
 如果遇到任何问题，请参考 [## 故障排除](#故障排除) 部分。
 
@@ -216,6 +220,9 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
 #### 创建板级文件夹和文件
 
 1. **创建板级目录**
+- 推荐板级目录放置在项目的 components 文件下，路径可参考: `esp_board_manager/test_apps/components/board_customer`
+- 板级目录还可以放在其他位置，路径参考：`esp_board_manager/test_apps/test_custom_boards` 和 `esp_board_manager/test_apps/test_single_board`。这个路径运行命令时需要添加 `-c` 参数来指定路径，如 `test_apps` 下：`idf.py gen-bmgr-config -c test_single_board -l`
+
    ```bash
    mkdir boards/<board_name>
    cd boards/<board_name>
@@ -247,6 +254,9 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
    ```
 
 5. **定义外设**
+   - 寻找 `boards` 中相似的外设配置YML文件进行参考
+   - 基于 `peripherals` 下支持的外设 YML 进行配置
+   每个外设的基本结构如下：
    ```yaml
    # board_peripherals.yaml
    board: <board_name>
@@ -262,6 +272,9 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
    ```
 
 6. **定义设备**
+   - 寻找 `boards` 中相似的设备配置YML文件进行参考
+   - 基于 `devices` 下支持的设备 YML 进行配置
+   每个设备的基本结构如下：
    ```yaml
    # board_devices.yaml
    board: <board_name>
@@ -285,6 +298,14 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
        peripherals:
          - name: <peripheral_name>
     ```
+7. **`board` 目录中自定义代码的说明**
+   - 在使用一些设备的时候，需要额外增加自定义代码，比如 `display_lcd`, `lcd_touch` and `custom` device.
+   - 这是为了提高板子的适配，让用户根据自己板子情况选择 device 实际初始化函数，`display_lcd`, `lcd_touch` 参考 `esp_board_manager/boards/echoear_core_board_v1_2/setup_device.c`。
+
+8. **`custom` 自定义设备说明**
+   - 对于 esp_board_manager 还未包含的设备和外设，建议通过 `custom` 类型 device 进行添加
+   - 实现的代码放置在 `board` 目录下，参考 `esp_board_manager/boards/esp32_s3_korvo2l/custom_device.c`
+   - 当该 board 被选择后 `gen_bmgr_codes` 目录下会生成 `gen_board_device_custom.h` 头文件，供应用程序使用
 
 > **⚙️ 关于 `dependencies` 使用说明**
 >
@@ -382,9 +403,9 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | SPIFFS 文件系统 | fs_spiffs | - | - | ✅ 支持 | SPIFFS 文件系统 | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) |
 | GPIO 控制 | gpio_ctrl | - | gpio | ✅ 支持 | GPIO 控制设备 | [`dev_gpio_ctrl.yaml`](devices/dev_gpio_ctrl/dev_gpio_ctrl.yaml) |
 | LEDC 控制 | ledc_ctrl | - | ledc | ✅ 支持 | LEDC 控制设备 | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) |
-| [自定义设备](devices/dev_custom/README.md | custom | - | any | ✅ 支持 | 用户定义的自定义设备 | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
+| [自定义设备](devices/dev_custom/README.md) | custom | - | any | ✅ 支持 | 用户定义的自定义设备 | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
 | GPIO 扩展芯片 | gpio_expander | TCA9554/TCA95XX/HT8574 | i2c | ✅ 支持 | GPIO 扩展芯片 | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
-| 摄像头 | camera | - | i2c | ✅ 支持 | 摄像头设备 | [`dev_gpio_expander.yaml`](devices/dev_camera/dev_camera.yaml) |
+| 摄像头 | camera | - | i2c | ✅ 支持 | 摄像头设备 | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
 
 ### 支持的板级
 
@@ -562,14 +583,14 @@ python gen_bmgr_config_codes.py --sdkconfig-only
 
 ## 路线图
 
-ESP Board Manager 的未来开发计划：
-- **构建工作流程**: 提高效率并简化构建工作流程
+ESP Board Manager 的未来开发计划（优先级从高到低）：
+- **支持更多外设和设备**: 添加更多外设、设备和板级
+- **Web 可视化配置**: 结合大模型通过网页实现可视化和智能化的配置板子
+- **完善文档**: 增加更多说明文档，如建立明确的规则以促进客户添加外设和设备
+- **增强验证**: 全面的 YAML 格式检查、模式验证、输入验证和增强的规则验证
+- **增强数据结构**: 增强数据或 YAML 结构以提高性能
 - **版本管理**: 支持设备和外设的不同版本代码和解析器
 - **插件架构**: 用于自定义设备和外设支持的可扩展插件系统
-- **增强验证**: 全面的 YAML 格式检查、模式验证、输入验证和增强的规则验证，具有改进的错误报告
-- **增强初始化流程**: 支持跳过特定组件或在不同核心上调用初始化
-- **明确定义规则**: 建立明确的规则以促进客户添加外设和设备
-- **扩展组件支持**: 添加更多外设、设备和板级
 
 ## 故障排除
 
