@@ -17,8 +17,8 @@ extern "C" {
 
 #define DEFAULT_ESP_GMF_BIT_CVT_CONFIG() {  \
     .sample_rate = 48000,                   \
-    .src_bits    = 16,                      \
     .channel     = 2,                       \
+    .src_bits    = 16,                      \
     .dest_bits   = 16,                      \
 }
 

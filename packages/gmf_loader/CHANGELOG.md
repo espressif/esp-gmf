@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.3
+
+### Features
+
+- Support C++ build
+
 ## v0.7.2
 
 ### Features

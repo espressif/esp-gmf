@@ -47,6 +47,7 @@ check_commit_format:
     - *check_branch_script
     - *check_commit_script
     - *check_code_script
+    - check_project_root_dir_change
   allow_failure: true
   artifacts:
     paths:

@@ -16,12 +16,12 @@ extern "C" {
 #endif /* __cplusplus */
 
 #define DEFAULT_ESP_GMF_FADE_CONFIG() {           \
-    .sample_rate     = 48000,                     \
-    .bits_per_sample = 16,                        \
-    .channel         = 2,                         \
-    .transit_time    = 500,                       \
     .mode            = ESP_AE_FADE_MODE_FADE_IN,  \
     .curve           = ESP_AE_FADE_CURVE_LINE,    \
+    .transit_time    = 500,                       \
+    .sample_rate     = 48000,                     \
+    .channel         = 2,                         \
+    .bits_per_sample = 16,                        \
 }
 
 /**

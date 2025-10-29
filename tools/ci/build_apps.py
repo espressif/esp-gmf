@@ -46,10 +46,6 @@ import tempfile
 import logging
 from idf_build_apps import App, build_apps, find_apps, setup_logging, utils, CMakeApp
 
-if not os.environ.get('PROJECT_PATH'):
-    print(PROJECT_PATH_MISSING_MSG, file=sys.stderr)
-    sys.exit(1)
-
 PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 APPS_BUILD_PER_JOB = 30
 IGNORE_WARNINGS = [
@@ -91,6 +87,10 @@ PARALLEL_COUNT_SUGGESTION_MSG = 'Suggest setting the parallel count to {} for th
 
 # Message templates for removed apps
 REMOVED_BY_RULES_MSG = 'The following apps were removed by .build_test_rules.yml rules:'
+
+if not os.environ.get('PROJECT_PATH'):
+    print(PROJECT_PATH_MISSING_MSG, file=sys.stderr)
+    sys.exit(1)
 
 LOG_LEVELS = {
     0: logging.WARNING,
@@ -269,7 +269,7 @@ def _get_removed_apps(filtered_paths, built_apps):
     built_paths = set(app.app_dir for app in built_apps)
     return [path for path in filtered_paths if path not in built_paths]
 
-def _handle_find_mode(args, filtered_paths):
+def _handle_find_mode(args, filtered_paths) -> List[str]:
     """Handle find mode: list filtered applications without building"""
     default_build_targets = args.default_build_targets.split(',') if args.default_build_targets else None
     apps = get_cmake_apps(filtered_paths, args.target, args.config, default_build_targets, args.build_dir)
@@ -303,9 +303,11 @@ def _handle_find_mode(args, filtered_paths):
 
     # Output the array command to stdout (for eval)
     paths_str = '" "'.join(sorted_paths)
+    # Before running pytest, the target path(s) must be printed to stdout to make them available for pytest.
     print('APP_LIST=("' + paths_str + '")')
 
     print_info(f'Successfully created array with {len(sorted_paths)} elements')
+    return sorted_paths
 
 def _handle_build_mode(args, filtered_paths):
     """Handle build mode: build the filtered applications"""
@@ -352,6 +354,32 @@ def _handle_build_mode(args, filtered_paths):
         ignore_warning_strs=IGNORE_WARNINGS,
         copy_sdkconfig=True,
     )
+
+def get_app_paths(
+    path: str,
+    target: str = 'esp32',
+    target_dir_type: str = APP_TYPE_TEST_APPS,
+    exclude_apps: List[str] = None
+) -> List[str]:
+    """Get application paths based on directory type"""
+    args = argparse.Namespace(
+        paths = [path],
+        target = target,
+        config = ['sdkconfig.ci=default'],
+        default_build_targets = None,
+        build_dir = 'build_@t_@w',
+        target_dir_type = target_dir_type,
+        exclude_apps = exclude_apps or [],
+        find = True,
+        no_require_pytest = True,
+        verbose = 0
+    )
+
+    filtered_paths, _ = find_apps_with_filter(args.paths, target_dir_type=args.target_dir_type)
+    if not filtered_paths:
+        return []
+
+    return _handle_find_mode(args, filtered_paths)
 
 def main(args):
     """Main entry point for the script"""

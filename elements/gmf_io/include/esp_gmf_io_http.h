@@ -69,12 +69,12 @@ typedef struct {
 } http_io_cfg_t;
 
 #define HTTP_STREAM_CFG_DEFAULT() {                    \
-    .dir               = ESP_GMF_IO_DIR_READER,        \
-    .out_buf_size      = HTTP_STREAM_RINGBUFFER_SIZE,  \
     .task_stack        = HTTP_STREAM_TASK_STACK,       \
     .task_core         = HTTP_STREAM_TASK_CORE,        \
     .task_prio         = HTTP_STREAM_TASK_PRIO,        \
     .stack_in_ext      = true,                         \
+    .dir               = ESP_GMF_IO_DIR_READER,        \
+    .out_buf_size      = HTTP_STREAM_RINGBUFFER_SIZE,  \
     .event_handle      = NULL,                         \
     .user_data         = NULL,                         \
     .cert_pem          = NULL,                         \
