@@ -15,6 +15,9 @@
 extern "C" {
 #endif  /* __cplusplus */
 
+#define SAME_SAMPLE_INFO(from, to) \
+    ((from).sample_rate == (to).sample_rate && (from).bits_per_sample == (to).bits_per_sample && (from).channel == (to).channel)
+
 /**
  * @brief  Audio render processor handle
  */
@@ -32,6 +35,19 @@ typedef void *audio_render_proc_handle_t;
  *       - ESP_AUDIO_RENDER_ERR_NO_MEM       Not enough memory
  */
 esp_audio_render_err_t audio_render_proc_create(esp_gmf_pool_handle_t pool, audio_render_proc_handle_t *proc);
+
+/**
+ * @brief  Set buffer alignment for audio render processor
+ *
+ * @param[in]  proc       Audio processor handle
+ * @param[in]  buf_align  Audio render processor handle to store
+ *
+ * @return
+ *       - ESP_AUDIO_RENDER_ERR_OK           On success
+ *       - ESP_AUDIO_RENDER_ERR_INVALID_ARG  Invalid input argument
+ *       - ESP_AUDIO_RENDER_ERR_NO_MEM       Not enough memory
+ */
+esp_audio_render_err_t audio_render_proc_set_buf_align(audio_render_proc_handle_t proc, uint8_t buf_align);
 
 /**
  * @brief  Add audio processor

@@ -9,6 +9,7 @@
 
 #include "esp_audio_render_types.h"
 #include "esp_gmf_element.h"
+#include "esp_gmf_task.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,17 +19,19 @@ extern "C" {
  * @brief  Audio render configuration
  */
 typedef struct {
-    uint8_t                          max_stream_num;   /*!< Maximum supported stream number */
-    esp_audio_render_write_cb_t      out_writer;       /*!< Audio render write callback */
-    void                            *out_ctx;          /*!< Audio render write context */
-    esp_audio_render_sample_info_t   out_sample_info;  /*!< Output sample information, needs to be aligned with actual device setting */
-    void                            *pool;             /*!< GMF pool handle */
+    uint8_t                          max_stream_num;    /*!< Maximum supported stream number */
+    esp_audio_render_write_cb_t      out_writer;        /*!< Audio render write callback */
+    void                            *out_ctx;           /*!< Audio render write context */
+    esp_audio_render_sample_info_t   out_sample_info;   /*!< Output sample information, needs to be aligned with actual device setting */
+    void                            *pool;              /*!< GMF pool handle */
     uint16_t                         process_period;    /*!< Audio processing interval in milliseconds (default: 20ms)
                                                              This determines how frequently the audio mixer processes input streams
                                                              Only valid for multiple streams which need mix processor
                                                              - Shorter periods: Faster audio response but require more precise timing
                                                              - Longer periods: More tolerant to buffer variations but increase latency
                                                              This value controls the ring_fifo size used by `esp_audio_render_stream_write` also */
+    uint8_t                          process_buf_align; /*!< When use hardware or optimized processor may need special buffer alignment
+                                                             If set to 0, the default value is 16 */
 } esp_audio_render_cfg_t;
 
 /**
@@ -89,6 +92,25 @@ typedef int (*esp_audio_render_event_cb_t)(esp_audio_render_event_type_t event_t
  *       - ESP_AUDIO_RENDER_ERR_NO_MEM       Not enough memory
  */
 esp_audio_render_err_t esp_audio_render_create(esp_audio_render_cfg_t *cfg, esp_audio_render_handle_t *render);
+
+/**
+ * @brief  Reconfigures the audio render task parameters
+ *
+ * @note  This function must be called when no audio stream is active (no stream is opened yet)
+ *
+ * @note  Default configuration (applied if never called):
+ *          - `stack_in_ext` = true (task stack allocated in external SPI-RAM)
+ *          - Other parameters use values from Kconfig defaults
+ *
+ * @param[in]  render  Audio render handle
+ * @param[in]  cfg     Pointer to task configuration
+ *
+ * @return
+ *       - ESP_AUDIO_RENDER_ERR_OK             On success
+ *       - ESP_AUDIO_RENDER_ERR_INVALID_ARG    Invalid input argument
+ *       - ESP_AUDIO_RENDER_ERR_INVALID_STATE  Called when any stream is opened
+ */
+esp_audio_render_err_t esp_audio_render_task_reconfigure(esp_audio_render_handle_t render, esp_gmf_task_config_t *cfg);
 
 /**
  * @brief  Set event callback for audio render
@@ -183,6 +205,24 @@ esp_audio_render_err_t esp_audio_render_stream_get(esp_audio_render_handle_t ren
                                                    esp_audio_render_stream_handle_t *stream_handle);
 
 /**
+ * @brief  Set mixer gain for audio render stream (optional)
+ *
+ * @note  Currently only support to set when none stream is opened yet
+ *        When this API not call it will use default mixer gain [0, sqrt(1.0 / max_stream_num)]
+ *        Target gain should be limited to avoid clipping after mixed
+ *
+ * @param[in]   stream         Audio render handle
+ * @param[in]   mixer_gain     Mixer gain to set
+ *
+ * @return
+ *       - ESP_AUDIO_RENDER_ERR_OK             On success
+ *       - ESP_AUDIO_RENDER_ERR_INVALID_ARG    Invalid input argument
+ *       - ESP_AUDIO_RENDER_ERR_INVALID_STATE  Mixer already running
+ */
+esp_audio_render_err_t esp_audio_render_stream_set_mixer_gain(esp_audio_render_stream_handle_t stream,
+                                                              esp_audio_render_mixer_gain_t *mixer_gain);
+
+/**
  * @brief  Open audio render stream
  *
  * @param[in]   stream       Stream handle
@@ -253,6 +293,24 @@ esp_audio_render_err_t esp_audio_render_stream_get_element(esp_audio_render_stre
  */
 esp_audio_render_err_t esp_audio_render_stream_write(esp_audio_render_stream_handle_t stream,
                                                      uint8_t *pcm_data, uint32_t pcm_size);
+
+ /**
+ * @brief  Fade in/out for audio render stream
+ *
+ * @note  Fade in/out will only take effect in multiple stream cases
+ *        When fade in, mixer gain for this stream will goes from current to target gain
+ *        When fade out, mixer gain for this stream will goes from current to initial gain
+ *        Allow to set during runtime
+ *
+ * @param[in]  stream   Stream handle
+ * @param[in]  fade_in  Fade operation (true: fade in, false: fade out)
+ *
+ * @return
+ *       - ESP_AUDIO_RENDER_ERR_OK             On success
+ *       - ESP_AUDIO_RENDER_ERR_INVALID_ARG    Invalid input argument
+ */
+esp_audio_render_err_t esp_audio_render_stream_set_fade(esp_audio_render_stream_handle_t stream,
+                                                        bool fade_in);
 
 /**
  * @brief  Pause audio render stream
