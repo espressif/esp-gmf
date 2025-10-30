@@ -1,0 +1,5 @@
+board: esp32_devkitc
+chip: esp32
+version: 1.0.0
+description: "ESP32 DevKitC Board"
+manufacturer: "ESPRESSIF"

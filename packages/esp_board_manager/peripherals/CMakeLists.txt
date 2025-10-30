@@ -57,6 +57,30 @@ function(get_peripheral_sources sources includes)
         list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_pcnt")
     endif()
 
+    if(CONFIG_ESP_BOARD_PERIPH_DAC_SUPPORT)
+        message(STATUS "DAC_SUPPORT")
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_dac/periph_dac.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_dac")
+    endif()
+
+    if(CONFIG_ESP_BOARD_PERIPH_SDM_SUPPORT)
+        message(STATUS "SDM_SUPPORT")
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_sdm/periph_sdm.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_sdm")
+    endif()
+
+    if(CONFIG_ESP_BOARD_PERIPH_MCPWM_SUPPORT)
+        message(STATUS "MCPWM_SUPPORT")
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_mcpwm/periph_mcpwm.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_mcpwm")
+    endif()
+
+    if(CONFIG_ESP_BOARD_PERIPH_ANACMPR_SUPPORT)
+        message(STATUS "ANACMPR_SUPPORT")
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_anacmpr/periph_anacmpr.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_anacmpr")
+    endif()
+
     # Set output variables in parent scope
     set(${sources} ${srcs} PARENT_SCOPE)
     set(${includes} ${incs} PARENT_SCOPE)

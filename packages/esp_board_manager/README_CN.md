@@ -195,6 +195,10 @@ void app_main(void)
 - **[`test_periph_gpio.c`](test_apps/main/periph/test_periph_gpio.c)** - 用于数字 I/O 操作的 GPIO 外设
 - **[`test_periph_uart.c`](test_apps/main/periph/test_periph_uart.c)** - 用于串行端口操作的 UART 外设
 - **[`test_periph_adc.c`](test_apps/main/periph/test_periph_adc.c)** - 用于测量特定模拟 IO 管脚模拟信号的 ADC 外设
+- **[`test_periph_anacmpr.c`](test_apps/main/periph/test_periph_anacmpr.c)** - 用于比较源信号与参考信号的模拟比较器外设
+- **[`test_periph_dac.c`](test_apps/main/periph/test_periph_dac.c)** - 用于将数字值转换成模拟电压的 DAC 外设
+- **[`test_periph_mcpwm.c`](test_apps/main/periph/test_periph_mcpwm.c)** - 多功能 PWM 生成器外设
+- **[`test_periph_sdm.c`](test_apps/main/periph/test_periph_sdm.c)** - 用于脉冲密度调制的 SDM 外设
 
 #### 用户接口
 
@@ -400,6 +404,10 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | ADC | adc | none | ✅ | ADC 模数转换 | [`periph_adc.yml`](peripherals/periph_adc/periph_adc.yml) |
 | RMT | rmt | tx/rx | ✅ | 红外遥控 | [`periph_rmt.yml`](peripherals/periph_rmt/periph_rmt.yml) |
 | PCNT | pcnt | none | ✅ | 脉冲计数器 | [`periph_pcnt.yml`](peripherals/periph_pcnt/periph_pcnt.yml) |
+| ANACMPR | anacmpr | none | ✅ | 模拟比较器 | [`periph_anacmpr.yml`](peripherals/periph_anacmpr/periph_anacmpr.yml) |
+| DAC | dac | none | ✅ | 数模转换器 | [`periph_dac.yml`](peripherals/periph_dac/periph_dac.yml) |
+| MCPWM | mcpwm | none | ✅ | PWM 生成器 | [`periph_mcpwm.yml`](peripherals/periph_mcpwm/periph_mcpwm.yml) |
+| SDM | sdm | none | ✅ | Sigma Delta 调制器 | [`periph_sdm.yml`](peripherals/periph_sdm/periph_sdm.yml) |
 
 ### 支持的设备类型
 

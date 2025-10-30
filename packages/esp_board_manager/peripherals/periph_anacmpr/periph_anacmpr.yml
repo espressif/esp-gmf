@@ -1,0 +1,31 @@
+# Analog Comparator Peripheral Default Configuration
+# This file provides commented default configurations used by the ANACMPR peripheral parser.
+# Based on periph_anacmpr.py parsing script
+
+# Analog Comparator example with internal reference
+anacmpr-internal-0:
+  config:
+    # Analog Comparator unit number, must be not less than 0 and less than 'SOC_ANA_CMPR_NUM'  (default: 0)
+    # Please check the 'SOC_ANA_CMPR_NUM' in 'soc/soc_caps.h' for valid values
+    unit: 0
+
+    # Reference source type (default: ANA_CMPR_REF_SRC_INTERNAL)
+    ref_src: ANA_CMPR_REF_SRC_INTERNAL
+    # Valid values:
+    # - ANA_CMPR_REF_SRC_INTERNAL: Use internal reference voltage (divided from VDD)
+    # - ANA_CMPR_REF_SRC_EXTERNAL: Use external reference from GPIO pin
+
+    # Cross type for interrupt triggering (default: ANA_CMPR_CROSS_ANY)
+    cross_type: ANA_CMPR_CROSS_ANY
+    # Valid values:
+    # - ANA_CMPR_CROSS_POS: Trigger on positive crossing (source > reference)
+    # - ANA_CMPR_CROSS_NEG: Trigger on negative crossing (source < reference)
+    # - ANA_CMPR_CROSS_ANY: Trigger on both positive and negative crossing
+
+    # Clock source (default: ANA_CMPR_CLK_SRC_DEFAULT)
+    clk_src: ANA_CMPR_CLK_SRC_DEFAULT
+    # Please check the 'soc_periph_ana_cmpr_clk_src_t' in 'soc/clk_tree_defs.h' for valid values
+
+    # Interrupt priority (default: 0)
+    # If set to 0, the driver will automatically select a relative low priority (1,2,3)
+    intr_priority: 0

@@ -195,6 +195,10 @@ For comprehensive usage examples, refer to the test applications in the `test_ap
 - **[`test_periph_gpio.c`](test_apps/main/periph/test_periph_gpio.c)** - GPIO peripheral for digital I/O operations
 - **[`test_periph_uart.c`](test_apps/main/periph/test_periph_uart.c)** - UART peripheral for serila port operations
 - **[`test_periph_adc.c`](test_apps/main/periph/test_periph_adc.c)** - ADC peripheral for measure the analog signal
+- **[`test_periph_anacmpr.c`](test_apps/main/periph/test_periph_anacmpr.c)** - Analog comparator peripheral for analog signal comparison
+- **[`test_periph_dac.c`](test_apps/main/periph/test_periph_dac.c)** - DAC peripheral for digital-to-analog conversion
+- **[`test_periph_mcpwm.c`](test_apps/main/periph/test_periph_mcpwm.c)** - MCPWM peripheral for generating pwm signals
+- **[`test_periph_sdm.c`](test_apps/main/periph/test_periph_sdm.c)** - SDM peripheral for Sigma Delta modulation
 
 #### User Interface
 
@@ -400,6 +404,10 @@ When multiple boards with the same name exist across different paths, the ESP Bo
 | ADC | adc | none | ✅ | Analog-to-Digital Converter | [`periph_adc.yml`](peripherals/periph_adc/periph_adc.yml) |
 | RMT | rmt | tx/rx | ✅ | Remote Control Transceiver | [`periph_rmt.yml`](peripherals/periph_rmt/periph_rmt.yml) |
 | PCNT | pcnt | none | ✅ | Pulse counter | [`periph_pcnt.yml`](peripherals/periph_pcnt/periph_pcnt.yml) |
+| ANACMPR | anacmpr | none | ✅ | Analog comparator | [`periph_anacmpr.yml`](peripherals/periph_anacmpr/periph_anacmpr.yml) |
+| DAC | dac | none | ✅ | Digital-to-analog converter | [`periph_dac.yml`](peripherals/periph_dac/periph_dac.yml) |
+| MCPWM | mcpwm | none | ✅ | PWM generator | [`periph_mcpwm.yml`](peripherals/periph_mcpwm/periph_mcpwm.yml) |
+| SDM | sdm | none | ✅ | Sigma Delta modulation | [`periph_sdm.yml`](peripherals/periph_sdm/periph_sdm.yml) |
 
 ### Supported Device types
 

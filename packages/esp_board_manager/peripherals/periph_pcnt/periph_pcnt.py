@@ -244,8 +244,6 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     if not validate_watch_point_count(watch_point_count, watch_point_list):
         raise ValueError(f"Invalid watch point configuration for PCNT peripheral '{name}'")
 
-    print(channel_list)
-
     # Build the main configuration structure
     struct_init = {
         'unit_config': unit_config,

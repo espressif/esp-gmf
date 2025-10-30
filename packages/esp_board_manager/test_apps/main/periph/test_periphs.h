@@ -23,6 +23,14 @@ void test_periph_rmt(void);
 
 void test_periph_pcnt(void);
 
+void test_periph_dac(void);
+
+void test_periph_sdm(void);
+
+void test_periph_mcpwm(void);
+
+void test_periph_anacmpr(void);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

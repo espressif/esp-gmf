@@ -61,15 +61,22 @@ extern "C" {
  *         Format: lowercase letters, numbers, and underscores
  *         Must not be numbers only; must be unique within the configuration
  */
-#define ESP_BOARD_PERIPH_TYPE_I2C   "i2c"   /*!< I2C peripheral type */
-#define ESP_BOARD_PERIPH_TYPE_I2S   "i2s"   /*!< I2S peripheral type */
-#define ESP_BOARD_PERIPH_TYPE_SPI   "spi"   /*!< SPI peripheral type */
-#define ESP_BOARD_PERIPH_TYPE_LEDC  "ledc"  /*!< LEDC peripheral type */
-#define ESP_BOARD_PERIPH_TYPE_GPIO  "gpio"  /*!< GPIO peripheral type */
-#define ESP_BOARD_PERIPH_TYPE_UART  "uart"  /*!< UART peripheral type */
-#define ESP_BOARD_PERIPH_TYPE_ADC   "adc"   /*!< ADC peripheral type */
-#define ESP_BOARD_PERIPH_TYPE_RMT   "rmt"   /*!< RMT peripheral type */
-#define ESP_BOARD_PERIPH_TYPE_PCNT  "pcnt"  /*!< PCNT peripheral type */
+
+
+
+#define ESP_BOARD_PERIPH_TYPE_I2C      "i2c"      /*!< I2C peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_I2S      "i2s"      /*!< I2S peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_SPI      "spi"      /*!< SPI peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_LEDC     "ledc"     /*!< LEDC peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_GPIO     "gpio"     /*!< GPIO peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_UART     "uart"     /*!< UART peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_ADC      "adc"      /*!< ADC peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_RMT      "rmt"      /*!< RMT peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_PCNT     "pcnt"     /*!< PCNT peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_ANACMPR  "anacmpr"  /*!< Analog Comparator peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_DAC      "dac"      /*!< DAC peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_MCPWM    "mcpwm"    /*!< MCPWM peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_SDM      "sdm"      /*!< Sigma Delta Modulation peripheral type */
 
 /**
  * @brief  Peripheral role keys
@@ -79,10 +86,13 @@ extern "C" {
  */
 #define ESP_BOARD_PERIPH_ROLE_MASTER          "master"      /*!< Master role */
 #define ESP_BOARD_PERIPH_ROLE_SLAVE           "slave"       /*!< Slave role */
-#define ESP_BOARD_PERIPH_ROLE_ADC_CONTINUOUS  "continuous"  /*!< Continuous role */
-#define ESP_BOARD_PERIPH_ROLE_ADC_ONESHOT     "oneshot"     /*!< Oneshot role */
 #define ESP_BOARD_PERIPH_ROLE_TX              "tx"          /*!< Transmitter role */
 #define ESP_BOARD_PERIPH_ROLE_RX              "rx"          /*!< Receiver role */
+#define ESP_BOARD_PERIPH_ROLE_ADC_CONTINUOUS  "continuous"  /*!< ADC continuous role */
+#define ESP_BOARD_PERIPH_ROLE_ADC_ONESHOT     "oneshot"     /*!< ADC oneshot role */
+#define ESP_BOARD_PERIPH_ROLE_DAC_CONTINUOUS  "continuous"  /*!< DAC continuous role */
+#define ESP_BOARD_PERIPH_ROLE_DAC_ONESHOT     "oneshot"     /*!< DAC oneshot role */
+#define ESP_BOARD_PERIPH_ROLE_DAC_COSINE      "cosine"      /*!< DAC cosine role */
 #define ESP_BOARD_PERIPH_ROLE_NONE            "none"        /*!< No specific role */
 
 /**

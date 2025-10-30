@@ -1,0 +1,13 @@
+board: esp32_c3_lyra
+chip: esp32c3
+version: 1.0.0
+# Peripherals Configuration for Dual Eyes Board V1.0
+peripherals:
+  - name: sdm_handle
+    type: sdm
+    config:
+      gpio_num: 4
+      clk_src: "SDM_CLK_SRC_DEFAULT"
+      sample_rate_hz: 1000000
+      invert_out: false
+      io_loop_back: false

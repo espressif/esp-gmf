@@ -1,0 +1,5 @@
+board: esp32_c3_lyra
+chip: esp32c3
+version: 1.0.0
+# Devices Configuration for Dual Eyes Board V1.0
+devices:

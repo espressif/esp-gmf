@@ -55,7 +55,7 @@ peripherals:
       atten: ADC_ATTEN_DB_0
       bit_width: ADC_BITWIDTH_12
 
-      # channel_id: 4
+      channel_id: 4
       clk_src: SOC_MOD_CLK_RC_FAST
       ulp_mode: ADC_ULP_MODE_DISABLE
 
@@ -144,3 +144,60 @@ peripherals:
         miso_io_num: 5
         sclk_io_num: 2
         max_transfer_sz: 4000
+
+  - name: mcpwm_handle
+    type: mcpwm
+    config:
+      timer_config:
+        group_id: 0
+        clk_src: MCPWM_TIMER_CLK_SRC_DEFAULT
+        resolution_hz: 1000000
+        period_ticks: 20000
+        count_mode: MCPWM_TIMER_COUNT_MODE_UP
+        intr_priority: 1
+        flags:
+          update_period_on_empty: false
+          update_period_on_sync: false
+          allow_pd: false
+
+      operator_config:
+        group_id: 0
+        intr_priority: 1
+        flags:
+          update_gen_action_on_tez: false
+          update_gen_action_on_tep: false
+          update_gen_action_on_sync: false
+          update_dead_time_on_tez: false
+          update_dead_time_on_tep: false
+          update_dead_time_on_sync: false
+
+      # comparator_config:
+      #   intr_priority: 0
+      #   flags:
+      #     update_cmp_on_tez: true
+      #     update_cmp_on_tep: false
+      #     update_cmp_on_sync: false
+
+      comparator_configs:
+        - comparator: 0
+          intr_priority: 0
+          flags:
+            update_cmp_on_tez: true
+            update_cmp_on_tep: false
+            update_cmp_on_sync: false
+
+        - comparator: 1
+          intr_priority: 0
+          flags:
+            update_cmp_on_tez: true
+            update_cmp_on_tep: false
+            update_cmp_on_sync: false
+
+      generator_config:
+        gpio_num: 45
+        flags:
+          invert_pwm: false
+          io_loop_back: false
+          io_od_mode: false
+          pull_up: false
+          pull_down: false
