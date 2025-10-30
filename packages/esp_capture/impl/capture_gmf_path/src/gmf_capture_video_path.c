@@ -145,7 +145,7 @@ static esp_capture_err_t video_path_apply_setting(gmf_capture_path_mngr_t *mngr,
         }
         esp_gmf_video_overlay_enable(res->overlay_el, res->overlay_enable);
     }
-    if (res->venc_el) {
+    if (res->venc_el && res->bitrate) {
         esp_gmf_video_enc_set_bitrate(res->venc_el, res->bitrate);
     }
     if (res->sync_handle) {
@@ -401,7 +401,8 @@ esp_capture_err_t gmf_video_path_set(esp_capture_path_mngr_if_t *p, uint8_t path
         res->sync_handle = *(esp_capture_sync_handle_t *)cfg;
     } else if (type == ESP_CAPTURE_PATH_SET_TYPE_VIDEO_BITRATE) {
         res->bitrate = *(uint32_t *)cfg;
-        if (res->venc_el) {
+        ret = ESP_CAPTURE_ERR_OK;
+        if (res->venc_el && res->bitrate) {
             ret = esp_gmf_video_enc_set_bitrate(res->venc_el, res->bitrate);
         }
     } else if (type == ESP_CAPTURE_PATH_SET_TYPE_REGISTER_ELEMENT) {

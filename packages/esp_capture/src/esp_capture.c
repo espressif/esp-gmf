@@ -100,7 +100,7 @@ static int capture_frame_avail(void *src, uint8_t sel, esp_capture_stream_frame_
         return ESP_CAPTURE_ERR_NOT_FOUND;
     }
     // When path disable drop input data directly
-    if (path->sink_disabled) {
+    if (path->sink_disabled || path->parent->started == false) {
         // Can not release it here, callback to user to handle it
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
@@ -1110,15 +1110,15 @@ esp_capture_err_t esp_capture_sink_set_bitrate(esp_capture_sink_handle_t h, esp_
     int ret = ESP_CAPTURE_ERR_NOT_SUPPORTED;
     if (stream_type == ESP_CAPTURE_STREAM_TYPE_VIDEO) {
         type = ESP_CAPTURE_PATH_SET_TYPE_VIDEO_BITRATE;
-        esp_capture_path_mngr_if_t *audio_path = &capture->cfg.audio_path->base;
-        if (audio_path) {
-            audio_path->set(audio_path, path->path_type, type, &bitrate, sizeof(uint32_t));
+        esp_capture_path_mngr_if_t *video_path = &capture->cfg.video_path->base;
+        if (video_path) {
+            ret = video_path->set(video_path, path->path_type, type, &bitrate, sizeof(uint32_t));
         }
     } else if (stream_type == ESP_CAPTURE_STREAM_TYPE_AUDIO) {
         type = ESP_CAPTURE_PATH_SET_TYPE_AUDIO_BITRATE;
-        esp_capture_path_mngr_if_t *video_path = &capture->cfg.video_path->base;
-        if (video_path) {
-            video_path->set(video_path, path->path_type, type, &bitrate, sizeof(uint32_t));
+        esp_capture_path_mngr_if_t *audio_path = &capture->cfg.audio_path->base;
+        if (audio_path) {
+            ret = audio_path->set(audio_path, path->path_type, type, &bitrate, sizeof(uint32_t));
         }
     }
     capture_mutex_unlock(capture->api_lock);
@@ -1139,8 +1139,9 @@ esp_capture_err_t esp_capture_sink_acquire_frame(esp_capture_sink_handle_t h, es
     switch (frame->stream_type) {
         case ESP_CAPTURE_STREAM_TYPE_VIDEO:
             if (path->video_path_disabled) {
-                if (path->video_share_q) {
-                    share_q_recv_all(path->video_share_q, frame);
+                // Only receive all of share q port data
+                while (msg_q_recv(path->video_q, frame, sizeof(esp_capture_stream_frame_t), true) == 0) {
+                    share_q_release(path->video_share_q, frame);
                 }
                 return ESP_CAPTURE_ERR_NOT_FOUND;
             }
@@ -1152,8 +1153,8 @@ esp_capture_err_t esp_capture_sink_acquire_frame(esp_capture_sink_handle_t h, es
             break;
         case ESP_CAPTURE_STREAM_TYPE_AUDIO:
             if (path->audio_path_disabled) {
-                if (path->audio_share_q) {
-                    share_q_recv_all(path->audio_share_q, frame);
+                while (msg_q_recv(path->audio_q, frame, sizeof(esp_capture_stream_frame_t), true) == 0) {
+                    share_q_release(path->audio_share_q, frame);
                 }
                 return ESP_CAPTURE_ERR_NOT_FOUND;
             }

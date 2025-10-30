@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.7.7
+
+### Features
+
+- Fixed failed to set bitrate
+- Added QP and GOP setting for H264
+
+### Bug Fixes
+
+- Fixed share queue release possible issue
+- Fixed wrong received muxer data when audio/video path has error
+
 ## v0.7.6
 
 ### Features

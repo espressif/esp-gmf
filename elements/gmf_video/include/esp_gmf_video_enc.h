@@ -115,6 +115,39 @@ esp_gmf_err_t esp_gmf_video_enc_get_src_formats(esp_gmf_element_handle_t handle,
  */
 esp_gmf_err_t esp_gmf_video_enc_set_bitrate(esp_gmf_element_handle_t handle, uint32_t bitrate);
 
+/**
+ * @brief  Set the GOP (Group of Pictures) for video encoder.
+ *
+ * @note  This setting applies specifically to the H.264 encoder
+ *        The H.264 encoder generates an I-frame at the start of each GOP
+ *        Can be configured both before and after the encoder element is running
+ *
+ * @param[in]  handle  Handle to the video encoder element
+ * @param[in]  gop     GOP size for H.264 (in number of frames)
+ *
+ * @return
+ *      - ESP_GMF_ERR_OK           On success
+ *      - ESP_GMF_ERR_INVALID_ARG  Invalid configuration provided
+ */
+esp_gmf_err_t esp_gmf_video_enc_set_gop(esp_gmf_element_handle_t handle, uint32_t gop);
+
+/**
+ * @brief  Set the QP (Quantization Parameter) range for video encoder
+ *
+ * @note  This setting applies specifically to the H.264 encoder
+ *        Higher QP values generally result in lower image quality
+ *        Can be configured both before and after the encoder element is running
+ *
+ * @param[in]  handle  Handle to the video encoder element
+ * @param[in]  min_qp  Minimum QP value
+ * @param[in]  max_qp  Maximum QP value
+ *
+ * @return
+ *      - ESP_GMF_ERR_OK           On success
+ *      - ESP_GMF_ERR_INVALID_ARG  Invalid configuration provided
+ */
+esp_gmf_err_t esp_gmf_video_enc_set_qp(esp_gmf_element_handle_t handle, uint32_t min_qp, uint32_t max_qp);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

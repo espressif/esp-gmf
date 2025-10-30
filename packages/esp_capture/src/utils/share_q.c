@@ -179,7 +179,11 @@ int share_q_recv_all(share_q_handle_t q, void *frame)
     for (int i = 0; i < q->cfg.user_count; i++) {
         if (q->user_q[i].enable) {
             while (msg_q_recv(q->user_q[i].q, frame, q->cfg.item_size, true) == 0) {
-                share_q_release(q, frame);
+                if (q->user_q[i].release_frame) {
+                    q->user_q[i].release_frame(frame, q->user_q[i].ctx);
+                } else {
+                    share_q_release(q, frame);
+                }
             }
         }
     }
@@ -262,20 +266,23 @@ int share_q_release(share_q_t *q, void *item)
     int rp = q->rp;
     int wp = q->wp;
     void *frame_data = q->cfg.get_frame_data(item);
-
+    bool need_notify = false;
+    share_item_t *head = &q->items[rp];
     while (rp != wp) {
         share_item_t *q_item = &q->items[rp];
         if (q_item->frame_data == frame_data) {
             q_item->ref_count--;
             if (q_item->ref_count == 0) {
+                need_notify = true;
                 q->cfg.release_frame(item, q->cfg.ctx);
-                q->rp = (q->rp + 1) % q->cfg.q_count;
-                pthread_cond_signal(&q->cond);
+                q->rp = (rp + 1) % q->cfg.q_count;
             }
-            pthread_mutex_unlock(&q->lock);
-            return 0;
+            break;
         }
         rp = (rp + 1) % (q->cfg.q_count);
+    }
+    if (need_notify) {
+        pthread_cond_signal(&q->cond);
     }
     pthread_mutex_unlock(&q->lock);
     // Maybe flushed for disabled, here return 0 directly

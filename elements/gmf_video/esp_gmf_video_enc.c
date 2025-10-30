@@ -39,15 +39,37 @@
 static const char *TAG = "VENC_EL";
 
 /**
+ * @brief  Video encoder extra setting mask
+ */
+typedef enum {
+    VENC_EXTRA_SET_MASK_NONE    = 0,
+    VENC_EXTRA_SET_MASK_BITRATE = (1 << 0),
+    VENC_EXTRA_SET_MASK_QP      = (1 << 1),
+    VENC_EXTRA_SET_MASK_GOP     = (1 << 2),
+    VENC_EXTRA_SET_MASK_ALL     = (0xFF),
+} venc_extra_set_mask_t;
+
+/**
+ * @brief  Video encoder extra setting
+ */
+typedef struct {
+    uint32_t               bitrate;
+    uint32_t               min_qp;
+    uint32_t               max_qp;
+    uint32_t               gop;
+    venc_extra_set_mask_t  mask;
+} venc_extra_set_t;
+
+/**
  * @brief  Video encoder definition
  */
 typedef struct {
     esp_gmf_video_element_t  parent;       /*!< Video element parent */
     esp_video_codec_type_t   dst_codec;    /*!< Video encoder destination codec */
     bool                     venc_bypass;  /*!< Whether video encoder is bypassed or not */
-    uint32_t                 bitrate;      /*!< Output bitrate setting */
     uint32_t                 codec_cc;     /*!< FourCC used to find encoder if set */
     esp_video_enc_handle_t   enc_handle;   /*!< Video encoder handle */
+    venc_extra_set_t         extra_set;    /*!< Video encoder extra setting */
 } venc_t;
 
 static int venc_get_input_codecs(venc_t *venc, uint32_t dst_codec, const uint32_t **codecs, uint8_t *num)
@@ -106,11 +128,24 @@ static int venc_get_frame_size(venc_t *venc, int *in_frame_size, int *out_frame_
     return ESP_GMF_ERR_OK;
 }
 
-static void venc_el_apply_settings(venc_t *venc)
+static esp_gmf_err_t venc_el_apply_settings(venc_t *venc, venc_extra_set_mask_t mask)
 {
-    if (venc->bitrate) {
-        esp_video_enc_set_bitrate(venc->enc_handle, venc->bitrate);
+    venc_extra_set_t *extra_set = &venc->extra_set;
+    if (venc->enc_handle == NULL ||
+        extra_set->mask == VENC_EXTRA_SET_MASK_NONE) {
+        return ESP_GMF_ERR_OK;
     }
+    esp_vc_err_t ret = ESP_VC_ERR_OK;
+    if (extra_set->mask & (mask & VENC_EXTRA_SET_MASK_BITRATE)) {
+        ret |= esp_video_enc_set_bitrate(venc->enc_handle, extra_set->bitrate);
+    }
+    if (extra_set->mask & (mask & VENC_EXTRA_SET_MASK_QP)) {
+        ret |= esp_video_enc_set_qp(venc->enc_handle, extra_set->min_qp, extra_set->max_qp);
+    }
+    if (extra_set->mask & (mask & VENC_EXTRA_SET_MASK_GOP)) {
+        ret |= esp_video_enc_set_gop(venc->enc_handle, extra_set->gop);
+    }
+    return ret == ESP_VC_ERR_OK ? ESP_GMF_ERR_OK : ESP_GMF_ERR_NOT_SUPPORT;
 }
 
 static esp_gmf_job_err_t venc_el_open(esp_gmf_video_element_handle_t self, void *para)
@@ -143,7 +178,7 @@ static esp_gmf_job_err_t venc_el_open(esp_gmf_video_element_handle_t self, void 
         venc_get_frame_size(venc, &in_frame_size, &out_frame_size);
         ESP_GMF_ELEMENT_GET(venc)->in_attr.data_size = in_frame_size;
         ESP_GMF_ELEMENT_GET(venc)->out_attr.data_size = out_frame_size;
-        venc_el_apply_settings(venc);
+        venc_el_apply_settings(venc, VENC_EXTRA_SET_MASK_ALL);
     }
     // Report info to next element
     esp_gmf_info_video_t out_info = venc->parent.src_info;
@@ -276,12 +311,9 @@ static esp_gmf_err_t set_bitrate(esp_gmf_element_handle_t handle, esp_gmf_args_d
     ESP_GMF_NULL_CHECK(TAG, arg_desc, return ESP_GMF_ERR_INVALID_ARG);
     venc_t *venc = (venc_t *)handle;
     int offset = 0;
-    COPY_ARG(&venc->bitrate, buf, offset, sizeof(uint32_t), buf_len)
-    // TODO allow set bitrate before running?
-    if (venc->enc_handle) {
-        return esp_video_enc_set_bitrate(venc->enc_handle, venc->bitrate);
-    }
-    return ESP_GMF_ERR_OK;
+    COPY_ARG(&venc->extra_set.bitrate, buf, offset, sizeof(uint32_t), buf_len);
+    venc->extra_set.mask |= VENC_EXTRA_SET_MASK_BITRATE;
+    return venc_el_apply_settings(venc, VENC_EXTRA_SET_MASK_BITRATE);
 }
 
 static esp_gmf_err_t get_in_formats(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
@@ -440,11 +472,28 @@ esp_gmf_err_t esp_gmf_video_enc_set_bitrate(esp_gmf_element_handle_t self, uint3
 {
     ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);
     venc_t *venc = (venc_t *)self;
-    venc->bitrate = bitrate;
-    // TODO allow set bitrate before running?
-    if (venc->enc_handle) {
-        return esp_video_enc_set_bitrate(venc->enc_handle, bitrate);
-    }
+    venc->extra_set.bitrate = bitrate;
+    venc->extra_set.mask |= VENC_EXTRA_SET_MASK_BITRATE;
+    return venc_el_apply_settings(venc, VENC_EXTRA_SET_MASK_BITRATE);
+}
+
+esp_gmf_err_t esp_gmf_video_enc_set_gop(esp_gmf_element_handle_t self, uint32_t gop)
+{
+    ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);
+    venc_t *venc = (venc_t *)self;
+    venc->extra_set.gop = gop;
+    venc->extra_set.mask |= VENC_EXTRA_SET_MASK_GOP;
+    return venc_el_apply_settings(venc, VENC_EXTRA_SET_MASK_GOP);
+}
+
+esp_gmf_err_t esp_gmf_video_enc_set_qp(esp_gmf_element_handle_t self, uint32_t min_qp, uint32_t max_qp)
+{
+    ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);
+    venc_t *venc = (venc_t *)self;
+    venc->extra_set.min_qp = min_qp;
+    venc->extra_set.max_qp = max_qp;
+    venc->extra_set.mask |= VENC_EXTRA_SET_MASK_QP;
+    venc_el_apply_settings(venc, VENC_EXTRA_SET_MASK_QP);
     return ESP_GMF_ERR_OK;
 }
 

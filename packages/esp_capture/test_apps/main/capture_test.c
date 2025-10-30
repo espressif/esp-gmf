@@ -10,6 +10,7 @@
 #include "esp_capture_advance.h"
 #include "capture_gmf_mngr.h"
 #include "esp_gmf_alc.h"
+#include "esp_gmf_video_enc.h"
 #include "esp_audio_enc_default.h"
 #include "esp_video_enc_default.h"
 #include "esp_timer.h"
@@ -1013,6 +1014,31 @@ int advance_video_only_path_test(int timeout, bool dual)
     return ret;
 }
 
+static esp_capture_err_t capture_event_hdlr(esp_capture_event_t event, void *ctx)
+{
+    capture_sys_t *capture_sys = (capture_sys_t *)ctx;
+    switch (event) {
+        default:
+            break;
+        case ESP_CAPTURE_EVENT_VIDEO_PIPELINE_BUILT: {
+            // Do extra setting for video pipeline here
+            if (VIDEO_SINK_FMT_0  == ESP_CAPTURE_FMT_ID_H264) {
+                // Setting for GOP and QOP use video encoder element
+                 esp_gmf_element_handle_t venc_hd = NULL;
+                esp_capture_sink_get_element_by_tag(capture_sys->capture_sink[0], ESP_CAPTURE_STREAM_TYPE_VIDEO, "vid_enc", &venc_hd);
+                if (venc_hd) {
+                    esp_gmf_video_enc_set_bitrate(venc_hd, 2000000);
+                    esp_gmf_video_enc_set_gop(venc_hd, 30);
+                    esp_gmf_video_enc_set_qp(venc_hd, 10, 20);
+                }
+            }
+            break;
+        }
+    }
+    return ESP_CAPTURE_ERR_OK;
+}
+
+
 int auto_av_path_test(int timeout, bool dual)
 {
     capture_sys_t capture_sys = {0};
@@ -1047,7 +1073,16 @@ int auto_av_path_test(int timeout, bool dual)
                 .fps = VIDEO_FPS,
             },
         };
+        ret = esp_capture_set_event_cb(capture_sys.capture, capture_event_hdlr, &capture_sys);
+        BREAK_ON_FAIL(ret);
         ret = esp_capture_sink_setup(capture_sys.capture, 0, &sink_cfg, &capture_sys.capture_sink[0]);
+        BREAK_ON_FAIL(ret);
+        // Do some pre-setting here
+        uint32_t audio_bitrate = 48000 * 2 * 16 >> 4;
+        ret = esp_capture_sink_set_bitrate(capture_sys.capture_sink[0], ESP_CAPTURE_STREAM_TYPE_AUDIO, audio_bitrate);
+        BREAK_ON_FAIL(ret);
+        uint32_t video_bitrate = VIDEO_WIDTH * VIDEO_HEIGHT * VIDEO_FPS >> 1;
+        ret = esp_capture_sink_set_bitrate(capture_sys.capture_sink[0], ESP_CAPTURE_STREAM_TYPE_VIDEO, video_bitrate);
         BREAK_ON_FAIL(ret);
         if (dual) {
             esp_capture_sink_cfg_t sink_cfg_1 = {

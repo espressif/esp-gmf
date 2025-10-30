@@ -252,6 +252,7 @@ esp_capture_err_t gmf_audio_path_set(esp_capture_path_mngr_if_t *p, uint8_t path
         res->sync_handle = *(esp_capture_sync_handle_t *)cfg;
     } else if (type == ESP_CAPTURE_PATH_SET_TYPE_AUDIO_BITRATE) {
         res->bitrate = *(uint32_t *)cfg;
+        ret = ESP_CAPTURE_ERR_OK;
         if (res->aenc_el && cfg_size == sizeof(uint32_t)) {
             ret = esp_gmf_audio_enc_set_bitrate(res->aenc_el, res->bitrate);
         }
