@@ -1,4 +1,5 @@
 set(extra_component_path "$ENV{IDF_PATH}/examples/common_components/protocol_examples_common")
+file(TO_CMAKE_PATH "${extra_component_path}" extra_component_path)
 
 set(EXTRA_SRCS "${extra_component_path}/stdin_out.c"
          "${extra_component_path}/addr_from_stdin.c"

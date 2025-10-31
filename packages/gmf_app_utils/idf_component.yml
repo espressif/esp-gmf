@@ -1,4 +1,4 @@
-version: "0.7.4"
+version: "0.7.5"
 description: Espressif GMF App Utils is a module that provides utility functions for the GMF application
 url: https://github.com/espressif/esp-gmf/tree/main/packages/gmf_app_utils
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/gmf_app_utils/README.md"
