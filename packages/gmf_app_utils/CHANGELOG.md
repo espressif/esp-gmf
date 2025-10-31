@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.5
+
+### Bug Fixes
+
+- Fixed build issue on windows for path error
+
 ## v0.7.4
 
 ### Features
