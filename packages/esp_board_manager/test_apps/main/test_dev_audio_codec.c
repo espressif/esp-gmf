@@ -71,6 +71,8 @@ esp_err_t configure_codec(const char *codec_name, const audio_config_t *config, 
     };
     ESP_LOGI(TAG, "%s sample rate: %" PRIu32 ", channel: %" PRIu8 ", bits: %" PRIu8,
              is_dac ? "DAC" : "ADC", fs.sample_rate, fs.channel, fs.bits_per_sample);
+    // Close the codec device first
+    esp_codec_dev_close((*codec_handles)->codec_dev);
     ret = esp_codec_dev_open((*codec_handles)->codec_dev, &fs);
     if (ret != ESP_CODEC_DEV_OK) {
         ESP_LOGE(TAG, "Failed to open %s codec", codec_name);

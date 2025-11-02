@@ -788,11 +788,11 @@ help
                     file_path = os.path.join(gen_bmgr_codes_dir, filename)
                     if os.path.isfile(file_path):
                         os.remove(file_path)
-                        self.logger.info(f'   Removed file: {filename}')
+                        self.logger.debug(f'   Removed file: {filename}')
                     elif os.path.isdir(file_path):
                         import shutil
                         shutil.rmtree(file_path)
-                        self.logger.info(f'   Removed directory: {filename}')
+                        self.logger.debug(f'   Removed directory: {filename}')
 
                 self.logger.info(' ✅ gen_bmgr_codes directory cleared successfully')
             else:
@@ -805,24 +805,20 @@ help
 
     def get_chip_name_from_board_path(self, board_path: str) -> Optional[str]:
         """Extract chip name from board_info.yaml file"""
+        from generators.utils.board_utils import get_chip_name_from_board_path as get_chip_name_legacy
+
         board_info_path = os.path.join(board_path, 'board_info.yaml')
 
         if not os.path.exists(board_info_path):
             self.logger.warning(f'⚠️  board_info.yaml not found at {board_info_path}')
             return None
 
-        try:
-            with open(board_info_path, 'r', encoding='utf-8') as f:
-                board_yml = yaml.safe_load(f)
-                chip = board_yml.get('chip')
-                if chip:
-                    self.logger.debug(f'   Found chip name: {chip}')
-                    return chip
-                else:
-                    self.logger.warning(f'⚠️  No chip field found in {board_info_path}')
-                    return None
-        except Exception as e:
-            self.logger.error(f'❌ Error reading board_info.yaml: {e}')
+        chip = get_chip_name_legacy(board_path)
+        if chip:
+            self.logger.debug(f'   Found chip name: {chip}')
+            return chip
+        else:
+            self.logger.warning(f'⚠️  No chip field found in {board_info_path}')
             return None
 
     def get_version_info(self):
@@ -982,6 +978,13 @@ help
         peripherals_dict = None
         periph_name_map = None
         device_dependencies = {}  # Initialize device_dependencies
+
+        # Set board path for global board utilities
+        board_path = all_boards.get(selected_board) if selected_board in all_boards else None
+        if board_path:
+            from generators.utils.board_utils import set_board_path
+            set_board_path(board_path)
+            self.logger.debug(f'   Set global board path: {board_path}')
 
         if not args.devices_only:
             self.logger.info('⚙️  Step 4/8: Processing peripherals...')

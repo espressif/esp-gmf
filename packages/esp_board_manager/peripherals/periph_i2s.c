@@ -62,12 +62,14 @@ int periph_i2s_init(void *cfg, int cfg_size, void **periph_handle)
             err = i2s_channel_enable(i2s_chan_handles[config->port].chan_in);
             i2s_chan_handles[config->port].in_en = true;
         } else {
-            ESP_LOGW(TAG, "I2S STD already enabled, tx:%p, rx:%p", i2s_chan_handles[config->port].chan_out, i2s_chan_handles[config->port].chan_in);
+            ESP_LOGW(TAG, "I2S[%d] STD already enabled, tx:%p, rx:%p", config->port, i2s_chan_handles[config->port].chan_out, i2s_chan_handles[config->port].chan_in);
         }
-        ESP_LOGI(TAG, "STD, %s, ws: %d, bclk: %d, dout: %d, din: %d",
+        ESP_LOGI(TAG, "I2S[%d] STD, %s, ws: %d, bclk: %d, dout: %d, din: %d", config->port,
                     config->direction == I2S_DIR_TX ? " TX" : "RX", config->i2s_cfg.std.gpio_cfg.ws, config->i2s_cfg.std.gpio_cfg.bclk,
                     config->i2s_cfg.std.gpio_cfg.dout, config->i2s_cfg.std.gpio_cfg.din);
-    } else if (config->mode == I2S_COMM_MODE_TDM) {
+    }
+#if CONFIG_SOC_I2S_SUPPORTS_TDM
+    else if (config->mode == I2S_COMM_MODE_TDM) {
         if (config->direction == I2S_DIR_TX && !i2s_chan_handles[config->port].out_en) {
             err = i2s_channel_init_tdm_mode(i2s_chan_handles[config->port].chan_out, &config->i2s_cfg.tdm);
             err = i2s_channel_enable(i2s_chan_handles[config->port].chan_out);
@@ -82,27 +84,36 @@ int periph_i2s_init(void *cfg, int cfg_size, void **periph_handle)
             err = i2s_channel_enable(i2s_chan_handles[config->port].chan_in);
             i2s_chan_handles[config->port].in_en = true;
         } else {
-            ESP_LOGW(TAG, "I2S TDM already enabled, tx:%p, rx:%p", i2s_chan_handles[config->port].chan_out, i2s_chan_handles[config->port].chan_in);
+            ESP_LOGW(TAG, "I2S[%d] TDM already enabled, tx:%p, rx:%p", config->port, i2s_chan_handles[config->port].chan_out, i2s_chan_handles[config->port].chan_in);
         }
-        ESP_LOGI(TAG, "TDM, %s, ws: %d, bclk: %d, dout: %d, din: %d",
+        ESP_LOGI(TAG, "I2S[%d] TDM, %s, ws: %d, bclk: %d, dout: %d, din: %d", config->port,
                     config->direction == I2S_DIR_TX ? " TX" : "RX", config->i2s_cfg.tdm.gpio_cfg.ws, config->i2s_cfg.tdm.gpio_cfg.bclk,
                     config->i2s_cfg.tdm.gpio_cfg.dout, config->i2s_cfg.tdm.gpio_cfg.din);
-    } else if (config->mode == I2S_COMM_MODE_PDM) {
+    }
+#endif // CONFIG_SOC_I2S_SUPPORTS_TDM
+#if CONFIG_SOC_I2S_SUPPORTS_PDM
+    else if (config->mode == I2S_COMM_MODE_PDM) {
         if (config->direction == I2S_DIR_TX && !i2s_chan_handles[config->port].out_en) {
+#if CONFIG_SOC_I2S_SUPPORTS_PDM_TX
             err = i2s_channel_init_pdm_tx_mode(i2s_chan_handles[config->port].chan_out, &config->i2s_cfg.pdm_tx);
             err = i2s_channel_enable(i2s_chan_handles[config->port].chan_out);
             i2s_chan_handles[config->port].out_en = true;
-            ESP_LOGI(TAG, "PDM-TX, clk: %d, dout: %d", config->i2s_cfg.pdm_tx.gpio_cfg.clk, config->i2s_cfg.pdm_tx.gpio_cfg.dout);
+            ESP_LOGI(TAG, "I2S[%d] PDM-TX, clk: %d, dout: %d", config->port, config->i2s_cfg.pdm_tx.gpio_cfg.clk, config->i2s_cfg.pdm_tx.gpio_cfg.dout);
+#endif // CONFIG_SOC_I2S_SUPPORTS_PDM_TX
         } else if (config->direction == I2S_DIR_RX && !i2s_chan_handles[config->port].in_en) {
+#if CONFIG_SOC_I2S_SUPPORTS_PDM_RX
             err = i2s_channel_init_pdm_rx_mode(i2s_chan_handles[config->port].chan_in, &config->i2s_cfg.pdm_rx);
             err = i2s_channel_enable(i2s_chan_handles[config->port].chan_in);
             i2s_chan_handles[config->port].in_en = true;
-            ESP_LOGI(TAG, "PDM-RX, clk: %d, din: %d", config->i2s_cfg.pdm_rx.gpio_cfg.clk, config->i2s_cfg.pdm_rx.gpio_cfg.din);
+            ESP_LOGI(TAG, "I2S[%d] PDM-RX, clk: %d, din: %d", config->port, config->i2s_cfg.pdm_rx.gpio_cfg.clk, config->i2s_cfg.pdm_rx.gpio_cfg.din);
+#endif // CONFIG_SOC_I2S_SUPPORTS_PDM_RX
         } else {
-            ESP_LOGW(TAG, "I2S PDM already enabled, tx:%p, rx:%p", i2s_chan_handles[config->port].chan_out, i2s_chan_handles[config->port].chan_in);
+            ESP_LOGW(TAG, "I2S[%d] PDM already enabled, tx:%p, rx:%p", config->port, i2s_chan_handles[config->port].chan_out, i2s_chan_handles[config->port].chan_in);
         }
-    } else {
-        ESP_LOGE(TAG, "Invalid I2S mode: %d", config->mode);
+    }
+#endif // CONFIG_SOC_I2S_SUPPORTS_PDM
+    else {
+        ESP_LOGE(TAG, "I2S[%d] Invalid mode: %d", config->port, config->mode);
         return -1;
     }
     if (err != ESP_OK) {
@@ -116,7 +127,7 @@ int periph_i2s_init(void *cfg, int cfg_size, void **periph_handle)
         }
         i2s_chan_handles[config->port].chan_out = NULL;
         i2s_chan_handles[config->port].out_en = false;
-        ESP_LOGE(TAG, "i2s_channel_init failed: %d", err);
+        ESP_LOGE(TAG, "I2S[%d] initialize failed: %d", config->port, err);
         return -1;
     }
     if (config->direction == I2S_DIR_TX) {
@@ -124,10 +135,10 @@ int periph_i2s_init(void *cfg, int cfg_size, void **periph_handle)
     } else if (config->direction == I2S_DIR_RX) {
         *periph_handle = i2s_chan_handles[config->port].chan_in;
     } else {
-        ESP_LOGE(TAG, "Invalid direction: %d", config->direction);
+        ESP_LOGE(TAG, "I2S[%d] Invalid direction: %d", config->port, config->direction);
         return -1;
     }
-    ESP_LOGI(TAG, "i2s_channel_init success: %p", *periph_handle);
+    ESP_LOGI(TAG, "I2S[%d] initialize success: %p", config->port, *periph_handle);
     return 0;
 }
 

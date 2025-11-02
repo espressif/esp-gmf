@@ -10,10 +10,7 @@
 #include "esp_board_manager.h"
 #include "esp_board_device.h"
 #include "esp_board_periph.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif  /* __cplusplus */
+#include "esp_board_manager_defs.h"
 
 /* ============================================================================
  * Peripheral Headers
@@ -102,7 +99,3 @@ extern "C" {
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 #include "dev_ledc_ctrl.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
-
-#ifdef __cplusplus
-}
-#endif  /* __cplusplus */

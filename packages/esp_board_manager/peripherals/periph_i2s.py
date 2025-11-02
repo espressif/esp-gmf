@@ -4,6 +4,9 @@
 # See LICENSE file for details.
 
 # I2S peripheral config parser
+# Supports different I2S hardware versions:
+# - SOC_I2S_HW_VERSION_1: ESP32/ESP32-S2 (uses msb_right field in slot config)
+# - SOC_I2S_HW_VERSION_2: All other chips (uses left_align, big_endian, bit_order_lsb fields in slot config)
 VERSION = 'v1.0.0'
 
 import sys
@@ -98,6 +101,11 @@ def validate_enum_value(value: str, enum_type: str) -> bool:
             'I2S_PDM_SIG_SCALING_MUL_4'
         ],
         'pdm_line_mode': [
+            'I2S_PDM_TX_ONE_LINE_CODEC',
+            'I2S_PDM_TX_ONE_LINE_DAC',
+            'I2S_PDM_TX_TWO_LINE_DAC'
+        ],
+        'pdm_tx_line_mode': [
             'I2S_PDM_TX_ONE_LINE_CODEC',
             'I2S_PDM_TX_ONE_LINE_DAC',
             'I2S_PDM_TX_TWO_LINE_DAC'
@@ -211,22 +219,135 @@ def parse_i2s_format(format_str: str) -> dict:
 
     return result
 
+def get_i2s_hw_version() -> int:
+    """Determine I2S hardware version based on chip type.
+    Returns:
+        1 for SOC_I2S_HW_VERSION_1 (ESP32/ESP32-S2)
+        2 for SOC_I2S_HW_VERSION_2 (all other chips)
+    """
+    from generators.utils.board_utils import get_chip_name
+    chip_name = get_chip_name()
+    if not chip_name:
+        # Default to SOC_I2S_HW_VERSION_2 if chip name not found
+        return 2
+    if chip_name in ['esp32', 'esp32s2']:
+        return 1  # SOC_I2S_HW_VERSION_1
+    else:
+        return 2  # SOC_I2S_HW_VERSION_2
+
+def build_std_slot_config(cfg: dict, hw_version: int) -> dict:
+    """Build slot configuration based on hardware version.
+    Args:
+        cfg: Configuration dictionary from YAML
+        hw_version: Hardware version (1 or 2)
+    Returns:
+        Dictionary containing slot configuration
+    """
+    slot_cfg = {
+        'data_bit_width': f"I2S_DATA_BIT_WIDTH_{cfg.get('data_bit_width', 16)}BIT",
+        'slot_bit_width': get_enum_value(cfg.get('slot_bit_width'), 'I2S_SLOT_BIT_WIDTH_AUTO', 'slot_bit_width'),
+        'slot_mode': get_enum_value(cfg.get('slot_mode'), 'I2S_SLOT_MODE_STEREO', 'slot_mode'),
+        'slot_mask': get_enum_value(cfg.get('slot_mask'), 'I2S_STD_SLOT_BOTH', 'std_slot_mask'),
+        'ws_width': int(cfg.get('ws_width', 16)),
+        'ws_pol': bool(cfg.get('ws_pol', False)),
+        'bit_shift': bool(cfg.get('bit_shift', True))
+    }
+
+    # Add hardware version specific fields
+    if hw_version == 1:  # SOC_I2S_HW_VERSION_1 (ESP32/ESP32-S2)
+        slot_cfg['msb_right'] = bool(cfg.get('msb_right', True))
+    else:  # SOC_I2S_HW_VERSION_2 (all other chips)
+        slot_cfg['left_align'] = bool(cfg.get('left_align', True))
+        slot_cfg['big_endian'] = bool(cfg.get('big_endian', False))
+        slot_cfg['bit_order_lsb'] = bool(cfg.get('bit_order_lsb', False))
+
+    return slot_cfg
+
+def build_pdm_tx_slot_config(cfg: dict, hw_version: int) -> dict:
+    """Build PDM TX slot configuration based on hardware version.
+    Args:
+        cfg: Configuration dictionary from YAML
+        hw_version: Hardware version (1 or 2)
+    Returns:
+        Dictionary containing PDM TX slot configuration
+    """
+    slot_cfg = {
+        'data_bit_width': f"I2S_DATA_BIT_WIDTH_{cfg.get('data_bit_width', 16)}BIT",
+        'slot_bit_width': get_enum_value(cfg.get('slot_bit_width'), 'I2S_SLOT_BIT_WIDTH_AUTO', 'slot_bit_width'),
+        'slot_mode': get_enum_value(cfg.get('slot_mode'), 'I2S_SLOT_MODE_STEREO', 'slot_mode'),
+        'data_fmt': get_enum_value(cfg.get('data_fmt'), 'I2S_PDM_DATA_FMT_PCM', 'pdm_data_fmt'),
+        'sd_prescale': int(cfg.get('sd_prescale', 0)),
+        'sd_scale': get_enum_value(cfg.get('sd_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale'),
+        'hp_scale': get_enum_value(cfg.get('hp_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale'),
+        'lp_scale': get_enum_value(cfg.get('lp_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale'),
+        'sinc_scale': get_enum_value(cfg.get('sinc_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale')
+    }
+
+    # Add hardware version specific fields
+    if hw_version == 1:  # SOC_I2S_HW_VERSION_1 (ESP32/ESP32-S2)
+        slot_cfg['slot_mask'] = get_enum_value(cfg.get('slot_mask'), 'I2S_PDM_SLOT_BOTH', 'pdm_slot_mask')
+    else:  # SOC_I2S_HW_VERSION_2 (all other chips)
+        slot_cfg['line_mode'] = get_enum_value(cfg.get('line_mode'), 'I2S_PDM_TX_ONE_LINE_CODEC', 'pdm_tx_line_mode')
+        slot_cfg['hp_en'] = bool(cfg.get('hp_en', True))
+        # Validate HP filter cut-off frequency (23.3Hz ~ 185Hz)
+        hp_freq = float(cfg.get('hp_cut_off_freq_hz', 35.5))
+        if hp_freq < 23.3 or hp_freq > 185.0:
+            print(f'⚠️  WARNING: HP filter cut-off frequency {hp_freq}Hz is out of range (2 3.3Hz ~ 185Hz), clamping to valid range')
+            hp_freq = max(23.3, min(185.0, hp_freq))
+        slot_cfg['hp_cut_off_freq_hz'] = hp_freq
+        slot_cfg['sd_dither'] = int(cfg.get('sd_dither', 0))
+        slot_cfg['sd_dither2'] = int(cfg.get('sd_dither2', 1))
+
+    return slot_cfg
+
+def build_pdm_rx_slot_config(cfg: dict, hw_version: int) -> dict:
+    """Build PDM RX slot configuration based on hardware version.
+
+    Args:
+        cfg: Configuration dictionary from YAML
+        hw_version: Hardware version (1 or 2)
+
+    Returns:
+        Dictionary containing PDM RX slot configuration
+    """
+    slot_cfg = {
+        'data_bit_width': f"I2S_DATA_BIT_WIDTH_{cfg.get('data_bit_width', 16)}BIT",
+        'slot_bit_width': get_enum_value(cfg.get('slot_bit_width'), 'I2S_SLOT_BIT_WIDTH_AUTO', 'slot_bit_width'),
+        'slot_mode': get_enum_value(cfg.get('slot_mode'), 'I2S_SLOT_MODE_STEREO', 'slot_mode'),
+        'slot_mask': get_enum_value(cfg.get('slot_mask'), 'I2S_PDM_SLOT_BOTH', 'pdm_slot_mask'),
+        'data_fmt': get_enum_value(cfg.get('data_fmt'), 'I2S_PDM_DATA_FMT_PCM', 'pdm_data_fmt')
+    }
+
+    # Add hardware version specific fields
+    if hw_version == 2:  # SOC_I2S_HW_VERSION_2 (all other chips) - only these chips support HP filter
+        slot_cfg['hp_en'] = bool(cfg.get('hp_en', True))
+        # Validate HP filter cut-off frequency (23.3Hz ~ 185Hz)
+        hp_freq = float(cfg.get('hp_cut_off_freq_hz', 35.5))
+        if hp_freq < 23.3 or hp_freq > 185.0:
+            print(f'⚠️  WARNING: HP filter cut-off frequency {hp_freq}Hz is out of range (23.3Hz ~ 185Hz), clamping to valid range')
+            hp_freq = max(23.3, min(185.0, hp_freq))
+        slot_cfg['hp_cut_off_freq_hz'] = hp_freq
+        slot_cfg['amplify_num'] = int(cfg.get('amplify_num', 1))
+
+    return slot_cfg
+
 def parse(name: str, config: dict) -> dict:
     """Parse I2S peripheral configuration from YAML to C structure
-
     Args:
         name: Peripheral name
         config: Configuration dictionary from YAML
-
     Returns:
         Dictionary containing C structure configuration
-
     Raises:
         ValueError: If YAML validation fails
     """
     try:
-        # Get format string from parent scope
+        # Get format string: check both top-level and config-level
         format_str = config.get('format', '')  # Get format from parent scope
+        if not format_str:
+            # Also check inside config dict (for YAML where format is under config)
+            cfg_temp = config.get('config', {})
+            format_str = cfg_temp.get('format', '') if isinstance(cfg_temp, dict) else ''
         if not format_str:
             print(f'WARNING: No format string provided for {name}, using default std-out')
             format_str = 'std-out'
@@ -236,11 +357,31 @@ def parse(name: str, config: dict) -> dict:
         logger = get_logger('periph_i2s')
         logger.debug(f"I2S {name} format '{format_str}' to: {format_config}")
         # Get role from parent scope
-        role = config.get('role', 'master')  # Get role from parent scope
+        role = config.get('role', 'master')
         role = f'I2S_ROLE_{role.upper()}'
 
         # Get the config dictionary
         cfg = config.get('config', {})
+
+        # Get direction: priority is YAML config > format string parsing
+        # i2s_dir_t is a bit flag type: I2S_DIR_RX = BIT(0), I2S_DIR_TX = BIT(1)
+        # It can be a single enum value or a bitwise combination (e.g., "I2S_DIR_RX | I2S_DIR_TX")
+        direction = cfg.get('direction')
+        if direction:
+            # Validate direction if directly specified in YAML
+            # Allow single enum values or C constant expressions (e.g., "I2S_DIR_RX | I2S_DIR_TX")
+            valid_single_directions = ['I2S_DIR_RX', 'I2S_DIR_TX']
+            if direction in valid_single_directions:
+                # Valid single direction value
+                pass
+            elif 'I2S_DIR_' in direction:
+                # Looks like a C constant expression, allow it (will be validated by compiler)
+                pass
+            else:
+                raise ValueError(f'Invalid direction: {direction}. Valid values: {valid_single_directions} or C constant expressions')
+        else:
+            # Use direction from format string parsing
+            direction = format_config['direction']
 
         # Get port from config, with fallback to parsing from name for backward compatibility
         port = cfg.get('port', 0)  # Default to port 0 if not specified
@@ -248,6 +389,10 @@ def parse(name: str, config: dict) -> dict:
         # Get pins and invert_flags configurations
         pins = cfg.get('pins', {})
         invert_flags = cfg.get('invert_flags', {})
+
+        # Determine I2S hardware version
+        hw_version = get_i2s_hw_version()
+        logger.debug(f"I2S {name} detected hardware version: {hw_version} ({'SOC_I2S_HW_VERSION_1' if hw_version == 1 else 'SOC_I2S_HW_VERSION_2'})")
 
         # Create base config
         config_dict = {
@@ -257,7 +402,7 @@ def parse(name: str, config: dict) -> dict:
                 'port': f'I2S_NUM_{port}',
                 'role': role,
                 'mode': format_config['mode'],
-                'direction': format_config['direction'],
+                'direction': direction,
                 'i2s_cfg': {
                     format_config['config_type']: {}  # This will be filled below
                 }
@@ -266,27 +411,20 @@ def parse(name: str, config: dict) -> dict:
 
         # Add mode-specific config
         if format_config['config_type'] == 'std':
-            # Clock config
+            # Clock config - handle hardware version differences
+            clk_cfg = {
+                'sample_rate_hz': int(cfg.get('sample_rate_hz', 48000)),
+                'clk_src': get_enum_value(cfg.get('clk_src'), 'I2S_CLK_SRC_DEFAULT', 'clk_src'),
+                'mclk_multiple': 'I2S_MCLK_MULTIPLE_' + str(cfg.get('mclk_multiple', 256))
+            }
+            # Add ext_clk_freq_hz only for SOC_I2S_HW_VERSION_2
+            if hw_version == 2:
+                clk_cfg['ext_clk_freq_hz'] = int(cfg.get('ext_clk_freq_hz', 0))  # Only used when clk_src is EXTERNAL
+
             config_dict['struct_init']['i2s_cfg']['std'] = {
-                'clk_cfg': {
-                    'sample_rate_hz': int(cfg.get('sample_rate_hz', 48000)),
-                    'clk_src': get_enum_value(cfg.get('clk_src'), 'I2S_CLK_SRC_DEFAULT', 'clk_src'),
-                    'ext_clk_freq_hz': 0,  # Only used when clk_src is EXTERNAL
-                    'mclk_multiple': 'I2S_MCLK_MULTIPLE_' + str(cfg.get('mclk_multiple', 256))
-                },
-                # Slot config
-                'slot_cfg': {
-                    'data_bit_width': f"I2S_DATA_BIT_WIDTH_{cfg.get('data_bit_width', 16)}BIT",
-                    'slot_bit_width': get_enum_value(cfg.get('slot_bit_width'), 'I2S_SLOT_BIT_WIDTH_AUTO', 'slot_bit_width'),
-                    'slot_mode': get_enum_value(cfg.get('slot_mode'), 'I2S_SLOT_MODE_STEREO', 'slot_mode'),
-                    'slot_mask': get_enum_value(cfg.get('slot_mask'), 'I2S_STD_SLOT_BOTH', 'std_slot_mask'),
-                    'ws_width': int(cfg.get('ws_width', 16)),
-                    'ws_pol': bool(cfg.get('ws_pol', False)),
-                    'bit_shift': bool(cfg.get('bit_shift', True)),
-                    'left_align': bool(cfg.get('left_align', True)),
-                    'big_endian': bool(cfg.get('big_endian', False)),
-                    'bit_order_lsb': bool(cfg.get('bit_order_lsb', False))
-                },
+                'clk_cfg': clk_cfg,
+                # Slot config - handle hardware version differences
+                'slot_cfg': build_std_slot_config(cfg, hw_version),
                 # GPIO config
                 'gpio_cfg': {
                     'mclk': int(pins.get('mclk', -1)),
@@ -308,7 +446,7 @@ def parse(name: str, config: dict) -> dict:
                 'clk_cfg': {
                     'sample_rate_hz': int(cfg.get('sample_rate_hz', 48000)),
                     'clk_src': get_enum_value(cfg.get('clk_src'), 'I2S_CLK_SRC_DEFAULT', 'clk_src'),
-                    'ext_clk_freq_hz': 0,  # Only used when clk_src is EXTERNAL
+                    'ext_clk_freq_hz': int(cfg.get('ext_clk_freq_hz', 0)),  # Only used when clk_src is EXTERNAL
                     'mclk_multiple': 'I2S_MCLK_MULTIPLE_' + str(cfg.get('mclk_multiple', 256)),
                     'bclk_div': int(cfg.get('bclk_div', 8))
                 },
@@ -318,14 +456,14 @@ def parse(name: str, config: dict) -> dict:
                     'slot_bit_width': get_enum_value(cfg.get('slot_bit_width'), 'I2S_SLOT_BIT_WIDTH_AUTO', 'slot_bit_width'),
                     'slot_mode': get_enum_value(cfg.get('slot_mode'), 'I2S_SLOT_MODE_STEREO', 'slot_mode'),
                     'slot_mask': cfg.get('slot_mask', 'I2S_TDM_SLOT0 | I2S_TDM_SLOT1' if cfg.get('slot_mode', 'STEREO') == 'STEREO' else 'I2S_TDM_SLOT0'),
-                    'ws_width': int(cfg.get('ws_width', 16)),
+                    'ws_width': int(cfg.get('ws_width', 0)),  # I2S_TDM_AUTO_WS_WIDTH
                     'ws_pol': bool(cfg.get('ws_pol', False)),
                     'bit_shift': bool(cfg.get('bit_shift', True)),
                     'left_align': bool(cfg.get('left_align', False)),
                     'big_endian': bool(cfg.get('big_endian', False)),
                     'bit_order_lsb': bool(cfg.get('bit_order_lsb', False)),
                     'skip_mask': bool(cfg.get('skip_mask', False)),
-                    'total_slot': int(cfg.get('total_slot', 2))
+                    'total_slot': int(cfg.get('total_slot', 0))  # I2S_TDM_AUTO_SLOT_NUM
                 },
                 # GPIO config
                 'gpio_cfg': {
@@ -343,36 +481,21 @@ def parse(name: str, config: dict) -> dict:
             }
 
         elif format_config['config_type'] == 'pdm':
-            if format_config['direction'] == 'I2S_DIR_TX':  # TX for output
+            if direction == 'I2S_DIR_TX':  # TX for output
+                # PDM TX clock config - handle hardware version differences
+                pdm_tx_clk_cfg = {
+                    'sample_rate_hz': int(cfg.get('sample_rate_hz', 48000)),
+                    'clk_src': get_enum_value(cfg.get('clk_src'), 'I2S_CLK_SRC_DEFAULT', 'clk_src'),
+                    'mclk_multiple': 'I2S_MCLK_MULTIPLE_' + str(cfg.get('mclk_multiple', 256)),
+                    'up_sample_fp': int(cfg.get('up_sample_fp', 960)),
+                    'up_sample_fs': int(cfg.get('up_sample_fs', 480)),
+                    'bclk_div': int(cfg.get('bclk_div', 8))
+                }
                 config_dict['struct_init']['i2s_cfg'] = {
                     'pdm_tx': {  # Use pdm_tx for output
-                        # Clock config
-                        'clk_cfg': {
-                            'sample_rate_hz': int(cfg.get('sample_rate_hz', 48000)),
-                            'clk_src': get_enum_value(cfg.get('clk_src'), 'I2S_CLK_SRC_DEFAULT', 'clk_src'),
-                            'mclk_multiple': 'I2S_MCLK_MULTIPLE_' + str(cfg.get('mclk_multiple', 256)),
-                            'up_sample_fp': int(cfg.get('up_sample_fp', 960)),
-                            'up_sample_fs': int(cfg.get('up_sample_fs', 480)),
-                            'bclk_div': int(cfg.get('bclk_div', 8))
-                        },
+                        'clk_cfg': pdm_tx_clk_cfg,
                         # Slot config
-                        'slot_cfg': {
-                            'data_bit_width': f"I2S_DATA_BIT_WIDTH_{cfg.get('data_bit_width', 16)}BIT",
-                            'slot_bit_width': get_enum_value(cfg.get('slot_bit_width'), 'I2S_SLOT_BIT_WIDTH_AUTO', 'slot_bit_width'),
-                            'slot_mode': get_enum_value(cfg.get('slot_mode'), 'I2S_SLOT_MODE_STEREO', 'slot_mode'),
-                            'slot_mask': get_enum_value(cfg.get('slot_mask'), 'I2S_PDM_SLOT_BOTH', 'pdm_slot_mask'),
-                            'data_fmt': get_enum_value(cfg.get('data_fmt'), 'I2S_PDM_DATA_FMT_PCM', 'pdm_data_fmt'),
-                            'sd_prescale': int(cfg.get('sd_prescale', 0)),
-                            'sd_scale': get_enum_value(cfg.get('sd_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale'),
-                            'hp_scale': get_enum_value(cfg.get('hp_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale'),
-                            'lp_scale': get_enum_value(cfg.get('lp_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale'),
-                            'sinc_scale': get_enum_value(cfg.get('sinc_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale'),
-                            'line_mode': get_enum_value(cfg.get('line_mode'), 'I2S_PDM_TX_ONE_LINE_CODEC', 'pdm_line_mode'),
-                            'hp_en': bool(cfg.get('hp_en', True)),
-                            'hp_cut_off_freq_hz': float(cfg.get('hp_cut_off_freq_hz', 35.5)),
-                            'sd_dither': int(cfg.get('sd_dither', 0)),
-                            'sd_dither2': int(cfg.get('sd_dither2', 1))
-                        },
+                        'slot_cfg': build_pdm_tx_slot_config(cfg, hw_version),
                         # GPIO config
                         'gpio_cfg': {
                             'clk': int(pins.get('clk', -1)),
@@ -385,31 +508,24 @@ def parse(name: str, config: dict) -> dict:
                     }
                 }
             else:  # I2S_DIR_RX - Use PDM RX configuration for input direction
+                # PDM RX clock config - handle hardware version differences
+                pdm_rx_clk_cfg = {
+                    'sample_rate_hz': int(cfg.get('sample_rate_hz', 48000)),
+                    'clk_src': get_enum_value(cfg.get('clk_src'), 'I2S_CLK_SRC_DEFAULT', 'clk_src'),
+                    'mclk_multiple': 'I2S_MCLK_MULTIPLE_' + str(cfg.get('mclk_multiple', 256)),
+                    'dn_sample_mode': get_enum_value(cfg.get('dn_sample_mode'), 'I2S_PDM_DSR_8S', 'pdm_dsr'),
+                    'bclk_div': int(cfg.get('bclk_div', 8))
+                }
                 config_dict['struct_init']['i2s_cfg'] = {
                     'pdm_rx': {  # Use pdm_rx for input
-                        # Clock config
-                        'clk_cfg': {
-                            'sample_rate_hz': int(cfg.get('sample_rate_hz', 48000)),
-                            'clk_src': get_enum_value(cfg.get('clk_src'), 'I2S_CLK_SRC_DEFAULT', 'clk_src'),
-                            'mclk_multiple': 'I2S_MCLK_MULTIPLE_' + str(cfg.get('mclk_multiple', 256)),
-                            'dn_sample_mode': get_enum_value(cfg.get('dn_sample_mode'), 'I2S_PDM_DSR_8S', 'pdm_dsr'),
-                            'bclk_div': int(cfg.get('bclk_div', 8))
-                        },
+                        'clk_cfg': pdm_rx_clk_cfg,
                         # Slot config
-                        'slot_cfg': {
-                            'data_bit_width': f"I2S_DATA_BIT_WIDTH_{cfg.get('data_bit_width', 16)}BIT",
-                            'slot_bit_width': get_enum_value(cfg.get('slot_bit_width'), 'I2S_SLOT_BIT_WIDTH_AUTO', 'slot_bit_width'),
-                            'slot_mode': get_enum_value(cfg.get('slot_mode'), 'I2S_SLOT_MODE_STEREO', 'slot_mode'),
-                            'slot_mask': get_enum_value(cfg.get('slot_mask'), 'I2S_PDM_SLOT_BOTH', 'pdm_slot_mask'),
-                            'data_fmt': get_enum_value(cfg.get('data_fmt'), 'I2S_PDM_DATA_FMT_PCM', 'pdm_data_fmt'),
-                            'hp_en': bool(cfg.get('hp_en', True)),
-                            'hp_cut_off_freq_hz': float(cfg.get('hp_cut_off_freq_hz', 35.5)),
-                            'amplify_num': int(cfg.get('amplify_num', 1))
-                        },
+                        'slot_cfg': build_pdm_rx_slot_config(cfg, hw_version),
                         # GPIO config
                         'gpio_cfg': {
                             'clk': int(pins.get('clk', -1)),
                             'din': int(pins.get('din', -1)) if 'din' in pins else -1,  # Single din pin for PDM RX
+                            # FIXME Number of rx pins defined in SOC_I2S_PDM_MAX_RX_LINES is hardcoded to 4
                             'dins': [
                                 int(pins.get('din0', -1)),
                                 int(pins.get('din1', -1)),

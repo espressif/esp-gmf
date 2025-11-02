@@ -30,5 +30,4 @@ dependencies:
     require: public
     version: "^1.2.0"
     rules:
-      - if: "target in [esp32p4, esp32s3]"
       - if: "$CONFIG{ESP_BOARD_DEV_CAMERA_SUPPORT} == True"

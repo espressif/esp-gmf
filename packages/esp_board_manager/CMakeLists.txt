@@ -28,6 +28,7 @@ idf_component_register(
         ${DEVICE_INCLUDES}  # Add device includes
     REQUIRES
         driver
+        esp_driver_i2s
         esp_common
         fatfs
         esp_lcd

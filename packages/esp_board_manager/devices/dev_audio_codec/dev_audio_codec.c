@@ -206,7 +206,7 @@ static const codec_registry_entry_t codec_registry[] = {
 static const codec_registry_entry_t *find_codec(const char *name)
 {
     for (int i = 0; codec_registry[i].name != NULL; i++) {
-        ESP_LOGI(TAG, "codec_registry[%d].name: %s,wanted: %s", i, codec_registry[i].name, name);
+        ESP_LOGD(TAG, "codec_registry[%d].name: %s,wanted: %s", i, codec_registry[i].name, name);
         if (strcmp(codec_registry[i].name, name) == 0) {
             return &codec_registry[i];
         }
@@ -292,8 +292,7 @@ int dev_audio_codec_init(void *cfg, int cfg_size, void **device_handle)
         .dev_type = dev_type,
     };
     codec_handles->codec_dev = esp_codec_dev_new(&dev_cfg);
-    ESP_LOGI(TAG, "Create esp_codec_dev success, dev:%p, type:%d",
-             codec_handles->codec_dev, dev_type);
+    ESP_LOGI(TAG, "Create esp_codec_dev success, dev:%p, chip:%s", codec_handles->codec_dev, codec_cfg->chip);
     *device_handle = codec_handles;
     return 0;
 }
