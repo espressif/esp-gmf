@@ -361,9 +361,7 @@ static void mn_afe_monitor(afe_fetch_result_t *result, void *user_ctx)
                 esp_gmf_afe_vcmd_info_t vcmd_info = {
                     .phrase_id = mn_result->phrase_id[0],
                     .prob = mn_result->prob[0]};
-                size_t max_copy = ESP_GMF_AFE_VCMD_MAX_LEN - 1;
-                strncpy(vcmd_info.str, mn_result->string, max_copy);
-                vcmd_info.str[max_copy] = '\0';
+                strlcpy(vcmd_info.str, mn_result->string, sizeof(vcmd_info.str));
                 event_2_user(gmf_afe, vcmd_info.phrase_id, &vcmd_info, sizeof(esp_gmf_afe_vcmd_info_t));
 
                 break;

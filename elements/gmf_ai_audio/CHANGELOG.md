@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.3
+
+### Features
+
+- Added default sdkconfig for esp32p4 in wwe example
+
+### Bug Fixes
+
+- Fixed build error for esp32p4
+
 ## v0.7.2
 
 ### Features

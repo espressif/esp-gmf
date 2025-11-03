@@ -42,6 +42,7 @@
 #define BOARD_KORVO_2    (1)
 #define BOARD_XD_AIOT_C3 (2)
 #define BOARD_ESP_SPOT   (3)
+#define BOARD_P4_FUN_EV  (4)
 
 #if defined CONFIG_IDF_TARGET_ESP32S3
 #define WITH_AFE    (true)
@@ -55,6 +56,9 @@
 #elif defined CONFIG_IDF_TARGET_ESP32C5
 #define WITH_AFE    (false)
 #define AUDIO_BOARD (BOARD_ESP_SPOT)
+#elif defined CONFIG_IDF_TARGET_ESP32P4
+#define WITH_AFE    (true)
+#define AUDIO_BOARD (BOARD_P4_FUN_EV)
 #endif  /* defined CONFIG_IDF_TARGET_ESP32S3 */
 
 #if AUDIO_BOARD == BOARD_KORVO_2
@@ -74,6 +78,11 @@
 #define INPUT_CH_NUM        (ADC_I2S_CH)
 #define INPUT_CH_BITS       (ADC_I2S_BITS)
 #elif AUDIO_BOARD == BOARD_ESP_SPOT
+#define ADC_I2S_CH          (2)
+#define ADC_I2S_BITS        (16)
+#define INPUT_CH_NUM        (ADC_I2S_CH)
+#define INPUT_CH_BITS       (ADC_I2S_BITS)
+#elif AUDIO_BOARD == BOARD_P4_FUN_EV
 #define ADC_I2S_CH          (2)
 #define ADC_I2S_BITS        (16)
 #define INPUT_CH_NUM        (ADC_I2S_CH)
