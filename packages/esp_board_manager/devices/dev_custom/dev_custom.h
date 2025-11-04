@@ -15,7 +15,7 @@ extern "C" {
 #endif  /* __cplusplus */
 
 /**
- * @brief Maximum number of peripherals supported by custom device
+ * @brief  Maximum number of peripherals supported by custom device
  */
 #define MAX_PERIPHERALS 4
 
@@ -26,11 +26,11 @@ extern "C" {
  *         structures based on the YAML configuration.
  */
 typedef struct {
-    const char *name;                               /*!< Custom device name */
-    const char *type;                               /*!< Device type: "custom" */
-    const char *chip;                               /*!< Chip name */
-    uint8_t     peripheral_count;                   /*!< Number of peripherals */
-    const char *peripheral_names[MAX_PERIPHERALS];  /*!< Peripheral names array */
+    const char  *name;                               /*!< Custom device name */
+    const char  *type;                               /*!< Device type: "custom" */
+    const char  *chip;                               /*!< Chip name */
+    uint8_t      peripheral_count;                   /*!< Number of peripherals */
+    const char  *peripheral_names[MAX_PERIPHERALS];  /*!< Peripheral names array */
 } dev_custom_base_config_t;
 
 /**
@@ -42,7 +42,7 @@ typedef struct {
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_custom_init(void *cfg, int cfg_size, void **device_handle);
 
@@ -53,7 +53,7 @@ int dev_custom_init(void *cfg, int cfg_size, void **device_handle);
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_custom_deinit(void *device_handle);
 

@@ -68,7 +68,6 @@ int periph_uart_init(void *cfg, int cfg_size, void **periph_handle);
  * @brief  Deinitialize a UART peripheral
  *
  *         This function deinitializes the UART peripheral and frees the allocated resources.
- *         It should be called when the peripheral is no longer needed.
  *
  * @param[in]  periph_handle  UART peripheral handle
  *

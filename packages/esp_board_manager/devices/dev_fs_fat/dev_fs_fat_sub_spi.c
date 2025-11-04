@@ -5,7 +5,6 @@
  * See LICENSE file for details.
  */
 
-#include <string.h>
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
 #include "dev_fs_fat.h"

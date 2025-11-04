@@ -6,7 +6,6 @@
  */
 
 #include <string.h>
-#include <stdlib.h>
 #include "esp_log.h"
 #include "driver/sdmmc_host.h"
 #include "driver/gpio.h"
@@ -31,17 +30,16 @@ int dev_fs_fat_sub_sdmmc_init(void *cfg, int cfg_size, void **device_handle)
     handle->host = (sdmmc_host_t)SDMMC_HOST_DEFAULT();
     handle->host.max_freq_khz = config->frequency;
 
-
 #ifdef SOC_GP_LDO_SUPPORTED
-    if (config->ldo_chan_id != -1) {
+    if (config->sub_cfg.sdmmc.ldo_chan_id != -1) {
         sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
         sd_pwr_ctrl_ldo_config_t ldo_config = {
-            .ldo_chan_id = config->ldo_chan_id,
+            .ldo_chan_id = config->sub_cfg.sdmmc.ldo_chan_id,
         };
         ret = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to create a new on-chip LDO power control driver");
-            goto cleanup;
+            return -1;
         }
         handle->host.pwr_ctrl_handle = pwr_ctrl_handle;
     } else {
@@ -64,11 +62,10 @@ int dev_fs_fat_sub_sdmmc_init(void *cfg, int cfg_size, void **device_handle)
     slot_config.d5 = sdmmc_cfg->pins.d5;
     slot_config.d6 = sdmmc_cfg->pins.d6;
     slot_config.d7 = sdmmc_cfg->pins.d7;
-
     slot_config.width = sdmmc_cfg->bus_width;
     slot_config.flags = sdmmc_cfg->slot_flags;
 
-    handle->host.flags = sdmmc_cfg->slot;
+    handle->host.slot = sdmmc_cfg->slot;
 
     // Mount filesystem
     esp_vfs_fat_mount_config_t mount_config = {

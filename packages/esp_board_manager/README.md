@@ -414,7 +414,8 @@ When multiple boards with the same name exist across different paths, the ESP Bo
 | Device | Type | Sub Type | Chip | Peripheral | Status | Description | Reference YAML |
 |--------|------|----------|------|------------|--------|-------------|----------------|
 | Audio Codec | audio_codec | - | ES8311/ES7210/ES8388 | i2s/i2c | ✅ | Audio codec with DAC/ADC | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) |
-| LCD Display | display_lcd_spi | - | ST77916/GC9A01 | spi | ✅ | SPI LCD display | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) |
+| SPI LCD Display | display_lcd_spi | - | ST77916/GC9A01 | spi | ✅ | SPI LCD display(Bound to interface type, will be deprecated) | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) |
+| LCD Display | display_lcd | - | ILI9341/EK79007 | spi/dsi | ✅ | LCD Display | [`dev_display_lcd.yaml`](devices/dev_display_lcd/dev_display_lcd.yaml) |
 | Touch Screen | lcd_touch_i2c | - | FT5x06 | i2c | ✅ | I2C touch screen | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) |
 | SD Card | fatfs_sdcard | - | - | sdmmc | ✅ | SD card storage | [`dev_fatfs_sdcard.yaml`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) |
 | SPI SD Card | fatfs_sdcard_spi | - | - | spi | ✅ | SD card storage | [`dev_fatfs_sdcard_spi.yaml`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) |
@@ -425,6 +426,9 @@ When multiple boards with the same name exist across different paths, the ESP Bo
 | [Custom Device](devices/dev_custom/README.md)  | custom | - | - | any | ✅ | User-defined custom device | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
 | GPIO Expander | gpio_expander | - | TCA9554/TCA95XX/HT8574 | i2c | ✅ | GPIO expander | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
 | Camera Sensor | camera | - | - | i2c | ✅ | Camera sensor | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
+
+> For the same device, we no longer distinguish different device types by interface type, for example, `dev_fatfs_sdcard` and `dev_fatfs_sdcard_spi` will be unified under fs_fat for management, `dev_display_lcd_spi` will also be changed to use `dev_display_lcd` for management.
+> These three device types will be deprecated in future versions. Users can refer to [`dev_fatfs_sdcard.yaml`](./devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml), [`dev_fatfs_sdcard_spi.yaml`](./devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml), and [`dev_display_lcd_spi.yaml`](./devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) to learn how to migrate their original configurations to the new device types
 
 ### Supported Boards
 
@@ -437,8 +441,9 @@ When multiple boards with the same name exist across different paths, the ESP Bo
 | ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ | ❌ |
 | [`Lyrat Mini V1.1`](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/get-started-esp32-lyrat-mini.html) | ESP32 | ✅ ES8388 | ✅ SDMMC | - | - | - |
 | [`ESP32-C5 Spot`](https://oshwhub.com/esp-college/esp-spot) | ESP32-C5 | ✅ ES8311 (双) | - | - | - | - |
-| [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ | ❌ |
+| [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ✅ EK79007 | ✅ GT911 | ❌ |
 | [`M5STACK CORES3`](https://docs.m5stack.com/en/core/CoreS3) | ESP32-S3 | ✅ AW88298 + ES7210 | ✅ SDSPI | ✅ ILI9342C | ✅ FT5x06 | ❌ |
+
 
 Note: '✅' indicates supported, '❌' indicates not support yet, and '-' indicates the hardware does not have the corresponding capability
 

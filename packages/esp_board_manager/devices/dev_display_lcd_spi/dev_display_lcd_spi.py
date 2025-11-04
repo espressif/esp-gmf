@@ -83,36 +83,14 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
 
     # Get the device config and peripherals
     device_config = config.get('config', {})
-    peripherals = config.get('peripherals', [])
 
     # Get chip name from device level
     chip_name = config.get('chip', 'unknown')
 
-    # Initialize default configurations
-    spi_cfg = {'name': '', 'port': 0}
-
-    # Process peripherals
-    for periph in peripherals:
-        periph_name = periph.get('name', '')
-        if periph_name.startswith('spi'):
-            # Check if peripheral exists in peripherals_dict if provided
-            if peripherals_dict is not None and periph_name not in peripherals_dict:
-                raise ValueError(f"LCD display device {name} references undefined peripheral '{periph_name}'")
-            # This is SPI configuration
-            # Get port from peripheral config if available
-            port = 0
-            if peripherals_dict and periph_name in peripherals_dict:
-                peripheral_config = peripherals_dict[periph_name]
-                spi_bus_config = peripheral_config.get('config', {}).get('spi_bus_config', {})
-                port = spi_bus_config.get('spi_port', 0)
-            spi_cfg = {
-                'name': periph_name,  # Use original name from YAML
-                'port': port
-            }
-
     # Get nested configurations
     io_spi_config = device_config.get('io_spi_config', {})
     lcd_panel_config = device_config.get('lcd_panel_config', {})
+    peripherals = device_config.get('peripherals')
 
     # Get peripherals from device level or nested io_spi_config
     if not peripherals and 'peripherals' in io_spi_config:
@@ -121,21 +99,23 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
 
     # Extract SPI peripheral name from peripherals
     spi_name = ''
-    for periph in peripherals:
-        if isinstance(periph, dict):
-            periph_name = periph.get('name', '')
-            if periph_name.startswith('spi'):
+    if peripherals:
+        for periph in peripherals:
+            if isinstance(periph, dict):
+                periph_name = periph.get('name', '')
+                if periph_name.startswith('spi'):
+                    # Check if peripheral exists in peripherals_dict if provided
+                    if peripherals_dict is not None and periph_name in peripherals_dict:
+                        spi_name = periph_name
+                    break
+            elif isinstance(periph, str) and periph.startswith('spi'):
                 # Check if peripheral exists in peripherals_dict if provided
-                if peripherals_dict is not None and periph_name not in peripherals_dict:
-                    raise ValueError(f"LCD display device {name} references undefined peripheral '{periph_name}'")
-                spi_name = periph_name
+                if peripherals_dict is not None and periph in peripherals_dict:
+                    spi_name = periph
                 break
-        elif isinstance(periph, str) and periph.startswith('spi'):
-            # Check if peripheral exists in peripherals_dict if provided
-            if peripherals_dict is not None and periph not in peripherals_dict:
-                raise ValueError(f"LCD display device {name} references undefined peripheral '{periph}'")
-            spi_name = periph
-            break
+
+    if not spi_name:
+        raise ValueError(f'LCD display device {c_name} require valid SPI peripherals.')
 
     # Parse SPI interface settings
     lcd_cmd_bits = int(io_spi_config.get('lcd_cmd_bits', 8))

@@ -19,11 +19,11 @@ extern "C" {
  * @brief  GPIO control device configuration structure
  */
 typedef struct {
-    const char *name;           /*!< GPIO control device name */
-    const char *type;           /*!< Device type: "gpio_ctrl" */
-    const char *gpio_name;      /*!< GPIO peripheral name */
-    uint8_t     active_level;   /*!< Active level (0 or 1) */
-    uint8_t     default_level;  /*!< Default level (0 or 1) */
+    const char  *name;           /*!< GPIO control device name */
+    const char  *type;           /*!< Device type: "gpio_ctrl" */
+    const char  *gpio_name;      /*!< GPIO peripheral name */
+    uint8_t      active_level;   /*!< Active level (0 or 1) */
+    uint8_t      default_level;  /*!< Default level (0 or 1) */
 } dev_gpio_ctrl_config_t;
 
 /**
@@ -35,10 +35,9 @@ typedef struct {
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_gpio_ctrl_init(void *cfg, int cfg_size, void **device_handle);
-
 
 /**
  * @brief  Deinitialize GPIO control device
@@ -47,7 +46,7 @@ int dev_gpio_ctrl_init(void *cfg, int cfg_size, void **device_handle);
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_gpio_ctrl_deinit(void *device_handle);
 

@@ -1,58 +1,21 @@
 # Changelog
 
-## 0.4.8
-
-### Bug Fixes
-
-- Fixed the issue where the configuration of the periph_ledc was not correctly obtained during the initialization of dev_ledc_ctrl
-- Added `need_reset` configuration to control whether to reset lcd during the initialization of `display_lcd_spi`
-- Modified the default configuration of echoear_core_board_v1_2 to prevent screen flickering during initialization
-- Fixed incorrect PA gain assigned for codec_device
-
-### Features
-- Added gpio_led support for echoear_core_board_v1_2
-
-## 0.4.7
+## Unreleased
 
 ### Features
 
-- Added board support for M5STACK CORES3
-  * Complete YAML configuration files (board_info.yaml, board_peripherals.yaml, board_devices.yaml)
-  * Support for AW88298 DAC, ES7210 ADC, ILI9342 LCD, FT5X06 LCD TOUCH, AW9523B GPIO EXPANDER, AXP2101 PMU and SD card devices
-  * I2C, I2S, SPI and GPIO peripherals configuration
-- Supported configuring invert_color during lcd_spi initialization
-
-### Bug Fixes
-
-- Fixed the issue where the codec's gain configuration was not taking effect correctly
-- Fixed the issue with incorrect usage of handle for sdcard and sdcard_spi
-- Modified the GPIO expander and customer device test cases to make them more generic
-- Fixed the test app to allow sdcard_spi to also function properly in codec testing
-
-## 0.4.6
-
-### Bug Fixes
-
-- Fixed the SD card mount failure issue
-
-## 0.4.5
-
-### Bug Fixes
-
-- Fix `periph_i2s_deinit` channel delete
-- Fix i2s config `total_slot` for esp32_s3_korvo2_v3
-
-## 0.4.4
-
-### Bug Fixes
-
-- Delete build/config/sdkconfig.json after updating sdkconfig to ensure component manager uses the latest configuration
-
-## v0.4.3
-
-### Bug Fixes
-
-- Reduce the default spi max_transfer_sz value for echoear_core_board_v1_2 to avoid allocating excessive memory
+- Added UART peripheral type with test support
+- Added ADC peripheral type with test support
+- Reorganized the peripherals directory structure
+- Added RMT peripheral type with test support
+- Added PCNT peripheral type with test support
+- Added DAC peripheral type with test support
+- Added SDM peripheral type with test support
+- Added MCPMW peripheral type with test support
+- Added ANACMPR peripheral type with test support
+- Added LDO and DSI peripheral types
+- Added `dev_display_lcd` device type to manage LCD devices of different bus types and supported dsi lcd
+- Added lcd support for `esp32_p4_function_ev` board
 
 ## 0.4.8
 

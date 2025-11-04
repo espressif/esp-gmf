@@ -414,7 +414,8 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | 设备 | 类型 | 子类型 | 芯片 | 外设 | 状态 | 描述 | 参考 YAML |
 |--------|------|----------|------|------------|--------|-------------|----------------|
 | 音频编解码器 | audio_codec | - | ES8311/ES7210/ES8388 | i2s/i2c | ✅ | 带有 DAC/ADC 的音频编解码器 | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) |
-| LCD 显示屏 | display_lcd_spi | - | ST77916/GC9A01 | spi | ✅ | SPI LCD 显示屏 | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) |
+| SPI LCD 显示屏 | display_lcd_spi | - | ST77916/GC9A01 | spi | ✅ | SPI LCD 显示屏(与接口类型绑定,将被弃用) | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) |
+| LCD 显示屏 | display_lcd | - | ILI9341/EK79007 | spi/dsi | ✅ | LCD 显示屏 | [`dev_display_lcd.yaml`](devices/dev_display_lcd/dev_display_lcd.yaml) |
 | 触摸屏 | lcd_touch_i2c | - | FT5x06 | i2c | ✅ | I2C 触摸屏 | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) |
 | SD 卡 | fatfs_sdcard | - | - | sdmmc | ✅ | SD 卡存储 | [`dev_fatfs_sdcard.yaml`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) |
 | SPI SD 卡 | fatfs_sdcard_spi | - | - | spi | ✅ | SD 卡存储 | [`dev_fatfs_sdcard_spi.yaml`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) |
@@ -425,6 +426,9 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | [自定义设备](devices/dev_custom/README.md) | custom | - | - | any | ✅ | 用户定义的自定义设备 | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
 | GPIO 扩展芯片 | gpio_expander | - | TCA9554/TCA95XX/HT8574 | i2c | ✅ | GPIO 扩展芯片 | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
 | 摄像头 | camera | - | - | i2c | ✅ | 摄像头设备 | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
+
+> 对于同一设备，我们将不再通过接口类型来区分不同的设备类型。例如，`dev_fatfs_sdcard` 和 `dev_fatfs_sdcard_spi` 将统一在 fs_fat 下进行管理，`dev_display_lcd_spi` 也将改为使用 `dev_display_lcd` 进行管理。
+> 这三种设备类型将在未来版本中被弃用。用户可以参照 [`dev_fatfs_sdcard.yaml`](./devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml)、[`dev_fatfs_sdcard_spi.yaml`](./devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) 和 [`dev_display_lcd_spi.yaml`](./devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) 文件，了解如何将原有配置迁移到新的设备类型。
 
 ### 支持的板级
 
@@ -437,7 +441,7 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ | ❌ |
 | [`Lyrat Mini V1.1`](https://docs.espressif.com/projects/esp-adf/zh_CN/latest/design-guide/dev-boards/get-started-esp32-lyrat-mini.html) | ESP32 | ✅ ES8388 | ✅ SDMMC | - | - | - |
 | [`ESP32-C5 Spot`](https://oshwhub.com/esp-college/esp-spot) | ESP32-C5 | ✅ ES8311 (双) | - | - | - | - |
-| [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ | ❌ |
+| [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ✅ EK79007 | ✅ GT911 | ❌ |
 | [`M5STACK CORES3`](https://docs.m5stack.com/zh_CN/core/CoreS3) | ESP32-S3 | ✅ AW88298 + ES7210 | ✅ SDSPI | ✅ ILI9342C | ✅ FT5x06 | ❌ |
 
 注：'✅' 表示已经支持，'❌' 表示尚未支持，'-' 表示硬件不具备相应的能力

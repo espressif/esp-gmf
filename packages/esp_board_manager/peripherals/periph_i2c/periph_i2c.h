@@ -32,7 +32,6 @@ int periph_i2c_init(void *cfg, int cfg_size, void **periph_handle);
  * @brief  Deinitialize the I2C master bus
  *
  *         This function deinitializes the I2C master bus and frees the allocated resources.
- *         It should be called when the bus is no longer needed.
  *
  * @param[in]  periph_handle  Handle returned by periph_i2c_init
  *

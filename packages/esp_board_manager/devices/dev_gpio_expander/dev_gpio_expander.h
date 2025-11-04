@@ -11,7 +11,7 @@
 extern "C" {
 #endif  /* __cplusplus */
 
-#define DEV_IO_EXPANDER_MAX_ADDR_COUNT  2
+#define DEV_IO_EXPANDER_MAX_ADDR_COUNT 2
 
 /**
  * @brief  IO Expander device configuration structure
@@ -41,8 +41,8 @@ typedef struct {
  * @param[out]  device_handle  Pointer to a variable to receive the esp_io_expander_handle_t handle
  *
  * @return
- *       - 0                On success
- *       - Negative  value  On failure
+ *       - 0               On success
+ *       - Negative_value  On failure
  */
 int dev_gpio_expander_init(void *cfg, int cfg_size, void **device_handle);
 
@@ -55,8 +55,8 @@ int dev_gpio_expander_init(void *cfg, int cfg_size, void **device_handle);
  * @param[in]  device_handle  Pointer to the device handle to be deinitialized
  *
  * @return
- *       - 0         On success
- *       - Negative  value  On failure
+ *       - 0               On success
+ *       - Negative_value  On failure
  */
 int dev_gpio_expander_deinit(void *device_handle);
 

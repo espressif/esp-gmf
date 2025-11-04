@@ -23,14 +23,14 @@ extern "C" {
  *         an LCD touch device over I2C, including chip type, I2C name, and panel/touch configs.
  */
 typedef struct {
-    const char                    *name;                /*!< Device name */
-    const char                    *chip;                /*!< Touch chip type */
-    const char                    *type;                /*!< Touch type */
-    const char                    *i2c_name;            /*!< I2C bus name */
-    const uint16_t                 i2c_addr[2];         /*!< Can be support two I2C address, the first is the primary address, the second is the secondary address.
-                                                             Most of the time, the secondary address is not set, only used some devices is the address is not easy to confirm */
-    esp_lcd_panel_io_i2c_config_t  io_i2c_config;       /*!< I2C panel IO configuration */
-    esp_lcd_touch_config_t         touch_config;        /*!< Touch configuration */
+    const char                    *name;           /*!< Device name */
+    const char                    *chip;           /*!< Touch chip type */
+    const char                    *type;           /*!< Touch type */
+    const char                    *i2c_name;       /*!< I2C bus name */
+    const uint16_t                 i2c_addr[2];    /*!< Can be support two I2C address, the first is the primary address, the second is the secondary address.
+                                                        Most of the time, the secondary address is not set, only used some devices is the address is not easy to confirm */
+    esp_lcd_panel_io_i2c_config_t  io_i2c_config;  /*!< I2C panel IO configuration */
+    esp_lcd_touch_config_t         touch_config;   /*!< Touch configuration */
 } dev_lcd_touch_i2c_config_t;
 
 /**
@@ -54,7 +54,7 @@ typedef struct {
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_lcd_touch_i2c_init(void *cfg, int cfg_size, void **device_handle);
 
@@ -67,7 +67,7 @@ int dev_lcd_touch_i2c_init(void *cfg, int cfg_size, void **device_handle);
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_lcd_touch_i2c_deinit(void *device_handle);
 

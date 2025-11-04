@@ -10,7 +10,12 @@
 #include "esp_board_manager.h"
 #include "esp_board_manager_err.h"
 #include "esp_lvgl_port.h"
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
+#include "dev_display_lcd.h"
+#include <string.h>
+#elif CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
 #include "dev_display_lcd_spi.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
 #include "dev_lcd_touch_i2c.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_touch.h"
@@ -74,14 +79,14 @@ static esp_err_t lcd_backlight_set(int brightness_percent)
         ESP_BOARD_RETURN_ON_ERROR(esp_board_manager_get_device_handle("lcd_brightness", (void **)&ledc_handle), TAG, "Get LEDC control device handle failed");
     }
     dev_ledc_ctrl_config_t *dev_ledc_cfg = NULL;
-    esp_err_t config_ret = esp_board_manager_get_device_config("lcd_brightness", (void*)&dev_ledc_cfg);
+    esp_err_t config_ret = esp_board_manager_get_device_config("lcd_brightness", (void *)&dev_ledc_cfg);
     if (config_ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LEDC peripheral config '%s': %s", "lcd_brightness", esp_err_to_name(config_ret));
         return ESP_FAIL;
     }
     ESP_LOGI(TAG, "dev_ledc_cfg.ledc_name: %s, name: %s, type: %s", dev_ledc_cfg->ledc_name, dev_ledc_cfg->name, dev_ledc_cfg->type);
     periph_ledc_config_t *ledc_config = NULL;
-    esp_board_manager_get_periph_config(dev_ledc_cfg->ledc_name, (void**)&ledc_config);
+    esp_board_manager_get_periph_config(dev_ledc_cfg->ledc_name, (void **)&ledc_config);
     uint32_t duty = (brightness_percent * ((1 << (uint32_t)ledc_config->duty_resolution) - 1)) / 100;
     ESP_LOGI(TAG, "duty_cycle: %" PRIu32 ", speed_mode: %d, channel: %d, duty_resolution: %d", duty, ledc_handle->speed_mode, ledc_handle->channel, ledc_config->duty_resolution);
     ESP_BOARD_RETURN_ON_ERROR(ledc_set_duty(ledc_handle->speed_mode, ledc_handle->channel, duty), TAG, "LEDC set duty failed");
@@ -89,7 +94,7 @@ static esp_err_t lcd_backlight_set(int brightness_percent)
 
     return ESP_OK;
 }
-#endif
+#endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
 
 esp_err_t test_dev_lcd_lvgl_init(void)
 {
@@ -103,7 +108,7 @@ esp_err_t test_dev_lcd_lvgl_init(void)
     ESP_LOGI(TAG, "Initializing LCD display using Board Manager...");
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
     lcd_backlight_set(100);
-#endif
+#endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
     // Get LCD device handle from board manager
     esp_err_t ret = esp_board_manager_get_device_handle("display_lcd", &lcd_handle);
     if (ret != ESP_OK) {
@@ -112,19 +117,83 @@ esp_err_t test_dev_lcd_lvgl_init(void)
     }
 
     if (lcd_handle) {
-        // Cast to the specific device structure
-        dev_display_lcd_spi_handles_t *lcd_handles = (dev_display_lcd_spi_handles_t *)lcd_handle;
-
-        // Extract panel and IO handles
+        // Cast to the device structure based on configuration
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
+        dev_display_lcd_handles_t *lcd_handles = (dev_display_lcd_handles_t *)lcd_handle;
         panel_handle = lcd_handles->panel_handle;
         io_handle = lcd_handles->io_handle;
+
+        // Get LCD configuration directly
+        dev_display_lcd_config_t *lcd_cfg = NULL;
+        esp_err_t ret = esp_board_manager_get_device_config("display_lcd", (void **)&lcd_cfg);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to get LCD device config: %s", esp_err_to_name(ret));
+            return ESP_FAIL;
+        }
+
+        lvgl_port_display_cfg_t disp_cfg = {
+            .io_handle = io_handle,
+            .panel_handle = panel_handle,
+            .buffer_size = lcd_cfg->lcd_width * lcd_cfg->lcd_height,
+            .double_buffer = true,
+            .hres = lcd_cfg->lcd_width,
+            .vres = lcd_cfg->lcd_height,
+            .monochrome = false,
+            .rotation = {
+                .swap_xy = lcd_cfg->swap_xy,
+                .mirror_x = lcd_cfg->mirror_x,
+                .mirror_y = lcd_cfg->mirror_y,
+            },
+            .flags = {
+                .buff_spiram = true,
+#if LVGL_VERSION_MAJOR >= 9
+                .swap_bytes = true,
+#endif  /* LVGL_VERSION_MAJOR >= 9 */
+            }};
+
+        ESP_LOGI(TAG, "Unified LCD - Panel handle: %p, IO handle: %p, lcd_width: %d, lcd_height: %d, swap_xy: %d, mirror_x: %d, mirror_y: %d",
+                 panel_handle, io_handle, lcd_cfg->lcd_width, lcd_cfg->lcd_height,
+                 lcd_cfg->swap_xy, lcd_cfg->mirror_x, lcd_cfg->mirror_y);
+
+        // Add LCD screen to LVGL based on sub_type
+        if (strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI) == 0) {
+            disp = lvgl_port_add_disp(&disp_cfg);
+            if (disp == NULL) {
+                ESP_LOGE(TAG, "Failed to add unified SPI LCD display");
+                return ESP_FAIL;
+            }
+        } else if (strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_DSI) == 0) {
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
+            lvgl_port_display_dsi_cfg_t dsi_cfg = {
+                .flags = {
+                    .avoid_tearing = false,
+                },
+            };
+#if LVGL_VERSION_MAJOR >= 9
+            disp_cfg.flags.swap_bytes = false;
+#endif  /* LVGL_VERSION_MAJOR >= 9 */
+            disp = lvgl_port_add_disp_dsi(&disp_cfg, &dsi_cfg);
+            if (disp == NULL) {
+                ESP_LOGE(TAG, "Failed to add unified DSI LCD display");
+                return ESP_FAIL;
+            }
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
+        } else {
+            ESP_LOGE(TAG, "Unknown LCD sub_type: %s", lcd_cfg->sub_type);
+            return ESP_FAIL;
+        }
+#elif CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
+        dev_display_lcd_spi_handles_t *lcd_handles = (dev_display_lcd_spi_handles_t *)lcd_handle;
         dev_display_lcd_spi_config_t *lcd_cfg = NULL;
+
+        panel_handle = lcd_handles->panel_handle;
+        io_handle = lcd_handles->io_handle;
         esp_board_manager_get_device_config("display_lcd", (void **)&lcd_cfg);
 
-        ESP_LOGI(TAG, "Panel handle: %p, IO handle: %p, x_max: %d, y_max: %d, swap_xy: %d, mirror_x: %d, mirror_y: %d",
+        // Add LCD screen to LVGL
+        ESP_LOGI(TAG, "Legacy SPI LCD - Panel handle: %p, IO handle: %p, x_max: %d, y_max: %d, swap_xy: %d, mirror_x: %d, mirror_y: %d",
                  panel_handle, io_handle, lcd_cfg->x_max, lcd_cfg->y_max, lcd_cfg->swap_xy, lcd_cfg->mirror_x, lcd_cfg->mirror_y);
 
-        // Add LCD screen to LVGL
         const lvgl_port_display_cfg_t disp_cfg = {
             .io_handle = io_handle,
             .panel_handle = panel_handle,
@@ -142,15 +211,15 @@ esp_err_t test_dev_lcd_lvgl_init(void)
                 .buff_spiram = true,
 #if LVGL_VERSION_MAJOR >= 9
                 .swap_bytes = true,
-#endif
+#endif  /* LVGL_VERSION_MAJOR >= 9 */
             }};
 
         disp = lvgl_port_add_disp(&disp_cfg);
         if (disp == NULL) {
-            ESP_LOGE(TAG, "Failed to add LCD display");
+            ESP_LOGE(TAG, "Failed to add legacy SPI LCD display");
             return ESP_FAIL;
         }
-
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
         ESP_LOGI(TAG, "LCD display initialized successfully");
         return ESP_OK;
     } else {

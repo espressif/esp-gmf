@@ -7,8 +7,6 @@
 
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "driver/sdmmc_host.h"
 #include "sdmmc_cmd.h"
 
@@ -50,7 +48,6 @@ typedef struct {
                                                 Please check the schematic diagram or other documentation to determine if SDMMC is powered by LDO. */
 } dev_fs_fat_sdmmc_sub_config_t;
 
-
 typedef struct {
     int          cs_gpio_num;   /*!< Chip select GPIO number */
     const char  *spi_bus_name;  /*!< SPI bus name */
@@ -61,9 +58,9 @@ typedef struct {
  *         This structure contains the handle for the SD card device, including the card, host, and mount point
  */
 typedef struct {
-    sdmmc_card_t *card;         /*!< SD card card handle */
-    sdmmc_host_t  host;         /*!< SD card host handle */
-    char         *mount_point;  /*!< Mount point path */
+    sdmmc_card_t  *card;         /*!< SD card card handle */
+    sdmmc_host_t   host;         /*!< SD card host handle */
+    char          *mount_point;  /*!< Mount point path */
 } dev_fs_fat_handle_t;
 
 /**
@@ -83,14 +80,14 @@ typedef struct {
  *         and GPIO pin assignments.
  */
 typedef struct {
-    const char               *name;         /*!< Device name */
-    const char               *mount_point;  /*!< Mount point path */
-    uint32_t                 frequency;     /*!< The clock frequency in Hz */
-    dev_fs_fat_vfs_config_t  vfs_config;    /*!< VFS configuration */
-    const char               *sub_type;     /*!< Sub type */
+    const char              *name;         /*!< Device name */
+    const char              *mount_point;  /*!< Mount point path */
+    uint32_t                 frequency;    /*!< The clock frequency in Hz */
+    dev_fs_fat_vfs_config_t  vfs_config;   /*!< VFS configuration */
+    const char              *sub_type;     /*!< Sub type */
     union {
-        dev_fs_fat_sdmmc_sub_config_t sdmmc;
-        dev_fs_fat_spi_sub_config_t   spi;
+        dev_fs_fat_sdmmc_sub_config_t  sdmmc;
+        dev_fs_fat_spi_sub_config_t    spi;
     } sub_cfg;
 } dev_fs_fat_config_t;
 
@@ -106,21 +103,20 @@ typedef struct {
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_fs_fat_init(void *cfg, int cfg_size, void **device_handle);
 
 /**
- * @brief  Deinitialize SD card device
+ * @brief  Deinitialize SD card device to free the allocated resources
  *
- *         This function deinitializes the SD card device and unmounts it from the VFS.
- *         It should be called when the device is no longer needed.
+ *         It will call the sub-device deinitialize function too.
  *
  * @param[in]  device_handle  Pointer to the device handle to be deinitialized
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_fs_fat_deinit(void *device_handle);
 

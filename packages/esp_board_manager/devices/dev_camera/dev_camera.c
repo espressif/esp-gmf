@@ -5,7 +5,6 @@
  * See LICENSE file for details.
  */
 
-#include <unistd.h>
 #include "esp_log.h"
 #include "esp_video_init.h"
 #include "dev_camera.h"

@@ -62,7 +62,6 @@ int periph_ledc_init(void *cfg, int cfg_size, void **periph_handle);
  * @brief  Deinitialize a LEDC channel
  *
  *         This function deinitializes the LEDC channel and frees the allocated resources.
- *         It should be called when the channel is no longer needed.
  *
  * @param[in]  periph_handle  LEDC channel handle
  *

@@ -49,6 +49,7 @@ extern "C" {
 #define ESP_BOARD_DEVICE_TYPE_FS_SPIFFS         "fs_spiffs"         /*!< SPIFFS filesystem device type */
 #define ESP_BOARD_DEVICE_TYPE_LCD_TOUCH_I2C     "lcd_touch_i2c"     /*!< LCD touch I2C device type */
 #define ESP_BOARD_DEVICE_TYPE_DISPLAY_LCD_SPI   "display_lcd_spi"   /*!< LCD display SPI device type */
+#define ESP_BOARD_DEVICE_TYPE_DISPLAY_LCD       "display_lcd"       /*!< LCD display SPI device type */
 #define ESP_BOARD_DEVICE_TYPE_GPIO_CTRL         "gpio_ctrl"         /*!< GPIO control device type */
 #define ESP_BOARD_DEVICE_TYPE_LEDC_CTRL         "ledc_ctrl"         /*!< LEDC control device type */
 #define ESP_BOARD_DEVICE_TYPE_GPIO_EXPANDER     "gpio_expander"     /*!< GPIO expander device type */

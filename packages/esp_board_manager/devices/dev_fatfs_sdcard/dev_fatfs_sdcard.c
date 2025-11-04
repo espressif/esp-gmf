@@ -5,17 +5,13 @@
  * See LICENSE file for details.
  */
 
-#include <string.h>
-#include <stdlib.h>
 #include "esp_log.h"
-#include "esp_check.h"
 #include "esp_vfs.h"
 #include "esp_vfs_fat.h"
 #include "driver/sdmmc_host.h"
-#include "driver/gpio.h"
 #include "sdmmc_cmd.h"
-#include "dev_fatfs_sdcard.h"
 #include "esp_board_periph.h"
+#include "dev_fatfs_sdcard.h"
 #ifdef SOC_GP_LDO_SUPPORTED
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
 #endif  // SOC_GP_LDO_SUPPORTED
@@ -109,9 +105,9 @@ int dev_fatfs_sdcard_init(void *cfg, int cfg_size, void **device_handle)
         goto cleanup;
     }
 
+    sdmmc_card_print_info(stdout, handle->card);
     ESP_LOGI(TAG, "Filesystem mounted, base path: %s", config->mount_point);
     *device_handle = handle;
-    sdmmc_card_print_info(stdout, handle->card);
     return 0;
 cleanup:
     free(handle);

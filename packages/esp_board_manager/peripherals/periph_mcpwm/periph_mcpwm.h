@@ -62,7 +62,6 @@ int periph_mcpwm_init(void *cfg, int cfg_size, void **periph_handle);
  * @brief  Deinitialize the MCPWM peripheral
  *
  *         This function deinitializes the MCPWM peripheral and frees the allocated resources.
- *         It should be called when the peripheral is no longer needed.
  *
  * @param[in]  periph_handle  Handle returned by periph_mcpwm_init
  *

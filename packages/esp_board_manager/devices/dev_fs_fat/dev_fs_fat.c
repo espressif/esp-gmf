@@ -5,16 +5,12 @@
  * See LICENSE file for details.
  */
 
-#include <string.h>
-#include <stdlib.h>
 #include "esp_log.h"
-#include "esp_check.h"
-#include "esp_vfs.h"
 #include "esp_vfs_fat.h"
 #include "esp_board_periph.h"
-#include "dev_fs_fat.h"
 #include "esp_board_entry.h"
 #include "esp_board_device.h"
+#include "dev_fs_fat.h"
 
 static const char *TAG = "DEV_FS_FAT";
 
@@ -54,6 +50,7 @@ int dev_fs_fat_init(void *cfg, int cfg_size, void **device_handle)
         goto cleanup;
     }
 
+    sdmmc_card_print_info(stdout, handle->card);
     ESP_LOGI(TAG, "Filesystem mounted, base path: %s", config->mount_point);
     *device_handle = handle;
     return 0;

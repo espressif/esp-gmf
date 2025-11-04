@@ -54,7 +54,6 @@ int periph_spi_init(void *cfg, int cfg_size, void **periph_handle);
  * @brief  Deinitialize the SPI peripheral
  *
  *         This function deinitializes the SPI peripheral and frees the allocated resources.
- *         It should be called when the peripheral is no longer needed.
  *
  * @param[in]  periph_handle  Handle returned by periph_spi_init
  *

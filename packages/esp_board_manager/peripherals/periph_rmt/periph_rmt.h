@@ -58,7 +58,6 @@ int periph_rmt_init(void *cfg, int cfg_size, void **periph_handle);
  * @brief  Deinitialize the RMT peripheral
  *
  *         This function deinitializes the RMT peripheral and frees the allocated resources.
- *         It should be called when the peripheral is no longer needed.
  *
  * @param[in]  periph_handle  Handle returned by periph_rmt_init
  *

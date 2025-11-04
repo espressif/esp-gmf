@@ -81,6 +81,16 @@
 #include "periph_uart.h"
 #endif  /* CONFIG_ESP_BOARD_PERIPH_UART_SUPPORT */
 
+/* DSI Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_DSI_SUPPORT
+#include "periph_dsi.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_DSI_SUPPORT */
+
+/* LDO Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_LDO_SUPPORT
+#include "periph_ldo.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_LDO_SUPPORT */
+
 /* ============================================================================
  * Device Headers
  * ============================================================================ */
@@ -104,6 +114,10 @@
 #ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
 #include "dev_display_lcd_spi.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
+#include "dev_display_lcd.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
 
 /* FATFS SD Card Device */
 #ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT

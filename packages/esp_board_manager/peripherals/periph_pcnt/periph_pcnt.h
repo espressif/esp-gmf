@@ -73,7 +73,6 @@ int periph_pcnt_init(void *cfg, int cfg_size, void **periph_handle);
  * @brief  Deinitialize the PCNT peripheral
  *
  *         This function deinitializes the PCNT peripheral and frees the allocated resources.
- *         It should be called when the peripheral is no longer needed.
  *
  * @param[in]  periph_handle  Handle returned by periph_pcnt_init
  *

@@ -80,10 +80,9 @@ int dev_fatfs_sdcard_spi_init(void *cfg, int cfg_size, void **device_handle)
         goto cleanup;
     }
 
+    sdmmc_card_print_info(stdout, handle->card);
     ESP_LOGI(TAG, "Filesystem mounted, base path: %s", config->mount_point);
     *device_handle = handle;
-
-    sdmmc_card_print_info(stdout, handle->card);
     return 0;
 cleanup:
     free(handle);

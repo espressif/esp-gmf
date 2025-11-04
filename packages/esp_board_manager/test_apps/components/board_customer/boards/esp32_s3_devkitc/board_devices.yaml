@@ -10,6 +10,7 @@ devices:
       default_level: 1
     peripherals:
       - name: gpio_power
+
   - name: fatfs
     type: fs_fat
     version: default

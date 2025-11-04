@@ -9,6 +9,7 @@ VERSION = 'v1.0.0'
 # Define valid enum values for SDMMC configuration
 VALID_SDMMC_ENUMS = {
     'slot': [
+        'SDMMC_HOST_SLOT_0',
         'SDMMC_HOST_SLOT_1',
         'SDMMC_HOST_SLOT_2'
     ],
@@ -88,17 +89,10 @@ def parse_sdmmc_sub_config(sub_config: dict) -> dict:
     # Get slot configuration from YAML with validation
     slot_raw = sub_config.get('slot', 'SDMMC_HOST_SLOT_1')
     slot = get_enum_value(slot_raw, 'SDMMC_HOST_SLOT_1', 'slot')
-
-    # Get frequency configuration from YAML with validation
-    frequency_raw = sub_config.get('frequency', 'SDMMC_FREQ_HIGHSPEED')
-    frequency = get_enum_value(frequency_raw, 'SDMMC_FREQ_HIGHSPEED', 'frequency')
-
     bus_width = sub_config.get('bus_width', 1)  # Default to 1-bit mode
-
     # Get slot flags with validation
     slot_flags_raw = sub_config.get('slot_flags', 'SDMMC_SLOT_FLAG_INTERNAL_PULLUP')
     slot_flags = get_enum_value(slot_flags_raw, 'SDMMC_SLOT_FLAG_INTERNAL_PULLUP', 'slot_flags')
-
     # Get GPIO pins with default values
     pins = sub_config.get('pins', {})
     pin_config = {
@@ -127,7 +121,7 @@ def parse_sdmmc_sub_config(sub_config: dict) -> dict:
         'ldo_chan_id': ldo_chan_id
     }
 
-def parse_spi_sub_config(sub_config: dict, config: dict = None, peripherals_dict=None) -> dict:
+def parse_spi_sub_config(sub_config: dict, peripherals_dict=None) -> dict:
     """Parse SPI sub configuration"""
     cs_gpio_num = sub_config.get('cs_gpio_num', 15)
 
@@ -136,8 +130,8 @@ def parse_spi_sub_config(sub_config: dict, config: dict = None, peripherals_dict
 
     # First try to get peripherals from config (for backward compatibility)
     peripherals_list = []
-    if config:
-        peripherals_list = config.get('peripherals', [])
+    if sub_config:
+        peripherals_list = sub_config.get('peripherals', [])
 
     # Look for spi_master peripheral in the peripherals list
     for peripheral in peripherals_list:
@@ -168,7 +162,6 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     """Parse FS_FAT device configuration from YAML"""
     config = full_config.get('config', {})
     sub_type = full_config.get('sub_type')
-
     # sub_type is mandatory
     if not sub_type:
         raise ValueError(f"FS_FAT device '{name}' is missing required 'sub_type' field. Must be 'sdmmc' or 'spi'")
@@ -187,13 +180,12 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     allocation_unit_size = vfs_config.get('allocation_unit_size', 16384)
 
     # Parse sub configuration based on sub_type
-    sub_config = config.get('sub_config', {})
     if sub_type == 'sdmmc':
-        sub_cfg = parse_sdmmc_sub_config(sub_config)
+        sub_cfg = parse_sdmmc_sub_config(config)
         # Set the sdmmc member of the union
         sub_cfg_union = {'sdmmc': sub_cfg}
     elif sub_type == 'spi':
-        sub_cfg = parse_spi_sub_config(sub_config, config, peripherals_dict)
+        sub_cfg = parse_spi_sub_config(config, peripherals_dict)
         # Set the spi member of the union
         sub_cfg_union = {'spi': sub_cfg}
     else:

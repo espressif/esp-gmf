@@ -7,8 +7,6 @@
 
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "driver/sdmmc_host.h"
 #include "sdmmc_cmd.h"
 
@@ -21,9 +19,9 @@ extern "C" {
  *         This structure contains the handle for the SD card device, including the card, host, and mount point
  */
 typedef struct {
-    sdmmc_card_t *card;         /*!< SD card card handle */
-    sdmmc_host_t  host;         /*!< SD card host handle */
-    char         *mount_point;  /*!< Mount point path */
+    sdmmc_card_t  *card;         /*!< SD card card handle */
+    sdmmc_host_t   host;         /*!< SD card host handle */
+    char          *mount_point;  /*!< Mount point path */
 } dev_fatfs_sdcard_handle_t;
 
 /**
@@ -89,7 +87,7 @@ typedef struct {
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_fatfs_sdcard_init(void *cfg, int cfg_size, void **device_handle);
 
@@ -103,7 +101,7 @@ int dev_fatfs_sdcard_init(void *cfg, int cfg_size, void **device_handle);
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_fatfs_sdcard_deinit(void *device_handle);
 

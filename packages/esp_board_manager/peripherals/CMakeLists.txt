@@ -81,6 +81,18 @@ function(get_peripheral_sources sources includes)
         list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_anacmpr")
     endif()
 
+    if(CONFIG_ESP_BOARD_PERIPH_DSI_SUPPORT)
+        message(STATUS "DSI_SUPPORT")
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_dsi/periph_dsi.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_dsi")
+    endif()
+
+    if(CONFIG_ESP_BOARD_PERIPH_LDO_SUPPORT)
+        message(STATUS "LDO_SUPPORT")
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_ldo/periph_ldo.c")
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/peripherals/periph_ldo")
+    endif()
+
     # Set output variables in parent scope
     set(${sources} ${srcs} PARENT_SCOPE)
     set(${includes} ${incs} PARENT_SCOPE)

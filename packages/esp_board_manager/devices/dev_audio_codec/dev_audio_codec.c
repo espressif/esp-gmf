@@ -5,11 +5,7 @@
  * See LICENSE file for details.
  */
 
-#include <string.h>
-#include <stdlib.h>
 #include "esp_log.h"
-#include "esp_check.h"
-
 #include "dev_audio_codec.h"
 #include "esp_board_periph.h"
 #include "esp_board_manager_defs.h"
@@ -49,7 +45,7 @@ static const char *TAG = "DEV_AUDIO_CODEC";
         if (base_cfg->adc_enabled) {                                                                                                 \
             codec_cfg->codec_mode |= ESP_CODEC_DEV_WORK_MODE_ADC;                                                                    \
         }                                                                                                                            \
-        return 0; \
+        return 0;                                                                                                                    \
     }
 
 #define DEFINE_AUDIO_CODEC_CONFIG_SETUP_NO_MCLK(codec_name)                                                                          \
@@ -67,7 +63,7 @@ static const char *TAG = "DEV_AUDIO_CODEC";
         if (base_cfg->adc_enabled) {                                                                                                 \
             codec_cfg->codec_mode |= ESP_CODEC_DEV_WORK_MODE_ADC;                                                                    \
         }                                                                                                                            \
-        return 0; \
+        return 0;                                                                                                                    \
     }
 
 #define DEFINE_AUDIO_CODEC_CONFIG_SETUP_NO_MCLK_NO_HW_GAIN(codec_name)                                                               \
@@ -84,7 +80,7 @@ static const char *TAG = "DEV_AUDIO_CODEC";
         if (base_cfg->adc_enabled) {                                                                                                 \
             codec_cfg->codec_mode |= ESP_CODEC_DEV_WORK_MODE_ADC;                                                                    \
         }                                                                                                                            \
-        return 0; \
+        return 0;                                                                                                                    \
     }
 
 // DAC codec configuration setup function template (for AW88298, TAS5805M, etc.)

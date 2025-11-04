@@ -41,7 +41,6 @@ int periph_sdm_init(void *cfg, int cfg_size, void **periph_handle);
  * @brief  Deinitialize the SDM channel
  *
  *         This function deinitializes the SDM channel and frees the allocated resources.
- *         It should be called when the channel is no longer needed.
  *
  * @param[in]  periph_handle  Handle returned by periph_sdm_init
  *
