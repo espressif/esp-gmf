@@ -37,7 +37,7 @@ esp_err_t esp_board_manager_init(void)
         ESP_LOGE(TAG, "Failed to initialize all peripherals");
         return ret;
     }
-
+    ESP_LOGI(TAG, "All peripherals initialized");
     /* Initialize all devices */
     ret = esp_board_device_init_all();
     if (ret != ESP_OK) {
@@ -72,7 +72,7 @@ esp_err_t esp_board_manager_get_device_handle(const char *dev_name, void **devic
     /* Find device handle */
     esp_err_t ret = esp_board_device_get_handle(dev_name, device_handle);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Device %s not found, error: %d", dev_name, ret);
+        ESP_LOGE(TAG, "Device %s not found, error: %x", dev_name, ret);
         return ESP_BOARD_ERR_MANAGER_DEVICE_NOT_FOUND;
     }
 

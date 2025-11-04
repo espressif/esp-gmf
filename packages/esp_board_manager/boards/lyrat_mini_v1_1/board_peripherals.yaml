@@ -3,11 +3,90 @@ chip: esp32
 version: 1.0.0
 # Peripherals Configuration
 peripherals:
+  # I2C Master for audio codec communication
   - name: i2c_master
     type: i2c
     role: master
     config:
       port: 0
       pins:
-        sda: 17
-        scl: 18
+        sda: 18
+        scl: 23
+
+  # I2S for audio output (DAC)
+  - name: i2s_audio_out
+    type: i2s
+    role: master
+    config:
+      port: 0
+      format: "std-out"
+      pins:
+        mclk: -1
+        bclk: 5
+        ws: 25
+        dout: 26
+        din: 35  #NOT USED
+      sample_rate_hz: 48000
+      data_bit_width: 16
+
+  # I2S for audio input (ADC)
+  - name: i2s_audio_in
+    type: i2s
+    role: master
+    config:
+      port: 1
+      format: "std-in"
+      pins:
+        mclk: 0                    # GPIO_NUM_0 (ES7243_MCLK_GPIO)
+        bclk: 32
+        ws: 33
+        dout: -1
+        din: 36
+      sample_rate_hz: 16000
+      data_bit_width: 16
+
+  # GPIO peripherals for various controls
+  - name: gpio_sd_power                  # SD Card power control
+    type: gpio
+    config:
+      pin: 13
+      mode: "GPIO_MODE_OUTPUT"
+
+  - name: gpio_headphone_detection       # Headphone detection
+    type: gpio
+    config:
+      pin: 19
+      mode: "GPIO_MODE_INPUT"
+      pullup_en: true
+
+  - name: gpio_power_amp                  # Power amplifier enable
+    type: gpio
+    config:
+      pin: 21
+      mode: "GPIO_MODE_OUTPUT"
+
+  - name: gpio_green_led                  # Green LED
+    type: gpio
+    config:
+      pin: 22
+      mode: "GPIO_MODE_OUTPUT"
+
+  - name: gpio_blue_led                  # Blue LED
+    type: gpio
+    config:
+      pin: 27
+      mode: "GPIO_MODE_OUTPUT"
+
+  - name: gpio_sd_detect                 # SD Card detect
+    type: gpio
+    config:
+      pin: 34
+      mode: "GPIO_MODE_INPUT"
+      pullup_en: true
+
+  - name: gpio_adc_button                  # ADC button input
+    type: gpio
+    config:
+      pin: 39
+      mode: "GPIO_MODE_INPUT"
+      pulldown_en: true

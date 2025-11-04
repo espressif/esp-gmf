@@ -51,5 +51,5 @@
 
     # I2C interface configuration
     - name: i2c-0                        # I2C peripheral for codec control
-      address: 0x30                      # I2C device address (hex format) (default: 0x30)
+      address: 0x30                      # I2C device address, include the read/write bit (hex format) (default: 0x30)
       frequency: 400000                  # I2C clock frequency in Hz (default: 400000)

@@ -30,9 +30,15 @@ typedef struct {
     i2s_dir_t        direction;  /*!< I2S direction (I2S_DIR_RX: input BIT(0), I2S_DIR_TX: output BIT(1)) */
     union {
         i2s_std_config_t     std;     /*!< Standard I2S configuration */
+#if CONFIG_SOC_I2S_SUPPORTS_TDM
         i2s_tdm_config_t     tdm;     /*!< TDM I2S configuration */
+#endif // CONFIG_SOC_I2S_SUPPORTS_TDM
+#if CONFIG_SOC_I2S_SUPPORTS_PDM_TX
         i2s_pdm_tx_config_t  pdm_tx;  /*!< PDM I2S configuration for output direction */
+#endif // CONFIG_SOC_I2S_SUPPORTS_PDM_TX
+#if CONFIG_SOC_I2S_SUPPORTS_PDM_RX
         i2s_pdm_rx_config_t  pdm_rx;  /*!< PDM I2S configuration for input direction */
+#endif // CONFIG_SOC_I2S_SUPPORTS_PDM_RX
     } i2s_cfg;                        /*!< I2S configuration union */
 } periph_i2s_config_t;
 

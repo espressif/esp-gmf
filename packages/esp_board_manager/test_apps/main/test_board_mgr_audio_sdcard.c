@@ -62,11 +62,13 @@ static void wav_playback_task(void *pvParameters)
         ESP_LOGE(TAG, "Failed to get I2S TX config for %s", dac_cfg->i2s_cfg.name);
         goto cleanup_playback;
     }
-
+#if CONFIG_SOC_I2S_SUPPORTS_TDM
     if (i2s_tx_cfg->mode == I2S_COMM_MODE_TDM) {
         dac_config.channels = i2s_tx_cfg->i2s_cfg.tdm.slot_cfg.total_slot;
-    } else {
-        // When mode is I2S_STD/PDM, there is no total_slot, so use slot_mode instead
+    } else
+#endif
+    {
+        // When mode is I2S_STD, there is no total_slot, so use slot_mode instead
         dac_config.channels = i2s_tx_cfg->i2s_cfg.std.slot_cfg.slot_mode == I2S_SLOT_MODE_STEREO ? 2 : 1;
     }
     dev_audio_codec_handles_t *dac_handles = NULL;
@@ -135,10 +137,13 @@ static void i2s_recording_task(void *pvParameters)
         .bits_per_sample = 16,
         .duration_seconds = 10
     };
+#if CONFIG_SOC_I2S_SUPPORTS_TDM
     if (i2s_rx_cfg->mode == I2S_COMM_MODE_TDM) {
         adc_config.channels = i2s_rx_cfg->i2s_cfg.tdm.slot_cfg.total_slot;
-    } else {
-        // When mode is I2S_STD/PDM, there is no total_slot, so use slot_mode instead
+    } else
+#endif
+    {
+        // When mode is I2S_STD, there is no total_slot, so use slot_mode instead
         adc_config.channels = i2s_rx_cfg->i2s_cfg.std.slot_cfg.slot_mode == I2S_SLOT_MODE_STEREO ? 2 : 1;
     }
     dev_audio_codec_handles_t *adc_handles = NULL;

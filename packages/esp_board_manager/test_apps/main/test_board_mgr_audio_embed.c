@@ -170,10 +170,13 @@ static void partition_recording_task(void *pvParameters)
         .duration_seconds = 3  // Record for 3 seconds
     };
 
+#if CONFIG_SOC_I2S_SUPPORTS_TDM
     if (i2s_rx_cfg->mode == I2S_COMM_MODE_TDM) {
         adc_config.channels = i2s_rx_cfg->i2s_cfg.tdm.slot_cfg.total_slot;
-    } else {
-        // When mode is I2S_STD/PDM, there is no total_slot, so use slot_mode instead
+    } else
+#endif
+    {
+        // When mode is I2S_STD, there is no total_slot, so use slot_mode instead
         adc_config.channels = i2s_rx_cfg->i2s_cfg.std.slot_cfg.slot_mode == I2S_SLOT_MODE_STEREO ? 2 : 1;
     }
 

@@ -3,13 +3,66 @@ chip: esp32
 version: 1.0.0
 # Devices Configuration
 devices:
+  # SD Card Power Control
+  - name: lcd_power
+    type: gpio_ctrl
+    version: default
+    config:
+      active_level: 0              # Low level to enable power
+      default_level: 1             # Default to power off
+    peripherals:
+      - name: gpio_sd_power              # SDCARD_PWR_CTRL
+
+  # Audio Codec (ES8311) - DAC for audio output
+  - name: audio_dac
+    chip: es8311
+    type: audio_codec
+    version: default
+    skip_init: true
+    config:
+      dac_enabled: true
+      dac_max_channel: 1
+      dac_channel_mask: "1"        # Left channel enable
+      mclk_enabled: false
+      aec: false
+    peripherals:
+      - name: gpio_power_amp
+        gain: 20                   # BOARD_PA_GAIN (dB)
+        active_level: 1            # High level active
+      - name: i2s_audio_out
+      - name: i2c_master
+        address: 0x30              # ES8311 I2C address,  0x18 << 1 = 0x30
+        frequency: 100000          # 100kHz I2C frequency
+
+  # Audio ADC (ES7243/ES7243E) - ADC for audio input
+  - name: audio_adc
+    chip: es7243e      # Some old boards use ES7243, ES7243 is EOL
+    type: audio_codec
+    version: default
+    # skip_init: true
+    config:
+      adc_enabled: true
+      adc_max_channel: 2
+      adc_channel_mask: "11"             # Left, Right channel enable
+      adc_channel_labels: ['RE', 'FL']   # Reference channel, Front channel
+      mclk_enabled: true
+      aec: false
+    peripherals:
+      - name: i2s_audio_in
+      - name: i2c_master
+        address: 0x20              # ES7243E I2C address (0x26 for ES7243)
+        frequency: 100000          # 100kHz I2C frequency
+
+  # SD Card (FATFS)
   - name: fs_sdcard
     type: fatfs_sdcard
     version: default
     config:
-      bus_width: 1            # 1, 4, 8, not used on SPI type
+      mount_point: "/sdcard"
+      vfs_config:
+        max_files: 5
+      bus_width: 1                 # 1-line mode only
       pins:
-        clk: 15  # GPIO_NUM_15
-        cmd: 7   # GPIO_NUM_7
-        d0: 4    # GPIO_NUM_4
-
+        clk: 14
+        cmd: 15
+        d0: 2
