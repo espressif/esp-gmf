@@ -294,6 +294,7 @@ esp_gmf_err_t esp_gmf_ch_cvt_init(esp_ae_ch_cvt_cfg_t *config, esp_gmf_element_h
     ESP_GMF_ELEMENT_GET(ch_cvt)->ops.event_receiver = ch_cvt_received_event_handler;
     ESP_GMF_ELEMENT_GET(ch_cvt)->ops.load_caps = _load_channel_cvt_caps_func;
     ESP_GMF_ELEMENT_GET(ch_cvt)->ops.load_methods = _load_channel_cvt_methods_func;
+    ESP_GMF_ELEMENT_GET(ch_cvt)->ops.reset = NULL;
     *handle = obj;
     ESP_LOGD(TAG, "Initialization, %s-%p", OBJ_GET_TAG(obj), obj);
     return ESP_GMF_ERR_OK;

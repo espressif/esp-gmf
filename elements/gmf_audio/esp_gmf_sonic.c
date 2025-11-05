@@ -393,6 +393,24 @@ esp_gmf_err_t esp_gmf_sonic_get_pitch(esp_gmf_element_handle_t handle, float *pi
     return ESP_GMF_ERR_OK;
 }
 
+static esp_gmf_job_err_t esp_gmf_sonic_reset(esp_gmf_element_handle_t handle, void *para)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)handle;
+    if (sonic->sonic_hd) {
+        esp_ae_err_t ret = esp_ae_sonic_reset(sonic->sonic_hd);
+        if (ret != ESP_AE_ERR_OK) {
+            return ESP_GMF_ERR_FAIL;
+        }
+        memset(&sonic->in_data_hd, 0, sizeof(esp_ae_sonic_in_data_t));
+        memset(&sonic->out_data_hd, 0, sizeof(esp_ae_sonic_out_data_t));
+        sonic->is_done = false;
+        sonic->cur_pts = 0;
+    }
+    ESP_LOGD(TAG, "Sonic reset");
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_sonic_init(esp_ae_sonic_cfg_t *config, esp_gmf_element_handle_t *handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
@@ -430,6 +448,7 @@ esp_gmf_err_t esp_gmf_sonic_init(esp_ae_sonic_cfg_t *config, esp_gmf_element_han
     ESP_GMF_ELEMENT_GET(sonic)->ops.event_receiver = sonic_received_event_handler;
     ESP_GMF_ELEMENT_GET(sonic)->ops.load_caps = _load_sonic_caps_func;
     ESP_GMF_ELEMENT_GET(sonic)->ops.load_methods = _load_sonic_methods_func;
+    ESP_GMF_ELEMENT_GET(sonic)->ops.reset = esp_gmf_sonic_reset;
     *handle = obj;
     ESP_LOGD(TAG, "Initialization, %s-%p", OBJ_GET_TAG(obj), obj);
     return ESP_GMF_ERR_OK;

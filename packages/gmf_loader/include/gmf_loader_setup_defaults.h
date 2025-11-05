@@ -89,6 +89,8 @@ esp_gmf_err_t gmf_loader_teardown_audio_codec_default(esp_gmf_pool_handle_t pool
  *         - Sample rate converter
  *         - Fade effect
  *         - Sonic effect
+ *         - Dynamic Range Compressor (DRC)
+ *         - Multi-Band Compressor (MBC)
  *         - Deinterleave
  *         - Interleave
  *         - Audio mixer

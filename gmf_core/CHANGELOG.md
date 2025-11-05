@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added abort support for GMF task
+- Added API esp_gmf_task_set_abort_strategy to control state transition after abort
+- Unified runtime state handling macro: `GMF_TASK_HANDLE_PAUSE_AND_STOP` for pause/stop
+- New job error: `ESP_GMF_JOB_ERR_ABORT = ESP_GMF_IO_ABORT`
+- Added `DRC` and `MBC` capability definition
+
+### Bug Fixes
+
+- `esp_gmf_element_process_open`: allows the first element's IN port to be NULL, still checks that non-last elements have a non-NULL OUT port
+- `esp_gmf_task_run`: clears any left-over PAUSE/STOP event bits before running to prevent issues for the current run
+
 ## v0.7.10
 
 ### Features
@@ -15,44 +30,6 @@
 ### Features
 
 - Added VUY444 packed pixel format FourCC code
-
-## v0.7.9
-
-### Bug Fixes
-
-- Fixed block data_bus abort return miss unlock
-- Fixed pbuf data_bus reset miss buffer and count process
-- Fixed unit test for `esp_gmf_db_abort` through a random time delay before abort
-- Corrected read and write task return logic for data_bus unit test
-
-## v0.7.8
-
-### Bug Fixes
-
-- Fixed pre-release input port when bypass of payload in last element
-- Use atomic operation to avoid task action flag race condition
-- Fixed `esp_gmf_node_del_at` corner cases
-
-## v0.7.7
-
-### Bug Fixes
-
-- Uniformed the `esp_gmf_db_abort` and `esp_gmf_db_done_write` behavior for all data_bus types
-- Uniformed the `esp_gmf_db_reset` behavior for all data_bus types
-- Fixed wrong return values for data_bus related api
-- Fixed incorrect comments for data_bus related api
-- Fixed create fifo data_bus use wrong handle type
-- Added unit test for `esp_gmf_db_abort`
-- Added `esp_gmf_db_reset` and `esp_gmf_db_done_write` in unit test
-
-## v0.7.6
-
-### Bug Fixes
-
-- Fixed racing condition when load method and capability
-- Fixed dependency and non-dependency element wrong open order
-- Refine some warning log output
-- Correct logic for API `esp_gmf_pipeline_get_next_el`
 
 ## v0.7.9
 

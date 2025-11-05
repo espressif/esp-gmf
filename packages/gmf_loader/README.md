@@ -23,8 +23,8 @@ The GMF Loader is a helper component that allows users to easily customize their
     - HTTP Writer
 
 - Audio codec initialization support:
-  - Decoders: MP3, AAC, AMR-NB/WB, FLAC, WAV, M4A, TS, OPUS, G711, PCM, ADPCM
-  - Encoders: AAC, AMR-NB/WB, G711, OPUS, ADPCM, PCM, ALAC
+  - Decoders: MP3, AAC, AMR-NB/WB, FLAC, WAV, M4A, TS, OPUS, G711, PCM, ADPCM, LC3, SBC，ALAC、VORBIS
+  - Encoders: AAC, AMR-NB/WB, G711, OPUS, ADPCM, PCM, ALAC, LC3, SBC
 
 - Audio effects configuration:
   - Automatic Level Control (ALC)
@@ -36,6 +36,8 @@ The GMF Loader is a helper component that allows users to easily customize their
   - Sonic effects
   - Channel interleave/deinterleave
   - Audio mixing
+  - Dynamic Range Control (DRC)
+  - Multi-band Compressor (MBC)
 
 - AI Audio features configuration:
   - Audio Echo Cancellation (AEC) element
@@ -99,7 +101,11 @@ ESP GMF Loader
 │   │   │   ├── G711A
 │   │   │   ├── G711U
 │   │   │   ├── PCM
-│   │   │   └── ADPCM
+│   │   │   ├── ADPCM
+│   │   │   ├── SBC
+│   │   │   ├── VORBIS
+│   │   │   ├── ALAC
+│   │   │   └── LC3
 │   │   └── Encoders [Y]
 │   │       ├── AAC [Y]
 │   │       ├── AMR-NB/WB
@@ -107,7 +113,9 @@ ESP GMF Loader
 │   │       ├── OPUS
 │   │       ├── ADPCM
 │   │       ├── PCM
-│   │       └── ALAC
+│   │       ├── ALAC
+│   │       ├── SBC
+│   │       └── LC3
 │   │
 │   ├── GMF Audio Effects
 │   │   ├── Automatic Level Control (ALC) [Y]
@@ -119,7 +127,9 @@ ESP GMF Loader
 │   │   ├── Audio Mixing [N]
 │   │   ├── Equalizer (EQ) [N]
 │   │   ├── Speed Effect [N]
-│   │   └── Fade In/Out [N]
+│   │   ├── Fade In/Out [N]
+│   │   ├── Dynamic Range Control [N]
+│   │   └── Multi-Band Compressor [N]
 │   │
 │   └── GMF AI Audio
 │       ├── Audio Echo Cancellation (AEC) [Y]

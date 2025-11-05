@@ -62,11 +62,20 @@ esp_gmf_err_t esp_gmf_fade_set_mode(esp_gmf_element_handle_t handle, esp_ae_fade
 esp_gmf_err_t esp_gmf_fade_get_mode(esp_gmf_element_handle_t handle, esp_ae_fade_mode_t *mode);
 
 /**
+ * @brief  Reset the internal processing state of the fade element while preserving configuration
+ *
+ * @param[in]  handle  The fade element handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK            Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG   Invalid input parameter
+ *       - ESP_GMF_ERR_INVALID_STATE Fade element is not opened
+ */
+esp_gmf_err_t esp_gmf_fade_reset(esp_gmf_element_handle_t handle);
+
+/**
  * @brief  Reset the fade process to the initial configuration state.
- *         If the initial configuration mode is fade in, the current weight is set to 0.
- *         If the initial configuration mode is fade out, the current weight is set to 1.
- *         This function helps the user to restart fade in or fade out without
- *         reopening and closing.
+ *         This API is kept for backward compatibility. Internally it calls @ref esp_gmf_fade_reset.
  *
  * @param[in]  handle  The fade handle
  *

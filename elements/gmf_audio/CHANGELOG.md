@@ -6,10 +6,15 @@
 
 - Added automatic stream format detection in Simple Decoder for unspecified or unsupported codec identifiers
 - Updated `esp_audio_codec` to version v2.4
+- Updated `esp_audio_effects` to version v1.2
+- Added `aud_drc` (Dynamic Range Control) and `aud_mbc` (Multi-Band Compressor) audio effect elements
+- Added reset function support for `aud_alc`, `aud_fade`, `aud_sonic`, `aud_mixer`, and `aud_rate_cvt` elements
+- Added `VORBIS` and `ALAC` decoder configuration support in `esp_gmf_audio_dec_reconfig_by_sound_info` function
 
 ### Bug Fixes
 
 - Fixed audio_dec element failed to propagate is_done payload flag 
+- Fixed memory leak in `audio_dec` element's `audio_dec_reconfig_dec_by_sound_info` function
 
 ## v0.7.2
 

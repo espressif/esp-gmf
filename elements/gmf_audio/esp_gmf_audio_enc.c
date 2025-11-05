@@ -73,10 +73,10 @@ static esp_gmf_err_t __audio_enc_get_bitrate(esp_gmf_element_handle_t handle, es
 static esp_gmf_err_t __audio_enc_reconfig(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
                                           uint8_t *buf, int buf_len)
 {
-ESP_GMF_NULL_CHECK(TAG, arg_desc, return ESP_GMF_ERR_INVALID_ARG);
-ESP_GMF_NULL_CHECK(TAG, buf, return ESP_GMF_ERR_INVALID_ARG);
-esp_audio_enc_config_t *config = (esp_audio_enc_config_t *)buf;
-return esp_gmf_audio_enc_reconfig(handle, config);
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, buf, return ESP_GMF_ERR_INVALID_ARG);
+    esp_audio_enc_config_t *config = (esp_audio_enc_config_t *)buf;
+    return esp_gmf_audio_enc_reconfig(handle, config);
 }
 
 static esp_gmf_err_t __audio_enc_reconfig_by_sound_info(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
@@ -657,6 +657,32 @@ esp_gmf_err_t esp_gmf_audio_enc_reconfig_by_sound_info(esp_gmf_element_handle_t 
     }
 }
 
+static esp_gmf_job_err_t esp_gmf_audio_enc_reset(esp_gmf_element_handle_t handle, void *para)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_audio_enc_t *audio_enc = (esp_gmf_audio_enc_t *)handle;
+    esp_gmf_port_t *in_port = ESP_GMF_ELEMENT_GET(handle)->in;
+    if (audio_enc->audio_enc_hd != NULL) {
+        esp_audio_err_t ret = esp_audio_enc_reset(audio_enc->audio_enc_hd);
+        if (ret != ESP_AUDIO_ERR_OK) {
+            return ESP_GMF_ERR_FAIL;
+        }
+    }
+    if (audio_enc->cached_payload != NULL) {
+        esp_gmf_cache_reset(audio_enc->cached_payload);
+    }
+    audio_enc->cur_pts = 0;
+    if (audio_enc->origin_in_load != NULL) {
+        esp_gmf_err_io_t load_ret = esp_gmf_port_release_in(in_port, audio_enc->origin_in_load, ESP_GMF_MAX_DELAY);
+        if ((load_ret < ESP_GMF_IO_OK) && (load_ret != ESP_GMF_IO_ABORT)) {
+            ESP_LOGW(TAG, "Failed to release input port during reset, ret: %d", load_ret);
+        }
+        audio_enc->origin_in_load = NULL;
+    }
+    ESP_LOGD(TAG, "Audio encoder reset");
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_audio_enc_init(esp_audio_enc_config_t *config, esp_gmf_element_handle_t *handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
@@ -692,6 +718,7 @@ esp_gmf_err_t esp_gmf_audio_enc_init(esp_audio_enc_config_t *config, esp_gmf_ele
     audio_enc->parent.base.ops.event_receiver = audio_enc_received_event_handler;
     audio_enc->parent.base.ops.load_caps = _load_enc_caps_func;
     audio_enc->parent.base.ops.load_methods = _load_enc_methods_func;
+    audio_enc->parent.base.ops.reset = esp_gmf_audio_enc_reset;
     *handle = obj;
     ESP_LOGD(TAG, "Initialization, %s-%p", OBJ_GET_TAG(obj), obj);
     return ret;

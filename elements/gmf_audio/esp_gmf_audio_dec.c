@@ -26,6 +26,15 @@
 #define TS_PACKET_SYNC_BYTE             (0x47)
 #define TS_PACKET_BYTE                  (188)
 #define MATCH_HEADER(buf, offset, str)  (memcmp(buf + offset, str, sizeof(str) - 1) == 0)
+
+#define AUDIO_DEC_INIT_SUBCFG_IF_NULL(cfg_type, cfg_var, default_cfg, err_msg) do {     \
+    if ((dec_cfg)->dec_cfg == NULL) {                                                   \
+        cfg_type cfg_var = default_cfg;                                                 \
+        esp_gmf_err_t ret = audio_dec_set_subcfg(dec_cfg, &cfg_var, sizeof(cfg_type));  \
+        ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, err_msg);                           \
+    }                                                                                   \
+} while (0)
+
 /**
  * @brief  Audio simple decoder context in GMF
  */
@@ -129,7 +138,7 @@ static esp_gmf_err_t _dec_caps_iter_fun(uint32_t attr_index, esp_gmf_cap_attr_t 
     switch (attr_index) {
         case 0: {
             const static uint32_t support_dec_type[] = {ESP_FOURCC_MP3, ESP_FOURCC_AAC, ESP_FOURCC_OPUS, ESP_FOURCC_FLAC, ESP_FOURCC_AMRNB, ESP_FOURCC_AMRWB, ESP_FOURCC_ALAC,
-                                                        ESP_FOURCC_M4A, ESP_FOURCC_ALAW, ESP_FOURCC_ULAW, ESP_FOURCC_LC3, ESP_FOURCC_SBC, ESP_FOURCC_PCM};
+                                                        ESP_FOURCC_M4A, ESP_FOURCC_ALAW, ESP_FOURCC_ULAW, ESP_FOURCC_LC3, ESP_FOURCC_SBC, ESP_FOURCC_PCM, ESP_FOURCC_VORBIS};
             ESP_GMF_CAP_ATTR_SET_DISCRETE(attr, ESP_FOURCC_TO_INT('T', 'Y', 'P', 'E'),  (uint32_t *) &support_dec_type,
                                           sizeof(support_dec_type) / sizeof(uint32_t), sizeof(uint32_t));
             break;
@@ -215,6 +224,7 @@ static esp_gmf_err_t audio_dec_reconfig_dec_by_sound_info(esp_gmf_element_handle
                     .aac_plus_enable = true,
                 };
                 ret = audio_dec_set_subcfg(dec_cfg, &aac_cfg, sizeof(esp_aac_dec_cfg_t));
+                ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to set AAC decoder configuration");
             }
             esp_aac_dec_cfg_t *aac_cfg = (esp_aac_dec_cfg_t *)dec_cfg->dec_cfg;
             aac_cfg->sample_rate = info->sample_rates;
@@ -223,66 +233,71 @@ static esp_gmf_err_t audio_dec_reconfig_dec_by_sound_info(esp_gmf_element_handle
             break;
         case ESP_AUDIO_SIMPLE_DEC_TYPE_RAW_OPUS:
             if (dec_cfg->dec_cfg == NULL) {
-                dec_cfg->dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_RAW_OPUS;
                 esp_opus_dec_cfg_t opus_cfg = ESP_OPUS_DEC_CONFIG_DEFAULT();
                 opus_cfg.frame_duration = ESP_OPUS_DEC_FRAME_DURATION_20_MS;
-                opus_cfg.channel = info->channels;
-                opus_cfg.sample_rate = info->sample_rates;
                 ret = audio_dec_set_subcfg(dec_cfg, &opus_cfg, sizeof(esp_opus_dec_cfg_t));
-            } else {
-                esp_opus_dec_cfg_t *opus_cfg = (esp_opus_dec_cfg_t *)dec_cfg->dec_cfg;
-                opus_cfg->channel = info->channels;
-                opus_cfg->sample_rate = info->sample_rates;
+                ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to set OPUS decoder configuration");
             }
+            esp_opus_dec_cfg_t *opus_cfg = (esp_opus_dec_cfg_t *)dec_cfg->dec_cfg;
+            opus_cfg->channel = info->channels;
+            opus_cfg->sample_rate = info->sample_rates;
             break;
         case ESP_AUDIO_SIMPLE_DEC_TYPE_PCM:
-            esp_pcm_dec_cfg_t pcm_cfg = {
-                .sample_rate = info->sample_rates,
-                .channel = info->channels,
-                .bits_per_sample = info->bits,
-            };
-            ret = audio_dec_set_subcfg(dec_cfg, &pcm_cfg, sizeof(esp_pcm_dec_cfg_t));
+            AUDIO_DEC_INIT_SUBCFG_IF_NULL(esp_pcm_dec_cfg_t, pcm_cfg, ESP_PCM_DEC_CONFIG_DEFAULT(),
+                                          "Failed to set PCM decoder configuration");
+            esp_pcm_dec_cfg_t *pcm_cfg = (esp_pcm_dec_cfg_t *)dec_cfg->dec_cfg;
+            pcm_cfg->sample_rate = info->sample_rates;
+            pcm_cfg->channel = info->channels;
+            pcm_cfg->bits_per_sample = info->bits;
             break;
         case ESP_AUDIO_SIMPLE_DEC_TYPE_G711A:
         case ESP_AUDIO_SIMPLE_DEC_TYPE_G711U:
-            esp_g711_dec_cfg_t g711_cfg = {
-                .channel = info->channels,
-            };
-            ret = audio_dec_set_subcfg(dec_cfg, &g711_cfg, sizeof(esp_g711_dec_cfg_t));
+            AUDIO_DEC_INIT_SUBCFG_IF_NULL(esp_g711_dec_cfg_t, g711_cfg, ESP_G711_DEC_CONFIG_DEFAULT(),
+                                          "Failed to set G711 decoder configuration");
+            esp_g711_dec_cfg_t *g711_cfg = (esp_g711_dec_cfg_t *)dec_cfg->dec_cfg;
+            g711_cfg->channel = info->channels;
             break;
         case ESP_AUDIO_SIMPLE_DEC_TYPE_ADPCM:
-            dec_cfg->dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_ADPCM;
-            esp_adpcm_dec_cfg_t adpcm_cfg = {
-                .bits_per_sample = 4,
-                .channel = info->channels,
-                .sample_rate = info->sample_rates,
-            };
-            ret = audio_dec_set_subcfg(dec_cfg, &adpcm_cfg, sizeof(esp_adpcm_dec_cfg_t));
+            AUDIO_DEC_INIT_SUBCFG_IF_NULL(esp_adpcm_dec_cfg_t, adpcm_cfg, ESP_ADPCM_DEC_CONFIG_DEFAULT(),
+                                          "Failed to set ADPCM decoder configuration");
+            esp_adpcm_dec_cfg_t *adpcm_cfg = (esp_adpcm_dec_cfg_t *)dec_cfg->dec_cfg;
+            adpcm_cfg->bits_per_sample = 4;
+            adpcm_cfg->channel = info->channels;
+            adpcm_cfg->sample_rate = info->sample_rates;
             break;
         case ESP_AUDIO_SIMPLE_DEC_TYPE_SBC:
             if (dec_cfg->dec_cfg == NULL) {
-                dec_cfg->dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_SBC;
                 esp_sbc_dec_cfg_t sbc_cfg = {
                     .sbc_mode = ESP_SBC_MODE_STD,
                     .ch_num = 2,
                     .enable_plc = false,
                 };
                 ret = audio_dec_set_subcfg(dec_cfg, &sbc_cfg, sizeof(esp_sbc_dec_cfg_t));
+                ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to set SBC decoder configuration");
             }
             break;
         case ESP_AUDIO_SIMPLE_DEC_TYPE_LC3:
-            if (dec_cfg->dec_cfg == NULL) {
-                dec_cfg->dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_LC3;
-                esp_lc3_dec_cfg_t lc3_cfg = ESP_LC3_DEC_CONFIG_DEFAULT();
-                lc3_cfg.channel = info->channels;
-                lc3_cfg.sample_rate = info->sample_rates;
-                lc3_cfg.bits_per_sample = info->bits;
-                ret = audio_dec_set_subcfg(dec_cfg, &lc3_cfg, sizeof(esp_lc3_dec_cfg_t));
-            } else {
-                esp_lc3_dec_cfg_t *lc3_cfg = (esp_lc3_dec_cfg_t *)dec_cfg->dec_cfg;
-                lc3_cfg->channel = info->channels;
-                lc3_cfg->sample_rate = info->sample_rates;
-                lc3_cfg->bits_per_sample = info->bits;
+            AUDIO_DEC_INIT_SUBCFG_IF_NULL(esp_lc3_dec_cfg_t, lc3_cfg, ESP_LC3_DEC_CONFIG_DEFAULT(),
+                                          "Failed to set LC3 decoder configuration");
+            esp_lc3_dec_cfg_t *lc3_cfg = (esp_lc3_dec_cfg_t *)dec_cfg->dec_cfg;
+            lc3_cfg->channel = info->channels;
+            lc3_cfg->sample_rate = info->sample_rates;
+            lc3_cfg->bits_per_sample = info->bits;
+            break;
+        case ESP_AUDIO_SIMPLE_DEC_TYPE_VORBIS:
+            AUDIO_DEC_INIT_SUBCFG_IF_NULL(esp_vorbis_dec_cfg_t, vorbis_cfg, ESP_VORBIS_DEC_CONFIG_DEFAULT(),
+                                          "Failed to set VORBIS decoder configuration");
+            esp_vorbis_dec_cfg_t *vorbis_cfg = (esp_vorbis_dec_cfg_t *)dec_cfg->dec_cfg;
+            if (vorbis_cfg->info_header == NULL || vorbis_cfg->info_size == 0 || vorbis_cfg->setup_header == NULL || vorbis_cfg->setup_size == 0) {
+                ESP_LOGW(TAG, "VORBIS decoder initialized with default config. Please use `esp_gmf_audio_dec_reconfig` to set VORBIS configuration for successful decoding");
+            }
+            break;
+        case ESP_AUDIO_SIMPLE_DEC_TYPE_ALAC:
+            AUDIO_DEC_INIT_SUBCFG_IF_NULL(esp_alac_dec_cfg_t, alac_cfg, ESP_ALAC_DEC_CONFIG_DEFAULT(),
+                                          "Failed to set ALAC decoder configuration");
+            esp_alac_dec_cfg_t *alac_cfg = (esp_alac_dec_cfg_t *)dec_cfg->dec_cfg;
+            if (alac_cfg->codec_spec_info == NULL || alac_cfg->spec_info_len == 0) {
+                ESP_LOGW(TAG, "ALAC decoder initialized with default config. Please use `esp_gmf_audio_dec_reconfig` to set ALAC configuration for successful decoding");
             }
             break;
         default:
@@ -291,7 +306,7 @@ static esp_gmf_err_t audio_dec_reconfig_dec_by_sound_info(esp_gmf_element_handle
             return ESP_GMF_ERR_NOT_SUPPORT;
     }
     ESP_LOGD(TAG, "The new dec type is %d", dec_cfg->dec_type);
-    return ((ret == ESP_GMF_ERR_OK) ? (ESP_GMF_ERR_OK) : (ret));
+    return ESP_GMF_ERR_OK;
 }
 
 static inline void free_esp_audio_simple_cfg(esp_audio_simple_dec_cfg_t *config)
@@ -348,7 +363,7 @@ static esp_gmf_job_err_t esp_gmf_audio_dec_process(esp_gmf_element_handle_t self
         audio_dec->in_data.eos = audio_dec->in_load->is_done;
         audio_dec->in_data.frame_recover = (audio_dec->in_load->meta_flag & ESP_GMF_META_FLAG_AUD_RECOVERY_PLC) ? 1 : 0;
     }
-    if (audio_dec->is_opened == false) {
+    if (audio_dec->is_opened == false && audio_dec->in_data.len > 0) {
         esp_audio_simple_dec_cfg_t *dec_cfg = (esp_audio_simple_dec_cfg_t *)OBJ_GET_CFG(self);
         esp_audio_simple_dec_type_t dec_type = audio_dec_detect_type(audio_dec->in_data.buffer, audio_dec->in_data.len, dec_cfg->dec_type);
         if (dec_type != ESP_AUDIO_SIMPLE_DEC_TYPE_NONE) {
@@ -593,6 +608,32 @@ esp_gmf_err_t esp_gmf_audio_dec_reconfig_by_sound_info(esp_gmf_element_handle_t 
     }
 }
 
+static esp_gmf_job_err_t esp_gmf_audio_dec_reset(esp_gmf_element_handle_t handle, void *para)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_audio_dec_t *audio_dec = (esp_gmf_audio_dec_t *)handle;
+    esp_gmf_port_t *in_port = ESP_GMF_ELEMENT_GET(handle)->in;
+    if (audio_dec->dec_hd != NULL) {
+        esp_audio_err_t ret = esp_audio_simple_dec_reset(audio_dec->dec_hd);
+        if (ret != ESP_AUDIO_ERR_OK) {
+            return ESP_GMF_ERR_FAIL;
+        }
+    }
+    if (audio_dec->in_load != NULL) {
+        // The input buffer cached and not consumed, need to release it
+        esp_gmf_err_io_t load_ret = esp_gmf_port_release_in(in_port, audio_dec->in_load, ESP_GMF_MAX_DELAY);
+        if ((load_ret < ESP_GMF_IO_OK) && (load_ret != ESP_GMF_IO_ABORT)) {
+            ESP_LOGW(TAG, "Failed to release input port during reset, ret: %d", load_ret);
+        }
+        audio_dec->in_load = NULL;
+    }
+    memset(&audio_dec->in_data, 0, sizeof(esp_audio_simple_dec_raw_t));
+    memset(&audio_dec->out_data, 0, sizeof(esp_audio_simple_dec_out_t));
+    audio_dec->pts = 0;
+    ESP_LOGD(TAG, "Audio decoder reset");
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_audio_dec_init(esp_audio_simple_dec_cfg_t *config, esp_gmf_element_handle_t *handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
@@ -628,6 +669,7 @@ esp_gmf_err_t esp_gmf_audio_dec_init(esp_audio_simple_dec_cfg_t *config, esp_gmf
     ESP_GMF_ELEMENT_GET(dec_hd)->ops.close = esp_gmf_audio_dec_close;
     ESP_GMF_ELEMENT_GET(dec_hd)->ops.load_caps = _load_dec_caps_func;
     ESP_GMF_ELEMENT_GET(dec_hd)->ops.load_methods = _load_dec_methods_func;
+    ESP_GMF_ELEMENT_GET(dec_hd)->ops.reset = esp_gmf_audio_dec_reset;
     *handle = obj;
     return ESP_GMF_ERR_OK;
 ES_DEC_FAIL:

@@ -38,6 +38,10 @@ config GMF_AUDIO_CODEC_INIT_DECODER
             bool "SBC Decoder"
         config GMF_AUDIO_CODEC_DECODER_TYPE_LC3
             bool "LC3 Decoder"
+        config GMF_AUDIO_CODEC_DECODER_TYPE_VORBIS
+            bool "VORBIS Decoder"
+        config GMF_AUDIO_CODEC_DECODER_TYPE_ALAC
+            bool "ALAC Decoder"
     endchoice
 
     config GMF_AUDIO_CODEC_DEC_USE_FRAME_DEC

@@ -49,7 +49,7 @@ static esp_gmf_err_t __fade_get_mode(esp_gmf_element_handle_t handle, esp_gmf_ar
 static esp_gmf_err_t __fade_reset(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
                                   uint8_t *buf, int buf_len)
 {
-    return esp_gmf_fade_reset_weight(handle);
+    return esp_gmf_fade_reset(handle);
 }
 
 static esp_gmf_err_t esp_gmf_fade_new(void *cfg, esp_gmf_obj_handle_t *handle)
@@ -227,8 +227,8 @@ static esp_gmf_err_t _load_fade_methods_func(esp_gmf_element_handle_t handle)
     ret = esp_gmf_method_append(&method, AMETHOD(FADE, GET_MODE), __fade_get_mode, get_args);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(FADE, GET_MODE));
 
-    ret = esp_gmf_method_append(&method, AMETHOD(FADE, RESET_WEIGHT), __fade_reset, NULL);
-    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(FADE, RESET_WEIGHT));
+    ret = esp_gmf_method_append(&method, AMETHOD(FADE, RESET), __fade_reset, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(FADE, RESET));
 
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
     el->method = method;
@@ -273,20 +273,31 @@ esp_gmf_err_t esp_gmf_fade_get_mode(esp_gmf_element_handle_t handle, esp_ae_fade
 
 esp_gmf_err_t esp_gmf_fade_reset_weight(esp_gmf_element_handle_t handle)
 {
+    return esp_gmf_fade_reset(handle);
+}
+
+esp_gmf_err_t esp_gmf_fade_reset(esp_gmf_element_handle_t handle)
+{
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_ae_fade_cfg_t *cfg = (esp_ae_fade_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_fade_t *fade = (esp_gmf_fade_t *)handle;
     if(fade->fade_hd) {
         esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_fade_reset_weight(fade->fade_hd);
+        esp_ae_err_t ret = esp_ae_fade_reset(fade->fade_hd);
         esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
         if (ret != ESP_AE_ERR_OK) {
             return ESP_GMF_JOB_ERR_FAIL;
         }
         esp_ae_fade_get_mode(fade->fade_hd, &cfg->mode);
     }
+    ESP_LOGD(TAG, "Fade reset");
     return ESP_GMF_JOB_ERR_OK;
+}
+
+static esp_gmf_job_err_t gmf_fade_reset(esp_gmf_element_handle_t handle, void *para)
+{
+    return esp_gmf_fade_reset(handle);
 }
 
 esp_gmf_err_t esp_gmf_fade_init(esp_ae_fade_cfg_t *config, esp_gmf_element_handle_t *handle)
@@ -324,6 +335,7 @@ esp_gmf_err_t esp_gmf_fade_init(esp_ae_fade_cfg_t *config, esp_gmf_element_handl
     ESP_GMF_ELEMENT_GET(fade)->ops.event_receiver = fade_received_event_handler;
     ESP_GMF_ELEMENT_GET(fade)->ops.load_caps = _load_fade_caps_func;
     ESP_GMF_ELEMENT_GET(fade)->ops.load_methods = _load_fade_methods_func;
+    ESP_GMF_ELEMENT_GET(fade)->ops.reset = gmf_fade_reset;
     *handle = obj;
     ESP_LOGD(TAG, "Initialization, %s-%p", OBJ_GET_TAG(obj), obj);
     return ESP_GMF_ERR_OK;

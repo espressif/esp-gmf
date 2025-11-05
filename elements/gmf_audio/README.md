@@ -8,8 +8,8 @@ ESP GMF Audio is a collection of GMF elements related to audio processing, inclu
 
 |Name|TAG|Function|Method|Input Port|Output Port|Input blocking time|Output blocking time|Dependent on Audio Information|
 |:----:|:----:|:-----:|:----:|:----:|:----:|:----:|:----:|:----|
-|  AUDIO_DEC |aud_dec |Audio decoder: MP3,AAC,AMRNB,<br>AMRWB,FLAC,WAV,M4A,TS|Nil|Single|Single|User configurable, default value is maximum delay|User configurable, default value is maximum delay|No|
-|  AUDIO_ENC |aud_enc |Audio encoder: AAC,AMRNB,AMRWB,<br>ADPCM,OPUS,PCM|Nil|Single|Single|User configurable, default value is maximum delay|User configurable, default value is maximum delay|Yes|
+|  AUDIO_DEC |aud_dec |Audio decoder: MP3,AAC,AMRNB,<br>AMRWB,FLAC,WAV,M4A,<br>TS,OPUS,SBC,LC3,<br>ADPCM,ALAC,G711,VORBIS|Nil|Single|Single|User configurable, default value is maximum delay|User configurable, default value is maximum delay|No|
+|  AUDIO_ENC |aud_enc |Audio encoder: AAC,AMRNB,AMRWB,<br>ADPCM,OPUS,PCM,ALAC,<br>SBC,LC3,G711|Nil|Single|Single|User configurable, default value is maximum delay|User configurable, default value is maximum delay|Yes|
 |  RATE_CVT|aud_rate_cvt |Audio sampling rate adjustment|`set_dest_rate`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  BIT_CVT |aud_bit_cvt |Audio bit-depth conversion|`set_dest_bits`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  CH_CVT  |aud_ch_cvt |Audio channel conversion|`set_dest_ch`|Single|Single|Maximum delay|Maximum delay|Yes|
@@ -17,6 +17,8 @@ ESP GMF Audio is a collection of GMF elements related to audio processing, inclu
 |  EQ      |aud_eq |Audio equalizer adjustment|`set_para`<br>`get_para`<br>`enable_filter`<br>`disable_filter`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  FADE    |aud_fade |Audio fade-in and fade-out effects|`set_mode`<br>`get_mode`<br>`reset_weight`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  SONIC   |aud_sonic |Audio pitch and speed shifting effects|`set_speed`<br>`get_speed`<br>`set_pitch`<br>`get_pitch`|Single|Single|Maximum delay|Maximum delay|Yes|
+|  DRC     |aud_drc |Audio dynamic range control|`set_attack`<br>`get_attack`<br>`set_release`<br>`get_release`<br>`set_hold`<br>`get_hold`<br>`set_makeup`<br>`get_makeup`<br>`set_knee`<br>`get_knee`<br>`set_points`<br>`get_point_num`<br>`get_points`|Single|Single|Maximum delay|Maximum delay|Yes|
+|  MBC     |aud_mbc |Audio multi-band compression|`set_para`<br>`get_para`<br>`set_fc`<br>`get_fc`<br>`set_solo`<br>`get_solo`<br>`set_bypass`<br>`get_bypass`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  MIXER   |aud_mixer |Audio mixing effects|`set_info`<br>`set_mode`|Multiple|Single|The blocking time for the first channel is 0, while the blocking time for other channels is maximum delay|Maximum delay|No|
 |INTERLEAVE|aud_intlv|Data interleaving|Nil|Multiple|Single|User configurable, default value is maximum delay|Maximum delay|Yes|
 |DEINTERLEAVE|aud_deintlv|Data de-interleaving|Nil|Single|Multiple|Maximum delay|User configurable, default value is maximum delay|Yes|

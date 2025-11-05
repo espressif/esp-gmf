@@ -57,6 +57,8 @@
 #include "esp_gmf_fade.h"
 #include "esp_gmf_mixer.h"
 #include "esp_gmf_rate_cvt.h"
+#include "esp_gmf_drc.h"
+#include "esp_gmf_mbc.h"
 #include "esp_gmf_sonic.h"
 #include "esp_gmf_interleave.h"
 #include "esp_gmf_deinterleave.h"
@@ -832,6 +834,60 @@ TEST_CASE("Audio FADE Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, fade_config_callback);
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Audio DRC Element Test", "[ESP_GMF_AUDIO]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+    audio_el_res_cfg_t cfg = DEFAULT_SINGLE_IN_SINGLE_OUT_CONFIG();
+    cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_DRC};
+    audio_el_res_t *res = NULL;
+    audio_el_res_init(&cfg, &res);
+    res->config_func = drc_config_callback;
+    // Test for run and stop
+    audio_el_set_audio_info(res);
+    test_element_run_stop(res);
+    // Test for run and finish
+    audio_el_set_audio_info(res);
+    test_element_run_finish(res);
+    // Test for run on open error
+    audio_el_set_audio_info(res);
+    test_element_run_error_open(res);
+    // Test for run on process error
+    audio_el_set_audio_info(res);
+    test_element_run_error_process(res);
+    audio_el_res_deinit(res);
+    // Test for run with multi task
+    test_element_run_with_multi_task(&cfg, drc_config_callback);
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Audio MBC Element Test", "[ESP_GMF_AUDIO]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+    audio_el_res_cfg_t cfg = DEFAULT_SINGLE_IN_SINGLE_OUT_CONFIG();
+    cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_MBC};
+    audio_el_res_t *res = NULL;
+    audio_el_res_init(&cfg, &res);
+    res->config_func = mbc_config_callback;
+    // Test for run and stop
+    audio_el_set_audio_info(res);
+    test_element_run_stop(res);
+    // Test for run and finish
+    audio_el_set_audio_info(res);
+    test_element_run_finish(res);
+    // Test for run on open error
+    audio_el_set_audio_info(res);
+    test_element_run_error_open(res);
+    // Test for run on process error
+    audio_el_set_audio_info(res);
+    test_element_run_error_process(res);
+    audio_el_res_deinit(res);
+    // Test for run with multi task
+    test_element_run_with_multi_task(&cfg, mbc_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 

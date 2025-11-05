@@ -398,6 +398,20 @@ esp_gmf_err_t esp_gmf_eq_enable_filter(esp_gmf_element_handle_t handle, uint8_t 
     return ESP_GMF_ERR_OK;
 }
 
+static esp_gmf_job_err_t esp_gmf_eq_reset(esp_gmf_element_handle_t handle, void *para)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_eq_t *eq = (esp_gmf_eq_t *)handle;
+    if (eq->eq_hd) {
+        esp_ae_err_t ret = esp_ae_eq_reset(eq->eq_hd);
+        if (ret != ESP_AE_ERR_OK) {
+            return ESP_GMF_ERR_FAIL;
+        }
+    }
+    ESP_LOGD(TAG, "EQ reset");
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_eq_init(esp_ae_eq_cfg_t *config, esp_gmf_element_handle_t *handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
@@ -443,6 +457,7 @@ esp_gmf_err_t esp_gmf_eq_init(esp_ae_eq_cfg_t *config, esp_gmf_element_handle_t 
     ESP_GMF_ELEMENT_GET(eq)->ops.event_receiver = eq_received_event_handler;
     ESP_GMF_ELEMENT_GET(eq)->ops.load_caps = _load_eq_caps_func;
     ESP_GMF_ELEMENT_GET(eq)->ops.load_methods = _load_eq_methods_func;
+    ESP_GMF_ELEMENT_GET(eq)->ops.reset = esp_gmf_eq_reset;
     return ESP_GMF_ERR_OK;
 EQ_INI_FAIL:
     esp_gmf_eq_destroy(obj);

@@ -10,6 +10,8 @@
 #include "esp_gmf_eq.h"
 #include "esp_gmf_fade.h"
 #include "esp_gmf_mixer.h"
+#include "esp_gmf_drc.h"
+#include "esp_gmf_mbc.h"
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_audio_dec.h"
 #include "esp_gmf_audio_param.h"
@@ -18,6 +20,7 @@
 #include "esp_audio_enc_default.h"
 #include "esp_audio_dec_default.h"
 #include "esp_audio_simple_dec_default.h"
+#include "esp_gmf_rate_cvt.h"
 
 #define PREPARE_METHOD()                                                                      \
     esp_gmf_method_exec_ctx_t exec_ctx    = {};                                               \
@@ -168,9 +171,9 @@ static esp_gmf_err_t audio_el_test_get_fade_mode(esp_gmf_element_handle_t self, 
     return ret;
 }
 
-static esp_gmf_err_t audio_el_test_reset_fade_weight(esp_gmf_element_handle_t self)
+static esp_gmf_err_t audio_el_test_reset_fade(esp_gmf_element_handle_t self)
 {
-    const char *method_name = AMETHOD(FADE, RESET_WEIGHT);
+    const char *method_name = AMETHOD(FADE, RESET);
     PREPARE_METHOD();
     EXEC_METHOD();
     RELEASE_METHOD();
@@ -258,6 +261,235 @@ static esp_gmf_err_t audio_el_test_get_alc_gain(esp_gmf_element_handle_t self, u
     SET_METHOD_ARG(AMETHOD_ARG(ALC, GET_GAIN, IDX), idx);
     EXEC_METHOD();
     GET_METHOD_ARG(AMETHOD_ARG(ALC, GET_GAIN, GAIN), gain);
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_set_drc_attack(esp_gmf_element_handle_t self, uint16_t attack)
+{
+    const char *method_name = AMETHOD(DRC, SET_ATTACK);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(DRC, SET_ATTACK, ATTACK), attack);
+    EXEC_METHOD();
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_get_drc_attack(esp_gmf_element_handle_t self, uint16_t *attack)
+{
+    const char *method_name = AMETHOD(DRC, GET_ATTACK);
+    PREPARE_METHOD();
+    EXEC_METHOD();
+    GET_METHOD_ARG(AMETHOD_ARG(DRC, GET_ATTACK, ATTACK), attack);
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_set_drc_release(esp_gmf_element_handle_t self, uint16_t release)
+{
+    const char *method_name = AMETHOD(DRC, SET_RELEASE);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(DRC, SET_RELEASE, RELEASE), release);
+    EXEC_METHOD();
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_get_drc_release(esp_gmf_element_handle_t self, uint16_t *release)
+{
+    const char *method_name = AMETHOD(DRC, GET_RELEASE);
+    PREPARE_METHOD();
+    EXEC_METHOD();
+    GET_METHOD_ARG(AMETHOD_ARG(DRC, GET_RELEASE, RELEASE), release);
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_set_drc_hold(esp_gmf_element_handle_t self, uint16_t hold)
+{
+    const char *method_name = AMETHOD(DRC, SET_HOLD);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(DRC, SET_HOLD, HOLD), hold);
+    EXEC_METHOD();
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_get_drc_hold(esp_gmf_element_handle_t self, uint16_t *hold)
+{
+    const char *method_name = AMETHOD(DRC, GET_HOLD);
+    PREPARE_METHOD();
+    EXEC_METHOD();
+    GET_METHOD_ARG(AMETHOD_ARG(DRC, GET_HOLD, HOLD), hold);
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_set_drc_makeup(esp_gmf_element_handle_t self, float makeup)
+{
+    const char *method_name = AMETHOD(DRC, SET_MAKEUP);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(DRC, SET_MAKEUP, MAKEUP), makeup);
+    EXEC_METHOD();
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_get_drc_makeup(esp_gmf_element_handle_t self, float *makeup)
+{
+    const char *method_name = AMETHOD(DRC, GET_MAKEUP);
+    PREPARE_METHOD();
+    EXEC_METHOD();
+    GET_METHOD_ARG(AMETHOD_ARG(DRC, GET_MAKEUP, MAKEUP), makeup);
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_set_drc_knee(esp_gmf_element_handle_t self, float knee)
+{
+    const char *method_name = AMETHOD(DRC, SET_KNEE);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(DRC, SET_KNEE, KNEE), knee);
+    EXEC_METHOD();
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_get_drc_knee(esp_gmf_element_handle_t self, float *knee)
+{
+    const char *method_name = AMETHOD(DRC, GET_KNEE);
+    PREPARE_METHOD();
+    EXEC_METHOD();
+    GET_METHOD_ARG(AMETHOD_ARG(DRC, GET_KNEE, KNEE), knee);
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_set_drc_points(esp_gmf_element_handle_t self, esp_ae_drc_curve_point *points, uint8_t num)
+{
+    const char *method_name = AMETHOD(DRC, SET_POINTS);
+    PREPARE_METHOD();
+    esp_ae_drc_curve_point *points_ptr = points;
+    uint8_t point_num = num;
+    SET_METHOD_ARG(AMETHOD_ARG(DRC, SET_POINTS, POINTS), points_ptr);
+    SET_METHOD_ARG(AMETHOD_ARG(DRC, SET_POINTS, POINT_NUM), point_num);
+    EXEC_METHOD();
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_get_drc_point_num(esp_gmf_element_handle_t self, uint8_t *num)
+{
+    const char *method_name = AMETHOD(DRC, GET_POINT_NUM);
+    PREPARE_METHOD();
+    EXEC_METHOD();
+    GET_METHOD_ARG(AMETHOD_ARG(DRC, GET_POINT_NUM, POINT_NUM), num);
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_get_drc_points(esp_gmf_element_handle_t self, esp_ae_drc_curve_point *points, uint8_t num)
+{
+    const char *method_name = AMETHOD(DRC, GET_POINTS);
+    PREPARE_METHOD();
+    esp_ae_drc_curve_point *points_ptr = points;
+    uint8_t point_num = num;
+    SET_METHOD_ARG(AMETHOD_ARG(DRC, GET_POINTS, POINTS), points_ptr);
+    SET_METHOD_ARG(AMETHOD_ARG(DRC, GET_POINTS, POINT_NUM), point_num);
+    EXEC_METHOD();
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_set_mbc_para(esp_gmf_element_handle_t self, uint8_t idx, esp_ae_mbc_para_t *para)
+{
+    const char *method_name = AMETHOD(MBC, SET_PARA);
+    PREPARE_METHOD();
+    esp_ae_mbc_para_t para_val = *para;
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, SET_PARA, IDX), idx);
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, SET_PARA, PARA), para_val);
+    EXEC_METHOD();
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_get_mbc_para(esp_gmf_element_handle_t self, uint8_t idx, esp_ae_mbc_para_t *para)
+{
+    const char *method_name = AMETHOD(MBC, GET_PARA);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, GET_PARA, IDX), idx);
+    EXEC_METHOD();
+    GET_METHOD_ARG(AMETHOD_ARG(MBC, GET_PARA, PARA), para);
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_set_mbc_fc(esp_gmf_element_handle_t self, uint8_t idx, uint32_t fc)
+{
+    const char *method_name = AMETHOD(MBC, SET_FC);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, SET_FC, IDX), idx);
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, SET_FC, FC), fc);
+    EXEC_METHOD();
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_get_mbc_fc(esp_gmf_element_handle_t self, uint8_t idx, uint32_t *fc)
+{
+    const char *method_name = AMETHOD(MBC, GET_FC);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, GET_FC, IDX), idx);
+    EXEC_METHOD();
+    GET_METHOD_ARG(AMETHOD_ARG(MBC, GET_FC, FC), fc);
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_set_mbc_solo(esp_gmf_element_handle_t self, uint8_t idx, bool enable)
+{
+    const char *method_name = AMETHOD(MBC, SET_SOLO);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, SET_SOLO, IDX), idx);
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, SET_SOLO, ENABLE), enable);
+    EXEC_METHOD();
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_get_mbc_solo(esp_gmf_element_handle_t self, uint8_t idx, bool *enable)
+{
+    const char *method_name = AMETHOD(MBC, GET_SOLO);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, GET_SOLO, IDX), idx);
+    EXEC_METHOD();
+    uint8_t enable_u8 = 0;
+    GET_METHOD_ARG(AMETHOD_ARG(MBC, GET_SOLO, ENABLE), &enable_u8);
+    *enable = (enable_u8 != 0);
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_set_mbc_bypass(esp_gmf_element_handle_t self, uint8_t idx, bool enable)
+{
+    const char *method_name = AMETHOD(MBC, SET_BYPASS);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, SET_BYPASS, IDX), idx);
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, SET_BYPASS, ENABLE), enable);
+    EXEC_METHOD();
+    RELEASE_METHOD();
+    return ret;
+}
+
+static esp_gmf_err_t audio_el_test_get_mbc_bypass(esp_gmf_element_handle_t self, uint8_t idx, bool *enable)
+{
+    const char *method_name = AMETHOD(MBC, GET_BYPASS);
+    PREPARE_METHOD();
+    SET_METHOD_ARG(AMETHOD_ARG(MBC, GET_BYPASS, IDX), idx);
+    EXEC_METHOD();
+    uint8_t enable_u8 = 0;
+    GET_METHOD_ARG(AMETHOD_ARG(MBC, GET_BYPASS, ENABLE), &enable_u8);
+    *enable = (enable_u8 != 0);
     RELEASE_METHOD();
     return ret;
 }
@@ -428,7 +660,7 @@ void fade_config_callback(esp_gmf_element_handle_t self, void *ctx)
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_fade_mode(self, &mode));
     TEST_ASSERT_EQUAL(ESP_AE_FADE_MODE_FADE_IN, mode);
     // Test fade weight reset
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_reset_fade_weight(self));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_reset_fade(self));
 }
 
 void mixer_config_callback(esp_gmf_element_handle_t self, void *ctx)
@@ -452,6 +684,96 @@ void sonic_config_callback(esp_gmf_element_handle_t self, void *ctx)
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_sonic_pitch(self, 1.2f));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_sonic_pitch(self, &pitch));
     TEST_ASSERT_EQUAL_FLOAT(1.2f, pitch);
+}
+
+void drc_config_callback(esp_gmf_element_handle_t self, void *ctx)
+{
+    uint16_t attack = 25;
+    uint16_t release = 90;
+    uint16_t hold = 6;
+    float makeup = 2.5f;
+    float knee = 3.0f;
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_drc_attack(self, attack));
+    uint16_t attack_read = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_attack(self, &attack_read));
+    TEST_ASSERT_EQUAL(attack, attack_read);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_drc_release(self, release));
+    uint16_t release_read = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_release(self, &release_read));
+    TEST_ASSERT_EQUAL(release, release_read);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_drc_hold(self, hold));
+    uint16_t hold_read = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_hold(self, &hold_read));
+    TEST_ASSERT_EQUAL(hold, hold_read);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_drc_makeup(self, makeup));
+    float makeup_read = 0.0f;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_makeup(self, &makeup_read));
+    TEST_ASSERT_EQUAL_FLOAT(makeup, makeup_read);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_drc_knee(self, knee));
+    float knee_read = 0.0f;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_knee(self, &knee_read));
+    TEST_ASSERT_EQUAL_FLOAT(knee, knee_read);
+
+    static esp_ae_drc_curve_point points[3] = {
+        {.x = 0.0f,   .y = -12.0f},
+        {.x = -40.0f, .y = -38.0f},
+        {.x = -100.0f, .y = -80.0f},
+    };
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_drc_points(self, points, 3));
+    uint8_t point_num = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_point_num(self, &point_num));
+    TEST_ASSERT_EQUAL_UINT8(3, point_num);
+    static esp_ae_drc_curve_point out_points[3] = {0};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_points(self, out_points, point_num));
+    for (int i = 0; i < point_num; i++) {
+        TEST_ASSERT_EQUAL_FLOAT(points[i].x, out_points[i].x);
+        TEST_ASSERT_EQUAL_FLOAT(points[i].y, out_points[i].y);
+    }
+}
+
+void mbc_config_callback(esp_gmf_element_handle_t self, void *ctx)
+{
+    esp_ae_mbc_para_t para = {
+        .threshold = -18.0f,
+        .ratio = 2.5f,
+        .makeup_gain = 4.0f,
+        .attack_time = 5,
+        .release_time = 120,
+        .hold_time = 12,
+        .knee_width = 1.5f,
+    };
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mbc_para(self, 0, &para));
+    esp_ae_mbc_para_t para_out = {0};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_para(self, 0, &para_out));
+    TEST_ASSERT_EQUAL_FLOAT(para.threshold, para_out.threshold);
+    TEST_ASSERT_EQUAL_FLOAT(para.ratio, para_out.ratio);
+    TEST_ASSERT_EQUAL_FLOAT(para.makeup_gain, para_out.makeup_gain);
+    TEST_ASSERT_EQUAL_UINT16(para.attack_time, para_out.attack_time);
+    TEST_ASSERT_EQUAL_UINT16(para.release_time, para_out.release_time);
+    TEST_ASSERT_EQUAL_UINT16(para.hold_time, para_out.hold_time);
+    TEST_ASSERT_EQUAL_FLOAT(para.knee_width, para_out.knee_width);
+
+    uint32_t fc = 750;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mbc_fc(self, 0, fc));
+    uint32_t fc_read = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_fc(self, 0, &fc_read));
+    TEST_ASSERT_EQUAL(fc, fc_read);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mbc_solo(self, 0, true));
+    bool solo_state = false;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_solo(self, 0, &solo_state));
+    TEST_ASSERT_TRUE(solo_state);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mbc_bypass(self, 0, true));
+    bool bypass_state = false;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_bypass(self, 0, &bypass_state));
+    TEST_ASSERT_TRUE(bypass_state);
 }
 
 void alc_config_callback(esp_gmf_element_handle_t self, void *ctx)

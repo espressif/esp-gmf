@@ -19,11 +19,11 @@
 #include "esp_gmf_oal_mem.h"
 #include "gmf_ut_common.h"
 
-#define CACHE_SIZE 1024
+#define CACHE_SIZE     1024
 #define TEST_DATA_SIZE 256
 static const char *TAG = "TEST_ESP_GMF_CACHE";
 
-static const char *file_name  = "/sdcard/gmf_ut_test.mp3";
+static const char *file_name = "/sdcard/gmf_ut_test.mp3";
 
 TEST_CASE("Test esp_gmf_cache creation and deletion", "[esp_gmf_cache]")
 {
@@ -102,9 +102,82 @@ TEST_CASE("Test esp_gmf_cache get cached size", "[esp_gmf_cache]")
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cache_delete(cache));
 }
 
+TEST_CASE("Test esp_gmf_cache reset", "[esp_gmf_cache]")
+{
+    esp_gmf_cache_t *cache = NULL;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cache_new(CACHE_SIZE, &cache));
+    TEST_ASSERT_NOT_NULL(cache);
+    TEST_ASSERT_NOT_NULL(cache->buf);
+    uint8_t *original_buf = cache->buf;  // Save original buffer pointer
+
+    // Test NULL input
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_INVALID_ARG, esp_gmf_cache_reset(NULL));
+
+    // Prepare test data
+    esp_gmf_payload_t load_in, *load_out = NULL;
+    load_in.buf = (uint8_t *)malloc(TEST_DATA_SIZE);
+    load_in.buf_length = TEST_DATA_SIZE;
+    load_in.valid_size = TEST_DATA_SIZE;
+    load_in.is_done = false;
+    load_in.pts = 1000;
+    memset(load_in.buf, 0xAB, TEST_DATA_SIZE);
+
+    // Load data into cache
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cache_load(cache, &load_in));
+
+    // Fill cache buffer with some data
+    memset(cache->buf, 0x55, TEST_DATA_SIZE);
+    cache->buf_filled = TEST_DATA_SIZE;
+
+    // Verify cache has data before reset
+    int filled = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cache_get_cached_size(cache, &filled));
+    // get_cached_size returns buf_filled + origin_load.valid_size
+    TEST_ASSERT_EQUAL_UINT32(cache->buf_filled + cache->origin_load.valid_size, filled);
+    TEST_ASSERT_EQUAL_UINT32(TEST_DATA_SIZE, cache->buf_filled);
+    TEST_ASSERT_EQUAL_UINT32(TEST_DATA_SIZE, cache->origin_load.valid_size);
+
+    // Reset cache
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cache_reset(cache));
+
+    // Verify cache is reset
+    TEST_ASSERT_EQUAL_UINT32(0, cache->buf_filled);
+    TEST_ASSERT_EQUAL_UINT32(0, cache->origin_load.valid_size);
+    TEST_ASSERT_EQUAL_UINT32(0, cache->origin_load.buf_length);
+    TEST_ASSERT_NULL(cache->origin_load.buf);
+    TEST_ASSERT_EQUAL_UINT32(0, cache->load.valid_size);
+    TEST_ASSERT_EQUAL_UINT32(0, cache->load.buf_length);
+    TEST_ASSERT_NULL(cache->load.buf);
+
+    // Verify buffer pointer is still valid (memory not freed)
+    TEST_ASSERT_EQUAL_PTR(original_buf, cache->buf);
+    TEST_ASSERT_EQUAL_UINT32(CACHE_SIZE, cache->buf_len);
+
+    // Verify cached size is 0 after reset
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cache_get_cached_size(cache, &filled));
+    TEST_ASSERT_EQUAL_UINT32(0, filled);
+
+    // Verify cache can be used again after reset
+    // Load new data
+    load_in.valid_size = TEST_DATA_SIZE / 2;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cache_load(cache, &load_in));
+
+    // Acquire data
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cache_acquire(cache, TEST_DATA_SIZE / 2, &load_out));
+    TEST_ASSERT_NOT_NULL(load_out);
+    TEST_ASSERT_EQUAL_UINT32(TEST_DATA_SIZE / 2, load_out->valid_size);
+
+    // Release data
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cache_release(cache, load_out));
+
+    // Clean up
+    free(load_in.buf);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cache_delete(cache));
+}
+
 int random_fluctuate_int(int value)
 {
-    int range = value / 2;  // 计算浮动范围（±50%）
+    int range = value / 2;                                 // 计算浮动范围（±50%）
     int random_offset = rand() % (2 * range + 1) - range;  // 生成 [-range, range] 的随机偏移
     return value + random_offset;
 }
@@ -115,7 +188,7 @@ static void read_write_test1(const char *wr_name, int payload_size, int cache_si
     esp_gmf_cache_t *cache = NULL;
     esp_gmf_cache_new(cache_size, &cache);
     TEST_ASSERT_NOT_NULL(cache);
-    esp_gmf_payload_new_with_len(payload_size*2, &read_payload);
+    esp_gmf_payload_new_with_len(payload_size * 2, &read_payload);
     TEST_ASSERT_NOT_NULL(read_payload);
 
     FILE *f_rd = fopen(file_name, "rb");
@@ -149,13 +222,13 @@ static void read_write_test1(const char *wr_name, int payload_size, int cache_si
             read_run = false;
         }
         read_file_size += read_payload->valid_size;
-        ESP_LOGI(TAG, "Payload, buf:%p, vld:%d, len:%d, done:%d", read_payload->buf,read_payload->valid_size,
-            read_payload->buf_length, read_payload->is_done);
+        ESP_LOGI(TAG, "Payload, buf:%p, vld:%d, len:%d, done:%d", read_payload->buf, read_payload->valid_size,
+                 read_payload->buf_length, read_payload->is_done);
         esp_gmf_cache_load(cache, read_payload);
         while (1) {
             esp_gmf_cache_acquire(cache, expect_sz, &out_payload);
-            ESP_LOGW(TAG, "Cache out, expect:%d, buf:%p, vld:%d, len:%d, done:%d, file w:%ld(r:%ld)", expect_sz, out_payload->buf,out_payload->valid_size,
-                out_payload->buf_length, out_payload->is_done, file_size, read_file_size);
+            ESP_LOGW(TAG, "Cache out, expect:%d, buf:%p, vld:%d, len:%d, done:%d, file w:%ld(r:%ld)", expect_sz, out_payload->buf, out_payload->valid_size,
+                     out_payload->buf_length, out_payload->is_done, file_size, read_file_size);
             if (out_payload->valid_size == expect_sz || out_payload->is_done) {
                 ret = fwrite(out_payload->buf, 1, out_payload->valid_size, f_wr);
                 file_size += out_payload->valid_size;
@@ -191,7 +264,7 @@ static void read_write_test2(const char *wr_name, int payload_size, int cache_si
     esp_gmf_cache_t *cache = NULL;
     esp_gmf_cache_new(cache_size, &cache);
     TEST_ASSERT_NOT_NULL(cache);
-    esp_gmf_payload_new_with_len(payload_size*2, &read_payload);
+    esp_gmf_payload_new_with_len(payload_size * 2, &read_payload);
     TEST_ASSERT_NOT_NULL(read_payload);
 
     FILE *f_rd = fopen(file_name, "rb");
@@ -228,15 +301,15 @@ static void read_write_test2(const char *wr_name, int payload_size, int cache_si
             }
             read_file_size += read_payload->valid_size;
             printf("\r\n");
-            ESP_LOGI(TAG, "Loading, buf:%p, vld:%d, len:%d, done:%d", read_payload->buf,read_payload->valid_size,
-                read_payload->buf_length, read_payload->is_done);
+            ESP_LOGI(TAG, "Loading, buf:%p, vld:%d, len:%d, done:%d", read_payload->buf, read_payload->valid_size,
+                     read_payload->buf_length, read_payload->is_done);
             esp_gmf_cache_load(cache, read_payload);
         }
 
         esp_gmf_cache_acquire(cache, expect_sz, &out_payload);
 
-        ESP_LOGW(TAG, "Cache out, expect:%d, buf:%p, vld:%d, len:%d, done:%d, file:%ld(%ld)", expect_sz, out_payload->buf,out_payload->valid_size,
-            out_payload->buf_length, out_payload->is_done, file_size, read_file_size);
+        ESP_LOGW(TAG, "Cache out, expect:%d, buf:%p, vld:%d, len:%d, done:%d, file:%ld(%ld)", expect_sz, out_payload->buf, out_payload->valid_size,
+                 out_payload->buf_length, out_payload->is_done, file_size, read_file_size);
         if ((!out_payload->is_done) && (out_payload->valid_size != expect_sz)) {
             esp_gmf_cache_release(cache, out_payload);
             continue;

@@ -270,6 +270,7 @@ esp_gmf_err_t esp_gmf_bit_cvt_init(esp_ae_bit_cvt_cfg_t *config, esp_gmf_element
     ESP_GMF_ELEMENT_GET(bit_cvt)->ops.event_receiver = bit_cvt_received_event_handler;
     ESP_GMF_ELEMENT_GET(bit_cvt)->ops.load_caps = _load_bit_cvt_caps_func;
     ESP_GMF_ELEMENT_GET(bit_cvt)->ops.load_methods = _load_bit_cvt_methods_func;
+    ESP_GMF_ELEMENT_GET(bit_cvt)->ops.reset = NULL;
     *handle = obj;
     ESP_LOGD(TAG, "Initialization, %s-%p", OBJ_GET_TAG(obj), obj);
     return ESP_GMF_ERR_OK;

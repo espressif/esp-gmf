@@ -23,8 +23,8 @@ GMF Loader 是一个辅助组件，允许用户通过 menuconfig 轻松自定义
     - HTTP Writer
 
 - 音频编解码器初始化支持：
-  - 解码器：MP3、AAC、AMR-NB/WB、FLAC、WAV、M4A、TS、OPUS、G711、PCM、ADPCM
-  - 编码器：AAC、AMR-NB/WB、G711、OPUS、ADPCM、PCM、ALAC
+  - 解码器：MP3、AAC、AMR-NB/WB、FLAC、WAV、M4A、TS、OPUS、G711、PCM、ADPCM、LC3、SBC、ALAC、VORBIS
+  - 编码器：AAC、AMR-NB/WB、G711、OPUS、ADPCM、PCM、ALAC、LC3、SBC
 
 - 音频效果配置：
   - 自动电平控制 (ALC)
@@ -36,6 +36,8 @@ GMF Loader 是一个辅助组件，允许用户通过 menuconfig 轻松自定义
   - 音速效果
   - 声道交织/解交织
   - 音频混音
+  - 动态范围控制
+  - 多频段动态范围压缩
 
 - AI 音频配置：
   - 音频回声消除 (AEC)
@@ -99,7 +101,11 @@ ESP GMF Loader
 │   │   │   ├── G711A
 │   │   │   ├── G711U
 │   │   │   ├── PCM
-│   │   │   └── ADPCM
+│   │   │   ├── ADPCM
+│   │   │   ├── SBC
+│   │   │   ├── VORBIS
+│   │   │   ├── ALAC
+│   │   │   └── LC3
 │   │   └── Encoders [Y]
 │   │       ├── AAC [Y]
 │   │       ├── AMR-NB/WB
@@ -107,7 +113,9 @@ ESP GMF Loader
 │   │       ├── OPUS
 │   │       ├── ADPCM
 │   │       ├── PCM
-│   │       └── ALAC
+│   │       ├── ALAC
+│   │       ├── SBC
+│   │       └── LC3
 │   │
 │   ├── GMF Audio Effects
 │   │   ├── Automatic Level Control (ALC) [Y]
@@ -119,7 +127,9 @@ ESP GMF Loader
 │   │   ├── Audio Mixing [N]
 │   │   ├── Equalizer (EQ) [N]
 │   │   ├── Speed Effect [N]
-│   │   └── Fade In/Out [N]
+│   │   ├── Fade In/Out [N]
+│   │   ├── Dynamic Range Control [N]
+│   │   └── Multi-Band Compressor [N]
 │   │
 │   └── GMF AI Audio
 │       ├── Audio Echo Cancellation (AEC) [Y]
