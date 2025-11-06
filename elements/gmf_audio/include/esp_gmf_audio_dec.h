@@ -14,10 +14,11 @@
 extern "C" {
 #endif /* __cplusplus */
 
-#define DEFAULT_ESP_GMF_AUDIO_DEC_CONFIG() {    \
-    .dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_NONE, \
-    .dec_cfg  = NULL,                           \
-    .cfg_size = 0,                              \
+#define DEFAULT_ESP_GMF_AUDIO_DEC_CONFIG() {         \
+    .dec_type      = ESP_AUDIO_SIMPLE_DEC_TYPE_NONE, \
+    .dec_cfg       = NULL,                           \
+    .cfg_size      = 0,                              \
+    .use_frame_dec = false,                          \
 }
 
 /**

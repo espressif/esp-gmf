@@ -58,3 +58,13 @@ esp_gmf_err_t esp_gmf_audio_helper_get_audio_type_by_uri(const char *uri, uint32
     }
     return ESP_GMF_ERR_OK;
 }
+
+bool esp_gmf_audio_helper_is_frame_dec(uint32_t dec_type)
+{
+    for (int i = 0; i < sizeof(esp_gmf_audio_containers) / sizeof(esp_gmf_audio_containers[0]); i++) {
+        if (dec_type == esp_gmf_audio_containers[i]) {
+            return false;
+        }
+    }
+    return true;
+}

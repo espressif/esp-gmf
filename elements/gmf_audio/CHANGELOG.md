@@ -2,6 +2,11 @@
 
 ## unreleased
 
+### Features
+
+- Added automatic stream format detection in Simple Decoder for unspecified or unsupported codec identifiers
+- Updated `esp_audio_codec` to version v2.4
+
 ### Bug Fixes
 
 - Fixed audio_dec element failed to propagate is_done payload flag 

@@ -170,6 +170,11 @@ static esp_gmf_err_t gmf_loader_setup_default_dec(esp_gmf_pool_handle_t pool)
     ret = esp_audio_simple_dec_register_default();
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register audio simple decoders");
     esp_audio_simple_dec_cfg_t dec_cfg = DEFAULT_ESP_GMF_AUDIO_DEC_CONFIG();
+#ifdef CONFIG_GMF_AUDIO_CODEC_DEC_USE_FRAME_DEC
+    dec_cfg.use_frame_dec = true;
+#else
+    dec_cfg.use_frame_dec = false;
+#endif  /* CONFIG_GMF_AUDIO_CODEC_DEC_USE_FRAME_DEC */
 #ifdef CONFIG_GMF_AUDIO_CODEC_DECODER_TYPE_AAC
     dec_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_AAC;
     esp_aac_dec_cfg_t aac_dec_cfg = {0};

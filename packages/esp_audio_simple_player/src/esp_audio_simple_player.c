@@ -23,10 +23,12 @@
 #include "esp_audio_dec_default.h"
 #include "esp_audio_simple_dec_default.h"
 #include "esp_gmf_audio_dec.h"
+#include "esp_fourcc.h"
 
 #define ASP_PIPELINE_STOPPED_BIT  BIT(0)
 #define ASP_PIPELINE_FINISHED_BIT BIT(1)
 #define ASP_PIPELINE_ERROR_BIT    BIT(2)
+#define ASP_PREFER_FORMAT_ID      (ESP_FOURCC_MP3)
 
 static const char *TAG = "AUD_SIMP_PLAYER";
 static uint8_t esp_asp_decoder_ref_count = 0;
@@ -245,6 +247,7 @@ static int __setup_pipeline(esp_audio_simple_player_t *player, const char *uri, 
             .bitrate = music_info->bitrate,
         };
         esp_gmf_audio_helper_get_audio_type_by_uri((char *)uri_st->path, &info.format_id);
+        info.format_id = (info.format_id == 0) ? ASP_PREFER_FORMAT_ID : info.format_id;
         ESP_LOGI(TAG, "Reconfig decoder by music info, rate:%d, channels:%d, bits:%d, bitrate:%d", info.sample_rates, info.channels, info.bits, info.bitrate);
         ret = esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);
     } else {
@@ -255,9 +258,10 @@ static int __setup_pipeline(esp_audio_simple_player_t *player, const char *uri, 
             .bitrate = 0,
         };
         esp_gmf_audio_helper_get_audio_type_by_uri((char *)uri_st->path, &info.format_id);
+        info.format_id = (info.format_id == 0) ? ASP_PREFER_FORMAT_ID : info.format_id;
         ret = esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);
     }
-    ESP_GMF_RET_ON_ERROR(TAG, ret, goto __setup_pipe_err, "The audio format does not support, ret:%x, path:%p", ret, uri_st->path);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, goto __setup_pipe_err, "Failed to reconfig decoder, ret:%x, path:%p", ret, uri_st->path);
     ret = esp_gmf_pipeline_set_in_uri(player->pipe, uri);
     ESP_GMF_RET_ON_ERROR(TAG, ret, goto __setup_pipe_err, "Failed set URI for in stream, ret:%x", ret);
     ret = esp_gmf_pipeline_loading_jobs(player->pipe);

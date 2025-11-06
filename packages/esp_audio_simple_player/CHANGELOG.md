@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added support for playback of streams where the audio type cannot be reliably identified from the URL suffix
+- Added preliminary audio type detection based on URL suffix (AAC, MP3, AMR-NB, AMR-WB, WAV, TS, M4A, FLAC), with further probing and validation of input data to ensure correct playback
+
 ## v0.9.5~1
 
 ### Bug Fixes

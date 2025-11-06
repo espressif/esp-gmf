@@ -14,6 +14,8 @@ dependencies:
   espressif/gmf_misc:
     override_path: ../../../../elements/gmf_misc
     version: "^0.7"
+  espressif/gmf_audio:
+    override_path: ../../../../elements/gmf_audio
   espressif/esp_hosted:
     version: ^2.4.2
     rules:

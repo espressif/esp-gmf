@@ -40,6 +40,15 @@ config GMF_AUDIO_CODEC_INIT_DECODER
             bool "LC3 Decoder"
     endchoice
 
+    config GMF_AUDIO_CODEC_DEC_USE_FRAME_DEC
+        bool "Use Frame Decoder Without Parse"
+        default n
+        depends on GMF_AUDIO_CODEC_INIT_DECODER
+        help
+            Enable this option to use frame decoder without parse.
+            If set to true, means that the input data is a complete frame and can be decoded directly.
+            If set to false, for decoders with parser, will parse to obtain the complete frame and then decode it.
+
     menu "AAC Decoder Configuration"
         depends on GMF_AUDIO_CODEC_DECODER_TYPE_AAC
 

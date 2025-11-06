@@ -53,7 +53,6 @@ static const char *TAG = "PLAYER_TEST";
 
 static const char *dec_file_path[] = {
     "file://sdcard/test.mp3",
-    "file://sdcard/test.opus",
     "file://sdcard/test.m4a",
     "file://sdcard/test.aac",
     "file://sdcard/test.amr",
@@ -62,6 +61,7 @@ static const char *dec_file_path[] = {
     "file://sdcard/test.wav",
     "https://dl.espressif.com/dl/audio/gs-16b-2c-44100hz.ts",
     "file://sdcard/test.ts",
+    "file://sdcard/test.unknown",
 };
 
 static int out_data_callback(uint8_t *data, int data_size, void *ctx)
@@ -141,6 +141,7 @@ static esp_asp_handle_t create_simple_player(const esp_asp_data_func in_cb, void
         .out.cb = out_data_callback,
         .out.user_ctx = esp_gmf_app_get_playback_handle(),
         .task_prio = 5,
+        .task_stack = 6 * 1024,
     };
 
     esp_asp_handle_t handle = NULL;

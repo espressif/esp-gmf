@@ -21,3 +21,5 @@ dependencies:
   espressif/gmf_app_utils:
     override_path: ../../../../packages/gmf_app_utils
     version: "^0.7"
+  espressif/gmf_audio:
+    override_path: ../../../../elements/gmf_audio
