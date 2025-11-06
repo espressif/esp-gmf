@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.6
+
+### Bug Fixes
+
+- Fixed the SD card mount failure issue
+
 ## 0.4.5
 
 ### Bug Fixes

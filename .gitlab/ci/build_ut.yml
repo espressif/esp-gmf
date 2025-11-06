@@ -1,5 +1,4 @@
 variables:
-  DOCKER_IMAGE: ${CI_DOCKER_IMAGE_REGISTRY}/env_default:1
   BASE_FRAMEWORK_PATH: "${IDF_PATH}"
   BASE_FRAMEWORK: $IDF_REPOSITORY
   IDF_TAG_FLAG: true
@@ -11,7 +10,7 @@ variables:
     TEST_DIR: ${CI_PROJECT_DIR}/gmf_core
   parallel:
     matrix:
-      - IDF_VERSION_TAG: ['v5.4']
+      - IDF_VERSION_TAG: ['v5.4.3']
         parallel: [ 1/1 ]
   extends:
     - .rules:build:protected-merge-requests-pipeline
@@ -32,16 +31,14 @@ variables:
       - "${TEST_DIR}/**/test_apps/*.py"
     expire_in: 4 days
   script:
-    - cd ${CI_PROJECT_DIR}
+    - python $CI_PROJECT_DIR/tools/ci/esp_bmgr_pre_build.py --target $IDF_TARGET --board $AUDIO_BOARD --project-path ${TEST_DIR} --target-dir-type ${TARGET_DIR_TYPE}
     - run_cmd python $CI_PROJECT_DIR/tools/ci/build_apps.py ${TEST_DIR} \
-                -t $IDF_TARGET -vv \
-                --target-dir-type ${TARGET_DIR_TYPE} \
-                --build-dir ${IDF_VERSION_TAG}/build_@t_@w \
-                --parallel-count ${parallel##*/} \
-                --parallel-index ${parallel%%/*}
+        -t $IDF_TARGET -vv \
+        --target-dir-type ${TARGET_DIR_TYPE} \
+        --build-dir ${IDF_VERSION_TAG}/build_@t_@w \
+        --parallel-count ${parallel##*/} \
+        --parallel-index ${parallel%%/*}
     - python $CI_PROJECT_DIR/tools/ci/check_test_cxx_build.py
-  after_script:
-    - find "${TEST_DIR}" -type d -name "managed_components" -exec rm -rf {} +
 
 .build_ut_gmf_packages:
   extends:
@@ -60,6 +57,7 @@ build_ut_gmf_core_esp32:
     - .build_gmf_component
   variables:
     IDF_TARGET: esp32
+    AUDIO_BOARD: lyrat_mini_v1_1
 
 .build_ut_gmf_core_esp32c3:
   extends:
@@ -72,39 +70,46 @@ build_ut_gmf_core_esp32s3:
     - .build_gmf_component
   variables:
     IDF_TARGET: esp32s3
+    AUDIO_BOARD: esp32_s3_korvo2_v3
 
 .build_ut_gmf_core_esp32p4:
   extends:
     - .build_gmf_component
   variables:
     IDF_TARGET: esp32p4
+    AUDIO_BOARD: esp32_p4_function_ev
 
 build_ut_gmf_elements_esp32:
   extends:
     - .build_ut_gmf_elements
   variables:
     IDF_TARGET: esp32
+    AUDIO_BOARD: lyrat_mini_v1_1
 
 build_ut_gmf_elements_esp32s3:
   extends:
     - .build_ut_gmf_elements
   variables:
     IDF_TARGET: esp32s3
+    AUDIO_BOARD: esp32_s3_korvo2_v3
 
 .build_ut_gmf_elements_esp32p4:
   extends:
     - .build_ut_gmf_elements
   variables:
     IDF_TARGET: esp32p4
+    AUDIO_BOARD: esp32_p4_function_ev
 
 build_ut_gmf_packages_esp32:
   extends:
     - .build_ut_gmf_packages
   variables:
     IDF_TARGET: esp32
+    AUDIO_BOARD: lyrat_mini_v1_1
 
 build_ut_gmf_packages_esp32s3:
   extends:
     - .build_ut_gmf_packages
   variables:
     IDF_TARGET: esp32s3
+    AUDIO_BOARD: esp32_s3_korvo2_v3

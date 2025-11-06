@@ -3,7 +3,7 @@
     - .target_test_template
   parallel:
     matrix:
-      - IDF_VERSION_TAG: ['v5.3', 'v5.4']
+      - IDF_VERSION_TAG: ['v5.4.3']
   variables:
     GIT_DEPTH: 1
     SUBMODULES_TO_FETCH: "none"
@@ -57,8 +57,7 @@ audio_playback_test_esp32:
   variables:
     IDF_TARGET: esp32
   needs:
-    - 'build_examples_esp32_lyrat_mini_v1_1: [v5.3, 1/1]'
-    - 'build_examples_esp32_lyrat_mini_v1_1: [v5.4, 1/1]'
+    - 'build_examples_esp32_lyrat_mini_v1_1: [v5.4.3, 1/1]'
   tags: [ esp32, AUDIO_LOOPBACK_ENV ]
 
 example_test_esp32s3:
@@ -67,6 +66,5 @@ example_test_esp32s3:
   variables:
     IDF_TARGET: esp32s3
   needs:
-    - 'build_examples_esp32s3_korvo_v2: [v5.3, 1/1]'
-    - 'build_examples_esp32s3_korvo_v2: [v5.4, 1/1]'
+    - 'build_examples_esp32s3_korvo_v2: [v5.4.3, 1/1]'
   tags: [ esp32s3 ]

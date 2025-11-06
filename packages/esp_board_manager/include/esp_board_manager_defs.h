@@ -32,6 +32,7 @@ extern "C" {
 #define ESP_BOARD_DEVICE_NAME_FS_SPIFFS       "fs_spiffs"       /*!< SPIFFS filesystem device base name */
 #define ESP_BOARD_DEVICE_NAME_GPIO_EXPANDER   "gpio_expander"   /*!< GPIO expander device base name */
 #define ESP_BOARD_DEVICE_NAME_CAMERA          "camera_sensor"   /*!< Camera device base name */
+#define ESP_BOARD_DEVICE_NAME_SD_POWER        "sd_power"        /*!< SD card power control device base name */
 
 /**
  * @brief  Device type keys

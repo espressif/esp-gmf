@@ -51,6 +51,10 @@ static void setup_create_codec_dev(esp_gmf_app_codec_info_t *codec_info)
 
 void esp_gmf_app_setup_sdcard(void **sdcard_handle)
 {
+    // Temporary changes to lyrat_mini_v1.1 board to enable SD card power control
+#ifdef CONFIG_BOARD_LYRAT_MINI_V1_1
+    esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_SD_POWER);
+#endif  /* CONFIG_BOARD_LYRAT_MINI_V1_1 */
     ESP_ERROR_CHECK(esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_FS_SDCARD));
     if (sdcard_handle) {
         esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_FS_SDCARD, sdcard_handle);

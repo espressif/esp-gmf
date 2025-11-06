@@ -2,7 +2,7 @@
   extends:
     - .target_test_template
   variables:
-    IDF_VERSION_TAG: v5.4
+    IDF_VERSION_TAG: v5.4.3
     IDF_TAG_FLAG: true
     TARGET_DIR_TYPE: "test_apps"
   artifacts:
@@ -38,7 +38,7 @@ ut_gmf_core_esp32s3:
   extends:
     - .pytest_components_dir_template
   needs:
-    - 'build_ut_gmf_core_esp32s3: [v5.4, 1/1]'
+    - 'build_ut_gmf_core_esp32s3: [v5.4.3, 1/1]'
   variables:
     TEST_DIR: ${CI_PROJECT_DIR}/gmf_core
   tags: [ ESP32S3, ESP_GMF_COMPONENT ]
@@ -47,7 +47,7 @@ ut_gmf_elements_esp32s3:
   extends:
     - .pytest_components_dir_template
   needs:
-    - 'build_ut_gmf_elements_esp32s3: [v5.4, 1/1]'
+    - 'build_ut_gmf_elements_esp32s3: [v5.4.3, 1/1]'
   variables:
     TEST_DIR: ${CI_PROJECT_DIR}/elements
   tags: [ ESP32S3, ESP_GMF_COMPONENT ]
@@ -56,7 +56,7 @@ ut_gmf_packages_esp32s3:
   extends:
     - .pytest_components_dir_template
   needs:
-    - 'build_ut_gmf_packages_esp32s3: [v5.4, 1/1]'
+    - 'build_ut_gmf_packages_esp32s3: [v5.4.3, 1/1]'
   variables:
     TEST_DIR: ${CI_PROJECT_DIR}/packages
   tags: [ ESP32S3, ESP_GMF_COMPONENT ]

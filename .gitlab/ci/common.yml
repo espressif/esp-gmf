@@ -1,25 +1,30 @@
 variables:
-  DOCKER_IMAGE: ${CI_DOCKER_IMAGE_REGISTRY}/env_v5.3:1
   IDF_TAG_FLAG: true
+  IDF_EXTRA_ACTIONS_PATH: ${CI_PROJECT_DIR}/packages/esp_board_manager
 
 .update_source: &update_source
   - source ${CI_PROJECT_DIR}/tools/ci/utils.sh
   - add_gitlab_ssh_keys
   - git submodule update --init --recursive --depth 1
+  - git clone --depth 1 -b $IDF_VERSION_TAG $IDF_REPOSITORY $IDF_PATH
+  - fetch_idf_branch $IDF_VERSION_TAG
   - cd $BASE_FRAMEWORK_PATH
   - git log -2
   - common_before_scripts
   - setup_tools_and_idf_python_venv
   - set_env_variable
+  - cd ${CI_PROJECT_DIR}
 
 .build_template:
   stage: build
-  image: ${DOCKER_IMAGE}
+  image: ${IMAGE}
   interruptible: true
   tags:
     - multimedia_build
   before_script:
     - *update_source
+  after_script:
+    - find "${TEST_DIR}" -type d \( -name "managed_components" -o -name "build" \) -exec rm -rf {} +
 
 .target_test_template:
   stage: target_test
