@@ -211,6 +211,40 @@ static inline esp_gmf_job_t *_esp_gmf_get_next_job(esp_gmf_task_t *tsk, esp_gmf_
     return next_job;
 }
 
+static inline bool gmf_task_handle_user_action(esp_gmf_task_t *tsk, esp_gmf_job_t *worker, esp_gmf_event_state_t *quit_state)
+{
+    if (tsk->_stop && (tsk->state != ESP_GMF_EVENT_STATE_ERROR)) {
+        ESP_LOGV(TAG, "Stop job, [%s-%p, wk:%p, job:%p-%s]",
+                 OBJ_GET_TAG((esp_gmf_obj_handle_t)(tsk)), tsk, worker, worker->ctx, worker->label);
+        __esp_gmf_task_delete_jobs(tsk);
+        *quit_state = ESP_GMF_EVENT_STATE_STOPPED;
+        // Delete job and return true
+        return true;
+    }
+    if (tsk->_pause) {
+        if (tsk->state != ESP_GMF_EVENT_STATE_ERROR) {
+            ESP_LOGI(TAG, "Pause job, [%s-%p, wk:%p, job:%p-%s],st:%s",
+                     OBJ_GET_TAG((esp_gmf_obj_handle_t)(tsk)), tsk, worker, worker->ctx, worker->label,
+                     esp_gmf_event_get_state_str(tsk->state));
+            esp_gmf_task_event_state_change_and_notify(tsk, ESP_GMF_EVENT_STATE_PAUSED);
+            GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_PAUSE_BIT);
+            tsk->_pause = 0;
+            esp_gmf_task_acquire_signal(tsk, portMAX_DELAY);
+            ESP_LOGI(TAG, "Resume job, [%s-%p, wk:%p, job:%p-%s]",
+                     OBJ_GET_TAG((esp_gmf_obj_handle_t)(tsk)), tsk, worker, worker->ctx, worker->label);
+            esp_gmf_task_event_state_change_and_notify(tsk, ESP_GMF_EVENT_STATE_RUNNING);
+            GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_RESUME_BIT);
+        } else {
+            ESP_LOGI(TAG, "Skip pause by error state, [%s-%p, wk:%p, job:%p-%s],st:%s",
+                     OBJ_GET_TAG((esp_gmf_obj_handle_t)(tsk)), tsk, worker, worker->ctx, worker->label,
+                     esp_gmf_event_get_state_str(tsk->state));
+            GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_PAUSE_BIT);
+            tsk->_pause = 0;
+        }
+    }
+    return false;
+}
+
 static inline int process_func(esp_gmf_task_handle_t handle, void *para)
 {
     esp_gmf_task_t *tsk = (esp_gmf_task_t *)handle;
@@ -233,6 +267,7 @@ static inline int process_func(esp_gmf_task_handle_t handle, void *para)
             if ((!TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE)) && (!TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP))) {
                 continue;
             }
+            continue;
         } else if (worker->ret == ESP_GMF_JOB_ERR_TRUNCATE) {
             if (worker->times == ESP_GMF_JOB_TIMES_ONCE) {
                 // Once job and truncated is conflicted, enter into error state when detected
@@ -255,6 +290,9 @@ static inline int process_func(esp_gmf_task_handle_t handle, void *para)
             if (worker == NULL) {
                 ESP_LOGD(TAG, "All jobs are finished, [tsk:%s-%p]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
                 quit_state = ESP_GMF_EVENT_STATE_FINISHED;
+                break;
+            }
+            if (gmf_task_handle_user_action(tsk, worker, &quit_state)) {
                 break;
             }
             continue;
@@ -309,6 +347,7 @@ static inline int process_func(esp_gmf_task_handle_t handle, void *para)
     tsk->state = quit_state;
     esp_gmf_event_state_notify(tsk, ESP_GMF_EVT_TYPE_CHANGE_STATE, tsk->state);
     GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT);
+    tsk->_stop = 0;
     return result;
 }
 
@@ -376,6 +415,7 @@ esp_gmf_err_t esp_gmf_task_init(esp_gmf_task_cfg_t *config, esp_gmf_task_handle_
     handle->event_func = cfg->cb;
     handle->ctx = cfg->ctx;
     handle->api_sync_time = DEFAULT_TASK_OPT_MAX_TIME_MS;
+    handle->_abort_strategy = GMF_TASK_ABORT_STRATEGY_STOP;
 
     esp_gmf_job_stack_create(&handle->start_stack);
     ESP_GMF_MEM_CHECK(TAG, handle->start_stack, goto _tsk_init_failed);
@@ -647,4 +687,19 @@ esp_gmf_err_t esp_gmf_task_get_state(esp_gmf_task_handle_t handle, esp_gmf_event
         return ESP_GMF_ERR_OK;
     }
     return ESP_GMF_ERR_INVALID_ARG;
+}
+
+esp_gmf_err_t esp_gmf_task_set_abort_strategy(esp_gmf_task_handle_t handle, gmf_task_abort_strategy_t response)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_task_t *tsk = (esp_gmf_task_t *)handle;
+    if (response > GMF_TASK_ABORT_STRATEGY_PAUSE) {
+        ESP_LOGE(TAG, "Invalid abort strategy: %d", response);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    tsk->_abort_strategy = response;
+    ESP_LOGD(TAG, "Set abort strategy to %s, [%s-%p]",
+             response == GMF_TASK_ABORT_STRATEGY_STOP ? "STOP" : "PAUSE",
+             OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
+    return ESP_GMF_ERR_OK;
 }

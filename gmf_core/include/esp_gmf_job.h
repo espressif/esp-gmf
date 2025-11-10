@@ -42,11 +42,12 @@ typedef enum {
  * @brief  This enumeration specifies the error status of a GMF job
  */
 typedef enum {
-    ESP_GMF_JOB_ERR_TRUNCATE = 3,        /*!< The job has been truncated */
-    ESP_GMF_JOB_ERR_DONE     = 2,        /*!< The job has been completed */
-    ESP_GMF_JOB_ERR_CONTINUE = 1,        /*!< The job should continue */
-    ESP_GMF_JOB_ERR_OK       = ESP_OK,   /*!< The job has executed successfully */
-    ESP_GMF_JOB_ERR_FAIL     = ESP_FAIL  /*!< The job has failed to execute */
+    ESP_GMF_JOB_ERR_TRUNCATE = 3,                 /*!< The job has been truncated */
+    ESP_GMF_JOB_ERR_DONE     = 2,                 /*!< The job has been completed */
+    ESP_GMF_JOB_ERR_CONTINUE = 1,                 /*!< The job should continue */
+    ESP_GMF_JOB_ERR_OK       = ESP_OK,            /*!< The job has executed successfully */
+    ESP_GMF_JOB_ERR_FAIL     = ESP_FAIL,          /*!< The job has failed to execute */
+    ESP_GMF_JOB_ERR_ABORT    = ESP_GMF_IO_ABORT,  /*!< The job has been aborted */
 } esp_gmf_job_err_t;
 
 /**

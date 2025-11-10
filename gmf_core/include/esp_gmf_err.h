@@ -22,8 +22,8 @@ extern "C" {
 typedef enum {
     ESP_GMF_IO_OK      = ESP_OK,    /*!< Operation successful */
     ESP_GMF_IO_FAIL    = ESP_FAIL,  /*!< Operation failed */
-    ESP_GMF_IO_TIMEOUT = -2,        /*!< Operation timed out */
-    ESP_GMF_IO_ABORT   = -3,        /*!< Operation aborted */
+    ESP_GMF_IO_ABORT   = -2,        /*!< Operation aborted */
+    ESP_GMF_IO_TIMEOUT = -3,        /*!< Operation timed out */
 } esp_gmf_err_io_t;
 
 typedef enum {

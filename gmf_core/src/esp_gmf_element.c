@@ -277,7 +277,8 @@ esp_gmf_job_err_t esp_gmf_element_process_open(esp_gmf_element_handle_t handle, 
     }
     // Last element outport allowed to be NULL
     bool last_element = (el->base.next == NULL);
-    if ((el->in == NULL) || ((last_element == false) && (el->out == NULL))) {
+    bool first_element = (el->base.prev == NULL);
+    if (((first_element == false) && (el->in == NULL)) || (((last_element == false) && (el->out == NULL)))) {
         ESP_LOGE(TAG, "There is no in or out port,in:%p,out:%p [%p-%s]", el->in, el->out, handle, OBJ_GET_TAG(handle));
         return ESP_GMF_JOB_ERR_FAIL;
     }

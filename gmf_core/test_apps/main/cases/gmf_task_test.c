@@ -723,11 +723,15 @@ TEST_CASE("Finished state return error on the CLEANUP", "[ESP_GMF_TASK]")
     test_gmf_task4_count.working_return = ESP_GMF_JOB_ERR_DONE;
     test_gmf_task2_count.cleanup_return = ESP_GMF_JOB_ERR_FAIL;
     vTaskDelay(200 / portTICK_PERIOD_MS);
-
+    // When element is finished, pause and resume are supported
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_pause(hd));
     vTaskDelay(100 / portTICK_PERIOD_MS);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_resume(hd));
+    vTaskDelay(300 / portTICK_PERIOD_MS);
+    // When all elements are finished, pause is supported, resume is not supported
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_pause(hd));
+    vTaskDelay(500 / portTICK_PERIOD_MS);
 
-    // When resume for finished return not supported
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_NOT_SUPPORT, esp_gmf_task_resume(hd));
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
@@ -799,7 +803,6 @@ TEST_CASE("Return error after call STOP", "[ESP_GMF_TASK]")
 
     test_gmf_task2_count.cleanup_return = ESP_GMF_JOB_ERR_FAIL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
-
     esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
     esp_gmf_task_get_state(hd, &state);
     TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_ERROR, state);
@@ -893,5 +896,259 @@ TEST_CASE("Once job return TRUNCATE", "[ESP_GMF_TASK]")
     // Test4 should not run for task3 error
     TEST_ASSERT_EQUAL(0, test_gmf_task4_count.working);
 
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Abort strategy default is STOP", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    clear_test_gmf_task_count();
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    esp_gmf_task_init(&cfg, &hd);
+    esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
+
+    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+
+    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+
+    ESP_LOGW(TAG, "SET working1 return ESP_GMF_JOB_ERR_ABORT (default STOP behavior)");
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_ABORT;
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_STOPPED, state);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Abort strategy set to PAUSE", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    clear_test_gmf_task_count();
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    esp_gmf_task_init(&cfg, &hd);
+    esp_gmf_task_set_abort_strategy(hd, GMF_TASK_ABORT_STRATEGY_PAUSE);
+    esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
+
+    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+
+    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+
+    ESP_LOGW(TAG, "SET working1 return ESP_GMF_JOB_ERR_ABORT (PAUSE behavior)");
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_ABORT;
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_PAUSED, state);
+
+    ESP_LOGW(TAG, "Resume the paused task");
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_resume(hd));
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_RUNNING, state);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Abort strategy set to STOP", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    clear_test_gmf_task_count();
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    esp_gmf_task_init(&cfg, &hd);
+    esp_gmf_task_set_abort_strategy(hd, GMF_TASK_ABORT_STRATEGY_STOP);
+    esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
+
+    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+
+    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+
+    ESP_LOGW(TAG, "SET working1 return ESP_GMF_JOB_ERR_ABORT (STOP behavior)");
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_ABORT;
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_STOPPED, state);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Abort strategy change from PAUSE to STOP", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    clear_test_gmf_task_count();
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    esp_gmf_task_init(&cfg, &hd);
+    esp_gmf_task_set_abort_strategy(hd, GMF_TASK_ABORT_STRATEGY_PAUSE);
+    esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
+
+    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+
+    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+
+    ESP_LOGW(TAG, "SET working1 return ESP_GMF_JOB_ERR_ABORT (PAUSE behavior)");
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_ABORT;
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_PAUSED, state);
+
+    ESP_LOGW(TAG, "Resume and change exit response to STOP");
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_resume(hd));
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+
+    esp_gmf_task_set_abort_strategy(hd, GMF_TASK_ABORT_STRATEGY_STOP);
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_OK;
+    test_gmf_task2_count.working_return = ESP_GMF_JOB_ERR_ABORT;
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_STOPPED, state);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Abort strategy PAUSE: abort then STOP called", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    clear_test_gmf_task_count();
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &hd));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_set_abort_strategy(hd, GMF_TASK_ABORT_STRATEGY_PAUSE));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL));
+
+    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+
+    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+
+    ESP_LOGW(TAG, "SET working1 return ESP_GMF_JOB_ERR_ABORT (expect PAUSE)");
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_ABORT;
+    // Immediately call stop, do not wait for abort response to complete.
+    ESP_LOGW(TAG, "Call stop() while paused");
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_STOPPED, state);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+
+TEST_CASE("Abort strategy STOP: abort then PAUSE called", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    clear_test_gmf_task_count();
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &hd));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_set_abort_strategy(hd, GMF_TASK_ABORT_STRATEGY_STOP));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL));
+
+    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+
+    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+
+    ESP_LOGW(TAG, "SET working1 return ESP_GMF_JOB_ERR_ABORT (expect STOP)");
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_ABORT;
+    // Immediately call pause, do not wait for abort response to complete.
+    ESP_LOGW(TAG, "Call pause() while stopped");
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_pause(hd));
+    vTaskDelay(200 / portTICK_PERIOD_MS);
+
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_STOPPED, state);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
     ESP_GMF_MEM_SHOW(TAG);
 }
