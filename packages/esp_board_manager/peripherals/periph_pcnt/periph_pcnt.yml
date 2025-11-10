@@ -1,0 +1,79 @@
+# PCNT Peripheral Default Configuration
+# This file shows the default values used by the PCNT peripheral parser
+# Based on periph_pcnt.py parsing script
+
+- pcnt_unit:
+  config:
+    unit_config:
+      low_limit: -100  # Low count limit (should be lower than 0 and should not less than 'PCNT_LL_MIN_LIM')
+      high_limit: 100  # High count limit (should be higher than 0 and should not exceed 'PCNT_LL_MAX_LIM')
+      intr_priority: 0  # PCNT interrupt priority,
+                        # if set to 0, the driver will try to allocate an interrupt with a relative low priority (1,2,3)
+
+      flags:
+        accum_count: false  # Whether to accumulate the count value when overflows at the high/low limit
+
+        # The following two flags require chip support,
+        # which can be determined by checking the macro definition SOC_PCNT_SUPPORT_STEP_NOTIFY
+        # or by referring to the IDF Programming Guide
+        en_step_notify_up: false  # Enable step notify in the positive direction
+        en_step_notify_down: false  # Enable step notify in the negative direction
+
+    filter_config:
+      max_glitch_ns: 1000  # Pulse width smaller than this threshold will be treated as glitch and ignored, in the unit of ns
+
+    channel_count: 2  # Number of PCNT channels to configure, should be less than SOC_PCNT_CHANNELS_PER_UNIT
+    # Configuration for each PCNT channel
+    channel_list:
+      # Channel 0 configuration
+      - channel: 0
+        channel_config:
+          edge_gpio_num: -1  # GPIO number used by the edge signal, input mode with pull up enabled. Set to -1 if unused
+          level_gpio_num: -1  # GPIO number used by the level signal, input mode with pull up enabled. Set to -1 if unused
+          flags:
+            invert_edge_input: false  # Invert the input edge signal
+            invert_level_input: false  # Invert the input level signal
+            virt_edge_io_level: 0  # Virtual edge IO level, 0: low, 1: high. Only valid when edge_gpio_num is set to -1
+            virt_level_io_level: 0  # Virtual level IO level, 0: low, 1: high. Only valid when level_gpio_num is set to -1
+            io_loop_back: false  # For debug/test, the signal output from the GPIO will be fed to the input path as well.
+                                              # Note that this flag is deprecated, will be removed in IDF v6.0.
+                                              # Instead, you can configure the output mode by calling gpio_config() first, and then do PCNT channel configuration.
+                                              # Necessary configurations for the IO to be used as the PCNT input will be appended.
+
+        # Edge actions for pcnt channel
+        pos_act: PCNT_CHANNEL_EDGE_ACTION_DECREASE
+        neg_act: PCNT_CHANNEL_EDGE_ACTION_INCREASE
+        # Valid values:
+        # - PCNT_CHANNEL_EDGE_ACTION_HOLD  Hold current count value
+        # - PCNT_CHANNEL_EDGE_ACTION_INCREASE  Increase count value
+        # - PCNT_CHANNEL_EDGE_ACTION_DECREASE  Decrease count value
+
+        # Level actions for pcnt channel
+        high_act: PCNT_CHANNEL_LEVEL_ACTION_KEEP
+        low_act: PCNT_CHANNEL_LEVEL_ACTION_INVERSE
+        # Valid values:
+        # - PCNT_CHANNEL_LEVEL_ACTION_KEEP  Keep the current count value
+        # - PCNT_CHANNEL_LEVEL_ACTION_INVERSE  Invert current count mode (increase -> decrease, decrease -> increase)
+        # - PCNT_CHANNEL_LEVEL_ACTION_HOLD  Hold current count value
+
+      # Channel 1 configuration
+      - channel: 1
+        channel_config:
+          edge_gpio_num: 38
+          level_gpio_num: 37
+          flags:
+            invert_edge_input: false
+            invert_level_input: false
+            virt_edge_io_level: false
+            virt_level_io_level: false
+            io_loop_back: false
+        pos_act: PCNT_CHANNEL_EDGE_ACTION_INCREASE
+        neg_act: PCNT_CHANNEL_EDGE_ACTION_DECREASE
+        high_act: PCNT_CHANNEL_LEVEL_ACTION_KEEP
+        low_act: PCNT_CHANNEL_LEVEL_ACTION_INVERSE
+
+    # Watch point configuration
+    watch_point_count: 5  # Number of watch points to configure,
+                          # In addition to setting 0 and +/- limit as watch points,
+                          # users can also customize SOC_PCNT_THRES_POINT_PER_UNIT watch points
+    watch_point_list: [-100, -50, 0, 50, 100]

@@ -394,6 +394,8 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | LEDC | ledc | none | ✅ 支持 | LED 控制/PWM | [`periph_ledc.yml`](peripherals/periph_ledc/periph_ledc.yml) |
 | UART | uart | none | ✅ 支持 | UART 通信 | [`periph_uart.yml`](peripherals/periph_uart/periph_uart.yml) |
 | ADC | adc | none | ✅ 支持 | ADC 模数转换 | [`periph_adc.yml`](peripherals/periph_adc/periph_adc.yml) |
+| RMT | rmt | tx/rx | ✅ 支持 | 红外遥控 | [`periph_rmt.yml`](peripherals/periph_rmt/periph_rmt.yml) |
+| PCNT | pcnt | none | ✅ 支持 | 脉冲计数器 | [`periph_pcnt.yml`](peripherals/periph_pcnt/periph_pcnt.yml) |
 
 ### 支持的设备类型
 

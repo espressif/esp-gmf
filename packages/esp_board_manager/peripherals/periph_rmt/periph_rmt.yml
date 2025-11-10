@@ -1,0 +1,62 @@
+# RMT Peripheral Default Configuration
+# This file shows the default values used by the RMT peripheral parser
+# Based on periph_rmt.py parsing script
+# Note: Configuration now uses ESP-IDF native structures via union
+
+# -----------------------------------------------------------------------------
+# RMT TX example - Using rmt_tx_channel_config_t structure
+# -----------------------------------------------------------------------------
+rmt-tx-0:
+  role: "tx"  # Valid values: "tx", "rx", default is "tx"
+
+  # TX channel configuration using rmt_tx_channel_config_t
+  config:
+    # Basic channel configuration
+    gpio_num: 18                     # GPIO number used by RMT channel. Set to -1 if unused
+    clk_src: RMT_CLK_SRC_DEFAULT     # Clock source of RMT channel, channels in same group must use same clock source
+                                      # Please check the 'rmt_clock_source_t' in 'driver/rmt_types.h' for valid values
+    resolution_hz: 10000000          # Channel clock resolution, in Hz (10MHz = 0.1us precision)
+    mem_block_symbols: 64            # Size of memory block in number of rmt_symbol_word_t (even number required)
+                                      # In DMA mode: controls DMA buffer size
+                                      # In normal mode: controls number of RMT memory blocks
+    trans_queue_depth: 4             # Depth of internal transfer queue (more transfers pending in background)
+    intr_priority: 1                 # RMT interrupt priority, if set to 0, the driver will try to allocate an interrupt with a relative low priority (1,2,3)
+
+    # TX channel flags
+    flags:
+      invert_out: false              # Whether to invert RMT channel signal before output to GPIO pad
+      with_dma: false                # If set, allocate RMT channel with DMA capability
+                                      # Please check the macro definition SOC_RMT_SUPPORT_DMA in soc/soc_caps.h
+                                      # to determine whether the chip supports
+      io_loop_back: false            # For debug: signal output from GPIO fed back to input path
+      io_od_mode: false              # Configure GPIO as open-drain mode
+      allow_pd: false                # If set, allow power domain to power off during sleep (saves power, uses more RAM)
+      init_level: 0                  # Set initial level of RMT channel signal (0=low, 1=high)
+
+
+# -----------------------------------------------------------------------------
+# RMT RX example - Using rmt_rx_channel_config_t structure
+# -----------------------------------------------------------------------------
+rmt-rx-0:
+  role: rx
+
+  # RX channel configuration using rmt_rx_channel_config_t
+  config:
+    # Basic channel configuration
+    gpio_num: 19                     # GPIO number used by RMT channel. Set to -1 if unused
+    clk_src: RMT_CLK_SRC_DEFAULT     # Clock source of RMT channel, channels in same group must use same clock source
+                                      # Please check the 'rmt_clock_source_t' in 'driver/rmt_types.h' for valid values
+    resolution_hz: 1000000           # Channel clock resolution, in Hz (1MHz = 1us precision, good for 38kHz IR)
+    mem_block_symbols: 64            # Size of memory block in number of rmt_symbol_word_t (even number required)
+                                      # In DMA mode: controls DMA buffer size
+                                      # In normal mode: controls number of RMT memory blocks
+    intr_priority: 1                 # RMT interrupt priority, if set to 0, the driver will try to allocate an interrupt with a relative low priority (1,2,3)
+
+    # RX channel flags
+    flags:
+      invert_in: false               # Whether to invert the incoming RMT channel signal
+      with_dma: false                # If set, allocate RMT channel with DMA capability
+                                      # Please check the macro definition SOC_RMT_SUPPORT_DMA in soc/soc_caps.h
+                                      # to determine whether the chip supports
+      io_loop_back: false            # For debug: signal output from GPIO fed back to input path
+      allow_pd: false                # If set, allow power domain to power off during sleep (saves power, uses more RAM)

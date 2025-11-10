@@ -35,6 +35,7 @@ idf_component_register(
         spiffs
         esp_adc
         esp_driver_uart
+        esp_driver_rmt
     LDFRAGMENTS
         "linker.lf"
 )

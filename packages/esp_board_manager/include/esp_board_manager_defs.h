@@ -66,6 +66,8 @@ extern "C" {
 #define ESP_BOARD_PERIPH_TYPE_GPIO  "gpio"  /*!< GPIO peripheral type */
 #define ESP_BOARD_PERIPH_TYPE_UART  "uart"  /*!< UART peripheral type */
 #define ESP_BOARD_PERIPH_TYPE_ADC   "adc"   /*!< ADC peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_RMT   "rmt"   /*!< RMT peripheral type */
+#define ESP_BOARD_PERIPH_TYPE_PCNT  "pcnt"  /*!< PCNT peripheral type */
 
 /**
  * @brief  Peripheral role keys
@@ -77,6 +79,8 @@ extern "C" {
 #define ESP_BOARD_PERIPH_ROLE_SLAVE           "slave"       /*!< Slave role */
 #define ESP_BOARD_PERIPH_ROLE_ADC_CONTINUOUS  "continuous"  /*!< Continuous role */
 #define ESP_BOARD_PERIPH_ROLE_ADC_ONESHOT     "oneshot"     /*!< Oneshot role */
+#define ESP_BOARD_PERIPH_ROLE_TX              "tx"          /*!< Transmitter role */
+#define ESP_BOARD_PERIPH_ROLE_RX              "rx"          /*!< Receiver role */
 #define ESP_BOARD_PERIPH_ROLE_NONE            "none"        /*!< No specific role */
 
 /**

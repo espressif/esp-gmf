@@ -8,6 +8,8 @@ idf_component_register(
         "periph/test_periph_gpio.c"
         $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_UART_SUPPORT}>:periph/test_periph_uart.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_ADC_SUPPORT}>:periph/test_periph_adc.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_RMT_SUPPORT}>:periph/test_periph_rmt.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_PCNT_SUPPORT}>:periph/test_periph_pcnt.c>
 
         # Device tests (conditionally included based on Kconfig)
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>:test_dev_audio_codec.c>

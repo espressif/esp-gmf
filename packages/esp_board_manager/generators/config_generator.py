@@ -79,8 +79,22 @@ class ConfigGenerator(LoggerMixin):
             elif isinstance(v, float):
                 lines.append(f'.{k} = {v},')
             elif isinstance(v, list):
-                arr = '{' + ', '.join(str(x) for x in v) + '}'
-                lines.append(f'.{k} = {arr},')
+                # Handle arrays of structures properly
+                if v and isinstance(v[0], dict):
+                    # This is an array of structures, generate proper C initializer
+                    lines.append(f'.{k} = {{')
+                    for i, item in enumerate(v):
+                        if isinstance(item, dict):
+                            lines.append(' ' * (indent + 4) + '{')
+                            lines += [' ' * (indent + 8) + l for l in self.dict_to_c_initializer(item, indent + 4)]
+                            lines.append(' ' * (indent + 4) + '},')
+                        else:
+                            lines.append(' ' * (indent + 4) + f'{item},')
+                    lines.append(' ' * indent + '},')
+                else:
+                    # Simple array of primitive types
+                    arr = '{' + ', '.join(str(x) for x in v) + '}'
+                    lines.append(f'.{k} = {arr},')
             else:
                 lines.append(f'.{k} = 0, // unsupported type')
         return lines

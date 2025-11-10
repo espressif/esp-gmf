@@ -19,6 +19,10 @@ void test_periph_uart(void);
 
 void test_periph_adc(void);
 
+void test_periph_rmt(void);
+
+void test_periph_pcnt(void);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */
