@@ -54,6 +54,12 @@
 
 - Reduce the default spi max_transfer_sz value for echoear_core_board_v1_2 to avoid allocating excessive memory
 
+## 0.4.4
+
+### Bug Fixes
+
+- Delete build/config/sdkconfig.json after updating sdkconfig to ensure component manager uses the latest configuration
+
 ## v0.4.3
 
 ### Bug Fixes
