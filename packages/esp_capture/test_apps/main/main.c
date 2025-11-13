@@ -110,7 +110,7 @@ TEST_CASE("Capture one shot for dual path", "[esp_capture]")
 
 TEST_CASE("Auto audio only capture for one path", "[esp_capture]")
 {
-    TEST_ESP_OK(auto_audio_only_path_test(1000, true));
+    TEST_ESP_OK(auto_audio_only_path_test(1000, false));
 }
 
 TEST_CASE("Auto audio only capture for dual path", "[esp_capture]")
@@ -120,7 +120,7 @@ TEST_CASE("Auto audio only capture for dual path", "[esp_capture]")
 
 TEST_CASE("Auto audio bypass capture for one path", "[esp_capture]")
 {
-    TEST_ESP_OK(auto_audio_only_bypass_test(1000, true));
+    TEST_ESP_OK(auto_audio_only_bypass_test(1000, false));
 }
 
 TEST_CASE("Auto audio bypass capture for dual path", "[esp_capture]")
@@ -197,7 +197,7 @@ TEST_CASE("Auto AV capture dynamic enable for one path", "[esp_capture]")
 
 TEST_CASE("Auto AV capture dynamic enable for dual path", "[esp_capture]")
 {
-    TEST_ESP_OK(auto_av_path_dynamic_enable_test(1000, false));
+    TEST_ESP_OK(auto_av_path_dynamic_enable_test(1000, true));
 }
 
 TEST_CASE("Manual AV capture for one path", "[esp_capture]")
@@ -223,7 +223,7 @@ TEST_CASE("Template AV capture  for dual path", "[esp_capture]")
 
 TEST_CASE("Auto AV muxer for one path", "[esp_capture]")
 {
-    TEST_ESP_OK(auto_av_muxer_path_test(1000, true));
+    TEST_ESP_OK(auto_av_muxer_path_test(1000, false));
 }
 
 TEST_CASE("Auto AV muxer for dual path", "[esp_capture]")
@@ -233,7 +233,7 @@ TEST_CASE("Auto AV muxer for dual path", "[esp_capture]")
 
 TEST_CASE("Template AV muxer for one path", "[esp_capture]")
 {
-    TEST_ESP_OK(advance_av_muxer_path_test(1000, true));
+    TEST_ESP_OK(advance_av_muxer_path_test(1000, false));
 }
 
 TEST_CASE("Template AV muxer for dual path", "[esp_capture]")

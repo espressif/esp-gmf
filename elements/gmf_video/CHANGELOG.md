@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.1
+
+### Features
+
+- Add QP and GOP setting support for video encoder element
+
 ## v0.7.0
 
 ### Features

@@ -1,4 +1,4 @@
-version: "0.7.0"
+version: "0.7.1"
 description: Espressif GMF Video Elements Module
 url: https://github.com/espressif/esp-gmf/tree/main/elements/gmf_video
 documentation: "https://github.com/espressif/esp-gmf/blob/main/elements/gmf_video/README.md"
