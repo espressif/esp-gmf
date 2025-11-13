@@ -29,6 +29,7 @@ GPATH
 **/dependencies.lock
 **/dist
 **/gen_bmgr_codes/
+**/logs/
 
 # Doc build artifacts
 gmf_core/docs/*/_build/

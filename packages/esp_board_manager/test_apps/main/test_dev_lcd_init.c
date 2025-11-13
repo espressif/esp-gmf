@@ -10,20 +10,10 @@
 #include "esp_board_manager.h"
 #include "esp_board_manager_err.h"
 #include "esp_lvgl_port.h"
-#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
-#include "dev_display_lcd.h"
-#include <string.h>
-#elif CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
-#include "dev_display_lcd_spi.h"
-#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
-#include "dev_lcd_touch_i2c.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_touch.h"
 #include "esp_lcd_types.h"
-#ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
-#include "periph_ledc.h"
-#include "dev_ledc_ctrl.h"
-#endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
+#include "esp_board_manager_includes.h"
 
 #define TAG "LCD_INIT"
 
@@ -39,7 +29,9 @@ static void                     *lcd_handle   = NULL;
 static void                     *touch_handle = NULL;
 static esp_lcd_panel_handle_t    panel_handle = NULL;
 static esp_lcd_panel_io_handle_t io_handle    = NULL;
+#ifdef CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT
 static esp_lcd_touch_handle_t    tp           = NULL;
+#endif  /* CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT */
 static lv_display_t             *disp         = NULL;
 static lv_indev_t               *touch_indev  = NULL;
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
@@ -230,6 +222,7 @@ esp_err_t test_dev_lcd_lvgl_init(void)
 
 esp_err_t test_dev_lcd_touch_init(void)
 {
+#ifdef CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT
     ESP_LOGI(TAG, "Initializing touch input using Board Manager...");
 
     // Get touch device handle from board manager
@@ -258,8 +251,9 @@ esp_err_t test_dev_lcd_touch_init(void)
         return ESP_OK;
     } else {
         ESP_LOGW(TAG, "Touch device handle is NULL (continuing without touch)");
-        return ESP_FAIL;
     }
+#endif  /* CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT */
+    return ESP_FAIL;
 }
 
 esp_err_t test_dev_lcd_touch_deinit(void)
