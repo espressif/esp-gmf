@@ -11,6 +11,13 @@
 - Added `DRC` and `MBC` capability definition
 - Enhanced `esp_gmf_task_run`: Optimized to return immediately before time-consuming IO operations, enabling users to abort ongoing IO via `esp_gmf_task_stop`
 - Enhanced `esp_gmf_task_stop`: Enhanced with retry logic to ensure task termination, adds a warning if user-specified timeout is shorter than the actual execution time
+- Enhanced gmf_io
+  - Added async buffer logic for gmf_io
+  - Added configuration of gmf_io buffering task scheduler
+  - Added speed measurement for gmf_io
+  - Added done and abort capability for gmf_io
+- Added API esp_gmf_db_clear_abort for condition which no need reset after abort
+- Added API esp_gmf_db_reset_write_done for `block`, `fifo` and `pbuf`
 
 ### Bug Fixes
 

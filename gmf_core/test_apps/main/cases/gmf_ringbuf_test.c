@@ -5,6 +5,7 @@
  */
 
 #include "unity.h"
+#include "string.h"
 #include "freertos/FreeRTOS.h"
 #include "esp_private/esp_clk.h"
 #include "driver/sdmmc_host.h"
@@ -199,4 +200,64 @@ TEST_CASE("Abort when Ringbuffer read and write on different task", "[ESP_GMF_RI
     esp_gmf_rb_destroy(rb);
     esp_gmf_ut_teardown_sdmmc(card);
     vTaskDelay(10 / portTICK_PERIOD_MS);
+}
+
+TEST_CASE("Abort and clear abort function", "[ESP_GMF_RINGBUF]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+
+    esp_gmf_rb_handle_t rb = NULL;
+    esp_gmf_rb_create(2, 1024, &rb);
+    TEST_ASSERT_NOT_NULL(rb);
+    esp_gmf_data_bus_block_t blk = {0};
+    blk.buf = esp_gmf_oal_malloc(512);
+    TEST_ASSERT_NOT_NULL(blk.buf);
+    blk.valid_size = 512;
+    uint8_t test_data[512];
+    memset(test_data, 0xCC, sizeof(test_data));
+
+    int ret = esp_gmf_rb_acquire_write(rb, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_rb_release_write(rb, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_rb_abort(rb);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_rb_acquire_read(rb, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+    esp_gmf_rb_release_read(rb, &blk, 0);
+
+    blk.valid_size = sizeof(test_data);
+    esp_gmf_rb_acquire_write(rb, &blk, sizeof(test_data), portMAX_DELAY);
+    ret = esp_gmf_rb_release_write(rb, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+
+    ret = esp_gmf_rb_clear_abort(rb);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_rb_acquire_read(rb, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+    TEST_ASSERT_EQUAL(sizeof(test_data), blk.valid_size);
+
+    for (int i = 0; i < sizeof(test_data); i++) {
+        TEST_ASSERT_EQUAL(0xCC, ((uint8_t *)blk.buf)[i]);
+    }
+
+    ret = esp_gmf_rb_release_read(rb, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_rb_acquire_write(rb, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_rb_release_write(rb, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    esp_gmf_oal_free(blk.buf);
+    esp_gmf_rb_destroy(rb);
 }

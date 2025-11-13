@@ -12,21 +12,35 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
+#endif  /* __cplusplus */
 
 /**
  * @brief  Audio Codec Device IO configurations, if any entry is zero then the configuration will be set to default values
  */
 typedef struct {
-    esp_codec_dev_handle_t dev;  /*!< Audio Codec Device handler */
-    esp_gmf_io_dir_t       dir;  /*!< IO direction, reader or writer */
-    const char            *name; /*!< Name for this instance */
+    esp_codec_dev_handle_t  dev;     /*!< Audio Codec Device handler */
+    esp_gmf_io_dir_t        dir;     /*!< IO direction, reader or writer */
+    const char             *name;    /*!< Name for this instance */
+    esp_gmf_io_cfg_t        io_cfg;  /*!< IO configuration for task and buffer */
 } codec_dev_io_cfg_t;
 
-#define ESP_GMF_IO_CODEC_DEV_CFG_DEFAULT() {  \
-    .dev  = NULL,                             \
-    .dir  = ESP_GMF_IO_DIR_NONE,              \
-    .name = NULL,                             \
+#define ESP_GMF_IO_CODEC_DEV_CFG_DEFAULT()  {  \
+    .dev    = NULL,                            \
+    .dir    = ESP_GMF_IO_DIR_NONE,             \
+    .name   = NULL,                            \
+    .io_cfg = {                                \
+        .thread = {                            \
+            .stack        = 0,                 \
+            .prio         = 0,                 \
+            .core         = 0,                 \
+            .stack_in_ext = false,             \
+        },                                     \
+        .buffer_cfg = {                        \
+            .io_size     = 0,                  \
+            .buffer_size = 0,                  \
+        },                                     \
+        .enable_speed_monitor = false,         \
+    },                                         \
 }
 
 /**
@@ -57,4 +71,4 @@ esp_gmf_err_t esp_gmf_io_codec_dev_set_dev(esp_gmf_io_handle_t io, esp_codec_dev
 
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif  /* __cplusplus */

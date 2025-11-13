@@ -349,6 +349,15 @@ esp_gmf_err_t esp_gmf_fifo_done_write(esp_gmf_fifo_handle_t handle)
     return ESP_GMF_ERR_OK;
 }
 
+esp_gmf_err_t esp_gmf_fifo_reset_done_write(esp_gmf_fifo_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_fifo_t *fifo = (esp_gmf_fifo_t *)handle;
+    fifo->_is_write_done = 0;
+    ESP_LOGD(TAG, "Reset done write, fifo:%p", fifo);
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_fifo_abort(esp_gmf_fifo_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
@@ -356,6 +365,22 @@ esp_gmf_err_t esp_gmf_fifo_abort(esp_gmf_fifo_handle_t handle)
     fifo->_is_abort = 1;
     xSemaphoreGive(fifo->can_read);
     xSemaphoreGive(fifo->can_write);
+    return ESP_GMF_ERR_OK;
+}
+
+esp_gmf_err_t esp_gmf_fifo_clear_abort(esp_gmf_fifo_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_fifo_t *fifo = (esp_gmf_fifo_t *)handle;
+    fifo->_is_abort = 0;
+    xSemaphoreTake(fifo->can_read, 0);
+    xSemaphoreTake(fifo->can_write, 0);
+    if (fifo->fill_head != NULL) {
+        xSemaphoreGive(fifo->can_read);
+    }
+    if (fifo->empty_head != NULL) {
+        xSemaphoreGive(fifo->can_write);
+    }
     return ESP_GMF_ERR_OK;
 }
 

@@ -300,11 +300,28 @@ esp_gmf_err_t esp_gmf_pbuf_done_write(esp_gmf_pbuf_handle_t handle)
     return ESP_GMF_ERR_OK;
 }
 
+esp_gmf_err_t esp_gmf_pbuf_reset_done_write(esp_gmf_pbuf_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_pbuf_t *pbuf = (esp_gmf_pbuf_t *)handle;
+    pbuf->_is_write_done = 0;
+    ESP_LOGD(TAG, "Reset done write, pbuf:%p", pbuf);
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_pbuf_abort(esp_gmf_pbuf_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_pbuf_t *pbuf = (esp_gmf_pbuf_t *)handle;
     pbuf->_is_abort = 1;
+    return ESP_GMF_ERR_OK;
+}
+
+esp_gmf_err_t esp_gmf_pbuf_clear_abort(esp_gmf_pbuf_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_pbuf_t *pbuf = (esp_gmf_pbuf_t *)handle;
+    pbuf->_is_abort = 0;
     return ESP_GMF_ERR_OK;
 }
 

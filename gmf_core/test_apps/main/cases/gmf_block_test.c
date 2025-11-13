@@ -461,7 +461,6 @@ TEST_CASE("Abort when read and write with FIXED SIZE + RANDOM DELAY", "[ESP_GMF_
     esp_gmf_ut_teardown_sdmmc(card);
 }
 
-
 TEST_CASE("Wrap Check", "[ESP_GMF_BLOCK]")
 {
     esp_log_level_set("ESP_GMF_BLOCK", ESP_LOG_DEBUG);
@@ -565,6 +564,59 @@ TEST_CASE("RP WP reset check", "[ESP_GMF_BLOCK]")
 
     // 2. Buffer is empty. Request 1200 bytes.
     TEST_ASSERT_EQUAL(ESP_GMF_IO_OK, esp_gmf_block_acquire_write(bk, &blk_w, 1200, 100));
+
+    esp_gmf_block_destroy(bk);
+}
+
+TEST_CASE("Abort and clear abort function", "[ESP_GMF_BLOCK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+
+    esp_gmf_block_handle_t bk = NULL;
+    esp_gmf_block_create(64, 2, &bk);
+    TEST_ASSERT_NOT_NULL(bk);
+    esp_gmf_data_bus_block_t blk = {0};
+    uint8_t test_data[64];
+    memset(test_data, 0x11, sizeof(test_data));
+
+    int ret = esp_gmf_block_acquire_write(bk, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_block_release_write(bk, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_block_abort(bk);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_block_acquire_read(bk, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+
+    ret = esp_gmf_block_acquire_write(bk, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+
+    ret = esp_gmf_block_clear_abort(bk);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_block_acquire_read(bk, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+    TEST_ASSERT_EQUAL(sizeof(test_data), blk.valid_size);
+
+    for (int i = 0; i < sizeof(test_data); i++) {
+        TEST_ASSERT_EQUAL(0x11, ((uint8_t *)blk.buf)[i]);
+    }
+
+    ret = esp_gmf_block_release_read(bk, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_block_acquire_write(bk, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_block_release_write(bk, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
 
     esp_gmf_block_destroy(bk);
 }

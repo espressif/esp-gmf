@@ -11,27 +11,41 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
+#endif  /* __cplusplus */
 
 /**
  * @brief  File IO configurations, if any entry is zero then the configuration will be set to default values
  */
 typedef struct {
-    int          dir;         /*!< IO direction, reader or writer */
-    const char  *name;        /*!< Name for this instance */
-    int          cache_size;  /*!< Cache size for file IO operations in bytes. If size <= 512, it will be set to 0.
-                                   Note: Larger cache size will improve read and write performance but consume more memory */
-    int          cache_caps;  /*!< Cache memory capabilities, if zero then it will be set to MALLOC_CAP_DMA.
-                                   Note:
-                                        1. If chips have SOC_SDMMC_PSRAM_DMA_CAPABLE capability(such as ESP32P4),
-                                            then you can set (MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA) to save SRAM
-                                        2. For ESP32, should use (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) or MALLOC_CAP_DMA caps to malloc cache
-                                        3. For ESP32Sxx and ESP32Cxx, can also use MALLOC_CAP_INTERNAL caps to malloc cache */
+    int               dir;         /*!< IO direction, reader or writer */
+    const char       *name;        /*!< Name for this instance */
+    int               cache_size;  /*!< Cache size for file IO operations in bytes. If size <= 512, it will be set to 0.
+                                          Note: Larger cache size will improve read and write performance but consume more memory */
+    int               cache_caps;  /*!< Cache memory capabilities, if zero then it will be set to MALLOC_CAP_DMA.
+                                          Note:
+                                           1. If chips have SOC_SDMMC_PSRAM_DMA_CAPABLE capability(such as ESP32P4),
+                                               then you can set (MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA) to save SRAM
+                                           2. For ESP32, should use (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) or MALLOC_CAP_DMA caps to malloc cache
+                                           3. For ESP32Sxx and ESP32Cxx, can also use MALLOC_CAP_INTERNAL caps to malloc cache */
+    esp_gmf_io_cfg_t  io_cfg;      /*!< IO configuration for task and buffer */
 } file_io_cfg_t;
 
-#define FILE_IO_CFG_DEFAULT() {     \
-    .dir  = ESP_GMF_IO_DIR_READER,  \
-    .name = NULL,                   \
+#define FILE_IO_CFG_DEFAULT()  {        \
+    .dir    = ESP_GMF_IO_DIR_READER,    \
+    .name   = NULL,                     \
+    .io_cfg = {                         \
+        .thread = {                     \
+            .stack        = 0,          \
+            .prio         = 0,          \
+            .core         = 0,          \
+            .stack_in_ext = false,      \
+        },                              \
+        .buffer_cfg = {                 \
+            .io_size     = 0,           \
+            .buffer_size = 0,           \
+        },                              \
+        .enable_speed_monitor = false,  \
+    },                                  \
 }
 
 /**
@@ -49,4 +63,4 @@ esp_gmf_err_t esp_gmf_io_file_init(file_io_cfg_t *config, esp_gmf_io_handle_t *i
 
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif  /* __cplusplus */

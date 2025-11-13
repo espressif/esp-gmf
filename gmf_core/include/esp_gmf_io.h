@@ -12,6 +12,24 @@
 #include "esp_gmf_info.h"
 #include "esp_gmf_payload.h"
 #include "esp_gmf_task.h"
+#include "esp_gmf_data_bus.h"
+
+/**
+ * @brief  This GMF I/O abstraction can operate in two modes depending on configuration:
+ *
+ *         1) Asynchronous I/O (data_bus + task configured)
+ *         When the I/O is configured with a data bus (buffer configured) and a task (thread stack > 0 in esp_gmf_io_cfg_t), the framework
+ *         creates an internal `io_process` task. That task is responsible for driving the data flow between the actual underlying I/O
+ *         (open/seek/close callbacks) and the data bus. In this mode, user-facing APIs such as `esp_gmf_io_acquire_*` / `esp_gmf_io_release_*`
+ *         interact with the data bus (buffered I/O). The task performs blocking or non-blocking reads/writes against the real I/O device and
+ *         pushes/pulls data through the data bus. This model is suitable when the element needs fixed-size transfers or when decoupling
+ *         the producer/consumer timing is desired.
+ *
+ *         2) Synchronous I/O (no data_bus and no task)
+ *         If no data bus and no task are configured, the I/O operates in synchronous mode: calls to `esp_gmf_io_acquire_*` / `esp_gmf_io_release_*`
+ *         invoke the I/O driver's callbacks directly and perform actual I/O in the caller's context. Use this mode when the element can safely
+ *         perform I/O on the caller thread or when buffering is not needed.
+ */
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,17 +58,39 @@ typedef enum {
 } esp_gmf_io_type_t;
 
 /**
+ * @brief  Buffer configuration for GMF I/O
+ */
+typedef struct {
+    size_t  io_size;      /*!< Each time io size in bytes */
+    size_t  buffer_size;  /*!< Buffer size in bytes */
+} esp_gmf_io_buffer_cfg_t;
+
+/**
+ * @brief  Structure representing I/O speed statistics
+ */
+typedef struct {
+    uint64_t  total_bytes;         /*!< Total bytes */
+    uint64_t  last_total_bytes;    /*!< Last total bytes count for interval calculation */
+    uint64_t  total_time_ms;       /*!< Total time in milliseconds */
+    uint64_t  last_total_time_ms;  /*!< Last update total time in milliseconds */
+    uint32_t  current_speed_kbps;  /*!< Current speed in Kbps */
+    uint32_t  average_speed_kbps;  /*!< Average speed in Kbps */
+} esp_gmf_io_speed_stats_t;
+
+/**
  * @brief  Configuration structure for a GMF I/O
  */
 typedef struct {
-    esp_gmf_task_config_t  thread;  /*!< Task configuration */
+    esp_gmf_task_config_t    thread;                /*!< Task configuration */
+    esp_gmf_io_buffer_cfg_t  buffer_cfg;            /*!< Buffer configuration */
+    bool                     enable_speed_monitor;  /*!< Enable speed monitor */
 } esp_gmf_io_cfg_t;
 
 /**
  * @brief  Structure representing a GMF I/O
  */
 typedef struct esp_gmf_io_ {
-    struct esp_gmf_obj_ parent;                                     /*!< Parent object */
+    struct esp_gmf_obj_  parent;                                    /*!< Parent object */
     esp_gmf_err_t (*open)(esp_gmf_io_handle_t obj);                 /*!< Open callback function */
     esp_gmf_err_t (*seek)(esp_gmf_io_handle_t obj, uint64_t data);  /*!< Seek callback function */
     esp_gmf_err_t (*close)(esp_gmf_io_handle_t obj);                /*!< Close callback function */
@@ -61,21 +101,25 @@ typedef struct esp_gmf_io_ {
      */
     esp_gmf_err_t (*prev_close)(esp_gmf_io_handle_t handle);
 
-    /*!< Process callback function
-     *   If the thread is valid, this function should be implemented to register the GMF task
-     */
-    esp_gmf_job_err_t (*process)(esp_gmf_io_handle_t handle, void *params);  /*!< Process function for GMF task calling if it's exist */
-
     esp_gmf_err_io_t (*acquire_read)(esp_gmf_io_handle_t handle, void *payload, uint32_t wanted_size, int block_ticks);   /*!< Acquire read callback function */
     esp_gmf_err_io_t (*release_read)(esp_gmf_io_handle_t handle, void *payload, int block_ticks);                         /*!< Release read callback function */
     esp_gmf_err_io_t (*acquire_write)(esp_gmf_io_handle_t handle, void *payload, uint32_t wanted_size, int block_ticks);  /*!< Acquire write callback function */
     esp_gmf_err_io_t (*release_write)(esp_gmf_io_handle_t handle, void *payload, int block_ticks);                        /*!< Release write callback function */
 
-    esp_gmf_io_cfg_t       task_cfg;
-    esp_gmf_task_handle_t  task_hd;  /*!< Task handle */
-    esp_gmf_io_dir_t       dir;      /*!< I/O direction */
-    esp_gmf_io_type_t      type;     /*!< I/O type */
-    esp_gmf_info_file_t    attr;     /*!< File attribute */
+    esp_gmf_io_cfg_t          io_cfg;
+    esp_gmf_task_handle_t     task_hd;          /*!< Task handle */
+    esp_gmf_db_handle_t       data_bus;         /*!< Data bus handle for buffer */
+    esp_gmf_data_bus_block_t  db_block;         /*!< Data bus block for data bus read/write operation */
+    esp_gmf_io_speed_stats_t *speed_stats;      /*!< Speed statistics for this I/O (dynamically allocated when enabled) */
+    void                     *evt_group;        /*!< Event group for IO control synchronization */
+    esp_gmf_io_dir_t          dir;              /*!< I/O direction */
+    esp_gmf_io_type_t         type;             /*!< I/O type */
+    esp_gmf_info_file_t       attr;             /*!< File attribute */
+    uint64_t                  seek_pos;         /*!< Pending seek position (ESP_GMF_IO_SEEK_POS_INVALID = no pending seek) */
+    uint8_t                   _is_done;         /*!< Flag indicating if a done signal has been received */
+    uint8_t                   _is_abort;        /*!< Flag indicating if an abort signal has been received */
+    uint8_t                   _is_hold;         /*!< Flag indicating if the IO task should hold itself */
+    int32_t                   task_timeout_ms;  /*!< Timeout for internal IO task operation (default 1000 ms) */
 } esp_gmf_io_t;
 
 /**
@@ -105,6 +149,30 @@ esp_gmf_err_t esp_gmf_io_init(esp_gmf_io_handle_t handle, esp_gmf_io_cfg_t *cfg)
 esp_gmf_err_t esp_gmf_io_deinit(esp_gmf_io_handle_t handle);
 
 /**
+ * @brief  Enable or disable speed monitor for an I/O
+ *
+ * @param[in]  handle   I/O handle
+ * @param[in]  enabled  true to enable, false to disable
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_io_enable_speed_monitor(esp_gmf_io_handle_t handle, bool enabled);
+
+/**
+ * @brief  Get speed statistics for an I/O
+ *
+ * @param[in]   handle  I/O handle
+ * @param[out]  stats   Pointer to store speed statistics
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_io_get_speed_stats(esp_gmf_io_handle_t handle, esp_gmf_io_speed_stats_t *stats);
+
+/**
  * @brief  Open the specific I/O handle, run the thread if it is valid
  *
  * @param[in]  handle  GMF I/O handle to open
@@ -116,11 +184,12 @@ esp_gmf_err_t esp_gmf_io_deinit(esp_gmf_io_handle_t handle);
 esp_gmf_err_t esp_gmf_io_open(esp_gmf_io_handle_t handle);
 
 /**
- * @brief  Seek to a specific byte position in the speoific I/O handle
- *         If the IO thread is invalid, only the IO's seek function is called.
- *         If the IO thread is valid, the seek procedure is as follows: first,
- *         perform a previous close, then pause the thread, seek to the specified position, reopen if necessary.
- *         Finally, resume the thread if it was paused; otherwise, re-register the process job
+ * @brief  Seek to a specific byte position in the specific I/O handle
+ *         If the IO thread is invalid, the IO's seek function is called directly (synchronous).
+ *         If the IO thread is valid, the seek is deferred to the IO task: the seek position is stored
+ *         and the data bus is aborted to wake up the task. The IO task will process the seek at the
+ *         beginning of its next iteration. The caller will block and wait for the IO task to complete
+ *         the seek operation.
  *
  * @param[in]  handle         GMF I/O handle
  * @param[in]  seek_byte_pos  Byte position to seek to
@@ -134,6 +203,7 @@ esp_gmf_err_t esp_gmf_io_seek(esp_gmf_io_handle_t handle, uint64_t seek_byte_pos
 
 /**
  * @brief  Close a GMF I/O handle
+ *         If the IO task is active, this function will block and wait up to `task_timeout_ms` for the task to finish
  *         If both prev_close and thread are valid, they will be called before executing the IO close operation
  *
  * @param[in]  handle  GMF I/O handle to close
@@ -153,8 +223,7 @@ esp_gmf_err_t esp_gmf_io_close(esp_gmf_io_handle_t handle);
  * @param[in]   wait_ticks   Timeout value in ticks, in milliseconds
  *
  * @return
- *       - > 0                 The specific length of data being read
- *       - ESP_GMF_IO_OK       Operation successful
+ *       - ESP_GMF_IO_OK       Operation successful (check load->is_done to see if IO is done)
  *       - ESP_GMF_IO_FAIL     Operation failed or invalid arguments
  *       - ESP_GMF_IO_ABORT    Operation aborted
  *       - ESP_GMF_IO_TIMEOUT  Operation timed out
@@ -169,7 +238,7 @@ esp_gmf_err_io_t esp_gmf_io_acquire_read(esp_gmf_io_handle_t handle, esp_gmf_pay
  * @param[in]  wait_ticks  Timeout value in ticks
  *
  * @return
- *       - ESP_GMF_IO_OK       Operation successful
+ *       - ESP_GMF_IO_OK       Operation successful (check load->is_done to see if IO is done)
  *       - ESP_GMF_IO_FAIL     Operation failed or invalid arguments
  *       - ESP_GMF_IO_ABORT    Operation aborted
  *       - ESP_GMF_IO_TIMEOUT  Operation timed out
@@ -185,8 +254,7 @@ esp_gmf_err_io_t esp_gmf_io_release_read(esp_gmf_io_handle_t handle, esp_gmf_pay
  * @param[in]   wait_ticks   Timeout value in ticks, in milliseconds
  *
  * @return
- *       - > 0                 The specific length of space can be write
- *       - ESP_GMF_IO_OK       Operation successful
+ *       - ESP_GMF_IO_OK       Operation successful (check load->is_done to see if IO is done)
  *       - ESP_GMF_IO_FAIL     Operation failed or invalid arguments
  *       - ESP_GMF_IO_ABORT    Operation aborted
  *       - ESP_GMF_IO_TIMEOUT  Operation timed out
@@ -201,7 +269,7 @@ esp_gmf_err_io_t esp_gmf_io_acquire_write(esp_gmf_io_handle_t handle, esp_gmf_pa
  * @param[in]  wait_ticks  Timeout value in ticks
  *
  * @return
- *       - ESP_GMF_IO_OK       Operation successful
+ *       - ESP_GMF_IO_OK       Operation successful (check load->is_done to see if IO is done)
  *       - ESP_GMF_IO_FAIL     Operation failed or invalid arguments
  *       - ESP_GMF_IO_ABORT    Operation aborted
  *       - ESP_GMF_IO_TIMEOUT  Operation timed out
@@ -339,6 +407,90 @@ esp_gmf_err_t esp_gmf_io_get_type(esp_gmf_io_handle_t handle, esp_gmf_io_type_t 
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
  */
 esp_gmf_err_t esp_gmf_io_reset(esp_gmf_io_handle_t handle);
+
+/**
+ * @brief  Mark an I/O as done, cause the `esp_gmf_io_acquire_*` / `esp_gmf_io_release_*` input parameter(load) to have the is_done flag set
+ *         If the IO has an io_process task, this function will abort the data_bus and hold the task
+ *
+ * @note  Typical usage: when the current data source has been fully consumed (e.g. end of a track in a playlist),
+ *        call this function to signal downstream consumers that no more data is available.
+ *        The IO task will be held and stop producing data until `esp_gmf_io_clear_done` is called.
+ *        Caller MUST call `esp_gmf_io_clear_done` before reusing the IO for the next data source,
+ *        otherwise the IO task remains permanently held and will not process any further data.
+ *
+ * @param[in]  handle  GMF I/O handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_io_done(esp_gmf_io_handle_t handle);
+
+/**
+ * @brief  Clear the done flag for an I/O, then `esp_gmf_io_acquire_*` / `esp_gmf_io_release_*` will operate normally
+ *         Reset the position to 0
+ *         If the IO has an io_process task, this function will reset the data_bus and release the held task
+ *
+ * @note  Typical usage: after `esp_gmf_io_done` has been called and the caller is ready to start a new data source
+ *        (e.g. switching to the next track), call this function to clear the done state, reset position to 0,
+ *        and release the held IO task so it can resume producing data.
+ *        This function should only be called after `esp_gmf_io_done`; calling it without a prior done has no effect.
+ *
+ * @param[in]  handle  GMF I/O handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_io_clear_done(esp_gmf_io_handle_t handle);
+
+/**
+ * @brief  Mark an I/O as aborted, then `esp_gmf_io_acquire_*` / `esp_gmf_io_release_*` will return ESP_GMF_IO_ABORT
+ *         If the IO has an io_process task, this function will abort the data_bus and hold the task
+ *
+ * @note  Typical usage: when the IO operation needs to be interrupted immediately (e.g. user-initiated stop,
+ *        network error recovery, or switching to a different URI). All ongoing and subsequent acquire/release
+ *        calls will return ESP_GMF_IO_ABORT until `esp_gmf_io_clear_abort` is called.
+ *        The IO task will be held and stop producing/consuming data.
+ *        Caller MUST call `esp_gmf_io_clear_abort` to restore normal operation,
+ *        otherwise the IO remains permanently in the aborted state and the task stays held.
+ *
+ * @param[in]  handle  GMF I/O handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_io_abort(esp_gmf_io_handle_t handle);
+
+/**
+ * @brief  Clear the abort flag for an I/O, then `esp_gmf_io_acquire_*` / `esp_gmf_io_release_*` will operate normally
+ *         If the IO has an io_process task, this function will clear abort on the data_bus and release the held task
+ *
+ * @note  Typical usage: after `esp_gmf_io_abort` has been called and the error condition has been resolved
+ *        (e.g. network reconnected, new URI set), call this function to clear the abort state and release
+ *        the held IO task so it can resume processing data.
+ *        This function should only be called after `esp_gmf_io_abort`; calling it without a prior abort has no effect.
+ *
+ * @param[in]  handle  GMF I/O handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_io_clear_abort(esp_gmf_io_handle_t handle);
+
+/**
+ * @brief  Set the timeout for internal IO task operation
+ *
+ * @param[in]  handle      GMF I/O handle
+ * @param[in]  timeout_ms  Timeout in milliseconds
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_io_set_task_timeout(esp_gmf_io_handle_t handle, int32_t timeout_ms);
 
 #ifdef __cplusplus
 }

@@ -141,6 +141,17 @@ esp_gmf_err_io_t esp_gmf_pbuf_release_write(esp_gmf_pbuf_handle_t handle, esp_gm
 esp_gmf_err_t esp_gmf_pbuf_done_write(esp_gmf_pbuf_handle_t handle);
 
 /**
+ * @brief  Reset the status of writing to the pointer buffer as not done
+ *
+ * @param[in]  handle  Handle to the pointer buffer
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation successful
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument provided
+ */
+esp_gmf_err_t esp_gmf_pbuf_reset_done_write(esp_gmf_pbuf_handle_t handle);
+
+/**
  * @brief  Abort waiting until there is space for reading or writing of the pointer buffer
  *
  * @param[in]  handle  Handle to the pointer buffer
@@ -150,6 +161,20 @@ esp_gmf_err_t esp_gmf_pbuf_done_write(esp_gmf_pbuf_handle_t handle);
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument provided
  */
 esp_gmf_err_t esp_gmf_pbuf_abort(esp_gmf_pbuf_handle_t handle);
+
+/**
+ * @brief  Clear the abort flag and drain semaphores for recovery after abort
+ *
+ * @note  This function should be called when recovering from an abort state
+ *        It Clears the _is_abort flag, then drains and restores semaphore signals based on actual buffer state
+ *
+ * @param[in]  handle  The Pointer Buffer handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_pbuf_clear_abort(esp_gmf_pbuf_handle_t handle);
 
 /**
  * @brief  Reset the pointer buffer, clearing all values to initial state

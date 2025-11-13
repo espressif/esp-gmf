@@ -31,13 +31,51 @@ static esp_gmf_err_t gmf_loader_setup_default_codec_dev(esp_gmf_pool_handle_t po
     codec_dev_io_cfg_t tx_codec_dev_cfg = ESP_GMF_IO_CODEC_DEV_CFG_DEFAULT();
     tx_codec_dev_cfg.dir = dir;
     tx_codec_dev_cfg.dev = NULL;
+    if (dir == ESP_GMF_IO_DIR_READER) {
+#ifdef CONFIG_GMF_IO_INIT_CODEC_DEV_RX
+        tx_codec_dev_cfg.io_cfg.buffer_cfg.io_size = CONFIG_GMF_IO_CODEC_DEV_RX_IO_SIZE;
+        tx_codec_dev_cfg.io_cfg.buffer_cfg.buffer_size = CONFIG_GMF_IO_CODEC_DEV_RX_OUT_BUF_SIZE;
+        tx_codec_dev_cfg.io_cfg.thread.stack = CONFIG_GMF_IO_CODEC_DEV_RX_TASK_STACK;
+#ifdef CONFIG_GMF_IO_CODEC_DEV_RX_STACK_IN_EXT
+        tx_codec_dev_cfg.io_cfg.thread.stack_in_ext = true;
+#else
+        tx_codec_dev_cfg.io_cfg.thread.stack_in_ext = false;
+#endif  /* CONFIG_GMF_IO_CODEC_DEV_RX_STACK_IN_EXT */
+        tx_codec_dev_cfg.io_cfg.thread.core = CONFIG_GMF_IO_CODEC_DEV_RX_TASK_CORE;
+        tx_codec_dev_cfg.io_cfg.thread.prio = CONFIG_GMF_IO_CODEC_DEV_RX_TASK_PRIORITY;
+#ifdef CONFIG_GMF_IO_CODEC_DEV_RX_SPEED_MONITOR
+        tx_codec_dev_cfg.io_cfg.enable_speed_monitor = true;
+#else
+        tx_codec_dev_cfg.io_cfg.enable_speed_monitor = false;
+#endif  /* CONFIG_GMF_IO_CODEC_DEV_RX_SPEED_MONITOR */
+#endif  /* CONFIG_GMF_IO_INIT_CODEC_DEV_RX */
+    } else {
+#ifdef CONFIG_GMF_IO_INIT_CODEC_DEV_TX
+        tx_codec_dev_cfg.io_cfg.buffer_cfg.io_size = CONFIG_GMF_IO_CODEC_DEV_TX_IO_SIZE;
+        tx_codec_dev_cfg.io_cfg.buffer_cfg.buffer_size = CONFIG_GMF_IO_CODEC_DEV_TX_OUT_BUF_SIZE;
+        tx_codec_dev_cfg.io_cfg.thread.stack = CONFIG_GMF_IO_CODEC_DEV_TX_TASK_STACK;
+#ifdef CONFIG_GMF_IO_CODEC_DEV_TX_STACK_IN_EXT
+        tx_codec_dev_cfg.io_cfg.thread.stack_in_ext = true;
+#else
+        tx_codec_dev_cfg.io_cfg.thread.stack_in_ext = false;
+#endif  /* CONFIG_GMF_IO_CODEC_DEV_TX_STACK_IN_EXT */
+        tx_codec_dev_cfg.io_cfg.thread.core = CONFIG_GMF_IO_CODEC_DEV_TX_TASK_CORE;
+        tx_codec_dev_cfg.io_cfg.thread.prio = CONFIG_GMF_IO_CODEC_DEV_TX_TASK_PRIORITY;
+#ifdef CONFIG_GMF_IO_CODEC_DEV_TX_SPEED_MONITOR
+        tx_codec_dev_cfg.io_cfg.enable_speed_monitor = true;
+#else
+        tx_codec_dev_cfg.io_cfg.enable_speed_monitor = false;
+#endif  /* CONFIG_GMF_IO_CODEC_DEV_TX_SPEED_MONITOR */
+#endif  /* CONFIG_GMF_IO_INIT_CODEC_DEV_TX */
+    }
+
     ret = esp_gmf_io_codec_dev_init(&tx_codec_dev_cfg, &dev);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init codec dev io");
     ret = esp_gmf_pool_register_io(pool, dev, NULL);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_io_deinit(dev); return ret;}, "Failed to register codec dev io");
     return ret;
 }
-#endif  /* CONFIG_GMF_IO_INIT_CODEC_DEV_RX || CONFIG_GMF_IO_INIT_CODEC_DEV_TX */
+#endif  /* defined(CONFIG_GMF_IO_INIT_CODEC_DEV_RX) || defined(CONFIG_GMF_IO_INIT_CODEC_DEV_TX) */
 
 #if defined(CONFIG_GMF_IO_INIT_FILE_READER) || defined(CONFIG_GMF_IO_INIT_FILE_WRITER)
 static esp_gmf_err_t gmf_loader_setup_default_fs_io(esp_gmf_pool_handle_t pool, esp_gmf_io_dir_t dir)
@@ -50,15 +88,45 @@ static esp_gmf_err_t gmf_loader_setup_default_fs_io(esp_gmf_pool_handle_t pool, 
     if (dir == ESP_GMF_IO_DIR_READER) {
 #if CONFIG_GMF_IO_INIT_FILE_READER
         fs_cfg.cache_size = CONFIG_GMF_IO_FILE_READ_CACHE_SIZE;
-#endif
+        fs_cfg.io_cfg.buffer_cfg.io_size = CONFIG_GMF_IO_FILE_READER_IO_SIZE;
+        fs_cfg.io_cfg.buffer_cfg.buffer_size = CONFIG_GMF_IO_FILE_READER_OUT_BUF_SIZE;
+        fs_cfg.io_cfg.thread.stack = CONFIG_GMF_IO_FILE_READER_TASK_STACK;
+#ifdef CONFIG_GMF_IO_FILE_READER_STACK_IN_EXT
+        fs_cfg.io_cfg.thread.stack_in_ext = true;
+#else
+        fs_cfg.io_cfg.thread.stack_in_ext = false;
+#endif  /* CONFIG_GMF_IO_FILE_READER_STACK_IN_EXT */
+        fs_cfg.io_cfg.thread.core = CONFIG_GMF_IO_FILE_READER_TASK_CORE;
+        fs_cfg.io_cfg.thread.prio = CONFIG_GMF_IO_FILE_READER_TASK_PRIORITY;
+#ifdef CONFIG_GMF_IO_FILE_READER_SPEED_MONITOR
+        fs_cfg.io_cfg.enable_speed_monitor = true;
+#else
+        fs_cfg.io_cfg.enable_speed_monitor = false;
+#endif  /* CONFIG_GMF_IO_FILE_READER_SPEED_MONITOR */
+#endif  /* CONFIG_GMF_IO_INIT_FILE_READER */
     } else {
 #if CONFIG_GMF_IO_INIT_FILE_WRITER
         fs_cfg.cache_size = CONFIG_GMF_IO_FILE_WRITE_CACHE_SIZE;
-#endif
+        fs_cfg.io_cfg.buffer_cfg.io_size = CONFIG_GMF_IO_FILE_WRITER_IO_SIZE;
+        fs_cfg.io_cfg.buffer_cfg.buffer_size = CONFIG_GMF_IO_FILE_WRITER_OUT_BUF_SIZE;
+        fs_cfg.io_cfg.thread.stack = CONFIG_GMF_IO_FILE_WRITER_TASK_STACK;
+#ifdef CONFIG_GMF_IO_FILE_WRITER_STACK_IN_EXT
+        fs_cfg.io_cfg.thread.stack_in_ext = true;
+#else
+        fs_cfg.io_cfg.thread.stack_in_ext = false;
+#endif  /* CONFIG_GMF_IO_FILE_WRITER_STACK_IN_EXT */
+        fs_cfg.io_cfg.thread.core = CONFIG_GMF_IO_FILE_WRITER_TASK_CORE;
+        fs_cfg.io_cfg.thread.prio = CONFIG_GMF_IO_FILE_WRITER_TASK_PRIORITY;
+#ifdef CONFIG_GMF_IO_FILE_WRITER_SPEED_MONITOR
+        fs_cfg.io_cfg.enable_speed_monitor = true;
+#else
+        fs_cfg.io_cfg.enable_speed_monitor = false;
+#endif  /* CONFIG_GMF_IO_FILE_WRITER_SPEED_MONITOR */
+#endif  /* CONFIG_GMF_IO_INIT_FILE_WRITER */
     }
 #if SOC_SDMMC_PSRAM_DMA_CAPABLE
     fs_cfg.cache_caps |= MALLOC_CAP_SPIRAM;
-#endif
+#endif  /* SOC_SDMMC_PSRAM_DMA_CAPABLE */
     esp_gmf_io_handle_t hd = NULL;
     fs_cfg.dir = dir;
     ret = esp_gmf_io_file_init(&fs_cfg, &hd);
@@ -67,7 +135,7 @@ static esp_gmf_err_t gmf_loader_setup_default_fs_io(esp_gmf_pool_handle_t pool, 
     ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_io_deinit(hd); return ret;}, "Failed to register file io");
     return ret;
 }
-#endif  /* CONFIG_GMF_IO_INIT_FILE_READER || CONFIG_GMF_IO_INIT_FILE_WRITER */
+#endif  /* defined(CONFIG_GMF_IO_INIT_FILE_READER) || defined(CONFIG_GMF_IO_INIT_FILE_WRITER) */
 
 #if defined(CONFIG_GMF_IO_INIT_FLASH_READER)
 static esp_gmf_err_t gmf_loader_setup_default_flash_io(esp_gmf_pool_handle_t pool)
@@ -77,13 +145,19 @@ static esp_gmf_err_t gmf_loader_setup_default_flash_io(esp_gmf_pool_handle_t poo
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     esp_gmf_io_handle_t hd = NULL;
     embed_flash_io_cfg_t flash_cfg = EMBED_FLASH_CFG_DEFAULT();
+#ifdef CONFIG_GMF_IO_FLASH_READER_SPEED_MONITOR
+    flash_cfg.io_cfg.enable_speed_monitor = true;
+#else
+    flash_cfg.io_cfg.enable_speed_monitor = false;
+#endif  /* CONFIG_GMF_IO_FLASH_READER_SPEED_MONITOR */
+
     ret = esp_gmf_io_embed_flash_init(&flash_cfg, &hd);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init flash io");
     ret = esp_gmf_pool_register_io(pool, hd, NULL);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_io_deinit(hd); return ret;}, "Failed to register flash io");
     return ret;
 }
-#endif  /* CONFIG_GMF_IO_INIT_FLASH_READER */
+#endif  /* defined(CONFIG_GMF_IO_INIT_FLASH_READER) */
 
 #if defined(CONFIG_GMF_IO_INIT_HTTP_READER) || defined(CONFIG_GMF_IO_INIT_HTTP_WRITER)
 static esp_gmf_err_t gmf_loader_setup_default_http_io(esp_gmf_pool_handle_t pool, esp_gmf_io_dir_t dir)
@@ -97,37 +171,49 @@ static esp_gmf_err_t gmf_loader_setup_default_http_io(esp_gmf_pool_handle_t pool
     http_cfg.event_handle = NULL;
     if (dir == ESP_GMF_IO_DIR_READER) {
 #ifdef CONFIG_GMF_IO_INIT_HTTP_READER
-        http_cfg.out_buf_size = CONFIG_GMF_IO_HTTP_READER_OUT_BUF_SIZE;
+        http_cfg.io_cfg.buffer_cfg.io_size = CONFIG_GMF_IO_HTTP_READER_IO_SIZE;
+        http_cfg.io_cfg.buffer_cfg.buffer_size = CONFIG_GMF_IO_HTTP_READER_OUT_BUF_SIZE;
         if (CONFIG_GMF_IO_HTTP_READER_CERT_PEM[0] == '\0') {
             http_cfg.cert_pem = NULL;
         } else {
             http_cfg.cert_pem = CONFIG_GMF_IO_HTTP_READER_CERT_PEM;
         }
-        http_cfg.task_stack = CONFIG_GMF_IO_HTTP_READER_TASK_STACK;
+        http_cfg.io_cfg.thread.stack = CONFIG_GMF_IO_HTTP_READER_TASK_STACK;
 #ifdef CONFIG_GMF_IO_HTTP_READER_STACK_IN_EXT
-        http_cfg.stack_in_ext = true;
+        http_cfg.io_cfg.thread.stack_in_ext = true;
 #else
-        http_cfg.stack_in_ext = false;
+        http_cfg.io_cfg.thread.stack_in_ext = false;
 #endif  /* CONFIG_GMF_IO_HTTP_READER_STACK_IN_EXT */
-        http_cfg.task_core = CONFIG_GMF_IO_HTTP_READER_TASK_CORE;
-        http_cfg.task_prio = CONFIG_GMF_IO_HTTP_READER_TASK_PRIORITY;
+        http_cfg.io_cfg.thread.core = CONFIG_GMF_IO_HTTP_READER_TASK_CORE;
+        http_cfg.io_cfg.thread.prio = CONFIG_GMF_IO_HTTP_READER_TASK_PRIORITY;
+#ifdef CONFIG_GMF_IO_HTTP_READER_SPEED_MONITOR
+        http_cfg.io_cfg.enable_speed_monitor = true;
+#else
+        http_cfg.io_cfg.enable_speed_monitor = false;
+#endif  /* CONFIG_GMF_IO_HTTP_READER_SPEED_MONITOR */
 #endif  /* CONFIG_GMF_IO_INIT_HTTP_READER */
     } else {
 #ifdef CONFIG_GMF_IO_INIT_HTTP_WRITER
-        http_cfg.out_buf_size = CONFIG_GMF_IO_HTTP_WRITER_OUT_BUF_SIZE;
+        http_cfg.io_cfg.buffer_cfg.io_size = CONFIG_GMF_IO_HTTP_WRITER_IO_SIZE;
+        http_cfg.io_cfg.buffer_cfg.buffer_size = CONFIG_GMF_IO_HTTP_WRITER_OUT_BUF_SIZE;
         if (CONFIG_GMF_IO_HTTP_WRITER_CERT_PEM[0] == '\0') {
             http_cfg.cert_pem = NULL;
         } else {
             http_cfg.cert_pem = CONFIG_GMF_IO_HTTP_WRITER_CERT_PEM;
         }
-        http_cfg.task_stack = CONFIG_GMF_IO_HTTP_WRITER_TASK_STACK;
+        http_cfg.io_cfg.thread.stack = CONFIG_GMF_IO_HTTP_WRITER_TASK_STACK;
 #ifdef CONFIG_GMF_IO_HTTP_WRITER_STACK_IN_EXT
-        http_cfg.stack_in_ext = true;
+        http_cfg.io_cfg.thread.stack_in_ext = true;
 #else
-        http_cfg.stack_in_ext = false;
+        http_cfg.io_cfg.thread.stack_in_ext = false;
 #endif  /* CONFIG_GMF_IO_HTTP_WRITER_STACK_IN_EXT */
-        http_cfg.task_core = CONFIG_GMF_IO_HTTP_WRITER_TASK_CORE;
-        http_cfg.task_prio = CONFIG_GMF_IO_HTTP_WRITER_TASK_PRIORITY;
+        http_cfg.io_cfg.thread.core = CONFIG_GMF_IO_HTTP_WRITER_TASK_CORE;
+        http_cfg.io_cfg.thread.prio = CONFIG_GMF_IO_HTTP_WRITER_TASK_PRIORITY;
+#ifdef CONFIG_GMF_IO_HTTP_WRITER_SPEED_MONITOR
+        http_cfg.io_cfg.enable_speed_monitor = true;
+#else
+        http_cfg.io_cfg.enable_speed_monitor = false;
+#endif  /* CONFIG_GMF_IO_HTTP_WRITER_SPEED_MONITOR */
 #endif  /* CONFIG_GMF_IO_INIT_HTTP_WRITER */
     }
 
@@ -135,7 +221,7 @@ static esp_gmf_err_t gmf_loader_setup_default_http_io(esp_gmf_pool_handle_t pool
     http_cfg.cert_pem = NULL;
 #elif defined(CONFIG_MBEDTLS_CERTIFICATE_BUNDLE)
     http_cfg.crt_bundle_attach = esp_crt_bundle_attach;
-#endif
+#endif  /* CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY */
 
     ret = esp_gmf_io_http_init(&http_cfg, &hd);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init http io");
@@ -143,7 +229,7 @@ static esp_gmf_err_t gmf_loader_setup_default_http_io(esp_gmf_pool_handle_t pool
     ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_io_deinit(hd); return ret;}, "Failed to register http io");
     return ret;
 }
-#endif  /* CONFIG_GMF_IO_INIT_HTTP_READER || CONFIG_GMF_IO_INIT_HTTP_WRITER */
+#endif  /* defined(CONFIG_GMF_IO_INIT_HTTP_READER) || defined(CONFIG_GMF_IO_INIT_HTTP_WRITER) */
 
 esp_gmf_err_t gmf_loader_setup_io_default(esp_gmf_pool_handle_t pool)
 {

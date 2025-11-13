@@ -6,6 +6,7 @@
 
 #include <sys/stat.h>
 #include "unity.h"
+#include "string.h"
 #include "freertos/FreeRTOS.h"
 #include "esp_private/esp_clk.h"
 #include "driver/sdmmc_host.h"
@@ -204,4 +205,57 @@ TEST_CASE("Abort when FIFO read and write on different task", "[ESP_GMF_FIFO]")
 
     esp_gmf_ut_teardown_sdmmc(card);
     vTaskDelay(10 / portTICK_PERIOD_MS);
+}
+
+TEST_CASE("Abort and clear abort function", "[ESP_GMF_FIFO]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+
+    esp_gmf_fifo_handle_t fifo = NULL;
+    esp_gmf_fifo_create(4, 1024, &fifo);
+    TEST_ASSERT_NOT_NULL(fifo);
+    esp_gmf_data_bus_block_t blk = {0};
+    uint8_t test_data[1024];
+    memset(test_data, 0xAA, sizeof(test_data));
+
+    int ret = esp_gmf_fifo_acquire_write(fifo, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_fifo_release_write(fifo, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_fifo_abort(fifo);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_fifo_acquire_read(fifo, &blk, sizeof(test_data), 0);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+
+    ret = esp_gmf_fifo_acquire_write(fifo, &blk, sizeof(test_data), 0);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+
+    ret = esp_gmf_fifo_clear_abort(fifo);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_fifo_acquire_read(fifo, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+    TEST_ASSERT_EQUAL(sizeof(test_data), blk.valid_size);
+
+    for (int i = 0; i < sizeof(test_data); i++) {
+        TEST_ASSERT_EQUAL(0xAA, ((uint8_t *)blk.buf)[i]);
+    }
+
+    ret = esp_gmf_fifo_release_read(fifo, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_fifo_acquire_write(fifo, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_fifo_release_write(fifo, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    esp_gmf_fifo_destroy(fifo);
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added configuration of IO buffering task scheduler
+
 ## v0.7.6
 
 ### Features

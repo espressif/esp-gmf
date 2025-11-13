@@ -21,20 +21,20 @@
 #include "gmf_fake_dec.h"
 #include "gmf_ut_common.h"
 
-static const char *TAG           = "TEST_ESP_GMF_POOL";
+static const char *TAG = "TEST_ESP_GMF_POOL";
 static const char *test_file_uri = "/sdcard/gmf_ut_test1.mp3";
 
-#define PIPELINE_BLOCK_BIT BIT(0)
+#define PIPELINE_BLOCK_BIT  BIT(0)
 
 esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
     esp_gmf_pipeline_handle_t pipe = event->from;
     if (event->type == ESP_GMF_EVT_TYPE_LOADING_JOB) {
-        ESP_LOGI(TAG, "TASK EVT, LOADING_JOB, tsk:%s, action:%d, pld:%p, sz:%d",
-                OBJ_GET_TAG(pipe), event->sub, event->payload, event->payload_size);
+        ESP_LOGI(TAG, "TASK EVT, LOADING_JOB, pipe:%p, action:%d, pld:%p, sz:%d",
+                 pipe, event->sub, event->payload, event->payload_size);
     } else if (event->type == ESP_GMF_EVT_TYPE_CHANGE_STATE) {
-        ESP_LOGI(TAG, "TASK EVT, STATE CHANGE, tsk:%s, state:%s, pld:%p, sz:%d",
-                OBJ_GET_TAG(pipe), esp_gmf_event_get_state_str(event->sub), event->payload, event->payload_size);
+        ESP_LOGI(TAG, "TASK EVT, STATE CHANGE, pipe:%p, state:%s, pld:%p, sz:%d",
+                 pipe, esp_gmf_event_get_state_str(event->sub), event->payload, event->payload_size);
         if ((event->sub == ESP_GMF_EVENT_STATE_STOPPED)
             || (event->sub == ESP_GMF_EVENT_STATE_FINISHED)
             || (event->sub == ESP_GMF_EVENT_STATE_ERROR)) {
@@ -43,11 +43,11 @@ esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
             }
         }
     } else if (event->type == ESP_GMF_EVT_TYPE_REPORT_INFO) {
-        ESP_LOGI(TAG, "TASK EVT, REPORT_INFO, tsk:%s, pld:%p, sz:%d",
-                OBJ_GET_TAG(pipe), event->payload, event->payload_size);
+        ESP_LOGI(TAG, "TASK EVT, REPORT_INFO, pipe:%p, pld:%p, sz:%d",
+                 pipe, event->payload, event->payload_size);
     } else {
-        ESP_LOGW(TAG, "TASK EVT, UNKNOWN, tsk:%s, t:%x, pld:%p, sz:%d",
-                OBJ_GET_TAG(pipe), event->type, event->payload, event->payload_size);
+        ESP_LOGW(TAG, "TASK EVT, UNKNOWN, pipe:%p, t:%x, pld:%p, sz:%d",
+                 pipe, event->type, event->payload, event->payload_size);
     }
     return 0;
 }
@@ -599,7 +599,7 @@ TEST_CASE("Un-Shared port, Same payload, [FILE->dec->FILE]", "[ELEMENT_PORT]")
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_deinit(pool));
 }
 
-#define TEST_LENGTH (3 * 1024)
+#define TEST_LENGTH  (3 * 1024)
 static uint8_t *test_buffer = NULL;
 
 static esp_gmf_err_io_t _acquire_read(esp_gmf_io_handle_t handle, void *payload, uint32_t wanted_size, int block_ticks)
@@ -628,7 +628,7 @@ static esp_gmf_err_io_t _acquire_write_fail(esp_gmf_io_handle_t handle, void *pa
 {
     esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
     pload->valid_size = wanted_size > TEST_LENGTH ? TEST_LENGTH : wanted_size;
-    if(wanted_size > TEST_LENGTH) {
+    if (wanted_size > TEST_LENGTH) {
         pload->valid_size = TEST_LENGTH;
         return ESP_GMF_IO_FAIL;
     }

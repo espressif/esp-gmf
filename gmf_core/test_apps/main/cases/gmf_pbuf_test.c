@@ -5,6 +5,7 @@
  */
 
 #include "unity.h"
+#include "string.h"
 #include "freertos/FreeRTOS.h"
 #include "esp_private/esp_clk.h"
 #include "driver/sdmmc_host.h"
@@ -376,4 +377,57 @@ TEST_CASE("Abort when read task and write task thread safe test", "[ESP_GMF_PBUF
     esp_gmf_pbuf_destroy(pbuf);
     esp_gmf_ut_teardown_sdmmc(card);
     ESP_LOGI(TAG, "%s,%d", __func__, __LINE__);
+}
+
+TEST_CASE("Abort and clear abort function", "[ESP_GMF_PBUF]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+
+    esp_gmf_pbuf_handle_t pbuf = NULL;
+    esp_gmf_pbuf_create(4, &pbuf);
+    TEST_ASSERT_NOT_NULL(pbuf);
+    esp_gmf_data_bus_block_t blk = {0};
+    uint8_t test_data[512];
+    memset(test_data, 0xEE, sizeof(test_data));
+
+    int ret = esp_gmf_pbuf_acquire_write(pbuf, &blk, 512, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_pbuf_release_write(pbuf, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_pbuf_abort(pbuf);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_pbuf_acquire_read(pbuf, &blk, 512, 0);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+
+    ret = esp_gmf_pbuf_acquire_write(pbuf, &blk, 512, 0);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+
+    ret = esp_gmf_pbuf_clear_abort(pbuf);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_pbuf_acquire_read(pbuf, &blk, 512, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+    TEST_ASSERT_EQUAL(sizeof(test_data), blk.valid_size);
+
+    for (int i = 0; i < sizeof(test_data); i++) {
+        TEST_ASSERT_EQUAL(0xEE, ((uint8_t *)blk.buf)[i]);
+    }
+
+    ret = esp_gmf_pbuf_release_read(pbuf, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_pbuf_acquire_write(pbuf, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_pbuf_release_write(pbuf, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    esp_gmf_pbuf_destroy(pbuf);
 }

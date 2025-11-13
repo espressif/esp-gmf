@@ -55,6 +55,7 @@ struct data_bus_op_t {
     esp_gmf_err_t (*reset_done_write)(esp_gmf_db_handle_t handle);                         /*!< Reset the "done writing" signal */
     esp_gmf_err_t (*reset)(esp_gmf_db_handle_t handle);                                    /*!< Reset the data bus */
     esp_gmf_err_t (*abort)(esp_gmf_db_handle_t handle);                                    /*!< Abort ongoing operations */
+    esp_gmf_err_t (*clear_abort)(esp_gmf_db_handle_t handle);                              /*!< Clear abort flag and restore semaphores */
     esp_gmf_err_t (*get_total_size)(esp_gmf_db_handle_t handle, uint32_t *size);           /*!< Get the total size of the data bus */
     esp_gmf_err_t (*get_filled_size)(esp_gmf_db_handle_t handle, uint32_t *filled_size);   /*!< Get the filled size of the data bus */
     esp_gmf_err_t (*get_available)(esp_gmf_db_handle_t handle, uint32_t *available_size);  /*!< Get the available size of the data bus */
@@ -244,6 +245,21 @@ esp_gmf_err_t esp_gmf_db_reset(esp_gmf_db_handle_t handle);
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
  */
 esp_gmf_err_t esp_gmf_db_abort(esp_gmf_db_handle_t handle);
+
+/**
+ * @brief  Clear the abort flag and restore semaphores to allow normal operations
+ *
+ * @note  This function should be called when recovering from an abort state. It provides
+ *        a unified interface across all data bus types. The specific recovery implementation
+ *        depends on the underlying data bus type (block, ringbuffer, FIFO, or pbuf)
+ *
+ * @param[in]  handle  data bus handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_db_clear_abort(esp_gmf_db_handle_t handle);
 
 /**
  * @brief  Get the total size of data bus buffer

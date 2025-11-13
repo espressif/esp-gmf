@@ -29,6 +29,7 @@ typedef struct {
     esp_gmf_err_io_t  acquire_write_return;
     esp_gmf_err_io_t  release_write_return;
     esp_gmf_err_t     seek_return;
+    uint32_t          seek_called_count;
     esp_gmf_err_t     close_return;
     esp_gmf_err_t     delete_return;
     esp_gmf_err_t     new_return;

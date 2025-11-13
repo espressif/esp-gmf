@@ -12,11 +12,11 @@
 #include "esp_log.h"
 
 /**
- * @brief Codec device io context in GMF
+ * @brief  Codec device io context in GMF
  */
 typedef struct {
-    esp_gmf_io_t base;    /*!< The GMF codec dev io handle */
-    bool         is_open; /*!< The flag of whether opened */
+    esp_gmf_io_t  base;     /*!< The GMF codec dev io handle */
+    bool          is_open;  /*!< The flag of whether opened */
 } codec_dev_io_stream_t;
 
 static const char *TAG = "ESP_GMF_CODEC_DEV";
@@ -131,8 +131,7 @@ esp_gmf_err_t esp_gmf_io_codec_dev_init(codec_dev_io_cfg_t *config, esp_gmf_io_h
     obj->new_obj = esp_gmf_io_codec_dev_new;
     obj->del_obj = _codec_dev_delete;
     codec_dev_io_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(*config));
-    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _codec_dev_fail;},
-                       "codec device configuration", sizeof(*config));
+    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _codec_dev_fail;}, "codec device configuration", sizeof(*config));
     memcpy(cfg, config, sizeof(*config));
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
     ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_codec_dev" : config->name));
@@ -141,7 +140,6 @@ esp_gmf_err_t esp_gmf_io_codec_dev_init(codec_dev_io_cfg_t *config, esp_gmf_io_h
     codec_dev_io->base.open = _codec_dev_open;
     codec_dev_io->base.seek = _codec_dev_seek;
     codec_dev_io->base.reset = NULL;
-    esp_gmf_io_init(obj, NULL);
     if (codec_dev_io->base.dir == ESP_GMF_IO_DIR_WRITER) {
         codec_dev_io->base.acquire_write = _codec_dev_acquire_write;
         codec_dev_io->base.release_write = _codec_dev_release_write;
@@ -151,6 +149,23 @@ esp_gmf_err_t esp_gmf_io_codec_dev_init(codec_dev_io_cfg_t *config, esp_gmf_io_h
     } else {
         ESP_LOGE(TAG, "Does not set read or write function");
         ret = ESP_GMF_ERR_NOT_SUPPORT;
+        goto _codec_dev_fail;
+    }
+    esp_gmf_io_cfg_t io_cfg = {
+        .thread = {
+            .stack = config->io_cfg.thread.stack,
+            .prio = config->io_cfg.thread.prio,
+            .core = config->io_cfg.thread.core,
+            .stack_in_ext = config->io_cfg.thread.stack_in_ext,
+        },
+        .buffer_cfg = {
+            .io_size = config->io_cfg.buffer_cfg.io_size,
+            .buffer_size = config->io_cfg.buffer_cfg.buffer_size,
+        },
+        .enable_speed_monitor = config->io_cfg.enable_speed_monitor,
+    };
+    ret = esp_gmf_io_init(obj, &io_cfg);
+    if (ret != ESP_GMF_ERR_OK) {
         goto _codec_dev_fail;
     }
     *io = obj;

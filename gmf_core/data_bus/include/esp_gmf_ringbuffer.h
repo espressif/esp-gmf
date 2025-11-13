@@ -139,6 +139,20 @@ esp_gmf_err_io_t esp_gmf_rb_release_write(esp_gmf_rb_handle_t handle, esp_gmf_da
 esp_gmf_err_t esp_gmf_rb_abort(esp_gmf_rb_handle_t handle);
 
 /**
+ * @brief  Clear the abort flag and drain semaphores for recovery after abort
+ *
+ * @note  This function should be called when recovering from an abort state
+ *        It clears the abort_read and abort_write flags, then drains and restores semaphore signals based on actual buffer state
+ *
+ * @param[in]  handle  The Ringbuffer handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_rb_clear_abort(esp_gmf_rb_handle_t handle);
+
+/**
  * @brief  Set the status of writing to the ring buffer as done
  *
  * @param[in]  handle  The Ringbuffer handle

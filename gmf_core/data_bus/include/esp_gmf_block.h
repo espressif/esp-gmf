@@ -154,6 +154,17 @@ esp_gmf_err_io_t esp_gmf_block_release_write(esp_gmf_block_handle_t handle, esp_
 esp_gmf_err_t esp_gmf_block_done_write(esp_gmf_block_handle_t handle);
 
 /**
+ * @brief  Reset the status of writing to the block buffer as not done
+ *
+ * @param[in]  handle  The block handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_block_reset_done_write(esp_gmf_block_handle_t handle);
+
+/**
  * @brief  Abort waiting if reading or writing is blocking
  *
  * @param[in]  handle  The block handle
@@ -163,6 +174,20 @@ esp_gmf_err_t esp_gmf_block_done_write(esp_gmf_block_handle_t handle);
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
  */
 esp_gmf_err_t esp_gmf_block_abort(esp_gmf_block_handle_t handle);
+
+/**
+ * @brief  Clear the abort flag and drain semaphores for recovery after abort
+ *
+ * @note  This function should be called when recovering from an abort state
+ *        It clears the _is_abort flag, then drains and restores semaphore signals based on actual buffer state
+ *
+ * @param[in]  handle  The block handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_block_clear_abort(esp_gmf_block_handle_t handle);
 
 /**
  * @brief  Reset, clear all values as initial state

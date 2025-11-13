@@ -52,6 +52,7 @@ int esp_gmf_db_new_ringbuf(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.reset_done_write = esp_gmf_rb_reset_done_write;
     db->op.reset = esp_gmf_rb_reset;
     db->op.abort = esp_gmf_rb_abort;
+    db->op.clear_abort = esp_gmf_rb_clear_abort;
     db->op.get_total_size = esp_gmf_rb_get_size;
     db->op.get_filled_size = esp_gmf_rb_bytes_filled;
     db->op.get_available = esp_gmf_rb_bytes_available;
@@ -90,8 +91,10 @@ int esp_gmf_db_new_block(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.acquire_write = esp_gmf_block_acquire_write;
     db->op.release_write = esp_gmf_block_release_write;
     db->op.done_write = esp_gmf_block_done_write;
+    db->op.reset_done_write = esp_gmf_block_reset_done_write;
     db->op.reset = esp_gmf_block_reset;
     db->op.abort = esp_gmf_block_abort;
+    db->op.clear_abort = esp_gmf_block_clear_abort;
     db->op.get_total_size = esp_gmf_block_get_total_size;
     db->op.get_filled_size = esp_gmf_block_get_filled_size;
     db->op.get_available = esp_gmf_block_get_free_size;
@@ -130,8 +133,10 @@ int esp_gmf_db_new_pbuf(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.acquire_write = esp_gmf_pbuf_acquire_write;
     db->op.release_write = esp_gmf_pbuf_release_write;
     db->op.done_write = esp_gmf_pbuf_done_write;
+    db->op.reset_done_write = esp_gmf_pbuf_reset_done_write;
     db->op.reset = esp_gmf_pbuf_reset;
     db->op.abort = esp_gmf_pbuf_abort;
+    db->op.clear_abort = esp_gmf_pbuf_clear_abort;
     db->op.get_total_size = NULL;
     db->op.get_filled_size = NULL;
     db->op.get_available = NULL;
@@ -139,7 +144,6 @@ int esp_gmf_db_new_pbuf(int num, int item_cnt, esp_gmf_db_handle_t *h)
     *h = db;
     return ESP_GMF_ERR_OK;
 }
-
 
 int esp_gmf_db_new_fifo(int num, int item_cnt, esp_gmf_db_handle_t *h)
 {
@@ -171,8 +175,10 @@ int esp_gmf_db_new_fifo(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.acquire_write = esp_gmf_fifo_acquire_write;
     db->op.release_write = esp_gmf_fifo_release_write;
     db->op.done_write = esp_gmf_fifo_done_write;
+    db->op.reset_done_write = esp_gmf_fifo_reset_done_write;
     db->op.reset = esp_gmf_fifo_reset;
     db->op.abort = esp_gmf_fifo_abort;
+    db->op.clear_abort = esp_gmf_fifo_clear_abort;
     db->op.get_total_size = esp_gmf_fifo_get_total_size;
     db->op.get_filled_size = esp_gmf_fifo_get_filled_size;
     db->op.get_available = esp_gmf_fifo_get_free_size;
