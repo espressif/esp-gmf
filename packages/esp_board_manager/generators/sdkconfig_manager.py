@@ -173,6 +173,9 @@ class SDKConfigManager(LoggerMixin):
                     self.logger.info(f"   Successfully updated sdkconfig with {len(result['enabled'])} changes")
                 else:
                     self.logger.info(f'   Successfully created/updated sdkconfig file')
+
+                # Delete build/config/sdkconfig.json after updating sdkconfig
+                self._delete_sdkconfig_json(sdkconfig_path)
             except Exception as e:
                 self.logger.error(f'Error writing sdkconfig: {e}')
                 return result
@@ -542,3 +545,25 @@ class SDKConfigManager(LoggerMixin):
 
         return sdkconfig_content, changes
 
+    def _delete_sdkconfig_json(self, sdkconfig_path: str) -> None:
+        """
+        Delete build/config/sdkconfig.json file after updating sdkconfig.
+
+        Args:
+            sdkconfig_path: Path to sdkconfig file
+        """
+        try:
+            # Get project root directory from sdkconfig path
+            sdkconfig_file = Path(sdkconfig_path)
+            project_root = sdkconfig_file.parent
+            # Build path to build/config/sdkconfig.json
+            sdkconfig_json_path = project_root / 'build' / 'config' / 'sdkconfig.json'
+            # Delete the file if it exists
+            if sdkconfig_json_path.exists():
+                sdkconfig_json_path.unlink()
+                self.logger.debug(f'   Deleted {sdkconfig_json_path}')
+            else:
+                self.logger.debug(f'   {sdkconfig_json_path} does not exist, skipping deletion')
+        except Exception as e:
+            # Log warning but don't fail the operation
+            self.logger.warning(f'⚠️  Failed to delete build/config/sdkconfig.json: {e}')

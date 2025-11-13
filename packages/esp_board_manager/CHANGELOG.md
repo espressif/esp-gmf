@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4
+
+### Bug Fixes
+
+- Delete build/config/sdkconfig.json after updating sdkconfig to ensure component manager uses the latest configuration
+
 ## v0.4.3
 
 ### Bug Fixes
