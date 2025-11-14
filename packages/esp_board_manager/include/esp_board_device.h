@@ -12,11 +12,11 @@
 #include "esp_board_manager_err.h"
 #include "esp_board_extra_func_entry.h"
 
-#define DEVICE_EXTRA_FUNC_REGISTER(name, extra_func) EXTRA_FUNC_IMPLEMENT(name, extra_func)
-
 #ifdef __cplusplus
 extern "C" {
 #endif  /* __cplusplus */
+
+#define DEVICE_EXTRA_FUNC_REGISTER(name, extra_func) EXTRA_FUNC_IMPLEMENT(name, extra_func)
 
 /**
  * @brief  Function pointer type for device initialization
@@ -33,6 +33,10 @@ typedef int (*esp_board_device_deinit_func)(void *device_handle);
  */
 typedef int (*esp_board_device_power_ctrl_func)(void *dev_handle, const char *device_name, bool power_on);
 
+/**
+ * @brief  Function pointer type for device callback_register
+ */
+typedef int (*esp_board_device_callback_register_func)(void *dev_handle, const void *cfg, int cfg_size, void *call_back_func, void *user_data);
 /**
  * @brief  Structure representing a device descriptor
  */
@@ -240,6 +244,35 @@ const esp_board_device_handle_t *esp_board_device_find_by_handle(void *device_ha
  *       - Others                              Error codes from power control device
  */
 esp_err_t esp_board_device_power_ctrl(const char *name, bool power_on);
+
+/**
+ * @brief  Register a callback for a device
+ *
+ *         This function registers a callback function for a specific device.
+ *         It looks up the device descriptor and the device‑specific callback
+ *         registration function based on the device type, then invokes that
+ *         function with the device handle, configuration, and user data.
+ *
+ *         For the detailed callback definitions and actual callback behaviors,
+ *         refer to the corresponding device's header file.
+ *
+ *         Whether the device supports re-registering (updating) an existing
+ *         callback also depends on the device implementation. Refer to the
+ *         device-specific documentation for details.
+ *
+ * @param[in]  name       Device name
+ * @param[in]  callback   Callback function pointer (device‑specific)
+ * @param[in]  user_data  User data to pass to the callback (optional)
+ *
+ * @return
+ *       - ESP_OK                              On success
+ *       - ESP_BOARD_ERR_DEVICE_INVALID_ARG    If name or call_back_func is NULL
+ *       - ESP_BOARD_ERR_DEVICE_NOT_FOUND      If device not found
+ *       - ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED  If device has no callback register func
+ *       - ESP_BOARD_ERR_DEVICE_INIT_FAILED    If callback registration failed
+ *       - Others                              Error codes from power control device
+ */
+esp_err_t esp_board_device_callback_register(const char *name, void *callback, void *user_data);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,111 @@
+# Example board_devices.yaml configuration for  Button device
+# This shows how to integrate the  Button device into a board configuration
+# All values shown are the actual default values from the device parser
+
+# Example GPIO Button device configuration
+# The following configuration applies to the espressif/button component for versions 4.1.4 and its compatible versions.
+# Check out the link for more information
+# https://components.espressif.com/components/espressif/button/versions/4.1.4/readme
+- name: gpio_button_0      # The name of the device, must be unique
+  type: button            # The type of the device
+  sub_type: gpio                 # Button sub type: "gpio" or "adc"
+  config:
+    # GPIO Configuration
+    active_level: 0              # Active level (0-low, 1-high) when button is pressed
+    enable_power_save: false     # Enable power save mode (default: false)
+    disable_pull: false          # Disable internal pull-up/pull-down (default: false)
+
+    # Button Timing Configuration
+    long_press_time: 2000        # Long press time in milliseconds (default: 2000)
+    short_press_time: 100        # Short press time in milliseconds (default: 100)
+
+    # Event Configuration (NEW - Easy button features)
+    events:
+      press_down: true           # Enable press down event (default: true)
+      press_up: true             # Enable press up event (default: true)
+      single_click: true         # Enable single click event (default: true)
+      double_click: true         # Enable double click event (default: true)
+      multi_click: false         # Enable multi click event (default: false)
+      multi_click: []            # Multi click event configuration (default: [])
+      long_press_start: true     # Enable long press start event (default: true)
+      long_press_start_time: []  # Long press start time configuration (default: [])
+      long_press_hold: false     # Enable long press hold event (default: false)
+      long_press_up: true        # Enable long press up event (default: true)
+      long_press_up_time: []     # Long press up time configuration (default: [])
+      press_repeat: false        # Enable press repeat event (default: false)
+      press_repeat_done: false   # Enable press repeat done event (default: false)
+      press_end: false           # Enable press end event (default: false)
+
+  peripherals:
+    - name: gpio-0               # GPIO peripheral name (required)
+
+# Example ADC  Button device configuration (Single button)
+- name: adc_button_0      # The name of the device, must be unique
+  type: button            # The type of the device
+  sub_type: adc                  # Button sub type: "gpio" or "adc"
+  config:
+    # ADC Configuration
+    button_index: 0              # Button index on the channel
+    min_voltage: 0               # Minimum voltage in mV for button press
+    max_voltage: 500             # Maximum voltage in mV for button press
+
+    # Button Timing Configuration
+    long_press_time: 2000        # Long press time in milliseconds (default: 2000)
+    short_press_time: 100        # Short press time in milliseconds (default: 100)
+
+    # Event Configuration (NEW - Easy button features)
+    events:
+      press_down: true           # Enable press down event (default: true)
+      press_up: true             # Enable press up event (default: true)
+      single_click: true         # Enable single click event (default: true)
+      double_click: true         # Enable double click event (default: true)
+      multi_click: false         # Enable multi click event (default: false)
+      multi_click: []            # Multi click event configuration (default: [])
+      long_press_start: true     # Enable long press start event (default: true)
+      long_press_start_time: []  # Long press start time configuration (default: [])
+      long_press_hold: false     # Enable long press hold event (default: false)
+      long_press_up: true        # Enable long press up event (default: true)
+      long_press_up_time: []     # Long press up time configuration (default: [])
+      press_repeat: false        # Enable press repeat event (default: false)
+      press_repeat_done: false   # Enable press repeat done event (default: false)
+      press_end: false           # Enable press end event (default: false)
+
+  peripherals:
+    - name: adc_button           # ADC peripheral name (required for ADC buttons)
+
+# Example ADC  Button device configuration (Multi buttons)
+- name: adc_button_group         # The name of the device, must be unique
+  type: button                   # The type of the device
+  sub_type: adc                  # Button sub type: "gpio" or "adc"
+  config:
+    # ADC Configuration
+    button_num: 6                                                              # Number of buttons in the group, must not be greater than CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL (default: 8)
+    voltage_range: [380, 820, 1110, 1650, 1980, 2410]                          # Voltage ranges for each button in mV
+    # This voltage_range configuration is only applicable to the Korvo2 V3 development board.
+    # Please refer to the schematic of your development board to determine the correct configuration.
+    button_labels: ["VOLUME_UP", "VOLUME_DOWN", "SET", "PLAY", "MUTE", "REC"]  # Labels for each button
+    max_voltage: 3000                                                          # Maximum voltage in mV for this ADC channel (default: 3000)
+
+    # Button Timing Configuration
+    long_press_time: 2000        # Long press time in milliseconds (default: 2000)
+    short_press_time: 100        # Short press time in milliseconds (default: 100)
+
+    # Event Configuration (NEW - Easy button features)
+    events_cfg:
+      press_down: true           # Enable press down event (default: true)
+      press_up: true             # Enable press up event (default: true)
+      single_click: true         # Enable single click event (default: true)
+      double_click: true         # Enable double click event (default: true)
+      multi_click: false         # Enable multi click event (default: false)
+      multi_click: []            # Multi click event configuration (default: [])
+      long_press_start: true     # Enable long press start event (default: true)
+      long_press_start_time: []  # Long press start time configuration (default: [])
+      long_press_hold: false     # Enable long press hold event (default: false)
+      long_press_up: true        # Enable long press up event (default: true)
+      long_press_up_time: []     # Long press up time configuration (default: [])
+      press_repeat: false        # Enable press repeat event (default: false)
+      press_repeat_done: false   # Enable press repeat done event (default: false)
+      press_end: false           # Enable press end event (default: false)
+
+  peripherals:
+    - name: adc_button           # ADC peripheral name (required for ADC buttons)

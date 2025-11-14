@@ -98,6 +98,17 @@ function(get_device_sources sources includes)
         list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fs_fat")
     endif()
 
+    if(CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_button/dev_button.c")
+        if(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_GPIO_SUPPORT)
+            list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_button/dev_button_sub_gpio.c")
+        endif()
+        if(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SUPPORT)
+            list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_button/dev_button_sub_adc.c")
+        endif()
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_button")
+    endif()
+
     # Set output variables in parent scope
     set(${sources} ${srcs} PARENT_SCOPE)
     set(${includes} ${incs} PARENT_SCOPE)

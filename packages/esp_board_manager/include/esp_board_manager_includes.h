@@ -153,3 +153,7 @@
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 #include "dev_ledc_ctrl.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT
+#include "dev_button.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT */

@@ -64,3 +64,17 @@ devices:
         cmd: 15
         d0: 2
     power_ctrl_device: sdcard_power_ctrl
+
+  # ADC Button Devices Configuration for multiple buttons
+  - name: adc_button_group
+    type: button
+    sub_type: adc
+    config:
+      long_press_time: 2000
+      short_press_time: 100
+      button_num: 6
+      max_voltage: 3000
+      voltage_range: [380, 820, 1180, 1570, 1980, 2410]
+      button_labels: ["VOLUME_UP", "VOLUME_DOWN", "SET", "PLAY", "Mode", "REC"]
+    peripherals:
+    - name: adc_button

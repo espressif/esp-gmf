@@ -22,7 +22,7 @@
 #if defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT)
 #include "esp_lvgl_port.h"
 #include "test_dev_lcd_lvgl.h"
-#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT || CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT) */
 
 #ifdef CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT
 #include "test_dev_pwr_ctrl.h"
@@ -55,6 +55,10 @@
 #ifdef CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT
 #include "test_dev_camera.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT
+#include "test_dev_button.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT */
 
 static const char *TAG = "MAIN";
 
@@ -150,7 +154,7 @@ static void test_lcd_lvgl(void)
     ESP_LOGI(TAG, "Starting LCD LVGL test...");
     test_dev_lcd_lvgl_show_menu();
 }
-#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT || CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT) */
 
 #ifdef CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT
 static void test_gpio_expander(void)
@@ -167,6 +171,14 @@ static void test_camera(void)
     test_dev_camera();
 }
 #endif  /* CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT
+static void test_button(void)
+{
+    ESP_LOGI(TAG, "Starting Button tests...");
+    test_dev_button();
+}
+#endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT */
 
 void app_main(void)
 {
@@ -188,7 +200,7 @@ void app_main(void)
 
 #if defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT)
     test_lcd_lvgl();
-#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT || CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT) */
 
 #ifdef CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT
     test_audio();
@@ -214,11 +226,15 @@ void app_main(void)
     lvgl_port_stop();
     test_dev_lcd_touch_deinit();
     test_dev_lcd_lvgl_deinit();
-#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT || CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT) */
 
 #ifdef CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT
     test_camera();
 #endif  /* CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT
+    test_button();
+#endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT */
 
     ESP_LOGI(TAG, "Show all devices and peripherals status");
     esp_board_manager_print();

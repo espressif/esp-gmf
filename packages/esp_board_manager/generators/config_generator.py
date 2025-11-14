@@ -50,6 +50,10 @@ class ConfigGenerator(LoggerMixin):
     def dict_to_c_initializer(self, d: Dict[str, Any], indent: int = 4) -> List[str]:
         """Convert dictionary to C initializer format with proper type handling and formatting"""
         lines = []
+        if isinstance(d, list):
+            arr = ', '.join(str(x) for x in d)
+            lines.append(f'{arr}')
+            return lines
         for k, v in d.items():
             if isinstance(v, dict):
                 lines.append(f'.{k} = {{')

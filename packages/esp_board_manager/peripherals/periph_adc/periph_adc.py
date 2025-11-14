@@ -169,7 +169,7 @@ def parse_adc_oneshot_config(oneshot_config: dict) -> dict:
             'ADC unit',
             VALID_ADC_UNITS
         ),
-        'clk_src': oneshot_config.get('clk_src'),
+        'clk_src': oneshot_config.get('clk_src', 'ADC_RTC_CLK_SRC_DEFAULT'),
         'ulp_mode': get_enum_value(
             oneshot_config.get('ulp_mode'),
             'ADC_ULP_MODE_DISABLE',

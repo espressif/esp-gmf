@@ -155,3 +155,30 @@ devices:
     peripherals:
       - name: "i2c_master"
         frequency: 100000
+
+  # ADC Button Devices Configuration for multiple buttons
+  - name: adc_button_group
+    type: button
+    sub_type: adc
+    config:
+      long_press_time: 2000
+      short_press_time: 100
+      events:
+        press_down: true
+        press_up: true
+        single_click: true
+        double_click: true
+        multi_click: false
+        long_press_start: true
+        long_press_up: true
+        long_press_hold: false
+        press_repeat: false
+        press_repeat_done: false
+        press_end: false
+      button_num: 6
+      max_voltage: 3000
+      voltage_range: [380, 820, 1110, 1650, 1980, 2410]
+      button_labels: ["VOLUME_UP", "VOLUME_DOWN", "SET", "PLAY", "MUTE", "REC"]
+    peripherals:
+    - name: adc_button
+

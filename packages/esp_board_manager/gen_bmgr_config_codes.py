@@ -579,6 +579,13 @@ help
             # Write config structures
             f.write('// Device configuration structures\n')
             for s, d in zip(device_structs, devices):
+                if 'extra_configs' in s:
+                    # Process extra configs first if presented
+                    for e in s['extra_configs']:
+                        e_struct_init = e['struct_init'].copy()
+                        f.write(f"static {e['struct_type']} {e['struct_var']} = {{\n")
+                        f.writelines('    ' + l + '\n' for l in self.config_generator.dict_to_c_initializer(e_struct_init, 4))
+                        f.write('};\n\n')
                 struct_var = 'esp_bmgr_' + d.name.replace('-', '_') + '_cfg'
                 struct_init = s['struct_init'].copy()
                 struct_init['name'] = d.name  # Force use YAML name

@@ -182,6 +182,7 @@ void app_main(void)
 - **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)** - GPIO 扩展芯片测试
 - **[`test_dev_camera`](test_apps/main/test_dev_camera.c)** - 测试 Camera sensor 的视频流捕获能力
 - **[`test_dev_ledc.c`](test_apps/main/test_dev_ledc.c)** - 用于 PWM 和背光控制的 LEDC 设备
+- **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** - 按钮测试
 
 #### 外设示例
 - **[`test_periph_i2c.c`](test_apps/main/periph/test_periph_i2c.c)** - 用于设备通信的 I2C 外设
@@ -210,6 +211,7 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
 | `gpio_expander` | GPIO 扩展芯片 |
 | `camera` | 摄像头设备 |
 | `power_ctrl` | 电源控制设备 |
+| `button` | 按钮设备 |
 
 ## YAML 配置规则
 有关详细的 YAML 配置规则和格式规范，请参阅 [设备和外设规则](docs/device_and_peripheral_rules.md)。
@@ -440,7 +442,7 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | GPIO 扩展芯片 | gpio_expander | - | TCA9554/TCA95XX/HT8574 | i2c | ✅ | GPIO 扩展芯片 | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
 | 摄像头 | camera | - | - | i2c | ✅ | 摄像头设备 | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
 | 电源控制设备 | power_ctrl | gpio | - | gpio | ✅ | 电源控制设备 | [`dev_power_ctrl.yaml`](devices/dev_power_ctrl/dev_power_ctrl.yaml) |
-
+| 按钮 | button | gpio/adc | - | gpio/adc | ✅ | 按钮设备 | [`dev_button.yaml`](devices/dev_button/dev_button.yaml) |
 
 > 对于同一设备，我们将不再通过接口类型来区分不同的设备类型。例如，`dev_fatfs_sdcard` 和 `dev_fatfs_sdcard_spi` 将统一在 fs_fat 下进行管理，`dev_display_lcd_spi` 也将改为使用 `dev_display_lcd` 进行管理。
 > 这三种设备类型将在未来版本中被弃用。用户可以参照 [`dev_fatfs_sdcard.yaml`](./devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml)、[`dev_fatfs_sdcard_spi.yaml`](./devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) 和 [`dev_display_lcd_spi.yaml`](./devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) 文件，了解如何将原有配置迁移到新的设备类型。

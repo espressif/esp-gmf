@@ -60,8 +60,8 @@ typedef struct {
  * @param[out]  device_handle  Pointer to a variable to receive the dev_power_ctrl_handle_t handle
  *
  * @return
- *       - 0         On success
- *       - Negative  value  On failure
+ *       - 0               On success
+ *       - Negative_value  On failure
  */
 int dev_power_ctrl_init(void *cfg, int cfg_size, void **device_handle);
 
@@ -74,8 +74,8 @@ int dev_power_ctrl_init(void *cfg, int cfg_size, void **device_handle);
  * @param[in]  device_handle  Pointer to the device handle to be deinitialized
  *
  * @return
- *       - 0         On success
- *       - Negative  value  On failure
+ *       - 0               On success
+ *       - Negative_value  On failure
  */
 int dev_power_ctrl_deinit(void *device_handle);
 

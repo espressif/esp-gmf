@@ -22,18 +22,25 @@ extern "C" {
  *         You may also define your own device names in applications and in board_devices.yaml,
  *         but they must be unique and must not conflict with the reserved names
  */
-#define ESP_BOARD_DEVICE_NAME_AUDIO_DAC      "audio_dac"          /*!< Audio DAC device base name */
-#define ESP_BOARD_DEVICE_NAME_AUDIO_ADC      "audio_adc"          /*!< Audio ADC device base name */
-#define ESP_BOARD_DEVICE_NAME_FS_SDCARD      "fs_sdcard"          /*!< SD card device base name */
-#define ESP_BOARD_DEVICE_NAME_FS_FAT         "fs_fat"             /*!< FAT filesystem device base name */
-#define ESP_BOARD_DEVICE_NAME_LCD_TOUCH      "lcd_touch"          /*!< LCD touch device base name */
-#define ESP_BOARD_DEVICE_NAME_DISPLAY_LCD    "display_lcd"        /*!< LCD display device base name */
-#define ESP_BOARD_DEVICE_NAME_LCD_POWER      "lcd_power"          /*!< LCD power control device base name */
-#define ESP_BOARD_DEVICE_NAME_LCD_BRIGHTNESS "lcd_brightness"     /*!< LCD brightness control device base name */
-#define ESP_BOARD_DEVICE_NAME_FS_SPIFFS      "fs_spiffs"          /*!< SPIFFS filesystem device base name */
-#define ESP_BOARD_DEVICE_NAME_GPIO_EXPANDER  "gpio_expander"      /*!< GPIO expander device base name */
-#define ESP_BOARD_DEVICE_NAME_CAMERA         "camera"             /*!< Camera device base name */
-#define ESP_BOARD_DEVICE_NAME_SD_POWER       "sdcard_power_ctrl"  /*!< SD card power control device base name */
+#define ESP_BOARD_DEVICE_NAME_AUDIO_DAC        "audio_dac"          /*!< Audio DAC device base name */
+#define ESP_BOARD_DEVICE_NAME_AUDIO_ADC        "audio_adc"          /*!< Audio ADC device base name */
+#define ESP_BOARD_DEVICE_NAME_FS_SDCARD        "fs_sdcard"          /*!< SD card device base name */
+#define ESP_BOARD_DEVICE_NAME_FS_FAT           "fs_fat"             /*!< FAT filesystem device base name */
+#define ESP_BOARD_DEVICE_NAME_LCD_TOUCH        "lcd_touch"          /*!< LCD touch device base name */
+#define ESP_BOARD_DEVICE_NAME_DISPLAY_LCD      "display_lcd"        /*!< LCD display device base name */
+#define ESP_BOARD_DEVICE_NAME_LCD_POWER        "lcd_power"          /*!< LCD power control device base name */
+#define ESP_BOARD_DEVICE_NAME_LCD_BRIGHTNESS   "lcd_brightness"     /*!< LCD brightness control device base name */
+#define ESP_BOARD_DEVICE_NAME_FS_SPIFFS        "fs_spiffs"          /*!< SPIFFS filesystem device base name */
+#define ESP_BOARD_DEVICE_NAME_GPIO_EXPANDER    "gpio_expander"      /*!< GPIO expander device base name */
+#define ESP_BOARD_DEVICE_NAME_CAMERA           "camera_sensor"      /*!< Camera device base name */
+#define ESP_BOARD_DEVICE_NAME_SD_POWER         "sdcard_power_ctrl"  /*!< SD card power control device base name */
+#define ESP_BOARD_DEVICE_NAME_ADC_BUTTON_0     "adc_button_0"       /*!< ADC button device base name */
+#define ESP_BOARD_DEVICE_NAME_ADC_BUTTON_1     "adc_button_1"       /*!< ADC button device base name */
+#define ESP_BOARD_DEVICE_NAME_ADC_BUTTON_2     "adc_button_2"       /*!< ADC button device base name */
+#define ESP_BOARD_DEVICE_NAME_ADC_BUTTON_3     "adc_button_3"       /*!< ADC button device base name */
+#define ESP_BOARD_DEVICE_NAME_ADC_BUTTON_4     "adc_button_4"       /*!< ADC button device base name */
+#define ESP_BOARD_DEVICE_NAME_ADC_BUTTON_5     "adc_button_5"       /*!< ADC button device base name */
+#define ESP_BOARD_DEVICE_NAME_ADC_BUTTON_GROUP "adc_button_group"   /*!< ADC button device base name */
 
 /**
  * @brief  Device type keys
@@ -54,6 +61,8 @@ extern "C" {
 #define ESP_BOARD_DEVICE_TYPE_LEDC_CTRL        "ledc_ctrl"         /*!< LEDC control device type */
 #define ESP_BOARD_DEVICE_TYPE_GPIO_EXPANDER    "gpio_expander"     /*!< GPIO expander device type */
 #define ESP_BOARD_DEVICE_TYPE_CAMERA           "camera"            /*!< Camera sensor device type */
+#define ESP_BOARD_DEVICE_TYPE_POWER_CTRL       "power_ctrl"        /*!< Power control device type */
+#define ESP_BOARD_DEVICE_TYPE_BUTTON           "button"            /*!< Button device type */
 
 /**
  * @brief  Peripheral role enum

@@ -30,11 +30,13 @@
 - Added LDO and DSI peripheral types
 - Added `dev_display_lcd` device type to manage LCD devices of different bus types and supported dsi lcd
 - Added lcd support for `esp32_p4_function_ev` board
+- Implement device extra function registration interface `EXTRA_FUNC_IMPLEMENT`
 - Added power_ctrl device type, added `power_ctrl_device` attribute in `esp_board_device_desc_t`, for devices configured with this attribute, the power will be automatically turned on during initialization
 - Added support for `csi` camera
 - Added camera support for `esp32_p4_function_ev` board
 - Modify the periph role macro definition from string to enum
 - Removed the unused periph type macro definition and added the commonly used periph name macro definition
+- Added BUTTON device type with test support, supported gpio and adc buttons
 
 ## 0.4.8
 

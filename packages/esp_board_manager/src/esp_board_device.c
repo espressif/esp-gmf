@@ -316,3 +316,39 @@ esp_err_t esp_board_device_power_ctrl(const char *name, bool power_on)
     return ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED;
 #endif  /* CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUPPORT */
 }
+
+esp_err_t esp_board_device_callback_register(const char *name, void *call_back_func, void *user_data)
+{
+    ESP_BOARD_RETURN_ON_FALSE(name && call_back_func, ESP_BOARD_ERR_DEVICE_INVALID_ARG, TAG, "Invalid arguments");
+
+    /* Find device descriptor */
+    const esp_board_device_desc_t *dev_desc = esp_board_find_device_desc(name);
+    ESP_BOARD_RETURN_ON_FALSE(dev_desc, ESP_BOARD_ERR_DEVICE_NOT_FOUND, TAG, "Device %s not found", name);
+
+    /* Get device-specific callback registration function */
+    void *extra_func = NULL;
+    esp_err_t err = esp_board_extra_func_get(dev_desc->type, &extra_func);
+    if (err != 0) {
+        ESP_LOGE(TAG, "Callback register func for device type %s not found", dev_desc->type);
+        return ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED;
+    }
+
+    /* Get device handle */
+    void *dev_handle = NULL;
+    err = esp_board_device_get_handle(name, &dev_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get device handle for %s", name);
+        return ESP_BOARD_ERR_DEVICE_NOT_FOUND;
+    }
+
+    /* Cast to appropriate function pointer type and call */
+    esp_board_device_callback_register_func register_func = (esp_board_device_callback_register_func)extra_func;
+    err = register_func(dev_handle, dev_desc->cfg, dev_desc->cfg_size, call_back_func, user_data);
+    if (err != 0) {
+        ESP_LOGE(TAG, "Device callback registration failed for %s, ", name);
+        return ESP_BOARD_ERR_DEVICE_INIT_FAILED;
+    }
+
+    ESP_LOGI(TAG, "Callback registered for device %s", name);
+    return ESP_OK;
+}

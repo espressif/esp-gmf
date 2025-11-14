@@ -104,8 +104,8 @@ adc-oneshot:
     channel_id: 4
 
     # Clock source for ADC module.
-    # Please check the adc_typedef.h, see 'adc_oneshot_clk_src_t' for valid values
-    clk_src: SOC_MOD_CLK_RC_FAST
+    # Please refer to soc/clk_tree_defs.h, see 'soc_periph_adc_digi_clk_src_t' for valid values
+    clk_src: ADC_RTC_CLK_SRC_DEFAULT
 
     # ULP mode selection. (default: ADC_ULP_MODE_DISABLE)
     ulp_mode: ADC_ULP_MODE_DISABLE
