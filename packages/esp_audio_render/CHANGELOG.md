@@ -1,3 +1,10 @@
+## v0.7.2
+
+### Features
+
+- Added API `esp_audio_render_set_solo_stream` for solo stream playback
+
+
 ## v0.7.1
 
 ### Features

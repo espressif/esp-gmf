@@ -87,6 +87,7 @@ struct audio_render_t {
     uint32_t                         mixer_block_size;
     audio_render_event_grp_handle_t  event_grp;
     void                             *mutex;
+    esp_audio_render_stream_id_t      solo_stream;
 };
 
 static inline audio_render_stream_t* get_stream(audio_render_t* render, esp_audio_render_stream_id_t stream_id)
@@ -136,6 +137,14 @@ static int audio_render_post_writer(uint8_t *pcm_data, uint32_t len, void *ctx)
 static int audio_render_stream_writer(uint8_t *pcm_data, uint32_t len, void *ctx)
 {
     audio_render_stream_t* stream = (audio_render_stream_t*)ctx;
+    if (stream->stream_id == stream->parent->solo_stream) {
+        // Solo play write to post directly
+        audio_render_stream_t* post_stream = get_stream(stream->parent, ESP_AUDIO_RENDER_MIXED_STREAM);
+        if (post_stream && post_stream->proc_handle) {
+            return audio_render_proc_write(post_stream->proc_handle, pcm_data, len);
+        }
+        return audio_render_post_writer(pcm_data, len, stream->parent);
+    }
     // Write to mixer thread
     if (stream->rb) {
         return write_rb(stream->rb, pcm_data, len);
@@ -225,7 +234,8 @@ static void audio_render_task(void *arg)
                 clear_mixer_in(audio_render, stream);
             }
         }
-        if (had_valid_data == false) {
+        if (had_valid_data == false ||
+            audio_render->solo_stream != ESP_AUDIO_RENDER_ALL_STREAM) {
             audio_render_delay(audio_render->cfg.process_period);
             consume_fast = false;
             continue;
@@ -567,6 +577,7 @@ esp_audio_render_err_t esp_audio_render_create(esp_audio_render_cfg_t *cfg, esp_
         audio_render->task_cfg.prio = CONFIG_ESP_AUDIO_RENDER_MIXER_THREAD_PRIORITY;
         audio_render->task_cfg.core = CONFIG_ESP_AUDIO_RENDER_MIXER_THREAD_CORE_ID;
         audio_render->task_cfg.stack_in_ext = true;
+        audio_render->solo_stream = ESP_AUDIO_RENDER_ALL_STREAM;
         *render = audio_render;
         return ESP_AUDIO_RENDER_ERR_OK;
     } while (0);
@@ -696,6 +707,22 @@ esp_audio_render_err_t esp_audio_render_stream_set_mixer_gain(esp_audio_render_s
     return ESP_AUDIO_RENDER_ERR_OK;
 }
 
+esp_audio_render_err_t esp_audio_render_set_solo_stream(esp_audio_render_handle_t render,
+                                                        esp_audio_render_stream_id_t stream_id)
+{
+    if (render == NULL) {
+        ESP_LOGE(TAG, "Invalid argument for render:%p", render);
+        return ESP_AUDIO_RENDER_ERR_INVALID_ARG;
+    }
+    audio_render_t *audio_render = (audio_render_t *)render;
+    if (stream_id >= audio_render->stream_num && stream_id != ESP_AUDIO_RENDER_MIXED_STREAM) {
+        ESP_LOGE(TAG, "Invalid stream id %d", stream_id);
+        return ESP_AUDIO_RENDER_ERR_INVALID_ARG;
+    }
+    audio_render->solo_stream = stream_id;
+    return ESP_AUDIO_RENDER_ERR_OK;
+}
+
 esp_audio_render_err_t esp_audio_render_stream_open(esp_audio_render_stream_handle_t stream_handle,
                                                     esp_audio_render_sample_info_t *sample_info)
 {
@@ -771,6 +798,21 @@ esp_audio_render_err_t esp_audio_render_stream_write(esp_audio_render_stream_han
         return ESP_AUDIO_RENDER_ERR_INVALID_STATE;
     }
     AUDIO_RENDER_STREAM_SET_WRITING(stream->state);
+    if (audio_render->solo_stream != ESP_AUDIO_RENDER_ALL_STREAM) {
+        // Exclude stream which not solo play
+        if (stream->stream_id != audio_render->solo_stream) {
+            return ESP_AUDIO_RENDER_ERR_OK;
+        }
+        if (stream->proc_handle) {
+            return audio_render_proc_write(stream->proc_handle, pcm_data, pcm_size);
+        }
+        audio_render_stream_t* post_stream = get_stream(audio_render, ESP_AUDIO_RENDER_MIXED_STREAM);
+        if (post_stream && post_stream->proc_handle) {
+            return audio_render_proc_write(post_stream->proc_handle, pcm_data, pcm_size);
+        }
+        int ret = audio_render_post_writer(pcm_data, pcm_size, audio_render);
+        return ret == 0 ? ESP_AUDIO_RENDER_ERR_OK : ESP_AUDIO_RENDER_ERR_FAIL;
+    }
     if (stream->proc_handle) {
         return audio_render_proc_write(stream->proc_handle, pcm_data, pcm_size);
     }
