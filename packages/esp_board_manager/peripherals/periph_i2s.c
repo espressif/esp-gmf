@@ -151,26 +151,30 @@ int periph_i2s_deinit(void *periph_handle)
     i2s_chan_handle_t handle = (i2s_chan_handle_t)periph_handle;
     for (size_t i = 0; i < SOC_I2S_NUM; i++) {
         if (i2s_chan_handles[i].chan_out == handle) {
-            i2s_del_channel(i2s_chan_handles[i].chan_out);
-            i2s_chan_handles[i].chan_out = NULL;
-            i2s_chan_handles[i].out_en = false;
-            ESP_LOGW(TAG, "Caution: Releasing TX (%p), RX (%p) forced to stop.",
-                     i2s_chan_handles[i].chan_out, i2s_chan_handles[i].chan_in);
-            i2s_channel_disable(i2s_chan_handles[i].chan_in);
-            i2s_del_channel(i2s_chan_handles[i].chan_in);
-            i2s_chan_handles[i].chan_in = NULL;
-            i2s_chan_handles[i].in_en = false;
-        }
-        if (i2s_chan_handles[i].chan_in == handle) {
-            i2s_del_channel(i2s_chan_handles[i].chan_in);
-            i2s_chan_handles[i].chan_in = NULL;
-            i2s_chan_handles[i].in_en = false;
-            ESP_LOGW(TAG, "Caution: Releasing RX (%p), TX (%p) forced to stop.",
-                     i2s_chan_handles[i].chan_in, i2s_chan_handles[i].chan_out);
             i2s_channel_disable(i2s_chan_handles[i].chan_out);
             i2s_del_channel(i2s_chan_handles[i].chan_out);
             i2s_chan_handles[i].chan_out = NULL;
             i2s_chan_handles[i].out_en = false;
+            ESP_LOGW(TAG, "Caution: Releasing TX (%p).", i2s_chan_handles[i].chan_out);
+            if (i2s_chan_handles[i].chan_in != NULL && i2s_chan_handles[i].in_en == false) {
+                ESP_LOGW(TAG, "Caution: RX (%p) forced to stop.", i2s_chan_handles[i].chan_in);
+                i2s_channel_disable(i2s_chan_handles[i].chan_in);
+                i2s_del_channel(i2s_chan_handles[i].chan_in);
+                i2s_chan_handles[i].chan_in = NULL;
+            }
+        }
+        if (i2s_chan_handles[i].chan_in == handle) {
+            i2s_channel_disable(i2s_chan_handles[i].chan_in);
+            i2s_del_channel(i2s_chan_handles[i].chan_in);
+            i2s_chan_handles[i].chan_in = NULL;
+            i2s_chan_handles[i].in_en = false;
+            ESP_LOGW(TAG, "Caution: Releasing RX (%p).", i2s_chan_handles[i].chan_in);
+            if (i2s_chan_handles[i].chan_out != NULL && i2s_chan_handles[i].out_en == false) {
+                ESP_LOGW(TAG, "Caution: TX (%p) forced to stop.", i2s_chan_handles[i].chan_out);
+                i2s_channel_disable(i2s_chan_handles[i].chan_out);
+                i2s_del_channel(i2s_chan_handles[i].chan_out);
+                i2s_chan_handles[i].chan_out = NULL;
+            }
         }
     }
     return 0;
