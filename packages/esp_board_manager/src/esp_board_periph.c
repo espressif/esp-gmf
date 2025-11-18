@@ -37,7 +37,7 @@ static esp_board_periph_list_t *find_periph_list(const char *name)
 }
 
 /* Add new peripheral list entry */
-static esp_board_periph_list_t *add_periph_list(const char *name, const char *type, const char *role)
+static esp_board_periph_list_t *add_periph_list(const char *name, const char *type, esp_board_periph_role_t role)
 {
     esp_board_periph_list_t *list = calloc(1, sizeof(esp_board_periph_list_t));
     if (!list) {
@@ -46,7 +46,7 @@ static esp_board_periph_list_t *add_periph_list(const char *name, const char *ty
 
     list->name = strdup(name);
     list->type = strdup(type);
-    list->role = strdup(role);
+    list->role = role;
     list->ref_count = 0;
     list->periph_handle = NULL;
     list->next = periph_list;
@@ -66,7 +66,7 @@ esp_err_t esp_board_periph_init(const char *name)
     /* Find handle */
     esp_board_periph_entry_t *handle = esp_board_find_periph_handle(desc->type, desc->role);
     ESP_BOARD_RETURN_ON_FALSE(handle, ESP_BOARD_ERR_PERIPH_NO_HANDLE, TAG,
-                          "No handle found for %s (type=%s, role=%s)", name, desc->type, desc->role);
+                              "No handle found for %s (type=%s, role=%d)", name, desc->type, desc->role);
 
     /* Find or create list entry */
     esp_board_periph_list_t *list = find_periph_list(name);
@@ -98,7 +98,7 @@ esp_err_t esp_board_periph_get_handle(const char *name, void **periph_handle)
     /* Find list entry */
     esp_board_periph_list_t *list = find_periph_list(name);
     ESP_BOARD_RETURN_ON_FALSE(list && list->periph_handle, ESP_BOARD_ERR_PERIPH_NO_HANDLE, TAG,
-                          "No handle found for %s on get handle", name);
+                              "No handle found for %s on get handle", name);
     *periph_handle = list->periph_handle;
     return ESP_OK;
 }
@@ -176,7 +176,7 @@ esp_err_t esp_board_periph_init_custom(const char *name, esp_board_periph_init_f
     /* Find handle */
     esp_board_periph_entry_t *handle = esp_board_find_periph_handle(desc->type, desc->role);
     ESP_BOARD_RETURN_ON_FALSE(handle, ESP_BOARD_ERR_PERIPH_NO_HANDLE, TAG,
-                          "No handle found for %s (type=%s, role=%s)", name, desc->type, desc->role);
+                              "No handle found for %s (type=%s, role=%d)", name, desc->type, desc->role);
 
     /* Find or create list entry */
     esp_board_periph_list_t *list = find_periph_list(name);
@@ -217,7 +217,7 @@ esp_err_t esp_board_periph_deinit(const char *name)
     /* Find handle */
     esp_board_periph_entry_t *handle = esp_board_find_periph_handle(desc->type, desc->role);
     ESP_BOARD_RETURN_ON_FALSE(handle, ESP_BOARD_ERR_PERIPH_NO_HANDLE, TAG,
-                          "No handle found for %s (type=%s, role=%s)", name, desc->type, desc->role);
+                              "No handle found for %s (type=%s, role=%d)", name, desc->type, desc->role);
 
     /* Find list entry */
     esp_board_periph_list_t *list = find_periph_list(name);
@@ -237,7 +237,7 @@ esp_err_t esp_board_periph_deinit(const char *name)
     if (list->ref_count == 0) {
         /* Check if deinit function exists */
         ESP_BOARD_RETURN_ON_FALSE(handle->deinit, ESP_BOARD_ERR_PERIPH_NO_INIT, TAG,
-                              "No deinit function for periph: %s", name);
+                                  "No deinit function for periph: %s", name);
 
         /* Deinitialize peripheral */
         esp_err_t ret = handle->deinit(list->periph_handle);
@@ -261,7 +261,7 @@ esp_err_t esp_board_periph_show(const char *name)
         esp_board_periph_list_t *list = find_periph_list(name);
         ESP_LOGI(TAG, "Peripheral %s:", name);
         ESP_LOGI(TAG, "  Type: %s", desc->type);
-        ESP_LOGI(TAG, "  Role: %s", desc->role);
+        ESP_LOGI(TAG, "  Role: %s", role_names_map[desc->role]);
         ESP_LOGI(TAG, "  Format: %s", desc->format ? desc->format : "N/A");
         ESP_LOGI(TAG, "  Config size: %d", desc->cfg_size);
         ESP_LOGI(TAG, "  ID: %d", desc->id);
@@ -279,7 +279,7 @@ esp_err_t esp_board_periph_show(const char *name)
             esp_board_periph_list_t *list = find_periph_list(desc->name);
             ESP_LOGI(TAG, "Peripheral %s:", desc->name);
             ESP_LOGI(TAG, "  Type: %s", desc->type);
-            ESP_LOGI(TAG, "  Role: %s", desc->role);
+            ESP_LOGI(TAG, "  Role: %s", role_names_map[desc->role]);
             ESP_LOGI(TAG, "  Format: %s", desc->format ? desc->format : "N/A");
             ESP_LOGI(TAG, "  Config size: %d", desc->cfg_size);
             ESP_LOGI(TAG, "  ID: %d", desc->id);

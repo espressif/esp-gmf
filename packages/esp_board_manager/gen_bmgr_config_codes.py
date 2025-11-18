@@ -407,6 +407,15 @@ help
             traceback.print_exc()
             return False
 
+    def _role_to_enum(self, role_str: str) -> str:
+        """Convert role string to enum value by generating ESP_BOARD_PERIPH_ROLE_<ROLE>"""
+        if not role_str:
+            return 'ESP_BOARD_PERIPH_ROLE_NONE'
+
+        # Convert role string to uppercase and replace underscores
+        role_upper = role_str.upper().replace('-', '_')
+        return f'ESP_BOARD_PERIPH_ROLE_{role_upper}'
+
     def write_periph_c(self, periph_structs, peripherals, periph_parsers, out_path: str):
         """Write peripheral configuration C file"""
         # Ensure output directory exists
@@ -454,6 +463,7 @@ help
                 else:
                     next_str = 'NULL'
                 struct_var = 'esp_bmgr_' + p.name.replace('-', '_') + '_cfg'
+                role_enum = self._role_to_enum(p.role)
                 f.write('    {\n')
                 f.write(f'        .next = {next_str},\n')
                 f.write(f'        .name = "{p.name}",\n')
@@ -462,7 +472,7 @@ help
                     f.write(f'        .format = NULL,\n')
                 else:
                     f.write(f'        .format = "{p.format}",\n')
-                f.write(f'        .role = "{p.role}",\n')
+                f.write(f'        .role = {role_enum},\n')
                 f.write(f'        .cfg = &{struct_var},\n')
                 f.write(f'        .cfg_size = sizeof({struct_var}),\n')
                 f.write(f'        .id = 0,\n')
@@ -624,7 +634,7 @@ help
                 f.write('    {\n')
                 f.write(f'        .next = {next_str},\n')
                 f.write(f'        .type = "{type_name}",\n')
-                f.write(f'        .role = "{role_str}",\n')
+                f.write(f'        .role = {self._role_to_enum(role_str)},\n')
                 f.write(f'        .init = periph_{type_name}_init,\n')
                 f.write(f'        .deinit = periph_{type_name}_deinit\n')
                 f.write('    },\n')

@@ -8,6 +8,7 @@
 #pragma once
 #include "driver/rmt_tx.h"
 #include "driver/rmt_rx.h"
+#include "esp_board_manager_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,7 +32,7 @@ typedef struct {
  *         and mode-specific configurations for transmit or receive modes.
  */
 typedef struct {
-    char  *role;  /*!< Channel role: "tx" for transmitter or "rx" for receiver */
+    esp_board_periph_role_t  role;  /*!< Channel role: ESP_BOARD_PERIPH_ROLE_TX or ESP_BOARD_PERIPH_ROLE_RX */
     union {
         rmt_tx_channel_config_t  tx;  /*!< TX channel configuration */
         rmt_rx_channel_config_t  rx;  /*!< RX channel configuration */

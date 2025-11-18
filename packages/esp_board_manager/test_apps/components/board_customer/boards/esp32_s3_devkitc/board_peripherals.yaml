@@ -28,25 +28,25 @@ peripherals:
 
       uart_mode: UART_MODE_UART
 
-  - name: adc_handle
-    type: adc
-    role: continuous
-    config:
-      unit_id: ADC_UNIT_1
-      atten: ADC_ATTEN_DB_0
-      bit_width: ADC_BITWIDTH_12
+  # - name: adc_unit_1
+  #   type: adc
+  #   role: continuous
+  #   config:
+  #     unit_id: ADC_UNIT_1
+  #     atten: ADC_ATTEN_DB_0
+  #     bit_width: ADC_BITWIDTH_12
 
-      max_store_buf_size: 1024
-      conv_frame_size: 256
-      flush_pool: 1
-      sample_freq_hz: 20000
-      format: ADC_DIGI_OUTPUT_FORMAT_TYPE2
-      conv_mode: ADC_CONV_SINGLE_UNIT_1
+  #     max_store_buf_size: 1024
+  #     conv_frame_size: 256
+  #     flush_pool: 1
+  #     sample_freq_hz: 20000
+  #     format: ADC_DIGI_OUTPUT_FORMAT_TYPE2
+  #     conv_mode: ADC_CONV_SINGLE_UNIT_1
 
-      pattern_num: 1
-      channel_id: [4]
+  #     pattern_num: 1
+  #     channel_id: [4]
 
-  - name: adc_handle
+  - name: adc_unit_1
     type: adc
     role: oneshot
     config:
@@ -145,7 +145,7 @@ peripherals:
         sclk_io_num: 2
         max_transfer_sz: 4000
 
-  - name: mcpwm_handle
+  - name: mcpwm_group_0
     type: mcpwm
     config:
       timer_config:

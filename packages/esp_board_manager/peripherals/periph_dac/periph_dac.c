@@ -28,24 +28,24 @@ int periph_dac_init(void *cfg, int cfg_size, void **periph_handle)
     }
 
     esp_err_t err = ESP_FAIL;
-    if (strcasecmp(dac_cfg->role, ESP_BOARD_PERIPH_ROLE_DAC_ONESHOT) == 0) {
+    if (dac_cfg->role == ESP_BOARD_PERIPH_ROLE_ONESHOT) {
         err = dac_oneshot_new_channel(&dac_cfg->oneshot_cfg, &handle->oneshot);
         if (err == ESP_OK) {
             ESP_LOGI(TAG, "DAC oneshot channel %d initialized successfully", dac_cfg->oneshot_cfg.chan_id);
         }
-    } else if (strcasecmp(dac_cfg->role, ESP_BOARD_PERIPH_ROLE_DAC_CONTINUOUS) == 0) {
+    } else if (dac_cfg->role == ESP_BOARD_PERIPH_ROLE_CONTINUOUS) {
         err = dac_continuous_new_channels(&dac_cfg->continuous_cfg, &handle->continuous);
         if (err == ESP_OK) {
             ESP_LOGI(TAG, "DAC continuous channels initialized successfully, mask: 0x%x", dac_cfg->continuous_cfg.chan_mask);
         }
-    } else if (strcasecmp(dac_cfg->role, ESP_BOARD_PERIPH_ROLE_DAC_COSINE) == 0) {
+    } else if (dac_cfg->role == ESP_BOARD_PERIPH_ROLE_COSINE) {
         err = dac_cosine_new_channel(&dac_cfg->cosine_cfg, &handle->cosine);
         if (err == ESP_OK) {
             ESP_LOGI(TAG, "DAC cosine channel %d initialized successfully, freq: %d Hz",
                      dac_cfg->cosine_cfg.chan_id, dac_cfg->cosine_cfg.freq_hz);
         }
     } else {
-        ESP_LOGE(TAG, "Invalid DAC role: %s", dac_cfg->role);
+        ESP_LOGE(TAG, "Invalid DAC role: %d", dac_cfg->role);
         free(handle);
         return -1;
     }
@@ -81,23 +81,23 @@ int periph_dac_deinit(void *periph_handle)
         ESP_LOGE(TAG, "Failed to get config: %s", esp_err_to_name(err));
         goto cleanup;
     }
-    if (strcasecmp(cfg->role, ESP_BOARD_PERIPH_ROLE_DAC_ONESHOT) == 0) {
+    if (cfg->role == ESP_BOARD_PERIPH_ROLE_ONESHOT) {
         err = dac_oneshot_del_channel(handle->oneshot);
         if (err == ESP_OK) {
             ESP_LOGI(TAG, "DAC oneshot channel deinitialized successfully");
         }
-    } else if (strcasecmp(cfg->role, ESP_BOARD_PERIPH_ROLE_DAC_CONTINUOUS) == 0) {
+    } else if (cfg->role == ESP_BOARD_PERIPH_ROLE_CONTINUOUS) {
         err = dac_continuous_del_channels(handle->continuous);
         if (err == ESP_OK) {
             ESP_LOGI(TAG, "DAC continuous channels deinitialized successfully");
         }
-    } else if (strcasecmp(cfg->role, ESP_BOARD_PERIPH_ROLE_DAC_COSINE) == 0) {
+    } else if (cfg->role == ESP_BOARD_PERIPH_ROLE_COSINE) {
         err = dac_cosine_del_channel(handle->cosine);
         if (err == ESP_OK) {
             ESP_LOGI(TAG, "DAC cosine channel deinitialized successfully");
         }
     } else {
-        ESP_LOGE(TAG, "Invalid DAC role: %s", cfg->role);
+        ESP_LOGE(TAG, "Invalid DAC role: %d", cfg->role);
         goto cleanup;
     }
     if (err != ESP_OK) {

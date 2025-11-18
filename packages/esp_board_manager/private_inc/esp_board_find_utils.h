@@ -11,10 +11,11 @@
 #include "esp_log.h"
 #include "esp_board_device.h"
 #include "esp_board_periph.h"
+#include "esp_board_manager_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif  /* __cplusplus */
 
 /* External references to global arrays */
 extern const esp_board_device_desc_t g_esp_board_devices[];
@@ -124,15 +125,15 @@ static inline const esp_board_periph_desc_t *esp_board_find_periph_desc(const ch
  *       - esp_board_periph_entry_t*  Peripheral handle if found
  *       - NULL                       If peripheral not found or type/role is NULL
  */
-static inline esp_board_periph_entry_t *esp_board_find_periph_handle(const char *type, const char *role)
+static inline esp_board_periph_entry_t *esp_board_find_periph_handle(const char *type, esp_board_periph_role_t role)
 {
-    if (!type || !role) {
+    if (!type) {
         return NULL;
     }
 
     esp_board_periph_entry_t *handle = g_esp_board_periph_handles;
     while (handle) {
-        if (strcmp(handle->type, type) == 0 && strcmp(handle->role, role) == 0) {
+        if (strcmp(handle->type, type) == 0 && handle->role == role) {
             return handle;
         }
         handle = handle->next;
@@ -142,7 +143,6 @@ static inline esp_board_periph_entry_t *esp_board_find_periph_handle(const char 
     return NULL;
 }
 
-
 #ifdef __cplusplus
 }
-#endif
+#endif  /* __cplusplus */

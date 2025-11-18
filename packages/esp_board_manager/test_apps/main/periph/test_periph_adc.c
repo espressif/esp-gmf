@@ -41,31 +41,31 @@ static esp_err_t oneshot_test(adc_oneshot_unit_handle_t adc_handle, periph_adc_c
 void test_periph_adc(void)
 {
     periph_adc_handle_t *handle = NULL;
-    esp_err_t ret = esp_board_periph_get_handle("adc_handle", (void **)&handle);
+    esp_err_t ret = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_ADC, (void **)&handle);
     if (ret != ESP_OK || handle == NULL) {
         ESP_LOGE(TAG, "Failed to get ADC handle");
         return;
     }
 
     periph_adc_config_t *adc_cfg = {0};
-    ret = esp_board_periph_get_config("adc_handle", (void *)&adc_cfg);
+    ret = esp_board_periph_get_config(ESP_BOARD_PERIPH_NAME_ADC, (void *)&adc_cfg);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get ADC config %s", "lcd_brightness", esp_err_to_name(ret));
         return;
     }
 
-    if (strcmp(adc_cfg->role, ESP_BOARD_PERIPH_ROLE_ADC_CONTINUOUS) == 0) {
+    if (adc_cfg->role == ESP_BOARD_PERIPH_ROLE_CONTINUOUS) {
         ret = continuous_test(handle->continuous, adc_cfg);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to run continuous test");
         }
-    } else if (strcmp(adc_cfg->role, ESP_BOARD_PERIPH_ROLE_ADC_ONESHOT) == 0) {
+    } else if (adc_cfg->role == ESP_BOARD_PERIPH_ROLE_ONESHOT) {
         ret = oneshot_test(handle->oneshot, adc_cfg);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to run oneshot test");
         }
     } else {
-        ESP_LOGE(TAG, "Invalid ADC role: %s", adc_cfg->role);
+        ESP_LOGE(TAG, "Invalid ADC role: %d", adc_cfg->role);
     }
 
     return;

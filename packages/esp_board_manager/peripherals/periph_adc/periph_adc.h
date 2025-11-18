@@ -9,6 +9,7 @@
 
 #include "esp_adc/adc_continuous.h"
 #include "esp_adc/adc_oneshot.h"
+#include "esp_board_manager_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,7 +64,7 @@ typedef struct {
  *         ADC peripheral, including continuous-mode and oneshot-mode configurations.
  */
 typedef struct {
-    char  *role;  /*!< Periph role: ESP_BOARD_PERIPH_ROLE_* */
+    esp_board_periph_role_t  role;  /*!< Periph role: esp_board_periph_role_t */
     union {
         periph_adc_continuous_cfg_t  continuous;  /*!< Continuous-mode specific config */
         periph_adc_oneshot_cfg_t     oneshot;     /*!< One-shot mode specific config */

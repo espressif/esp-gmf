@@ -27,7 +27,7 @@ int periph_rmt_init(void *cfg, int cfg_size, void **periph_handle)
     }
 
     esp_err_t err = ESP_FAIL;
-    if (strcmp(config->role, ESP_BOARD_PERIPH_ROLE_TX) == 0) {
+    if (config->role == ESP_BOARD_PERIPH_ROLE_TX) {
         rmt_channel_handle_t chan = NULL;
         err = rmt_new_tx_channel(&config->channel_config.tx, &chan);
         if (err != ESP_OK) {
@@ -36,7 +36,7 @@ int periph_rmt_init(void *cfg, int cfg_size, void **periph_handle)
             return -1;
         }
         handle->channel = chan;
-    } else if (strcmp(config->role, ESP_BOARD_PERIPH_ROLE_RX) == 0) {
+    } else if (config->role == ESP_BOARD_PERIPH_ROLE_RX) {
         rmt_channel_handle_t chan = NULL;
         err = rmt_new_rx_channel(&config->channel_config.rx, &chan);
         if (err != ESP_OK) {
@@ -46,7 +46,7 @@ int periph_rmt_init(void *cfg, int cfg_size, void **periph_handle)
         }
         handle->channel = chan;
     } else {
-        ESP_LOGE(TAG, "Unknown role %s", config->role);
+        ESP_LOGE(TAG, "Unknown role %d", config->role);
         free(handle);
         return -1;
     }

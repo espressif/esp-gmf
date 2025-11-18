@@ -19,6 +19,8 @@
 - Added power_ctrl device type, added `power_ctrl_device` attribute in `esp_board_device_desc_t`, for devices configured with this attribute, the power will be automatically turned on during initialization
 - Added support for `csi` camera
 - Added camera support for `esp32_p4_function_ev` board
+- Modify the periph role macro definition from string to enum
+- Removed the unused periph type macro definition and added the commonly used periph name macro definition
 
 ## 0.4.8
 

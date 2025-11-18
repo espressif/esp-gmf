@@ -14,7 +14,7 @@ peripherals:
         scl: 8
 
   # I2S configuration for full-duplex audio with ES8311
-  - name: i2s_out
+  - name: i2s_audio_out
     type: i2s
     format: "std-out"
     role: master
@@ -35,7 +35,7 @@ peripherals:
         din: 11
 
     # I2S configuration for full-duplex audio with ES8311
-  - name: i2s_in
+  - name: i2s_audio_in
     type: i2s
     format: "std-in"
     role: slave

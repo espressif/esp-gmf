@@ -115,7 +115,7 @@ void test_periph_dac(void)
     periph_dac_handle_t *dac_handle = NULL;
 
     // Get DAC handles
-    esp_err_t err = esp_board_periph_get_handle("dac_handle", (void **)&dac_handle);
+    esp_err_t err = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_DAC, (void **)&dac_handle);
     if (err != ESP_OK || !dac_handle) {
         ESP_LOGE(TAG, "Failed to get DAC peripheral handle");
         return;
@@ -137,14 +137,14 @@ void test_periph_dac(void)
 
     ESP_LOGI(TAG, "=== Testing DAC Modes ===");
 
-    if (strcmp(cfg->role, ESP_BOARD_PERIPH_ROLE_DAC_ONESHOT) == 0) {
+    if (cfg->role == ESP_BOARD_PERIPH_ROLE_ONESHOT) {
         test_dac_oneshot(dac_handle);
-    } else if (strcmp(cfg->role, ESP_BOARD_PERIPH_ROLE_DAC_CONTINUOUS) == 0) {
+    } else if (cfg->role == ESP_BOARD_PERIPH_ROLE_CONTINUOUS) {
         test_dac_continuous(dac_handle);
-    } else if (strcmp(cfg->role, ESP_BOARD_PERIPH_ROLE_DAC_COSINE) == 0) {
+    } else if (cfg->role == ESP_BOARD_PERIPH_ROLE_COSINE) {
         test_dac_cosine(dac_handle);
     } else {
-        ESP_LOGE(TAG, "Unknown DAC role: %s", cfg->role);
+        ESP_LOGE(TAG, "Unknown DAC role: %d", cfg->role);
     }
 
     ESP_LOGI(TAG, "=== DAC Peripheral Test Completed ===");

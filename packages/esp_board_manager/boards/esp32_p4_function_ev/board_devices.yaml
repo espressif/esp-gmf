@@ -19,7 +19,7 @@ devices:
         active_level: 1
 
       # I2S interface for audio output
-      - name: i2s_out
+      - name: i2s_audio_out
 
       # I2C interface for codec control
       - name: i2c_master
@@ -40,7 +40,7 @@ devices:
     # Peripheral configuration
     peripherals:
       # I2S interface for audio input
-      - name: i2s_in
+      - name: i2s_audio_in
 
       # I2C interface for codec control
       - name: i2c_master

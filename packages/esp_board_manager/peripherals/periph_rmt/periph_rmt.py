@@ -13,6 +13,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'generators'))
 from generators.utils.logger import get_logger
 logger = get_logger('periph_rmt')
 
+# Map string roles to enum values
+RMT_ROLE_MAP = {
+    'tx': 'ESP_BOARD_PERIPH_ROLE_TX',
+    'rx': 'ESP_BOARD_PERIPH_ROLE_RX'
+}
 
 def get_includes():
     return ['periph_rmt.h']
@@ -27,6 +32,11 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     if role_l not in ('tx', 'rx'):
         logger.error("Invalid RMT mode '%s' for %s", role, name)
         raise ValueError(f"Invalid RMT mode '{role}'")
+
+    # Convert string role to enum value
+    enum_role = RMT_ROLE_MAP.get(role_l)
+    if enum_role is None:
+        raise ValueError(f"Invalid RMT role '{role}' for RMT device '{name}'")
 
     # Build channel configuration based on role
     if role_l == 'tx':
@@ -50,7 +60,6 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
             }
         }
         channel_config = {'tx': tx_config}
-        role = 'tx'
     else:
         # RX channel configuration - using rmt_rx_channel_config_t structure
         rx_cfg = cfg
@@ -69,10 +78,9 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
             }
         }
         channel_config = {'rx': rx_config}
-        role = 'rx'
 
     struct_init = {
-        'role': role,
+        'role': enum_role,
         'channel_config': channel_config,
     }
 

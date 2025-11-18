@@ -8,6 +8,11 @@ VERSION = 'v1.0.0'
 
 # Define valid ADC configuration values
 VALID_ADC_ROLES = ['continuous', 'oneshot']
+# Map string roles to enum values
+ADC_ROLE_MAP = {
+    'continuous': 'ESP_BOARD_PERIPH_ROLE_CONTINUOUS',
+    'oneshot': 'ESP_BOARD_PERIPH_ROLE_ONESHOT'
+}
 VALID_ADC_UNITS = ['ADC_UNIT_1', 'ADC_UNIT_2']
 VALID_ADC_ATTEN = [
     'ADC_ATTEN_DB_0',
@@ -220,6 +225,11 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
         elif not validate_enum_value(role, 'ADC role', VALID_ADC_ROLES):
             raise ValueError(f"Invalid ADC role '{role}' for ADC device '{name}'")
 
+        # Convert string role to enum value
+        enum_role = ADC_ROLE_MAP.get(role)
+        if enum_role is None:
+            raise ValueError(f"Invalid ADC role '{role}' for ADC device '{name}'")
+
         # Parse sub-type specific configuration
         if role == 'continuous':
             continuous_cfg = parse_adc_continuous_config(config)
@@ -230,7 +240,7 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
 
         # Build the main configuration structure
         struct_init = {
-            'role': role,
+            'role': enum_role,
             'cfg': cfg_union
         }
 

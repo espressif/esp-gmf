@@ -3,7 +3,7 @@ chip: esp32c3
 version: 1.0.0
 # Peripherals Configuration for Dual Eyes Board V1.0
 peripherals:
-  - name: sdm_handle
+  - name: sdm
     type: sdm
     config:
       gpio_num: 4

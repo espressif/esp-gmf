@@ -89,12 +89,12 @@ int periph_adc_init(void *cfg, int cfg_size, void **periph_handle)
     }
 
     esp_err_t err = ESP_FAIL;
-    if (strcmp(adc_cfg->role, ESP_BOARD_PERIPH_ROLE_ADC_CONTINUOUS) == 0) {
+    if (adc_cfg->role == ESP_BOARD_PERIPH_ROLE_CONTINUOUS) {
         err = continuous_adc_init(adc_cfg, handle);
         if (err != ESP_OK) {
             goto cleanup;
         }
-    } else if (strcmp(adc_cfg->role, ESP_BOARD_PERIPH_ROLE_ADC_ONESHOT) == 0) {
+    } else if (adc_cfg->role == ESP_BOARD_PERIPH_ROLE_ONESHOT) {
         err = oneshot_adc_init(adc_cfg, handle);
         if (err != ESP_OK) {
             goto cleanup;
@@ -133,14 +133,14 @@ int periph_adc_deinit(void *periph_handle)
         goto cleanup;
     }
 
-    if (strcmp(cfg->role, ESP_BOARD_PERIPH_ROLE_ADC_CONTINUOUS) == 0) {
+    if (cfg->role == ESP_BOARD_PERIPH_ROLE_CONTINUOUS) {
         adc_continuous_handle_t continuous_handle = handle->continuous;
         err = adc_continuous_deinit(continuous_handle);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to deinit continuous_handle failed: %s", esp_err_to_name(err));
             goto cleanup;
         }
-    } else if (strcmp(cfg->role, ESP_BOARD_PERIPH_ROLE_ADC_ONESHOT) == 0) {
+    } else if (cfg->role == ESP_BOARD_PERIPH_ROLE_ONESHOT) {
         adc_oneshot_unit_handle_t oneshot_handle = handle->oneshot;
         err = adc_oneshot_del_unit(oneshot_handle);
         if (err != ESP_OK) {

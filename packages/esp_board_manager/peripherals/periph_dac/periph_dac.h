@@ -9,6 +9,7 @@
 #include "driver/dac_oneshot.h"
 #include "driver/dac_continuous.h"
 #include "driver/dac_cosine.h"
+#include "esp_board_manager_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,7 +32,7 @@ typedef union {
  *         This structure uses union to support oneshot, continuous and cosine modes
  */
 typedef struct {
-    char  *role;  /*!< DAC role type */
+    esp_board_periph_role_t  role;  /*!< DAC role type */
     union {
         dac_oneshot_config_t     oneshot_cfg;     /*!< Oneshot mode configuration */
         dac_continuous_config_t  continuous_cfg;  /*!< Continuous mode configuration */

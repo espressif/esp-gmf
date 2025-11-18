@@ -12,7 +12,7 @@ peripherals:
       pull_down_en: false
       intr_type: GPIO_INTR_DISABLE
 
-  - name: anacmpr_handle
+  - name: anacmpr_unit_0
     type: anacmpr
     config:
       unit: 0

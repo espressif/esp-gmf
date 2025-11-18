@@ -8,6 +8,13 @@ VERSION = 'v1.0.0'
 
 import sys
 
+# Map string roles to enum values
+DAC_ROLE_MAP = {
+    'oneshot': 'ESP_BOARD_PERIPH_ROLE_ONESHOT',
+    'continuous': 'ESP_BOARD_PERIPH_ROLE_CONTINUOUS',
+    'cosine': 'ESP_BOARD_PERIPH_ROLE_COSINE'
+}
+
 def get_includes() -> list:
     """Return list of required include headers for DAC peripheral"""
     return [
@@ -120,6 +127,11 @@ def parse(name: str, config: dict) -> dict:
         if role not in ['oneshot', 'continuous', 'cosine']:
             raise ValueError(f"Invalid DAC role: {role}. Must be 'oneshot', 'continuous', or 'cosine'")
 
+        # Convert string role to enum value
+        enum_role = DAC_ROLE_MAP.get(role)
+        if enum_role is None:
+            raise ValueError(f"Invalid DAC role '{role}' for DAC device '{name}'")
+
         # Get the actual config
         config = config.get('config', {})
         if role == 'oneshot':
@@ -133,7 +145,7 @@ def parse(name: str, config: dict) -> dict:
                 'struct_type': 'periph_dac_config_t',
                 'struct_var': f'{name}_cfg',
                 'struct_init': {
-                    'role': role,
+                    'role': enum_role,
                     'oneshot_cfg': {
                         'chan_id': channel_enum
                     }
@@ -154,7 +166,7 @@ def parse(name: str, config: dict) -> dict:
                 'struct_type': 'periph_dac_config_t',
                 'struct_var': f'{name}_cfg',
                 'struct_init': {
-                    'role': role,
+                    'role': enum_role,
                     'continuous_cfg': {
                         'chan_mask': chan_mask,
                         'desc_num': desc_num,
@@ -186,7 +198,7 @@ def parse(name: str, config: dict) -> dict:
                 'struct_type': 'periph_dac_config_t',
                 'struct_var': f'{name}_cfg',
                 'struct_init': {
-                    'role': role,
+                    'role': enum_role,
                     'cosine_cfg': {
                         'chan_id': channel_enum,
                         'freq_hz': freq_hz,

@@ -56,7 +56,7 @@ typedef struct esp_board_device_handle {
     const char                      *chip;           /*!< Device chip type */
     const char                      *type;           /*!< Device type */
     void                            *device_handle;  /*!< Device-specific handle */
-    uint32_t                         ref_count;      /*!< Reference count */
+    uint8_t                          ref_count;      /*!< Reference count */
     esp_board_device_init_func       init;           /*!< Device initialization function */
     esp_board_device_deinit_func     deinit;         /*!< Device deinitialization function */
 } esp_board_device_handle_t;
@@ -183,7 +183,7 @@ esp_err_t esp_board_device_show(const char *name);
  *         Iterates through all device descriptors and initializes each device
  *         Continues initializing even if some devices fail, but logs errors
  *
- *         NOTE: Device initialization strictly follows the order defined in board_devices.yaml
+ * @note  Device initialization strictly follows the order defined in board_devices.yaml
  *         If a device depends on a peripheral for power-on, it must be initialized
  *         after that peripheral. For example, the LCD power control device should be
  *         listed before the Display LCD device in board_devices.yaml

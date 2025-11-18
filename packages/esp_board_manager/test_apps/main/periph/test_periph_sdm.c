@@ -18,6 +18,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_board_periph.h"
+#include "esp_board_manager_defs.h"
 #include "periph_sdm.h"
 
 #define EXAMPLE_SDM_DUTY_STEP 2
@@ -61,7 +62,7 @@ void test_periph_sdm(void)
     periph_sdm_handle_t *sdm_handle = NULL;
 
     // Get SDM handle
-    esp_err_t ret = esp_board_periph_get_handle("sdm_handle", (void **)&sdm_handle);
+    esp_err_t ret = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_SDM, (void **)&sdm_handle);
     if (ret != ESP_OK || !sdm_handle) {
         ESP_LOGE(TAG, "Failed to get SDM peripheral handle");
         return;

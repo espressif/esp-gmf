@@ -3,13 +3,13 @@ chip: esp32
 version: 1.0.0
 # Peripherals Configuration
 peripherals:
-  - name: dac_handle
+  - name: dac_channel_0
     type: dac
     role: oneshot
     config:
       channel: 0
 
-  # - name: dac_handle
+  # - name: dac_channel_0
   #   type: dac
   #   role: continuous
   #   config:
@@ -21,7 +21,7 @@ peripherals:
   #     clk_src: DAC_DIGI_CLK_SRC_DEFAULT
   #     chan_mode: DAC_CHANNEL_MODE_SIMUL
 
-  # - name: dac_handle
+  # - name: dac_channel_0
   #   type: dac
   #   role: cosine
   #   config:

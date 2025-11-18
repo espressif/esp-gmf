@@ -19,6 +19,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_board_periph.h"
+#include "esp_board_manager_defs.h"
 #include "periph_anacmpr.h"
 #include "periph_gpio.h"
 
@@ -106,14 +107,14 @@ void test_periph_anacmpr(void)
 
     periph_anacmpr_handle_t *anacmpr_handle = NULL;
     // Get Analog Comparator handle
-    esp_err_t ret = esp_board_periph_get_handle("anacmpr_handle", (void **)&anacmpr_handle);
+    esp_err_t ret = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_ANACMPR, (void **)&anacmpr_handle);
     if (ret != ESP_OK || !anacmpr_handle) {
         ESP_LOGE(TAG, "Failed to get Analog Comparator peripheral handle");
         return;
     }
 
     periph_gpio_handle_t *gpio_handle = NULL;
-    ret = esp_board_periph_get_handle("gpio_monitor", (void **)&gpio_handle);
+    ret = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_GPIO_MONITOR, (void **)&gpio_handle);
     if (ret == ESP_OK && gpio_handle) {
         gpio_monitor = gpio_handle->gpio_num;
     } else {

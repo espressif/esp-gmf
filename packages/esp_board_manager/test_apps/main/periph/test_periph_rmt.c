@@ -18,6 +18,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_board_periph.h"
+#include "esp_board_manager_defs.h"
 #include "periph_rmt.h"
 
 #define EXAMPLE_LED_NUMBERS       28
@@ -87,14 +88,14 @@ static size_t encoder_callback(const void *data, size_t data_size,
 void test_periph_rmt()
 {
     periph_rmt_handle_t *rmt_handle = NULL;
-    esp_err_t ret = esp_board_periph_get_handle("rmt_tx", (void **)&rmt_handle);
+    esp_err_t ret = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_RMT_TX, (void **)&rmt_handle);
     if (ret != ESP_OK || rmt_handle == NULL) {
         ESP_LOGE(TAG, "Failed to get RMT handle");
         return;
     }
 
     periph_rmt_config_t *rmt_cfg = {0};
-    ret = esp_board_periph_get_config("rmt_tx", (void *)&rmt_cfg);
+    ret = esp_board_periph_get_config(ESP_BOARD_PERIPH_NAME_RMT_TX, (void *)&rmt_cfg);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get RMT config %s", esp_err_to_name(ret));
         return;
