@@ -215,7 +215,7 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
 | `lcd_power` | LCD 电源控制 |
 | `lcd_brightness` | LCD 亮度控制 |
 | `gpio_expander` | GPIO 扩展芯片 |
-| `camera_sensor` | 摄像头设备 |
+| `camera` | 摄像头设备 |
 | `power_ctrl` | 电源控制设备 |
 
 ## YAML 配置规则
@@ -440,11 +440,11 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | [`Echoear Core Board V1.0`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32s3/echoear/user_guide_v1.2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 | - |
 | Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (双) | - | - |
 | [`ESP-BOX-3`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_3/hardware_overview_for_box_3_cn.md) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ FT5x06 | - |
-| [`ESP32-S3 Korvo2 V3`](https://docs.espressif.com/projects/esp-adf/zh_CN/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100 | ✅ SC030IOT |
+| [`ESP32-S3 Korvo2 V3`](https://docs.espressif.com/projects/esp-adf/zh_CN/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100 | ✅ DVP Camera |
 | ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ | ❌ |
 | [`Lyrat Mini V1.1`](https://docs.espressif.com/projects/esp-adf/zh_CN/latest/design-guide/dev-boards/get-started-esp32-lyrat-mini.html) | ESP32 | ✅ ES8388 | ✅ SDMMC | - | - | - |
 | [`ESP32-C5 Spot`](https://oshwhub.com/esp-college/esp-spot) | ESP32-C5 | ✅ ES8311 (双) | - | - | - | - |
-| [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ✅ EK79007 | ✅ GT911 | ❌ |
+| [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ✅ EK79007 | ✅ GT911 | ✅ CSI Camera |
 | [`M5STACK CORES3`](https://docs.m5stack.com/zh_CN/core/CoreS3) | ESP32-S3 | ✅ AW88298 + ES7210 | ✅ SDSPI | ✅ ILI9342C | ✅ FT5x06 | ❌ |
 
 注：'✅' 表示已经支持，'❌' 表示尚未支持，'-' 表示硬件不具备相应的能力

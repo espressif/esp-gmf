@@ -61,6 +61,12 @@ function(get_device_sources sources includes)
 
     if(CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT)
         list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_camera/dev_camera.c")
+        if(CONFIG_ESP_BOARD_DEV_CAMERA_SUB_CSI_SUPPORT)
+            list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_camera/dev_camera_sub_csi.c")
+        endif()
+        if(CONFIG_ESP_BOARD_DEV_CAMERA_SUB_DVP_SUPPORT)
+            list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_camera/dev_camera_sub_dvp.c")
+        endif()
         list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_camera")
     endif()
 

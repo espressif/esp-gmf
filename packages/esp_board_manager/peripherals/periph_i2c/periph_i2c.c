@@ -36,12 +36,12 @@ int periph_i2c_deinit(void *periph_handle)
         ESP_LOGE(TAG, "Invalid handle");
         return -1;
     }
-    ESP_LOGI(TAG, "I2C master bus deinitialized successfully");
     i2c_master_bus_handle_t handle = (i2c_master_bus_handle_t)periph_handle;
     esp_err_t err = i2c_del_master_bus(handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "i2c_del_master_bus failed: %s", esp_err_to_name(err));
         return -1;
     }
+    ESP_LOGI(TAG, "I2C master bus deinitialized successfully");
     return 0;
 }

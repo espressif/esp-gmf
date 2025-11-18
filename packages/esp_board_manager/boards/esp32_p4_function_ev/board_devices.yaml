@@ -142,3 +142,16 @@ devices:
     version: default
     peripherals:
       - name: ledc_backlight
+
+  - name: camera
+    type: camera
+    version: default
+    sub_type: "csi"   # The bus type: csi
+    config:
+      csi_config:
+        reset_io: -1
+        pwdn_io: -1
+        dont_init_ldo: true  # Using periph_ldo to manager this peripheral
+    peripherals:
+      - name: "i2c_master"
+        frequency: 100000
