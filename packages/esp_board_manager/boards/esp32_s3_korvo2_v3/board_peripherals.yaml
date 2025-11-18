@@ -29,7 +29,7 @@ peripherals:
       slot_mode: I2S_SLOT_MODE_MONO     # I2S_SLOT_MODE_MONO or I2S_SLOT_MODE_STEREO
       slot_mask: I2S_TDM_SLOT0          # I2S_TDM_SLOT0, I2S_TDM_SLOT1 slots
       ws_width: 16                      # WS signal width in BCLK ticks
-      total_slot: 4
+      total_slot: 2
 
       # GPIO configuration
       pins:

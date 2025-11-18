@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.5
+
+### Bug Fixes
+
+- Fix `periph_i2s_deinit` channel delete
+- Fix i2s config `total_slot` for esp32_s3_korvo2_v3
+
 ## 0.4.4
 
 ### Bug Fixes
