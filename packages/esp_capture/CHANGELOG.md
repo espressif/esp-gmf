@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.8
+
+### Features
+
+- Added dependency `codec_board` in video_capture example yaml to adapt `gmf_app_utils` use `esp_board_manager`
+
 ## v0.7.7
 
 ### Features

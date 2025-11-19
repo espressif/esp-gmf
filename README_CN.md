@@ -42,7 +42,7 @@ ESP-GMF 各个模块以组件的形式存在，组件又按功能分为**原子�
 | :------------: | :------------:|:------------ |
 |  [esp_audio_simple_player](./packages/esp_audio_simple_player) | 简单的音频播放器 | - `gmf_audio`<br>- `gmf_io` |
 |  [gmf_loader](./packages/gmf_loader) | 使用 `Kconfig` 选择的配置<br>设置给定的 GMF Pool | - `gmf_core`<br>- `gmf_io`<br>- `gmf_audio`<br>- `gmf_misc`<br>- `gmf_video`<br>- `gmf_ai_audio`<br>- `esp_codec_dev`<br>- `esp_audio_codec`<br>- `esp_video_codec` |
-|  [gmf_app_utils](./packages/gmf_app_utils) | 常用外设配置，单元测试工具<br>内存泄漏检测工具 | - `gmf_core`<br>- `protocol_examples_common`<br>- `codec_board` |
+|  [gmf_app_utils](./packages/gmf_app_utils) | 常用外设配置，单元测试工具<br>内存泄漏检测工具 | - `gmf_core`<br>- `protocol_examples_common`<br>- `esp_board_manager` |
 |  [esp_capture](./packages/esp_capture) | 易用的音视频采集器 | - `gmf_core`<br>- `gmf-audio`<br>- `gmf-video`<br>- `esp_muxer`<br>- `esp_codec_dev`<br>- `esp-sr`<br>- `esp_video`<br>- `esp32-camera`|
 |  [esp_board_manager](./packages/esp_board_manager) | 智能、自动化的板子配置和管理工具，支持基于 YAML 的设置 | 根据选择的板子变化依赖 |
 | [esp_audio_render](./packages/esp_audio_render) | 支持混音的音频渲染器 | - `gmf_core`<br>- `gmf-audio`<br>|

@@ -31,8 +31,7 @@ The `gmf_app_utils` component also provides configuration options via **menuconf
   - SD card initialization and mounting
 - Connectivity management
   - Wi-Fi initialization and connection
-- Use menuconfig to select supported board
-  - For other board support see [Other Board Support](#other-board-support) section
+- Use `esp_board_manager` to select supported board and custom board, see [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager)
 
 ### System Tools (`esp_gmf_app_sys.h`)
 Provides start/stop functionality for system resource monitoring, facilitating runtime performance tracking and resource usage monitoring. To use this feature, you need to enable `CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID` and `CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS` in menuconfig.
@@ -69,43 +68,3 @@ Provide common functions for GMF application unit tests
   - Call `esp_gmf_app_test_case_uses_tcpip()` in tests that require network functionality
   - Use test annotations like `[leaks]` or `[leaks=1024]` to control leak checking
   - The main function calls' esp_gmf_app_test_main() 'to create the unit test Task
-
-### Other Board Support
-
-Peripheral management currently uses `codec_board` as a reference implementation for fast verification. If you want to use supported peripherals on a custom board, follow these steps:
-
-1. **Get `codec_board`** and put into project `components` folder
-   
-   Can use either of following methods:
-   
-   1.1 Build firstly to trigger auto download then copy it into project folder:
-   ```bash
-   idf.py build
-   mkdir -p components/codec_board
-   cp -rf managed_components/tempotian__codec_board components/codec_board
-   ```
-   
-   1.2 Download [codec_board](https://components.espressif.com/components/tempotian/codec_board/) from component registry and manual copy into project folder
-
-2. **Add a new section** to `components/codec_board/board_cfg.txt` to describe your custom board:
-   ```
-   Board: MY_BOARD
-   i2c: {sda: 1, scl: 2}
-   i2s: {mclk: 42, bclk: 40, ws: 41, dout: 39}
-   out: {codec: ES8311, pa: 38, use_mclk: 0, pa_gain: 6}
-   ```
-
-3. **Set the board type** in your application code before calling any peripheral APIs:
-   ```c
-   #include "codec_board.h"
-   void app_main(void)
-   {
-       set_codec_board_type("MY_BOARD");
-   }
-   ```
-
-4. **Rebuild to take effects**
-   ```bash
-   idf.py fullclean
-   idf.py -p /dev/XXXXX flash monitor
-   ```

@@ -48,7 +48,7 @@ typedef struct {
  * @brief  Codec information structure
  */
 typedef struct {
-    void                  *i2c_handle;   /*!<  User-initialized I2C handle; otherwise, set to NULL to let the `esp_gmf_app_setup_codec_dev` initialize it. */
+    void                  *i2c_handle;   /*!< User-initialized I2C handle; otherwise, set to NULL to let the `esp_gmf_app_setup_codec_dev` initialize it */
     esp_gmf_app_i2s_cfg_t  play_info;    /*!< Audio information for playback. Currently,
                                               only ESP_GMF_APP_I2S_MODE_STD I2S mode is supported */
     esp_gmf_app_i2s_cfg_t  record_info;  /*!< Audio information for recording */
@@ -82,8 +82,8 @@ void esp_gmf_app_teardown_sdcard(void *sdcard_handle);
 /**
  * @brief  Setup codec with configuration
  *
- * @note  It will initialize I2S and I2C. And open I2S.
- *        If codec_info is NULL, it will use default codec configuration(ESP_GMF_APP_CODEC_INFO_DEFAULT()).
+ * @note  It will initialize I2S and I2C. And open I2S
+ *        If codec_info is NULL, it will use default codec configuration(ESP_GMF_APP_CODEC_INFO_DEFAULT())
  *
  * @param[in]  codec_info  The codec information
  */
@@ -108,7 +108,7 @@ void *esp_gmf_app_get_i2c_handle(void);
 void *esp_gmf_app_get_playback_handle(void);
 
 /**
- * @brief  Get the record handle
+ * @brief  Get the record handle after `esp_gmf_app_setup_codec_dev`
  *
  * @return
  *       - The record handle

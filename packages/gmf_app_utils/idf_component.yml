@@ -1,4 +1,4 @@
-version: "0.7.5"
+version: "0.7.6"
 description: Espressif GMF App Utils is a module that provides utility functions for the GMF application
 url: https://github.com/espressif/esp-gmf/tree/main/packages/gmf_app_utils
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/gmf_app_utils/README.md"
@@ -12,6 +12,6 @@ dependencies:
   espressif/gmf_core:
     require: public
     version: "^0.7"
-  tempotian/codec_board:
+  espressif/esp_board_manager:
     require: public
-    version: "^1.0.0"
+    version: "^0.4.0"
