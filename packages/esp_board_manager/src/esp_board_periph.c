@@ -275,7 +275,7 @@ esp_err_t esp_board_periph_show(const char *name)
     } else {
         /* Show information for all peripherals */
         const esp_board_periph_desc_t *desc = g_esp_board_peripherals;
-        while (desc) {
+        while (desc && desc->name) {
             esp_board_periph_list_t *list = find_periph_list(desc->name);
             ESP_LOGI(TAG, "Peripheral %s:", desc->name);
             ESP_LOGI(TAG, "  Type: %s", desc->type);

@@ -3,3 +3,24 @@ chip: esp32c3
 version: 1.0.0
 # Devices Configuration for Dual Eyes Board V1.0
 devices:
+  - name: my_fs_fat          # The name of the device, must be unique
+    type: fs_fat          # The type of the device, must be unique
+    version: default
+    dependencies:
+      my_sensor:
+        path: "${BOARD_PATH}/my_sensor" # Fake path for test
+    sub_type: spi         # The sub type of the device, must be 'sdmmc' or 'spi'
+    config:
+      # Mount point configuration
+      mount_point: "/sdcard"            # The mount point path for the SD card filesystem
+      # VFS (Virtual File System) configuration
+      vfs_config:
+        format_if_mount_failed: false   # Format the card if mount fails
+        max_files: 5                    # Maximum number of files that can be open simultaneously
+        allocation_unit_size: 16384     # Allocation unit size in bytes (0 for default)
+
+      sub_config:
+        cs_gpio_num: 15         # Chip select GPIO number
+      peripherals:
+        - name: "spi_master"  # SPI bus name
+

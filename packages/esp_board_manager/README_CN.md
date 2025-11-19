@@ -18,44 +18,27 @@
 
 ```
 esp_board_manager/
-├── esp_board_manager.c        # 主板级管理器实现
-├── esp_board_periph.c         # 外设管理实现
-├── esp_board_devices.c        # 设备管理实现
-├── esp_board_err.c            # 错误处理实现
-├── include/
-│   ├── esp_board_manager.h    # 主板级管理器 API
-│   ├── esp_board_periph.h     # 外设管理
-│   ├── esp_board_device.h     # 设备管理
-│   ├── esp_board_manager_err.h        # 统一错误管理系统
-│   └── esp_board_manager_defs.h       # 关键字列表
-├── peripherals/               # 外设实现
-│   ├── periph_gpio.c/py/h     # GPIO 外设
-│   ├── ...
-├── devices/                   # 设备实现
-│   ├── dev_audio_codec/       # 音频编解码器设备
-│   ├── ...
-├── boards/                    # 默认板级特定配置
-│   ├── echoear_core_board_v1_0/
-│   │   ├── board_peripherals.yaml
-│   │   ├── board_devices.yaml
-│   │   ├── board_info.yaml
-│   │   └── Kconfig
-│   └── ...
-├── generators/                # 代码生成系统
-├── gen_codes/                 # 生成的文件（自动创建）
-│   └── Kconfig.in             # 统一 Kconfig 菜单
-├── user project components/gen_bmgr_codes/ # 生成的板级配置文件（自动创建）
+├── src/             # Source files
+├── include/         # Public header files
+├── private_inc/     # Private header files
+├── peripherals/     # Peripheral implementations (periph_gpio, periph_i2c, etc.)
+├── devices/         # Device implementations (dev_audio_codec, dev_display_lcd, etc.)
+├── boards/          # Board-specific configurations (YAML files, Kconfig, setup_device.c)
+├── generators/      # Code generation system
+├── gen_codes/       # Generated board config files (auto-created)
 │   ├── gen_board_periph_config.c
 │   ├── gen_board_periph_handles.c
 │   ├── gen_board_device_config.c
 │   ├── gen_board_device_handles.c
+│   ├── gen_board_device_custom.h
 │   ├── gen_board_info.c
-│   ├── CMakeLists.txt
-│   └── idf_component.yml
-├── gen_bmgr_config_codes.py   # 主代码生成脚本（统一）
-├── idf_ext.py                 # IDF action 扩展（v6.0+ 自动发现）
-├── README.md                  # 此文件
-└── README_CN.md               # 中文版本说明
+│   └── board_config.cmake      # Board-specific CMake configuration
+├── CMakeLists.txt              # Component build configuration
+├── idf_component.yml           # Component manifest
+├── gen_bmgr_config_codes.py    # Main code generation script
+├── idf_ext.py                  # IDF action extension
+├── README.md                   # This file
+└── README_CN.md                # Chinese version
 ```
 
 ## 快速开始
@@ -90,7 +73,7 @@ set IDF_EXTRA_ACTIONS_PATH=/PATH/TO/YOUR_PATH/esp_board_manager
 export IDF_EXTRA_ACTIONS_PATH=YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager
 ```
 
-> **注意:** 如果您使用 `idf.py add-dependency xxx` 将 **esp_board_manager** 添加为依赖组件，在首次构建或清理 `managed_components` 文件夹后，目录 `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager` 将不可见。我们建议运行 `idf.py set-target`、`idf.py menuconfig` 或 `idf.py build` 来自动将 **esp_board_manager** 组件下载到 `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager`。
+> **注意:** 如果您使用 `idf.py add-dependency xxx` 将 esp_board_manager 添加为依赖组件，在首次构建或清理 `managed_components` 文件夹后，目录 `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager` 将不可见。**您必须在项目文件夹中运行 `idf.py gen-bmgr-config -x`（或 `python gen_bmgr_config_codes.py -x`）**，然后运行 `idf.py set-target`、`idf.py menuconfig` 或 `idf.py build` 来自动将 esp_board_manager 组件下载到 `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager`。
 
 > **版本要求:** 兼容 ESP-IDF v5.4 和 v5.5 分支。**注意:** v5.4.2 或 v5.5.1 之前的版本可能会遇到 Kconfig 依赖问题。
 
@@ -111,10 +94,20 @@ idf.py gen-bmgr-config -l
 python YOUR_BOARD_MANAGER_PATH/gen_bmgr_config_codes.py -l
 ```
 
-然后选择您的目标板级：
+然后通过名称或索引选择您的目标板级：
+
 ```bash
-idf.py gen-bmgr-config -b YOUR_TARGET_BOARD
+# 使用 idf.py（需要 -b 选项）
+idf.py gen-bmgr-config -b echoear_core_board_v1_2  # 板级名称
+idf.py gen-bmgr-config -b 3                        # 板级索引
+
+# 直接使用脚本（支持直接参数）
+python gen_bmgr_config_codes.py echoear_core_board_v1_2  # 直接使用板级名称
+python gen_bmgr_config_codes.py 3                        # 直接使用板级索引
+python gen_bmgr_config_codes.py -b echoear_core_board_v1_2  # 使用 -b 也可以
 ```
+
+**注意**：直接参数（不使用 `-b`）仅在直接调用脚本时有效，由于 ESP-IDF 框架限制，`idf.py` 不支持。
 
 ### 3. 在您的应用程序中使用
 
@@ -242,6 +235,7 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
    touch board_devices.yaml
    touch board_info.yaml
    touch Kconfig
+   touch sdkconfig.defaults.board  # 可选：板子特定的 SDK 配置默认值
    ```
 
 3. **配置 Kconfig**
@@ -309,11 +303,29 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
        peripherals:
          - name: <peripheral_name>
     ```
-7. **`board` 目录中自定义代码的说明**
+7. **板子特定的 SDK 配置（可选）**
+   - 在板子目录中创建 `sdkconfig.defaults.board` 文件来定义板子特定的 SDK 配置默认值
+   - 切换到此板子时，脚本会自动将这些设置**追加**到项目的 `sdkconfig.defaults` 文件中
+   - 这样可以确保板子特定的配置在 ESP-IDF 构建系统的各种操作（menuconfig、reconfigure 等）中都不会丢失
+
+   示例：
+   ```bash
+   # sdkconfig.defaults.board
+   # 示例: 使用八线 PSRAM 的板子（Octal，8-line）
+   CONFIG_SPIRAM_MODE_OCT=y
+   CONFIG_SPIRAM_SPEED_80M=y
+   ```
+   - 文件支持标准的 ESP-IDF sdkconfig 格式：
+     - `CONFIG_XXX=y` 启用
+     - `CONFIG_XXX=n` 或 `# CONFIG_XXX is not set` 禁用
+     - `CONFIG_XXX="value"` 字符串值
+   - 切换板子时，`sdkconfig.defaults` 中之前的板子特定设置会自动被替换
+
+8. **`board` 目录中自定义代码的说明**
    - 在使用一些设备的时候，需要额外增加自定义代码，比如 `display_lcd`, `lcd_touch` and `custom` device.
    - 这是为了提高板子的适配，让用户根据自己板子情况选择 device 实际初始化函数，`display_lcd`, `lcd_touch` 参考 `esp_board_manager/boards/echoear_core_board_v1_2/setup_device.c`。
 
-8. **`custom` 自定义设备说明**
+9. **`custom` 自定义设备说明**
    - 对于 esp_board_manager 还未包含的设备和外设，建议通过 `custom` 类型 device 进行添加
    - 实现的代码放置在 `board` 目录下，参考 `esp_board_manager/boards/esp32_s3_korvo2l/custom_device.c`
    - 当该 board 被选择后 `gen_bmgr_codes` 目录下会生成 `gen_board_device_custom.h` 头文件，供应用程序使用
@@ -451,45 +463,49 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 
 ## 板级管理器设置
 
-### 自动 SDK 配置更新
+### SDK 配置管理
 
-控制板级管理器是否根据检测到的设备和外设类型自动更新 sdkconfig。
+**⚠️ 重大变更**：已移除自动 sdkconfig 修改功能。板级管理器不再直接修改 `sdkconfig` 文件。
 
-**默认**: 启用 (`y`)
+**当前行为**：
+- 板子特定配置存储在 `boards/<board_name>/sdkconfig.defaults.board` 中
+- 切换板子时，这些配置会自动追加到您项目的 `sdkconfig.defaults` 中
+- `sdkconfig` 文件会被备份到 `sdkconfig.bmgr_board.backup` 并删除，以防止配置污染
 
-**通过 sdkconfig 禁用**:
-```bash
-# 使用 menuconfig
-idf.py menuconfig
-# 导航到: Component config → ESP Board Manager Configuration → Board Manager Setting
+**配置优先级**：
+1. `sdkconfig`（用户当前配置）
+2. `sdkconfig.defaults`（项目默认值 + 追加的板子配置）
+3. 组件默认值
 
-# 在 sdkconfig 中设置
-CONFIG_ESP_BOARD_MANAGER_AUTO_CONFIG_DEVICE_AND_PERIPHERAL=n
-```
-如果您想启用超出 YAML 中定义的设备或外设类型，请禁用此选项。
+**最佳实践**：
+- 在 `sdkconfig.defaults` 中存储项目通用设置
+- 在 `boards/<board_name>/sdkconfig.defaults.board` 中存储板子特定设置
+- 让 ESP-IDF 根据这些默认值生成 `sdkconfig`
 
 ## 脚本执行流程
 
 ESP Board Manager 使用 `gen_bmgr_config_codes.py` 进行代码生成，它在统一的工作流程中处理 Kconfig 菜单生成和板级配置生成。这个统一脚本比之前的分离脚本提供 81% 更快的执行速度。
 
+**⚠️ 重要提示：** 切换板子时，脚本会在第 1 步中自动备份并删除现有的 `sdkconfig` 文件以防止配置污染（`--kconfig-only` 时跳过）。
+
 ### `gen_bmgr_config_codes.py` - 配置生成器
 
 执行全面的 8 步流程，将 YAML 配置转换为 C 代码和构建系统文件：
 
-1. **板级目录扫描**: 在默认、客户和组件目录中发现板级
+1. **板级目录扫描**: 在默认、客户和组件目录中扫描板级。清理环境包括删除 CMakeCache.txt、清空 gen_codes 目录、备份并删除 sdkconfig（`--kconfig-only` 时跳过）。
 2. **板级选择**: 从 sdkconfig 或命令行参数读取板级选择
-3. **Kconfig 生成**: 为板级和组件选择创建统一 Kconfig 菜单系统
-4. **配置文件发现**: 定位所选板级的 `board_peripherals.yaml` 和 `board_devices.yaml`
-5. **外设处理**: 解析外设配置并生成 C 结构
-6. **设备处理**: 处理设备配置、依赖关系并更新构建文件
-7. **项目 sdkconfig 配置**: 根据板级设备和外设类型更新项目 sdkconfig
+3. **配置文件发现**: 定位所选板级的 `board_peripherals.yaml` 和 `board_devices.yaml`
+4. **外设处理**: 解析外设配置并生成 C 结构
+5. **设备处理**: 处理设备配置、依赖关系、扫描板级源文件并生成设备结构
+6. **Kconfig 生成**: 为板级和组件选择创建统一 Kconfig 菜单系统
+7. **SDK 配置管理**: 将板子特定配置从 `sdkconfig.defaults.board` 追加到项目的 `sdkconfig.defaults`
 8. **文件生成**: 在工程文件夹的 `components/gen_bmgr_codes/` 中创建所有必要的 C 配置和句柄文件
 
 #### 命令行选项
 
 **板级选择:**
 ```bash
--b, --board BOARD_NAME           # 直接指定板级名称（绕过 sdkconfig 读取）
+-b, --board BOARD_NAME           # 直接指定板级名称或索引号（绕过 sdkconfig 读取）
 -c, --customer-path PATH         # 客户板级目录路径（使用 "NONE" 跳过）
 -l, --list-boards               # 列出所有可用板级并退出
 ```
@@ -501,10 +517,9 @@ ESP Board Manager 使用 `gen_bmgr_config_codes.py` 进行代码生成，它在�
 --devices-only                  # 仅处理设备（跳过外设）
 ```
 
-**SDKconfig 配置:**
+**清理生成的文件:**
 ```bash
---sdkconfig-only                # 仅检查 sdkconfig 功能而不启用它们
---disable-sdkconfig-auto-update # 禁用自动 sdkconfig 功能启用（默认启用）
+-x, --clean                     # 清理生成的 .c 和 .h 文件，并重置 CMakeLists.txt 和 idf_component.yml
 ```
 
 **日志控制:**
@@ -547,6 +562,11 @@ idf.py gen-bmgr-config -l
 
 # 设置日志级别为 DEBUG 以获取详细输出
 idf.py gen-bmgr-config --log-level DEBUG
+
+# 清理生成的文件
+idf.py gen-bmgr-config -x
+# 或
+idf.py gen-bmgr-config --clean
 ```
 
 ### 方法 2: 独立脚本
@@ -557,38 +577,48 @@ idf.py gen-bmgr-config --log-level DEBUG
 
 **基本使用:**
 ```bash
-# 使用 sdkconfig 和默认板级
+# 从 sdkconfig 读取板级选择（如果存在）
 python gen_bmgr_config_codes.py
 
-# 直接指定板级
+# 将板级作为直接参数指定（名称或索引）
+python gen_bmgr_config_codes.py esp32_s3_korvo2_v3
+python gen_bmgr_config_codes.py 1
+
+# 使用 -b 选项指定板级
 python gen_bmgr_config_codes.py -b echoear_core_board_v1_0
 
 # 添加客户板级目录
 python gen_bmgr_config_codes.py -c /path/to/custom/boards
 
-# 板级和自定义路径
+# 添加单个板级目录
+python gen_bmgr_config_codes.py -c /path/to/single/board
+
+# 组合板级选择与客户板级
+python gen_bmgr_config_codes.py 1 -c /custom/boards
 python gen_bmgr_config_codes.py -b my_board -c /path/to/custom/boards
 
 # 列出可用板级
 python gen_bmgr_config_codes.py -l
 
-# 禁用自动 sdkconfig 更新
-python gen_bmgr_config_codes.py --disable-sdkconfig-auto-update
-
 # 设置日志级别为 DEBUG 以获取详细输出
 python gen_bmgr_config_codes.py --log-level DEBUG
+
+# 清理生成的文件
+python gen_bmgr_config_codes.py -x
+# 或
+python gen_bmgr_config_codes.py --clean
 ```
 
 **部分生成:**
 ```bash
+# 仅生成 Kconfig 菜单（跳过板级配置）
+python gen_bmgr_config_codes.py --kconfig-only
+
 # 仅处理外设
 python gen_bmgr_config_codes.py --peripherals-only
 
 # 仅处理设备
 python gen_bmgr_config_codes.py --devices-only
-
-# 检查 sdkconfig 功能而不启用
-python gen_bmgr_config_codes.py --sdkconfig-only
 ```
 
 #### 生成的文件
@@ -636,14 +666,35 @@ ESP Board Manager 的未来开发计划（优先级从高到低）：
 1. 确保您的项目中没有 `idf_build_set_property(MINIMAL_BUILD ON)`，因为 MINIMAL_BUILD 仅通过包含所有其他组件所需的"通用"组件来执行最小构建。
 2. 确保您的项目有 `components/gen_bmgr_codes` 文件夹，其中包含生成的文件。这些文件是通过运行 `idf.py gen-bmgr-config -b YOUR_BOARD` 生成的。
 
-### **切换开发板**
-必须使用 `idf.py gen-bmgr-config -b`。使用 `idf.py menuconfig` 选择板级可能会导致依赖错误。
+### 切换开发板
 
-### "sdkconfig 文件未找到"
+**重要提示**：切换板子时，脚本会自动：
+1. 将 `sdkconfig` 备份到 `sdkconfig.bmgr_board.backup` 并删除原文件，以防止配置污染
+2. 将板子特定配置从 `boards/<board_name>/sdkconfig.defaults.board` 追加到您项目的 `sdkconfig.defaults`
 
-如果您看到错误 `sdkconfig file not found at [path]`，这意味着 ESP Board Manager 将根据您选择的板级 YAML 文件创建默认的设备和外设依赖关系。
+切换板子时请始终使用 `idf.py gen-bmgr-config -b`（或 `python gen_bmgr_config_codes.py`）。使用 `idf.py menuconfig` 可能导致依赖错误。
 
-**注意:** 当您在项目中首次运行 `idf.py menuconfig`、`idf.py set-target xxx` 或 `idf.py build` 时，ESP-IDF 会自动生成 `sdkconfig` 文件。
+### 依赖某些组件的问题
+
+如果在运行 `idf.py set-target xxx`、`idf.py menuconfig` 或 `idf.py reconfigure` 时遇到以下错误：
+
+```bash
+ERROR: Because project depends on xxxxx which
+doesn't match any versions, version solving failed.
+```
+
+或类似的错误：
+
+```bash
+Failed to resolve component 'esp_board_manager' required by component
+  'gen_bmgr_codes': unknown name.
+```
+
+这可能是 board manager 上次残留的生成文件未被清除导致的。**您可以使用 `idf.py gen-bmgr-config -x`（或 `python gen_bmgr_config_codes.py -x`）清理生成的文件**，这将删除所有生成的 .c 和 .h 文件并重置 CMakeLists.txt 和 idf_component.yml。
+
+### `undefined reference to 'g_esp_board_devices'`
+
+出现 `undefined reference to 'g_esp_board_device_handles'` 或 `undefined reference to 'g_esp_board_devices'` 错误是因为没有运行 `idf.py gen-bmgr-config -b YOUR_BOARD`。
 
 ## 许可证
 

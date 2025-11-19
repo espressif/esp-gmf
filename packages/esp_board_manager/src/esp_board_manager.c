@@ -188,7 +188,7 @@ esp_err_t esp_board_manager_print(void)
     /* Show device-peripheral associations */
     ESP_LOGI(TAG, "Device-Peripheral Associations:");
     const esp_board_device_desc_t *dev_desc = g_esp_board_devices;
-    while (dev_desc) {
+    while (dev_desc && dev_desc->name) {
         esp_board_device_handle_t *dev_handle = esp_board_find_device_handle(dev_desc->name);
         if (dev_handle && dev_handle->device_handle) {
             ESP_LOGI(TAG, "  Device: %s (%s)", dev_desc->name, dev_desc->type);

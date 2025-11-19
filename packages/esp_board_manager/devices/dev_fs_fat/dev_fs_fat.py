@@ -121,37 +121,58 @@ def parse_sdmmc_sub_config(sub_config: dict) -> dict:
         'ldo_chan_id': ldo_chan_id
     }
 
-def parse_spi_sub_config(sub_config: dict, peripherals_dict=None) -> dict:
-    """Parse SPI sub configuration"""
-    cs_gpio_num = sub_config.get('cs_gpio_num', 15)
+def parse_spi_sub_config(sub_config: dict, device_peripherals: list = None, peripherals_dict=None) -> dict:
+    """Parse SPI sub configuration
 
-    # Get SPI bus name from peripherals
+    Args:
+        sub_config: Sub configuration dictionary
+        device_peripherals: Peripherals list from device level
+        peripherals_dict: Dictionary of all available peripherals
+
+    Returns:
+        Dictionary with cs_gpio_num and spi_bus_name
+    """
+    cs_gpio_num = sub_config.get('cs_gpio_num', 15)
     spi_bus_name = None
 
-    # First try to get peripherals from config (for backward compatibility)
-    peripherals_list = []
-    if sub_config:
-        peripherals_list = sub_config.get('peripherals', [])
+    # Get SPI peripheral from device-level peripherals
+    if device_peripherals:
+        for peripheral in device_peripherals:
+            periph_name = None
+            if isinstance(peripheral, dict):
+                periph_name = peripheral.get('name')
+            elif isinstance(peripheral, str):
+                periph_name = peripheral
 
-    # Look for spi_master peripheral in the peripherals list
-    for peripheral in peripherals_list:
-        if isinstance(peripheral, dict) and peripheral.get('name') == 'spi_master':
-            spi_bus_name = peripheral.get('name', 'spi_master')
-            break
-        elif isinstance(peripheral, str) and peripheral == 'spi_master':
-            spi_bus_name = 'spi_master'
-            break
+            if periph_name and peripherals_dict:
+                # Find the peripheral in peripherals_dict to check its type and role
+                periph_obj = peripherals_dict.get(periph_name)
+                if periph_obj:
+                    # peripherals_dict values are Peripheral objects, access attributes directly
+                    periph_type = getattr(periph_obj, 'type', None)
+                    periph_role = getattr(periph_obj, 'role', None)
+                    # Check if it's a SPI peripheral with master role
+                    if periph_type == 'spi' and periph_role == 'master':
+                        spi_bus_name = periph_name
+                        break
 
-    # Fallback to peripherals_dict if not found in config
-    if not spi_bus_name and peripherals_dict:
-        # Look for spi_master peripheral
-        for peripheral in peripherals_dict:
-            if peripheral.get('name') == 'spi_master':
-                spi_bus_name = peripheral.get('name', 'spi_master')
-                break
-
+    # Validate that we found a valid SPI master peripheral
     if not spi_bus_name:
-        spi_bus_name = 'spi_master'  # Default fallback
+        raise ValueError(
+            'FS_FAT device with SPI sub type requires a SPI peripheral reference.\n'
+            '   The peripheral must be defined at device level (not inside config):\n'
+            '   - type: spi\n'
+            '   - role: master\n'
+            '   Example:\n'
+            '     devices:\n'
+            '       - name: sdcard_fat\n'
+            '         type: fs_fat\n'
+            '         sub_type: spi\n'
+            '         config:\n'
+            '           ...\n'
+            '         peripherals:  # At device level\n'
+            '           - name: spi_0'
+        )
 
     return {
         'cs_gpio_num': cs_gpio_num,
@@ -170,6 +191,9 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     if sub_type not in ['sdmmc', 'spi']:
         raise ValueError(f"FS_FAT device '{name}' has invalid 'sub_type' value '{sub_type}'. Must be 'sdmmc' or 'spi'")
 
+    # Get device-level peripherals (consistent with other device parsers)
+    device_peripherals = full_config.get('peripherals', [])
+
     # Get basic configuration
     mount_point = config.get('mount_point', '/sdcard')
 
@@ -179,13 +203,16 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     max_files = vfs_config.get('max_files', 5)
     allocation_unit_size = vfs_config.get('allocation_unit_size', 16384)
 
+    # Get sub_config for SPI or SDMMC specific configuration
+    sub_config = config.get('sub_config', {})
+
     # Parse sub configuration based on sub_type
     if sub_type == 'sdmmc':
-        sub_cfg = parse_sdmmc_sub_config(config)
+        sub_cfg = parse_sdmmc_sub_config(sub_config)
         # Set the sdmmc member of the union
         sub_cfg_union = {'sdmmc': sub_cfg}
     elif sub_type == 'spi':
-        sub_cfg = parse_spi_sub_config(config, peripherals_dict)
+        sub_cfg = parse_spi_sub_config(sub_config, device_peripherals, peripherals_dict)
         # Set the spi member of the union
         sub_cfg_union = {'spi': sub_cfg}
     else:

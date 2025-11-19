@@ -1,0 +1,5 @@
+board: test_board_b
+chip: esp32s3
+version: 1.0.0
+description: "Test Board B - Multiple boards in boards/ directory"
+manufacturer: "TEST"

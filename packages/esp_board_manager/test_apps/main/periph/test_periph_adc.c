@@ -74,6 +74,7 @@ void test_periph_adc(void)
 esp_err_t continuous_test(adc_continuous_handle_t adc_handle, periph_adc_config_t *adc_cfg)
 {
     adc_cali_handle_t adc_cali_handle = NULL;
+#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
     adc_cali_curve_fitting_config_t cali_config = {
         .unit_id = adc_cfg->cfg.continuous.unit_id,
         .atten = adc_cfg->cfg.continuous.atten,
@@ -119,12 +120,14 @@ esp_err_t continuous_test(adc_continuous_handle_t adc_handle, periph_adc_config_
     }
 
     adc_continuous_stop(adc_handle);
+#endif // ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
     return ESP_OK;
 }
 
 esp_err_t oneshot_test(adc_oneshot_unit_handle_t adc_handle, periph_adc_config_t *adc_cfg)
 {
     adc_cali_handle_t adc_cali_handle = NULL;
+#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
     adc_cali_curve_fitting_config_t cali_config = {
         .unit_id = adc_cfg->cfg.oneshot.unit_cfg.unit_id,
         .atten = adc_cfg->cfg.oneshot.chan_cfg.atten,
@@ -156,6 +159,6 @@ esp_err_t oneshot_test(adc_oneshot_unit_handle_t adc_handle, periph_adc_config_t
         test_cnt--;
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
-
+#endif // ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
     return ESP_OK;
 }

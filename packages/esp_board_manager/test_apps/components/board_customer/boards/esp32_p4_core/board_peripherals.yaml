@@ -8,8 +8,8 @@ peripherals:
     config:
       pin: 4
       mode: GPIO_MODE_OUTPUT
-      pull_up_en: false
-      pull_down_en: false
+      pull_up: false
+      pull_down: false
       intr_type: GPIO_INTR_DISABLE
 
   - name: anacmpr_unit_0

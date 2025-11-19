@@ -1,0 +1,12 @@
+board: test_board_a
+chip: esp32s3
+version: 1.0.0
+# Devices Configuration
+devices:
+  - name: power_control
+    type: gpio_ctrl
+    config:
+      active_level: 1
+      default_level: 0
+    peripherals:
+      - name: gpio_power_ctrl

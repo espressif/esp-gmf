@@ -1,3 +1,1 @@
-dependencies:
-  espressif/esp_lcd_st77916: '*'
-  espressif/esp_lcd_touch_cst816s: '*'
+dependencies: {}

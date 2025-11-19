@@ -27,7 +27,7 @@ import logging
 current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
-from gen_bmgr_config_codes import BoardConfigGenerator
+from gen_bmgr_config_codes import BoardConfigGenerator, resolve_board_name_or_index
 
 
 def action_extensions(base_actions: Dict, project_path: str) -> Dict:
@@ -59,16 +59,17 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
                     setattr(self, key, value)
 
         # Convert Click args to the format expected by BoardConfigGenerator
+        board_name = kwargs.get('board', None)
+
         mock_args = MockArgs(
             list_boards=kwargs.get('list_boards', False),
-            board_name=kwargs.get('board', None),
+            board_name=board_name,
             board_customer_path=kwargs.get('customer_path', None),
             peripherals_only=kwargs.get('peripherals_only', False),
             devices_only=kwargs.get('devices_only', False),
-            disable_sdkconfig_auto_update=kwargs.get('disable_sdkconfig_auto_update', False),
-            sdkconfig_only=kwargs.get('sdkconfig_only', False),
             kconfig_only=kwargs.get('kconfig_only', False),
-            log_level=kwargs.get('log_level', 'INFO')
+            log_level=kwargs.get('log_level', 'INFO'),
+            clean=kwargs.get('clean', False)
         )
 
         # Set global log level first
@@ -98,6 +99,35 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
         script_dir = current_dir
         generator = BoardConfigGenerator(script_dir)
 
+        # Handle clean option
+        if mock_args.clean:
+            print('ESP Board Manager - Clean Generated Files')
+            print('=' * 60)
+
+            try:
+                # Find project root
+                project_root = project_dir
+                if not project_root:
+                    project_root = generator.find_project_root(os.getcwd())
+
+                if not project_root:
+                    print('❌ Project root not found! Please run this command from a project directory.')
+                    sys.exit(1)
+
+                success = generator.clear_generated_files(project_root)
+                if not success:
+                    print('❌ Failed to clean generated files!')
+                    sys.exit(1)
+
+                print('✅ Clean operation completed successfully!')
+                return
+
+            except Exception as e:
+                print(f'❌ Error cleaning generated files: {e}')
+                import traceback
+                traceback.print_exc()
+                sys.exit(1)
+
         # Handle list-boards option
         if mock_args.list_boards:
             print('ESP Board Manager - Board Listing')
@@ -125,25 +155,31 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
                         else:
                             component_boards[board_name] = board_path
 
+                    # Create ordered list for numbering
+                    board_idx = 1
+
                     # Display main boards
                     if main_boards:
-                        print('ℹ️ Main Boards:')
+                        print('ℹ️  Main Boards:')
                         for board_name in sorted(main_boards.keys()):
-                            print(f'  • {board_name}')
+                            print(f'  [{board_idx}] {board_name}')
+                            board_idx += 1
                         print()
 
                     # Display customer boards
                     if customer_boards:
-                        print('ℹ️ Customer Boards:')
+                        print('ℹ️  Customer Boards:')
                         for board_name in sorted(customer_boards.keys()):
-                            print(f'  • {board_name}')
+                            print(f'  [{board_idx}] {board_name}')
+                            board_idx += 1
                         print()
 
                     # Display component boards
                     if component_boards:
-                        print('ℹ️ Component Boards:')
+                        print('ℹ️  Component Boards:')
                         for board_name in sorted(component_boards.keys()):
-                            print(f'  • {board_name}')
+                            print(f'  [{board_idx}] {board_name}')
+                            board_idx += 1
                         print()
                 else:
                     print('⚠️  No boards found!')
@@ -157,6 +193,22 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
                 traceback.print_exc()
                 sys.exit(1)
 
+        # Resolve board name from name or index
+        cached_boards = None
+        if mock_args.board_name:
+            all_boards = generator.config_generator.scan_board_directories(mock_args.board_customer_path)
+            cached_boards = all_boards  # Cache for reuse in run()
+            resolved_board = resolve_board_name_or_index(mock_args.board_name, all_boards, generator, mock_args.board_customer_path)
+            if resolved_board is None:
+                if mock_args.board_name.isdigit():
+                    print(f'❌ Board index {mock_args.board_name} is out of range (1-{len(all_boards)})')
+                else:
+                    print(f'❌ Board "{mock_args.board_name}" not found')
+                    print(f'Available boards: {sorted(all_boards.keys())}')
+                sys.exit(1)
+            mock_args.board_name = resolved_board
+            print(f'ℹ️  Resolved board: {resolved_board}')
+
         # Set the working directory for the generator to use the correct project context
         try:
             if project_dir and project_dir != os.getcwd():
@@ -164,12 +216,12 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
                 try:
                     os.chdir(project_dir)
                     print(f'ℹ️  Changed working directory to: {project_dir}')
-                    success = generator.run(mock_args)
+                    success = generator.run(mock_args, cached_boards=cached_boards)
                 finally:
                     os.chdir(original_cwd)
                     print(f'ℹ️  Restored working directory to: {original_cwd}')
             else:
-                success = generator.run(mock_args)
+                success = generator.run(mock_args, cached_boards=cached_boards)
 
             if not success:
                 print('❌ ESP Board Manager configuration generation failed!')
@@ -196,13 +248,18 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
         },
         {
             'names': ['-b', '--board'],
-            'help': 'Specify board name directly (bypasses sdkconfig reading)',
+            'help': 'Specify board name or index number (bypasses sdkconfig reading)',
             'type': str,
         },
         {
-            'names': ['-c', '--customer-path', '--custom'],
+            'names': ['-c', '--customer-path'],
             'help': 'Path to customer boards directory (use "NONE" to skip)',
             'type': str,
+        },
+        {
+            'names': ['-x', '--clean'],
+            'help': 'Clean generated .c and .h files, and reset CMakeLists.txt and idf_component.yml',
+            'is_flag': True,
         },
         {
             'names': ['--peripherals-only'],
@@ -217,16 +274,6 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
         {
             'names': ['--kconfig-only'],
             'help': 'Generate Kconfig menu system for board and component selection (default enabled)',
-            'is_flag': True,
-        },
-        {
-            'names': ['--sdkconfig-only'],
-            'help': 'Only process sdkconfig features without generating Kconfig',
-            'is_flag': True,
-        },
-        {
-            'names': ['--disable-sdkconfig-auto-update'],
-            'help': 'Disable automatic sdkconfig feature enabling (default is enabled)',
             'is_flag': True,
         },
         {
@@ -247,9 +294,25 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
                 'short_help': 'Generate ESP Board Manager configuration files',
                 'help': """Generate ESP Board Manager configuration files for board peripherals and devices.
 
-This command generates C configuration files based on YAML configuration files in the board directories. It can process peripherals, devices, generate Kconfig menus, and update SDK configuration automatically.
+This command generates C configuration files based on YAML configuration files in the board directories.
+It can process peripherals, devices, generate Kconfig menus, and update SDK configuration automatically.
 
-For usage examples, see the README.md file.""",
+Usage:
+    idf.py gen-bmgr-config -b <board_name>      # Specify board by name
+
+    idf.py gen-bmgr-config -b <board_index>     # Specify board by index number
+
+    idf.py gen-bmgr-config --list-boards        # List all available boards
+
+    idf.py gen-bmgr-config -x                   # Clean generated files created by gen-bmgr-config
+
+    idf.py gen-bmgr-config --clean              # Clean generated files created by gen-bmgr-config (same as -x)
+
+Note: When using idf.py, you must use the -b option to specify the board.
+For positional argument support, run the script directly:
+    python gen_bmgr_config_codes.py <board>
+
+For more examples, see the README.md file.""",
             },
         }
     }

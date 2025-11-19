@@ -18,44 +18,27 @@ This is a board management module developed by Espressif that focuses solely on 
 
 ```
 esp_board_manager/
-├── esp_board_manager.c        # Main board manager implementation
-├── esp_board_periph.c         # Peripheral management implementation
-├── esp_board_devices.c        # Device management implementation
-├── esp_board_err.c            # Error handling implementation
-├── include/
-│   ├── esp_board_manager.h    # Main board manager API
-│   ├── esp_board_periph.h     # Peripheral management
-│   ├── esp_board_device.h    # Device management
-│   ├── esp_board_manager_err.h        # Unified error management system
-│   └── esp_board_manager_defs.h       # Key characters
-├── peripherals/               # Peripheral implementations
-│   ├── periph_gpio.c/py/h     # GPIO peripheral
-│   ├── ...
-├── devices/                   # Device implementations
-│   ├── dev_audio_codec/       # Audio codec device
-│   ├── ...
-├── boards/                    # Default board-specific configurations
-│   ├── echoear_core_board_v1_0/
-│   │   ├── board_peripherals.yaml
-│   │   ├── board_devices.yaml
-│   │   ├── board_info.yaml
-│   │   └── Kconfig
-│   └── ...
-├── generators/                # Code generation system
-├── gen_codes/                 # Generated files (auto-created)
-│   └── Kconfig.in             # Unified Kconfig menu
-├── user project components/gen_bmgr_codes/ # Generated board config files (auto-created)
+├── src/             # Source files
+├── include/         # Public header files
+├── private_inc/     # Private header files
+├── peripherals/     # Peripheral implementations (periph_gpio, periph_i2c, etc.)
+├── devices/         # Device implementations (dev_audio_codec, dev_display_lcd, etc.)
+├── boards/          # Board-specific configurations (YAML files, Kconfig, setup_device.c)
+├── generators/      # Code generation system
+├── gen_codes/       # Generated board config files (auto-created)
 │   ├── gen_board_periph_config.c
 │   ├── gen_board_periph_handles.c
 │   ├── gen_board_device_config.c
 │   ├── gen_board_device_handles.c
+│   ├── gen_board_device_custom.h
 │   ├── gen_board_info.c
-│   ├── CMakeLists.txt
-│   └── idf_component.yml
-├── gen_bmgr_config_codes.py   # Main code generation script (unified)
-├── idf_ext.py                 # IDF action extension (Auto-discovery in v6.0+)
-├── README.md                  # This file
-└── README_CN.md               # Chinese version Readme
+│   └── board_config.cmake      # Board-specific CMake configuration
+├── CMakeLists.txt              # Component build configuration
+├── idf_component.yml           # Component manifest
+├── gen_bmgr_config_codes.py    # Main code generation script
+├── idf_ext.py                  # IDF action extension
+├── README.md                   # This file
+└── README_CN.md                # Chinese version
 ```
 
 ## Quick Start
@@ -91,7 +74,7 @@ export IDF_EXTRA_ACTIONS_PATH=YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__es
 ```
 
 Note:
-> **Note:** If you use `idf.py add-dependency xxx` to add **esp_board_manager** as a dependency, the directory `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager` will not be available on the first build or after cleaning the `managed_components` folder. We recommend running `idf.py set-target`, `idf.py menuconfig`, or `idf.py build` to automatically download the **esp_board_manager** component into `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager`.
+> **Note:** If you use `idf.py add-dependency xxx` to add esp_board_manager as a dependency, the directory `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager` will not be available on the first build or after cleaning the `managed_components` folder. **You must run `idf.py gen-bmgr-config -x` (or `python gen_bmgr_config_codes.py -x`) in your project folder**, then run `idf.py set-target`, `idf.py menuconfig`, or `idf.py build` to automatically download the esp_board_manager component into `YOUR_PROJECT_ROOT_PATH/managed_components/XXXX__esp_board_manager`.
 
 > **Version Requirement:** Compatible with ESP-IDF v5.4 and v5.5 branches. **Note:** Versions prior to v5.4.2 or v5.5.1 may encounter Kconfig dependency issues.
 
@@ -111,10 +94,20 @@ idf.py gen-bmgr-config -l
 python YOUR_BOARD_MANAGER_PATH/gen_bmgr_config_codes.py -l
 ```
 
-Then select your target board:
+Then select your target board by name or index:
+
 ```bash
-idf.py gen-bmgr-config -b YOUR_TARGET_BOARD
+# Using idf.py (requires -b option)
+idf.py gen-bmgr-config -b echoear_core_board_v1_2  # Board name
+idf.py gen-bmgr-config -b 3                        # Board index
+
+# Using script directly (supports direct parameter)
+python gen_bmgr_config_codes.py echoear_core_board_v1_2  # Board name directly
+python gen_bmgr_config_codes.py 3                        # Board index directly
+python gen_bmgr_config_codes.py -b echoear_core_board_v1_2  # With -b also works
 ```
+
+**Note**: Direct parameter (without `-b`) only works when calling the script directly, not with `idf.py` due to ESP-IDF framework limitations.
 
 ### 3. Use in Your Application
 
@@ -239,6 +232,7 @@ For detailed YAML configuration rules and format specifications, please refer to
    touch board_devices.yaml
    touch board_info.yaml
    touch Kconfig
+   touch sdkconfig.defaults.board  # Optional: Board-specific SDK configuration defaults
    ```
 
 3. **Configure Kconfig**
@@ -309,11 +303,29 @@ For detailed YAML configuration rules and format specifications, please refer to
          - name: <peripheral_name>
     ```
 
-7. **Custom Code in Board Directory**
+7. **Board-Specific SDK Configuration (Optional)**
+   - Create `sdkconfig.defaults.board` file in your board directory to define board-specific SDK configuration defaults
+   - When switching to this board, the script automatically **appends** these settings to the project's `sdkconfig.defaults` file
+   - This ensures board-specific configurations persist across ESP-IDF build system operations (menuconfig, reconfigure, etc.)
+
+   For example:
+   ```bash
+   # sdkconfig.defaults.board
+   # Example: Board with Octal PSRAM (8-line)
+   CONFIG_SPIRAM_MODE_OCT=y
+   CONFIG_SPIRAM_SPEED_80M=y
+   ```
+   - The file supports standard ESP-IDF sdkconfig format:
+     - `CONFIG_XXX=y` to enable
+     - `CONFIG_XXX=n` or `# CONFIG_XXX is not set` to disable
+     - `CONFIG_XXX="value"` for string values
+   - Previous board-specific settings in `sdkconfig.defaults` are automatically replaced when switching boards
+
+8. **Custom Code in Board Directory**
    - When using certain devices, additional custom code may be required, such as for `display_lcd`, `lcd_touch`, and `custom` devices.
    - This is to improve board adaptation, allowing users to select the actual device initialization function based on their board's specific requirements. For `display_lcd` and `lcd_touch`, refer to `esp_board_manager/boards/echoear_core_board_v1_2/setup_device.c`.
 
-8. **Custom Device Description**
+9. **Custom Device Description**
    - For devices and peripherals not yet included in esp_board_manager, it is recommended to add them through `custom` type devices.
    - Implementation code should be placed in the `board` directory. Refer to `esp_board_manager/boards/esp32_s3_korvo2l/custom_device.c`.
    - When the board is selected, a `gen_board_device_custom.h` header file will be generated in the `gen_bmgr_codes` directory for application use.
@@ -451,38 +463,42 @@ Note: '✅' indicates supported, '❌' indicates not support yet, and '-' indica
 
 ## Board Manager Settings
 
-### Automatic SDK Configuration Update
+### SDK Configuration Management
 
-Control whether the board manager automatically updates sdkconfig based on detected device and peripheral types.
+**⚠️ Breaking Change**: Automatic sdkconfig modification has been removed. The board manager no longer directly modifies `sdkconfig` files.
 
-**Default**: Enabled (`y`)
+**Current Behavior**:
+- Board-specific configurations are stored in `boards/<board_name>/sdkconfig.defaults.board`
+- When switching boards, these configurations are automatically appended to your project's `sdkconfig.defaults`
+- The `sdkconfig` file is backed up to `sdkconfig.bmgr_board.backup` and removed to prevent configuration pollution
 
-**Disable via sdkconfig**:
-```bash
-# Use menuconfig
-idf.py menuconfig
-# Navigate to: Component config → ESP Board Manager Configuration → Board Manager Setting
+**Configuration Priority**:
+1. `sdkconfig` (user's current configuration)
+2. `sdkconfig.defaults` (project defaults + appended board configs)
+3. Component defaults
 
-# Set in sdkconfig
-CONFIG_ESP_BOARD_MANAGER_AUTO_CONFIG_DEVICE_AND_PERIPHERAL=n
-```
-If you want to enable devices or peripherals type beyond what's defined in YAML, disable this option.
+**Best Practice**:
+- Store project-wide settings in `sdkconfig.defaults`
+- Store board-specific settings in `boards/<board_name>/sdkconfig.defaults.board`
+- Let ESP-IDF generate `sdkconfig` based on these defaults
 
 ## Script Execution Process
 
 The ESP Board Manager uses `gen_bmgr_config_codes.py` for code generation, which handles both Kconfig menu generation and board configuration generation in a unified workflow. This unified script provides 81% faster execution compared to the previous separate scripts.
 
+**⚠️ Important:** When switching boards, the script automatically backs up and deletes the existing `sdkconfig` file in Step 1 to prevent configuration pollution (skipped for `--kconfig-only`).
+
 ### `gen_bmgr_config_codes.py` - Configuration Generator
 
 Executes a comprehensive 8-step process to convert YAML configurations into C code and build system files:
 
-1. **Board Directory Scanning**: Discovers boards across default, customer, and component directories
+1. **Board Directory Scanning**: Discovers boards across default, customer, and component directories. Cleans environment by removing CMakeCache.txt, clearing gen_codes directory, and backing up/removing sdkconfig (skipped for `--kconfig-only`).
 2. **Board Selection**: Reads board selection from sdkconfig or command line arguments
-3. **Kconfig Generation**: Creates unified Kconfig menu system for board and component selection
-4. **Configuration File Discovery**: Locates `board_peripherals.yaml` and `board_devices.yaml` for selected board
-5. **Peripheral Processing**: Parses peripheral configurations and generates C structures
-6. **Device Processing**: Processes device configurations, dependencies, and updates build files
-7. **Project sdkconfig Configuration**: Updates project sdkconfig based on board device and peripheral types
+3. **Configuration File Discovery**: Locates `board_peripherals.yaml` and `board_devices.yaml` for selected board
+4. **Peripheral Processing**: Parses peripheral configurations and generates C structures
+5. **Device Processing**: Processes device configurations, dependencies, scans board source files, and generates device structures
+6. **Kconfig Generation**: Creates unified Kconfig menu system for board and component selection
+7. **SDK Configuration Management**: Appends board-specific configurations from `sdkconfig.defaults.board` to project's `sdkconfig.defaults`
 8. **File Generation**: Creates all necessary C configuration and handle files in project folder `components/gen_bmgr_codes/`
 
 #### Command Line Options
@@ -501,10 +517,9 @@ Executes a comprehensive 8-step process to convert YAML configurations into C co
 --devices-only                  # Only process devices (skip peripherals)
 ```
 
-**The SDKconfig Configuration:**
+**Clean Generated Files:**
 ```bash
---sdkconfig-only                # Only check sdkconfig features without enabling them
---disable-sdkconfig-auto-update # Disable automatic sdkconfig feature enabling (default is enabled)
+-x, --clean                     # Clean generated .c and .h files, and reset CMakeLists.txt and idf_component.yml
 ```
 
 **Logging Control:**
@@ -547,6 +562,11 @@ idf.py gen-bmgr-config -l
 
 # Set log level to DEBUG for detailed output
 idf.py gen-bmgr-config --log-level DEBUG
+
+# Clean generated files
+idf.py gen-bmgr-config -x
+# or
+idf.py gen-bmgr-config --clean
 ```
 
 ### Method 2: Standalone Script
@@ -557,38 +577,48 @@ You can also use the standalone script directly in the esp_board_manager directo
 
 **Basic Usage:**
 ```bash
-# Use sdkconfig and default boards
+# Read board selection from sdkconfig (if exists)
 python gen_bmgr_config_codes.py
 
-# Specify board directly
+# Specify board as direct parameter (name or index)
+python gen_bmgr_config_codes.py esp32_s3_korvo2_v3
+python gen_bmgr_config_codes.py 1
+
+# Specify board with -b option
 python gen_bmgr_config_codes.py -b echoear_core_board_v1_0
 
 # Add customer boards directory
 python gen_bmgr_config_codes.py -c /path/to/custom/boards
 
-# Both board and custom path
+# Add single board directory
+python gen_bmgr_config_codes.py -c /path/to/single/board
+
+# Combine board selection with custom boards
+python gen_bmgr_config_codes.py 1 -c /custom/boards
 python gen_bmgr_config_codes.py -b my_board -c /path/to/custom/boards
 
 # List available boards
 python gen_bmgr_config_codes.py -l
 
-# Disable automatic sdkconfig updates
-python gen_bmgr_config_codes.py --disable-sdkconfig-auto-update
-
 # Set log level to DEBUG for detailed output
 python gen_bmgr_config_codes.py --log-level DEBUG
+
+# Clean generated files
+python gen_bmgr_config_codes.py -x
+# or
+python gen_bmgr_config_codes.py --clean
 ```
 
 **Partial Generation:**
 ```bash
+# Only generate Kconfig menu (skip board configuration)
+python gen_bmgr_config_codes.py --kconfig-only
+
 # Only process peripherals
 python gen_bmgr_config_codes.py --peripherals-only
 
 # Only process devices
 python gen_bmgr_config_codes.py --devices-only
-
-# Check sdkconfig features without enabling
-python gen_bmgr_config_codes.py --sdkconfig-only
 ```
 
 #### Generated Files
@@ -636,14 +666,35 @@ If `idf.py gen-bmgr-config` is not recognized:
 1. Make sure there is no `idf_build_set_property(MINIMAL_BUILD ON)` in your project, because MINIMAL_BUILD only performs a minimal build by including only the "common" components required by all other components.
 2. Ensure your project has a `components/gen_bmgr_codes` folder with generated files. These files are generated by running `idf.py gen-bmgr-config -b YOUR_BOARD`.
 
-### **Switching Boards**
-Using `idf.py gen-bmgr-config -b` is required. Using `idf.py menuconfig` to select boards may result in dependency errors.
+### Switching Boards
 
-### "sdkconfig file not found"
+**Important**: When switching boards, the script automatically:
+1. Backs up `sdkconfig` to `sdkconfig.bmgr_board.backup` and removes the original to prevent configuration pollution
+2. Appends board-specific configurations from `boards/<board_name>/sdkconfig.defaults.board` to your project's `sdkconfig.defaults`
 
-If you see the error `sdkconfig file not found at [path]`, this means that the ESP Board Manager will create the default device and peripheral dependencies based on your selected board YAML files.
+Always use `idf.py gen-bmgr-config -b` (or `python gen_bmgr_config_codes.py`) for board switching. Using `idf.py menuconfig` may cause dependency errors.
 
-**Note:** The `sdkconfig` file is automatically generated by ESP-IDF when you run `idf.py menuconfig`, `idf.py set-target xxx`, or `idf.py build` for the first time in a project.
+### Depends on some components issue
+
+If you encounter the following errors when running `idf.py set-target xxx`, `idf.py menuconfig`, or `idf.py reconfigure`:
+
+```bash
+ERROR: Because project depends on xxxxx which
+doesn't match any versions, version solving failed.
+```
+
+Or errors like:
+
+```bash
+Failed to resolve component 'esp_board_manager' required by component
+  'gen_bmgr_codes': unknown name.
+```
+
+This may be caused by leftover generated files from the board manager that were not cleared. **You can clean the generated files using `idf.py gen-bmgr-config -x` (or `python gen_bmgr_config_codes.py -x`)** to remove all generated .c and .h files and reset CMakeLists.txt and idf_component.yml.
+
+### Undefined reference to `g_esp_board_devices`
+
+The `undefined reference to 'g_esp_board_device_handles'` or `undefined reference to 'g_esp_board_devices'` error occurs because `idf.py gen-bmgr-config -b YOUR_BOARD` was not run.
 
 ## License
 

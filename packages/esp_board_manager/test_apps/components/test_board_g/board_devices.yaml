@@ -1,0 +1,5 @@
+board: test_board_g
+chip: esp32p4
+version: 1.0.0
+# Devices Configuration
+devices:

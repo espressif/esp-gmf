@@ -18,5 +18,5 @@ devices:
     config:
       sub_config:
         cs_gpio_num: 8
-      peripherals:
-        - name: "spi_master"  # SPI bus name
+    peripherals:
+      - name: "spi_master"  # SPI bus name

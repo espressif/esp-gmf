@@ -1,0 +1,5 @@
+board: test_board_c
+chip: esp32p4
+version: 1.0.0
+description: "Test Board C - Directly expanded boards"
+manufacturer: "TEST"

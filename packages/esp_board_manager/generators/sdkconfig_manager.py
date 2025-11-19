@@ -40,10 +40,13 @@ class SDKConfigManager(LoggerMixin):
 
     def update_sdkconfig_from_board_types(self, device_types: Set[str], peripheral_types: Set[str],
                                          sdkconfig_path: Optional[str] = None,
-                                         enable: bool = True, board_name: Optional[str] = None,
-                                         chip_name: str = None) -> Dict[str, List[str]]:
+                                         enable: bool = True) -> Dict[str, List[str]]:
         """
         Update sdkconfig file based on board device and peripheral types.
+
+        This function only manages device/peripheral support configurations.
+        Board selection (CONFIG_BOARD_XXX) and chip target (CONFIG_IDF_TARGET)
+        are managed by apply_board_sdkconfig_defaults() in sdkconfig.defaults file.
 
         Args:
             device_types: Set of device types from board YAML
@@ -68,7 +71,7 @@ class SDKConfigManager(LoggerMixin):
 
         # Check if sdkconfig file exists, create if not
         if not os.path.exists(sdkconfig_path):
-            self.logger.info(f'   sdkconfig file not found at {sdkconfig_path}, creating new one')
+            self.logger.info(f'   sdkconfig file is not exists at {sdkconfig_path}, creating new one')
             # Create directory if it doesn't exist
             os.makedirs(os.path.dirname(sdkconfig_path), exist_ok=True)
             # Create empty sdkconfig file
@@ -85,24 +88,6 @@ class SDKConfigManager(LoggerMixin):
 
         self.logger.debug(f'   Device types: {device_types}')
         self.logger.debug(f'   Peripheral types: {peripheral_types}')
-        if board_name:
-            self.logger.debug(f'   Board name: {board_name}')
-        if chip_name:
-            self.logger.debug(f'   Chip name: {chip_name}')
-
-        # Update board selection if board_name is provided
-        if board_name and enable:
-            sdkconfig_content, board_changes = self._apply_board_selection_updates(
-                sdkconfig_content, board_name
-            )
-            result['enabled'].extend(board_changes)
-
-            # Update CONFIG_IDF_TARGET with chip_name
-            if chip_name:
-                sdkconfig_content, target_changes = self._apply_target_updates(
-                    sdkconfig_content, chip_name
-                )
-                result['enabled'].extend(target_changes)
 
         # Build mapping from YAML types to sdkconfig options, separately for devices and peripherals
         device_mapping, peripheral_mapping = self._build_type_to_config_mappings()
@@ -164,15 +149,12 @@ class SDKConfigManager(LoggerMixin):
             )
             result['checked'].extend(dev_changes)
 
-        # Write updated content back to file if changes were made or if we need to create/update CONFIG_IDF_TARGET
-        if enable and (result['enabled'] or board_name or chip_name):
+        # Write updated content back to file if changes were made
+        if enable and result['enabled']:
             try:
                 with open(sdkconfig_path, 'w', encoding='utf-8') as f:
                     f.write(sdkconfig_content)
-                if result['enabled']:
-                    self.logger.info(f"   Successfully updated sdkconfig with {len(result['enabled'])} changes")
-                else:
-                    self.logger.info(f'   Successfully created/updated sdkconfig file')
+                self.logger.info(f"   Successfully updated sdkconfig with {len(result['enabled'])} changes")
 
                 # Delete build/config/sdkconfig.json after updating sdkconfig
                 self._delete_sdkconfig_json(sdkconfig_path)
@@ -181,92 +163,6 @@ class SDKConfigManager(LoggerMixin):
                 return result
 
         return result
-
-    def _apply_board_selection_updates(self, sdkconfig_content: str, board_name: str) -> Tuple[str, List[str]]:
-        """
-        Apply board selection updates to the sdkconfig content.
-        First sets all existing CONFIG_BOARD_*** to n, then adds the new CONFIG_BOARD_***.
-
-        Args:
-            sdkconfig_content: Current sdkconfig content
-            board_name: Name of the board to select
-
-        Returns:
-            Tuple of (updated_content, list_of_changes)
-        """
-        changes = []
-
-        # Convert board name to config macro format
-        board_config_macro = f'CONFIG_BOARD_{board_name.upper().replace("-", "_")}'
-
-        # First, find and disable all existing CONFIG_BOARD_*** options in the entire sdkconfig
-        # This handles cases where board configs might be outside the Board Selection section
-        # Note: Don't modify CONFIG_BOARD_NAME as it's not a board selection config
-        board_config_pattern = r'^CONFIG_BOARD_[A-Z0-9_]+=y$'
-        lines = sdkconfig_content.split('\n')
-        updated_lines = []
-
-        for line in lines:
-            if re.match(board_config_pattern, line.strip()) and not line.strip().startswith('CONFIG_BOARD_NAME='):
-                # Set existing board configs to n (but not CONFIG_BOARD_NAME)
-                config_name = line.split('=')[0]
-                updated_lines.append(f'{config_name}=n')
-                changes.append(f'Set {config_name}=n')
-            else:
-                updated_lines.append(line)
-
-        # Update the content with disabled board configs
-        sdkconfig_content = '\n'.join(updated_lines)
-
-        # Find Board Selection section - it's between Board Manager Setting and Peripheral Support
-        board_manager_end = '# end of Board Manager Setting'
-        peripheral_support_start = '# Peripheral Support'
-
-        # Find the end of Board Manager Setting section
-        board_manager_end_idx = sdkconfig_content.find(board_manager_end)
-        if board_manager_end_idx == -1:
-            self.logger.info('   Board Manager Setting section not found in sdkconfig')
-            # If no Board Manager Setting section, add the new board config at the end
-            sdkconfig_content += f'\n# default:\n'
-            sdkconfig_content += f'{board_config_macro}=y\n'
-            sdkconfig_content += f'# default:\n'
-            sdkconfig_content += f'CONFIG_BOARD_NAME="{board_name}"\n'
-            changes.append(f'Added {board_config_macro}=y')
-            return sdkconfig_content, changes
-
-        # Find the start of Peripheral Support section
-        peripheral_start_idx = sdkconfig_content.find(peripheral_support_start, board_manager_end_idx)
-        if peripheral_start_idx == -1:
-            self.logger.warning('⚠️  Peripheral Support section not found in sdkconfig')
-            # If no Peripheral Support section, add the new board config after Board Manager Setting
-            insertion_point = board_manager_end_idx + len(board_manager_end)
-            sdkconfig_content = (sdkconfig_content[:insertion_point] +
-                               f'\n# default:\n' +
-                               f'{board_config_macro}=y\n' +
-                               f'# default:\n' +
-                               f'CONFIG_ESP_BOARD_NAME="{board_name}"\n' +
-                               sdkconfig_content[insertion_point:])
-            changes.append(f'Added {board_config_macro}=y')
-            return sdkconfig_content, changes
-
-        # Extract the Board Selection section content (between Board Manager Setting and Peripheral Support)
-        section_start_idx = board_manager_end_idx + len(board_manager_end)
-        section_content = sdkconfig_content[section_start_idx:peripheral_start_idx]
-
-        # Create updated Board Selection section content - only keep the new board selection
-        updated_section = f'\n\n# default:\n'
-        updated_section += f'{board_config_macro}=y\n'
-        updated_section += f'# default:\n'
-        updated_section += f'CONFIG_ESP_BOARD_NAME="{board_name}"\n\n'
-        changes.append(f'Added {board_config_macro}=y')
-
-        # Replace the Board Selection section in the original content
-        updated_content = (
-            sdkconfig_content[:section_start_idx] +
-            updated_section +
-            sdkconfig_content[peripheral_start_idx:]
-        )
-        return updated_content, changes
 
     def _find_sdkconfig_path(self) -> Optional[str]:
         """Find sdkconfig file path"""
@@ -512,39 +408,6 @@ class SDKConfigManager(LoggerMixin):
         updated_content = '\n'.join(lines) if apply_changes else sdkconfig_content
         return updated_content, changes
 
-    def _apply_target_updates(self, sdkconfig_content: str, chip_name: str) -> Tuple[str, List[str]]:
-        """
-        Apply CONFIG_IDF_TARGET updates to the sdkconfig content.
-
-        Args:
-            sdkconfig_content: Current sdkconfig content
-            chip_name: Chip name to set for CONFIG_IDF_TARGET
-
-        Returns:
-            Tuple of (updated_content, list_of_changes)
-        """
-        changes = []
-
-        # Check if CONFIG_IDF_TARGET already exists
-        target_pattern = r'^CONFIG_IDF_TARGET="[^"]*"'
-        target_match = re.search(target_pattern, sdkconfig_content, re.MULTILINE)
-
-        if target_match:
-            # Replace existing CONFIG_IDF_TARGET
-            old_target = target_match.group(0)
-            new_target = f'CONFIG_IDF_TARGET="{chip_name}"'
-            if old_target != new_target:
-                sdkconfig_content = sdkconfig_content.replace(old_target, new_target)
-                changes.append(f'Updated CONFIG_IDF_TARGET from {old_target} to {new_target}')
-            else:
-                self.logger.debug(f'CONFIG_IDF_TARGET already set to {chip_name}')
-        else:
-            # Add CONFIG_IDF_TARGET at the beginning of the file
-            sdkconfig_content = f'CONFIG_IDF_TARGET="{chip_name}"\n' + sdkconfig_content
-            changes.append(f'Added CONFIG_IDF_TARGET="{chip_name}"')
-
-        return sdkconfig_content, changes
-
     def _delete_sdkconfig_json(self, sdkconfig_path: str) -> None:
         """
         Delete build/config/sdkconfig.json file after updating sdkconfig.
@@ -567,3 +430,115 @@ class SDKConfigManager(LoggerMixin):
         except Exception as e:
             # Log warning but don't fail the operation
             self.logger.warning(f'⚠️  Failed to delete build/config/sdkconfig.json: {e}')
+
+    def apply_board_sdkconfig_defaults(self, board_path: str, project_path: Optional[str] = None,
+                                       board_name: Optional[str] = None, chip_name: Optional[str] = None) -> Dict[str, List[str]]:
+        """
+        Apply board-specific sdkconfig defaults by appending to project's sdkconfig.defaults file.
+
+        This ensures board-specific configs persist across ESP-IDF build system regenerations,
+        as sdkconfig.defaults is always read by the build system, while direct sdkconfig modifications
+        can be overwritten during menuconfig or reconfigure operations.
+
+        Args:
+            board_path: Path to the board directory
+            project_path: Path to the project directory (auto-detect if None)
+            board_name: Board name for CONFIG_BOARD_XXX selection (optional)
+            chip_name: Chip name for CONFIG_IDF_TARGET (optional)
+
+        Returns:
+            Dict with 'updated' and 'added' lists of config items
+        """
+        result = {'updated': [], 'added': []}
+
+        # Extract board name from path if not provided
+        if board_name is None:
+            board_name = Path(board_path).name
+
+        # Auto-detect project path if not provided
+        if project_path is None:
+            project_path = self.project_path if hasattr(self, 'project_path') else os.getcwd()
+
+        sdkconfig_defaults_path = Path(project_path) / 'sdkconfig.defaults'
+
+        # Read existing sdkconfig.defaults
+        if sdkconfig_defaults_path.exists():
+            try:
+                with open(sdkconfig_defaults_path, 'r', encoding='utf-8') as f:
+                    existing_content = f.read()
+            except Exception as e:
+                self.logger.error(f'   Error reading sdkconfig.defaults: {e}')
+                return result
+        else:
+            existing_content = ''
+            self.logger.info(f'   sdkconfig.defaults not found, will create it')
+
+        # Remove old board-specific section if exists
+        marker_start = '# --- Board-specific configuration (managed by esp_board_manager) ---'
+        marker_end = '# --- End of board-specific configuration ---'
+
+        if marker_start in existing_content:
+            # Remove old board section
+            start_idx = existing_content.find(marker_start)
+            end_idx = existing_content.find(marker_end)
+            if end_idx != -1:
+                end_idx = existing_content.find('\n', end_idx) + 1
+                if end_idx == 0:  # No newline found after marker_end
+                    end_idx = len(existing_content)
+                existing_content = existing_content[:start_idx] + existing_content[end_idx:]
+                existing_content = existing_content.rstrip()
+
+        # Build new board-specific section
+        new_content = existing_content.rstrip()
+        if new_content:
+            new_content += '\n\n'
+
+        new_content += f'{marker_start}\n'
+        new_content += f'# Board: {board_name}\n'
+
+        # Add chip target config if provided
+        config_count = 0
+        if chip_name:
+            new_content += f'CONFIG_IDF_TARGET="{chip_name}"\n'
+            config_count += 1
+
+        # Add board selection configs
+        board_config_macro = f'CONFIG_BOARD_{board_name.upper().replace("-", "_")}'
+        new_content += f'{board_config_macro}=y\n'
+        new_content += f'CONFIG_BOARD_NAME="{board_name}"\n'
+        config_count += 2  # Board selection + board name
+
+        # Check if sdkconfig.defaults.board file exists and add its content
+        board_defaults_path = Path(board_path) / 'sdkconfig.defaults.board'
+        if board_defaults_path.exists():
+            self.logger.info(f'   Found sdkconfig.defaults.board at {board_defaults_path}')
+            try:
+                with open(board_defaults_path, 'r', encoding='utf-8') as f:
+                    board_defaults_content = f.read().strip()
+                if board_defaults_content:
+                    new_content += f'\n{board_defaults_content}\n'
+                    config_count += len([line for line in board_defaults_content.splitlines()
+                                       if line.strip() and not line.strip().startswith('#')])
+            except Exception as e:
+                self.logger.error(f'   Error reading sdkconfig.defaults.board: {e}')
+        else:
+            self.logger.debug(f'   No sdkconfig.defaults.board found at {board_defaults_path}')
+
+        new_content += f'{marker_end}\n'
+
+        # Write updated sdkconfig.defaults
+        try:
+            with open(sdkconfig_defaults_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+
+            result['added'] = [f'{config_count} board-specific defaults']
+            self.logger.info(f'   Applied {config_count} board defaults to sdkconfig.defaults')
+
+            # Delete build cache files to ensure fresh configuration
+            self._delete_sdkconfig_json(Path(project_path) / 'sdkconfig')
+
+        except Exception as e:
+            self.logger.error(f'   Error writing sdkconfig.defaults: {e}')
+            return result
+
+        return result

@@ -192,7 +192,7 @@ esp_err_t esp_board_device_show(const char *name)
     } else {
         /* Show information for all devices */
         const esp_board_device_desc_t *desc = g_esp_board_devices;
-        while (desc) {
+        while (desc && desc->name) {
             esp_board_device_handle_t *handle = esp_board_find_device_handle(desc->name);
             ESP_LOGI(TAG, "Device %s:", desc->name);
             ESP_LOGI(TAG, "  Type: %s", desc->type);

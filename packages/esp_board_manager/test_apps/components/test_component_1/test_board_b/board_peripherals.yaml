@@ -1,0 +1,10 @@
+board: test_board_b
+chip: esp32s3
+version: 1.0.0
+# Peripherals Configuration
+peripherals:
+  - name: gpio_1
+    type: gpio
+    config:
+      pin: 1
+      mode: GPIO_MODE_OUTPUT

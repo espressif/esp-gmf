@@ -68,5 +68,7 @@
 
     sub_config:
       cs_gpio_num: 15         # Chip select GPIO number
-    peripherals:
-      - name: "spi_master"  # SPI bus name
+  # Peripherals must be defined at device level (consistent with other devices)
+  # The SPI peripheral must have: type: spi and role: master
+  peripherals:
+    - name: "spi_master"  # SPI bus name (can be any name, e.g., spi_0, spi_sdcard, etc.)
