@@ -30,19 +30,18 @@
   extends:
     - .build_template
   script:
-    - cd $CI_PROJECT_DIR
-    - pip install idf_build_apps
+    - python $CI_PROJECT_DIR/tools/ci/esp_bmgr_pre_build.py --target $IDF_TARGET --board $AUDIO_BOARD --project-path ${EXAMPLES_PATH[@]} --target-dir-type ${TARGET_DIR_TYPE}
     - run_cmd python $CI_PROJECT_DIR/tools/ci/build_apps.py ${EXAMPLES_PATH[@]} \
-                   -t $IDF_TARGET -vv \
-                   --target-dir-type ${TARGET_DIR_TYPE} \
-                   --build-dir ${IDF_VERSION_TAG}/build_@t_@w \
-                   --parallel-count ${parallel##*/} \
-                   --parallel-index ${parallel%%/*}
+        -t $IDF_TARGET -vv \
+        --target-dir-type ${TARGET_DIR_TYPE} \
+        --build-dir ${IDF_VERSION_TAG}/build_@t_@w \
+        --parallel-count ${parallel##*/} \
+        --parallel-index ${parallel%%/*}
 
 .matrix_template: &matrix_template
   parallel:
     matrix:
-      - IDF_VERSION_TAG: ['v5.3', 'v5.4']
+      - IDF_VERSION_TAG: ['v5.4.3']
         parallel: [ 1/1 ]
 
 build_examples_esp32_lyrat_mini_v1_1:
@@ -52,7 +51,7 @@ build_examples_esp32_lyrat_mini_v1_1:
     - .matrix_template
   variables:
     IDF_TARGET: esp32
-    AUDIO_BOARD: ESP_LYRAT_MINI_V1_1
+    AUDIO_BOARD: lyrat_mini_v1_1
 
 .build_examples_esp32s2_kaluga_v1_2:
   extends:
@@ -61,7 +60,7 @@ build_examples_esp32_lyrat_mini_v1_1:
     - .matrix_template
   variables:
     IDF_TARGET: esp32s2
-    AUDIO_BOARD: ESP32_S2_KALUGA_1_V1_2
+    AUDIO_BOARD: ''
 
 build_examples_esp32s3_korvo_v2:
   extends:
@@ -70,4 +69,4 @@ build_examples_esp32s3_korvo_v2:
     - .matrix_template
   variables:
     IDF_TARGET: esp32s3
-    AUDIO_BOARD: ESP32_S3_KORVO2_V3
+    AUDIO_BOARD: esp32_s3_korvo2_v3

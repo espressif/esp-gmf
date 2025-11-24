@@ -4,7 +4,7 @@ version: 1.0.0
 # Devices Configuration
 devices:
   # SD Card Power Control
-  - name: lcd_power
+  - name: sd_power
     type: gpio_ctrl
     version: default
     config:
@@ -18,7 +18,6 @@ devices:
     chip: es8311
     type: audio_codec
     version: default
-    skip_init: true
     config:
       dac_enabled: true
       dac_max_channel: 1
@@ -39,7 +38,6 @@ devices:
     chip: es7243e      # Some old boards use ES7243, ES7243 is EOL
     type: audio_codec
     version: default
-    # skip_init: true
     config:
       adc_enabled: true
       adc_max_channel: 2

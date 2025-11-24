@@ -50,9 +50,9 @@
     IMAGE: "$CI_DOCKER_IMAGE_REGISTRY/env_v5.3:1"
 
 .idf-version-tag-v5-4: &idf-version-tag-v5-4
-  if: '$IDF_VERSION_TAG == "v5.4"'
+  if: '$IDF_VERSION_TAG == "v5.4.3"'
   variables:
-    IMAGE: "$CI_DOCKER_IMAGE_REGISTRY/env_default:1"
+    IMAGE: "$CI_IDF_DOCKER_REGISTRY/esp-env-v5.4:2"
 
 .rules:ref:main-schedule:
   rules:

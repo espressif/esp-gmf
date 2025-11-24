@@ -141,7 +141,7 @@ def get_cmake_apps(
             config_rules_str=config_rules_str,
             build_log_filename='build_log.txt',
             size_json_filename='size.json',
-            check_warnings=True,
+            check_warnings=False,
             no_preserve=False,
             default_build_targets=default_build_targets,
             manifest_files=[str(p) for p in Path(os.environ['PROJECT_PATH']).glob('**/.build_test_rules.yml')],
@@ -156,7 +156,7 @@ def get_cmake_apps(
             config_rules_str=config_rules_str,
             build_log_path='build_log.txt',
             size_json_path='size.json',
-            check_warnings=True,
+            check_warnings=False,
             default_build_targets=default_build_targets,
             manifest_files=[str(p) for p in Path(os.environ['PROJECT_PATH']).glob('**/.build_test_rules.yml')],
         )

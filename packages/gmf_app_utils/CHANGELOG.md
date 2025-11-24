@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.7
+
+### Bug Fixes
+
+- Fixed the esp32_lyrat_mini_v1_1 SD card mount failure issue
+
 ## v0.7.6
 
 ### Features
