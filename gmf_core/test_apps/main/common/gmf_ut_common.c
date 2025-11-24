@@ -47,6 +47,7 @@ int verify_two_files(const char *src_path, const char *dest_path)
 {
     int len = 4096;
     struct stat src_siz = {0};
+    int result = ESP_OK;
     stat(src_path, &src_siz);
     FILE *src_file = fopen(src_path, "rb");
     TEST_ASSERT_NOT_NULL(src_file);
@@ -63,7 +64,11 @@ int verify_two_files(const char *src_path, const char *dest_path)
     ESP_LOGI(TAG, "The destination file size is %ld, path:%s", dest_siz.st_size, dest_path);
 
     TEST_ASSERT_EQUAL(src_siz.st_size, dest_siz.st_size);
-    int result = ESP_OK;
+    if (src_siz.st_size == 0 || dest_siz.st_size == 0) {
+        ESP_LOGE(TAG, "The source file size is %ld or destination file size is %ld", src_siz.st_size, dest_siz.st_size);
+        result = ESP_FAIL;
+        goto verify_two_files_err;
+    }
     uint32_t pos = 0;
     uint32_t max_len = (dest_siz.st_size > src_siz.st_size ? dest_siz.st_size : src_siz.st_size);
     bool run = true;
@@ -83,10 +88,14 @@ int verify_two_files(const char *src_path, const char *dest_path)
             }
         }
     }
+verify_two_files_err:
+
     fclose(src_file);
     fclose(dest_file);
     esp_gmf_oal_free(src_buf);
     esp_gmf_oal_free(dest_buf);
+    remove(dest_path);
+    ESP_LOGI(TAG, "Verify two files done, result:%d", result);
     return result;
 }
 

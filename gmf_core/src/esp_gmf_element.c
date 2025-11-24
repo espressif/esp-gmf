@@ -319,6 +319,24 @@ esp_gmf_job_err_t esp_gmf_element_process_close(esp_gmf_element_handle_t handle,
     return ret;
 }
 
+esp_gmf_job_err_t esp_gmf_element_process_reset(esp_gmf_element_handle_t handle, void *para)
+{
+    esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
+    if (el == NULL) {
+        ESP_LOGE(TAG, "Invalid element handle [%p]", handle);
+        return ESP_GMF_ERR_FAIL;
+    }
+    // Call element-specific reset function if provided
+    esp_gmf_job_err_t ret = ESP_GMF_JOB_ERR_OK;
+    if (el->ops.reset) {
+        ret = el->ops.reset(el, NULL);
+    }
+
+    // Reset element ports
+    esp_gmf_element_reset_port(handle);
+    return ret;
+}
+
 esp_gmf_err_t esp_gmf_element_set_state(esp_gmf_element_handle_t handle, esp_gmf_event_state_t new_state)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);

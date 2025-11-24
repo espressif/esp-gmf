@@ -89,6 +89,21 @@ void esp_gmf_node_insert_after(esp_gmf_node_t *prev, esp_gmf_node_t *new)
     }
 }
 
+void esp_gmf_node_insert_prev(esp_gmf_node_t **root, esp_gmf_node_t *next, esp_gmf_node_t *new)
+{
+    if (root == NULL || next == NULL || new == NULL) {
+        return;
+    }
+    new->prev = next->prev;
+    new->next = next;
+    if (next->prev) {
+        next->prev->next = new;
+    } else {
+        *root = new;
+    }
+    next->prev = new;
+}
+
 void esp_gmf_node_del_at(esp_gmf_node_t **root, esp_gmf_node_t *del)
 {
     if (root == NULL || *root == NULL || del == NULL) {

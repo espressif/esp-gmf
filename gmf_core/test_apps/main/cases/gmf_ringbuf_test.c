@@ -128,7 +128,7 @@ write_task_err:
 TEST_CASE("Ringbuffer read and write on different task", "[ESP_GMF_RINGBUF]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-    esp_log_level_set("ESP_GMF_RINGBUF", ESP_LOG_VERBOSE);
+    // esp_log_level_set("ESP_GMF_RINGBUF", ESP_LOG_VERBOSE);
 
     sdmmc_card_t *card = NULL;
     esp_gmf_ut_setup_sdmmc(&card);
@@ -159,7 +159,7 @@ TEST_CASE("Ringbuffer read and write on different task", "[ESP_GMF_RINGBUF]")
 TEST_CASE("Abort when Ringbuffer read and write on different task", "[ESP_GMF_RINGBUF]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-    esp_log_level_set("ESP_GMF_RINGBUF", ESP_LOG_VERBOSE);
+    // esp_log_level_set("ESP_GMF_RINGBUF", ESP_LOG_VERBOSE);
 
     sdmmc_card_t *card = NULL;
     esp_gmf_ut_setup_sdmmc(&card);

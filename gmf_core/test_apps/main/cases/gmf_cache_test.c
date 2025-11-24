@@ -270,14 +270,14 @@ read_task_err:
 TEST_CASE("Test Cache with a file - case 1", "[esp_gmf_cache]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-    esp_log_level_set("GMF_CACHE", ESP_LOG_VERBOSE);
+    // esp_log_level_set("GMF_CACHE", ESP_LOG_VERBOSE);
 
     sdmmc_card_t *card = NULL;
     esp_gmf_ut_setup_sdmmc(&card);
 
-    int payload_size[][2] = { {1536, 2048}, {2000, 1500},{1111, 1300}, {2000, 500}, {1000, 3000}};
+    int payload_size[][2] = {{1536, 2048}, {2000, 1500}, {1111, 1300}, {2000, 500}, {1000, 3000}};
     char wr_name[128] = {0};
-    for (size_t i = 0; i < sizeof(payload_size) / sizeof(payload_size[0]); i++){
+    for (size_t i = 0; i < sizeof(payload_size) / sizeof(payload_size[0]); i++) {
         ESP_LOGW(TAG, "Test Cache with payload_size %d, %d\r\n\r\n", payload_size[i][0], payload_size[i][1]);
         snprintf(wr_name, 127, "/sdcard/esp_gmf_test_cache_%02d.txt", i);
         read_write_test1(wr_name, payload_size[i][0], payload_size[i][1]);
@@ -292,14 +292,14 @@ TEST_CASE("Test Cache with a file - case 1", "[esp_gmf_cache]")
 TEST_CASE("Test cache with file - case 2", "[esp_gmf_cache]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-    esp_log_level_set("GMF_CACHE", ESP_LOG_VERBOSE);
+    // esp_log_level_set("GMF_CACHE", ESP_LOG_VERBOSE);
 
     sdmmc_card_t *card = NULL;
     esp_gmf_ut_setup_sdmmc(&card);
 
-    int payload_size[][2] = { {1536, 2048},{2000, 1500}, {1111, 1300}, {2000, 500}, {1000, 3000}};
+    int payload_size[][2] = {{1536, 2048}, {2000, 1500}, {1111, 1300}, {2000, 500}, {1000, 3000}};
     char wr_name[128] = {0};
-    for (size_t i = 0; i < sizeof(payload_size) / sizeof(payload_size[0]); i++){
+    for (size_t i = 0; i < sizeof(payload_size) / sizeof(payload_size[0]); i++) {
         ESP_LOGW(TAG, "Test Cache with payload_size %d, %d\r\n\r\n", payload_size[i][0], payload_size[i][1]);
         snprintf(wr_name, 127, "/sdcard/esp_gmf_test_cache_%02d.txt", i);
         read_write_test2(wr_name, payload_size[i][0], payload_size[i][1]);

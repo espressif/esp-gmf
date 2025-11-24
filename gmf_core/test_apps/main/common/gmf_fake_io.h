@@ -18,7 +18,21 @@ extern "C" {
 typedef struct {
     int          dir;   /*!< IO direction, reader or writer */
     const char  *name;  /*!< Name for this instance */
+    int          init_return;
 } fake_io_cfg_t;
+
+typedef struct {
+    esp_gmf_io_t      base;
+    esp_gmf_err_t     open_return;
+    esp_gmf_err_io_t  acquire_read_return;
+    esp_gmf_err_io_t  release_read_return;
+    esp_gmf_err_io_t  acquire_write_return;
+    esp_gmf_err_io_t  release_write_return;
+    esp_gmf_err_t     seek_return;
+    esp_gmf_err_t     close_return;
+    esp_gmf_err_t     delete_return;
+    esp_gmf_err_t     new_return;
+} fake_io_t;
 
 #define FAKE_IO_CFG_DEFAULT() {   \
     .dir  = ESP_GMF_IO_DIR_NONE,  \

@@ -28,15 +28,26 @@ static const char *test_file_uri = "/sdcard/gmf_ut_test1.mp3";
 
 esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
-    ESP_LOGE(TAG, "CB: RECV Pipeline EVT: el:%s-%p, type:%d, sub:%s, payload:%p, size:%d,%p",
-             "OBJ_GET_TAG(event->from)", event->from, event->type, esp_gmf_event_get_state_str(event->sub),
-             event->payload, event->payload_size, ctx);
-    if ((event->sub == ESP_GMF_EVENT_STATE_STOPPED)
-        || (event->sub == ESP_GMF_EVENT_STATE_FINISHED)
-        || (event->sub == ESP_GMF_EVENT_STATE_ERROR)) {
-        if (ctx) {
-            xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_BLOCK_BIT);
+    esp_gmf_pipeline_handle_t pipe = event->from;
+    if (event->type == ESP_GMF_EVT_TYPE_LOADING_JOB) {
+        ESP_LOGI(TAG, "TASK EVT, LOADING_JOB, tsk:%s, action:%d, pld:%p, sz:%d",
+                OBJ_GET_TAG(pipe), event->sub, event->payload, event->payload_size);
+    } else if (event->type == ESP_GMF_EVT_TYPE_CHANGE_STATE) {
+        ESP_LOGI(TAG, "TASK EVT, STATE CHANGE, tsk:%s, state:%s, pld:%p, sz:%d",
+                OBJ_GET_TAG(pipe), esp_gmf_event_get_state_str(event->sub), event->payload, event->payload_size);
+        if ((event->sub == ESP_GMF_EVENT_STATE_STOPPED)
+            || (event->sub == ESP_GMF_EVENT_STATE_FINISHED)
+            || (event->sub == ESP_GMF_EVENT_STATE_ERROR)) {
+            if (ctx) {
+                xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_BLOCK_BIT);
+            }
         }
+    } else if (event->type == ESP_GMF_EVT_TYPE_REPORT_INFO) {
+        ESP_LOGI(TAG, "TASK EVT, REPORT_INFO, tsk:%s, pld:%p, sz:%d",
+                OBJ_GET_TAG(pipe), event->payload, event->payload_size);
+    } else {
+        ESP_LOGW(TAG, "TASK EVT, UNKNOWN, tsk:%s, t:%x, pld:%p, sz:%d",
+                OBJ_GET_TAG(pipe), event->type, event->payload, event->payload_size);
     }
     return 0;
 }
@@ -289,7 +300,6 @@ TEST_CASE("One Pipe, [FILE->dec->dec->dec->FILE]", "[ELEMENT_POOL]")
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_resume(pipe));
     vTaskDelay(300 / portTICK_PERIOD_MS);
 
-    ESP_LOGE(TAG, "%s-%d", __func__, __LINE__);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(work_task));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_destroy(pipe));
@@ -334,7 +344,6 @@ TEST_CASE("One Pipe, [FILE->dec->FILE]", "[ELEMENT_POOL]")
     vTaskDelay(2000 / portTICK_PERIOD_MS);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(pipe));
 
-    ESP_LOGE(TAG, "%s-%d", __func__, __LINE__);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(work_task));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_destroy(pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_deinit(pool));
@@ -434,7 +443,6 @@ TEST_CASE("ALL element IN-OUT SAME, [FILE->dec->FILE]", "[ELEMENT_PORT]")
     vTaskDelay(300 / portTICK_PERIOD_MS);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(pipe));
 
-    ESP_LOGE(TAG, "%s-%d", __func__, __LINE__);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(work_task));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_destroy(pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_deinit(pool));
@@ -485,7 +493,6 @@ TEST_CASE("The middle element IN-OUT SAME, [FILE->dec->FILE]", "[ELEMENT_PORT]")
     vTaskDelay(300 / portTICK_PERIOD_MS);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(pipe));
 
-    ESP_LOGE(TAG, "%s-%d", __func__, __LINE__);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(work_task));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_destroy(pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_deinit(pool));
@@ -536,7 +543,6 @@ TEST_CASE("The element IN-OUT SAME, [FILE->dec->FILE]", "[ELEMENT_PORT]")
     vTaskDelay(300 / portTICK_PERIOD_MS);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(pipe));
 
-    ESP_LOGE(TAG, "%s-%d", __func__, __LINE__);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(work_task));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_destroy(pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_deinit(pool));
@@ -588,7 +594,6 @@ TEST_CASE("Un-Shared port, Same payload, [FILE->dec->FILE]", "[ELEMENT_PORT]")
     ESP_GMF_MEM_SHOW(TAG);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(pipe));
 
-    ESP_LOGE(TAG, "%s-%d", __func__, __LINE__);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(work_task));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_destroy(pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_deinit(pool));
@@ -659,7 +664,7 @@ TEST_CASE("Un-shared port, [port callback -> dec -> port callback]", "[ELEMENT_P
     obj_hd = fake_dec;
     TEST_ASSERT_NOT_NULL(fake_dec);
     // Print obj tag
-    ESP_LOGE(TAG, "%s-%d,obj_hd:%p", (OBJ_GET_TAG(obj_hd)), __LINE__, obj_hd);
+    ESP_LOGI(TAG, "%s-%d,obj_hd:%p", (OBJ_GET_TAG(obj_hd)), __LINE__, obj_hd);
     // Create in/out port
     in_port = NEW_ESP_GMF_PORT_IN_BLOCK(_acquire_read, _release_read, NULL, NULL, TEST_LENGTH, 100);
     out_port = NEW_ESP_GMF_PORT_OUT_BLOCK(_acquire_write, _release_write, NULL, NULL, TEST_LENGTH, 100);
@@ -703,7 +708,7 @@ TEST_CASE("Shared port, [port callback -> dec -> port callback]", "[ELEMENT_POOL
     obj_hd = fake_dec;
     TEST_ASSERT_NOT_NULL(fake_dec);
     // Print obj tag
-    ESP_LOGE(TAG, "%s-%d,obj_hd:%p", (OBJ_GET_TAG(obj_hd)), __LINE__, obj_hd);
+    ESP_LOGI(TAG, "%s-%d,obj_hd:%p", (OBJ_GET_TAG(obj_hd)), __LINE__, obj_hd);
     // Create in/out port
     in_port = NEW_ESP_GMF_PORT_IN_BLOCK(_acquire_read, _release_read, NULL, NULL, TEST_LENGTH, 100);
     out_port = NEW_ESP_GMF_PORT_OUT_BLOCK(_acquire_write_fail, _release_write, NULL, NULL, TEST_LENGTH, 100);

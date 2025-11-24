@@ -24,7 +24,7 @@ static bool        read_run;
 static bool        write_run;
 
 static const char *file_name  = "/sdcard/gmf_ut_test.mp3";
-static const char *file2_name = "/sdcard/gmf_ut_test2.mp3";
+static const char *file2_name = "/sdcard/gmf_ut_test_out.mp3";
 
 static void read_task(void *param)
 {
@@ -123,7 +123,7 @@ write_task_err:
 TEST_CASE("FIFO read and write on different task", "[ESP_GMF_FIFO]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-    esp_log_level_set("ESP_GMF_FIFO", ESP_LOG_VERBOSE);
+    // esp_log_level_set("ESP_GMF_FIFO", ESP_LOG_VERBOSE);
 
     sdmmc_card_t *card = NULL;
     esp_gmf_ut_setup_sdmmc(&card);
@@ -132,7 +132,7 @@ TEST_CASE("FIFO read and write on different task", "[ESP_GMF_FIFO]")
     esp_gmf_fifo_create(10, 1, &fifo);
     ESP_LOGI(TAG, "TEST Create GMF FIFO, %p", fifo);
     TEST_ASSERT_NOT_NULL(fifo);
-    uint8_t priority[][2] = { {5, 5}, {0,10,}, {10, 0}};
+    uint8_t priority[][2] = {{5, 5}, {0, 10}, {10, 0}};
 
     for (size_t i = 0; i < sizeof(priority) / sizeof(priority[0]); i++) {
         ESP_LOGW(TAG, "Test FIFO with priority %d, %d\r\n", priority[i][0], priority[i][1]);
@@ -160,7 +160,7 @@ TEST_CASE("FIFO read and write on different task", "[ESP_GMF_FIFO]")
 TEST_CASE("Abort when FIFO read and write on different task", "[ESP_GMF_FIFO]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-    esp_log_level_set("ESP_GMF_FIFO", ESP_LOG_VERBOSE);
+    // esp_log_level_set("ESP_GMF_FIFO", ESP_LOG_VERBOSE);
 
     sdmmc_card_t *card = NULL;
     esp_gmf_ut_setup_sdmmc(&card);
@@ -169,7 +169,7 @@ TEST_CASE("Abort when FIFO read and write on different task", "[ESP_GMF_FIFO]")
     esp_gmf_fifo_create(10, 1, &fifo);
     ESP_LOGI(TAG, "TEST Create GMF FIFO, %p", fifo);
     TEST_ASSERT_NOT_NULL(fifo);
-    uint8_t priority[][2] = { {5, 5}, {0,10,}, {10, 0}};
+    uint8_t priority[][2] = {{5, 5}, {0, 10}, {10, 0}};
 
     for (size_t i = 0; i < sizeof(priority) / sizeof(priority[0]); i++) {
         ESP_LOGW(TAG, "Test FIFO with priority %d, %d\r\n", priority[i][0], priority[i][1]);

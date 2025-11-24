@@ -83,6 +83,15 @@ int esp_gmf_node_get_size(esp_gmf_node_t *root);
 void esp_gmf_node_insert_after(esp_gmf_node_t *prev, esp_gmf_node_t *new);
 
 /**
+ * @brief  Insert a new node before a specified node in a linked list
+ *
+ * @param[in,out]  root  Pointer to the root node of the linked list (updated if new node becomes head)
+ * @param[in]      next  Node before which the new node will be inserted
+ * @param[in]      new   Node to be inserted
+ */
+void esp_gmf_node_insert_prev(esp_gmf_node_t **root, esp_gmf_node_t *next, esp_gmf_node_t *new);
+
+/**
  * @brief  Delete a specified node from a linked list, freeing associated resources
  *
  * @param[in,out]  root  Pointer to the root node of the linked list
