@@ -54,6 +54,23 @@
 
 - Reduce the default spi max_transfer_sz value for echoear_core_board_v1_2 to avoid allocating excessive memory
 
+## 0.4.7
+
+### Features
+
+- Added board support for M5STACK CORES3
+  * Complete YAML configuration files (board_info.yaml, board_peripherals.yaml, board_devices.yaml)
+  * Support for AW88298 DAC, ES7210 ADC, ILI9342 LCD, FT5X06 LCD TOUCH, AW9523B GPIO EXPANDER, AXP2101 PMU and SD card devices
+  * I2C, I2S, SPI and GPIO peripherals configuration
+- Supported configuring invert_color during lcd_spi initialization
+
+### Bug Fixes
+
+- Fixed the issue where the codec's gain configuration was not taking effect correctly
+- Fixed the issue with incorrect usage of handle for sdcard and sdcard_spi
+- Modified the GPIO expander and customer device test cases to make them more generic
+- Fixed the test app to allow sdcard_spi to also function properly in codec testing
+
 ## 0.4.5
 
 ### Bug Fixes
