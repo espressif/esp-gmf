@@ -83,7 +83,7 @@ int dev_fatfs_sdcard_spi_init(void *cfg, int cfg_size, void **device_handle)
     ESP_LOGI(TAG, "Filesystem mounted, base path: %s", config->mount_point);
     *device_handle = handle;
 
-    sdmmc_card_print_info(stdout, (sdmmc_card_t *)*device_handle);
+    sdmmc_card_print_info(stdout, handle->card);
     return 0;
 cleanup:
     free(handle);
@@ -112,7 +112,7 @@ int dev_fatfs_sdcard_spi_deinit(void *device_handle)
     dev_fatfs_sdcard_spi_config_t *cfg = NULL;
     esp_board_device_get_config(name, (void **)&cfg);
     if (cfg) {
-        esp_board_periph_unref_handle(cfg->spi_name);
+        esp_board_periph_unref_handle(cfg->spi_bus_name);
     }
 
     free((char *)handle->mount_point);

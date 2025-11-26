@@ -13,7 +13,6 @@
 #include "dev_audio_codec.h"
 #include "esp_board_periph.h"
 #include "esp_board_manager_defs.h"
-#include "es8389_codec.h"
 #include "esp_board_device.h"
 
 static const char *TAG = "DEV_AUDIO_CODEC";
@@ -30,81 +29,114 @@ static const char *TAG = "DEV_AUDIO_CODEC";
     {                                                                                        \
         CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)cfg; \
         const audio_codec_if_t *result             = CODEC_NEW_FUNC(codec_name)(codec_cfg);  \
-        return (audio_codec_if_t *)result;                                                   \
+        return (audio_codec_if_t *)result; \
     }
 
 // ADC and DAC codec configuration setup function template (for ES8311, ES8388, ES8389, etc.)
-#define DEFINE_AUDIO_CODEC_CONFIG_SETUP(codec_name)                                                                              \
+#define DEFINE_AUDIO_CODEC_CONFIG_SETUP(codec_name)                                                                                  \
     static int codec_name##_config_setup(dev_audio_codec_config_t *base_cfg, dev_audio_codec_handles_t *handles, void *specific_cfg) \
-    {                                                                                                                            \
-        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                            \
-        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                           \
-        codec_cfg->gpio_if                         = handles->gpio_if;                                                           \
-        codec_cfg->use_mclk                        = base_cfg->mclk_enabled;                                                     \
-        codec_cfg->pa_pin                          = base_cfg->pa_cfg.port;                                                      \
-        if (base_cfg->dac_enabled) {                                                                                             \
-            codec_cfg->codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC;                                                                 \
-        }                                                                                                                        \
-        if (base_cfg->adc_enabled) {                                                                                             \
-            codec_cfg->codec_mode |= ESP_CODEC_DEV_WORK_MODE_ADC;                                                                \
-        }                                                                                                                        \
-        return 0;                                                                                                                \
+    {                                                                                                                                \
+        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                                \
+        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                               \
+        codec_cfg->gpio_if                         = handles->gpio_if;                                                               \
+        codec_cfg->use_mclk                        = base_cfg->mclk_enabled;                                                         \
+        codec_cfg->pa_pin                          = base_cfg->pa_cfg.port;                                                          \
+        codec_cfg->hw_gain.pa_gain                 = base_cfg->pa_cfg.gain;                                                          \
+        codec_cfg->pa_reverted                     = base_cfg->pa_cfg.active_level == 1 ? false : true;                              \
+        if (base_cfg->dac_enabled) {                                                                                                 \
+            codec_cfg->codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC;                                                                     \
+        }                                                                                                                            \
+        if (base_cfg->adc_enabled) {                                                                                                 \
+            codec_cfg->codec_mode |= ESP_CODEC_DEV_WORK_MODE_ADC;                                                                    \
+        }                                                                                                                            \
+        return 0; \
     }
 
-#define DEFINE_AUDIO_CODEC_CONFIG_SETUP_NO_MCLK(codec_name)                                                                      \
+#define DEFINE_AUDIO_CODEC_CONFIG_SETUP_NO_MCLK(codec_name)                                                                          \
     static int codec_name##_config_setup(dev_audio_codec_config_t *base_cfg, dev_audio_codec_handles_t *handles, void *specific_cfg) \
-    {                                                                                                                            \
-        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                            \
-        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                           \
-        codec_cfg->gpio_if                         = handles->gpio_if;                                                           \
-        codec_cfg->pa_pin                          = base_cfg->pa_cfg.port;                                                      \
-        if (base_cfg->dac_enabled) {                                                                                             \
-            codec_cfg->codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC;                                                                 \
-        }                                                                                                                        \
-        if (base_cfg->adc_enabled) {                                                                                             \
-            codec_cfg->codec_mode |= ESP_CODEC_DEV_WORK_MODE_ADC;                                                                \
-        }                                                                                                                        \
-        return 0;                                                                                                                \
+    {                                                                                                                                \
+        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                                \
+        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                               \
+        codec_cfg->gpio_if                         = handles->gpio_if;                                                               \
+        codec_cfg->pa_pin                          = base_cfg->pa_cfg.port;                                                          \
+        codec_cfg->hw_gain.pa_gain                 = base_cfg->pa_cfg.gain;                                                          \
+        codec_cfg->pa_reverted                     = base_cfg->pa_cfg.active_level == 1 ? false : true;                              \
+        if (base_cfg->dac_enabled) {                                                                                                 \
+            codec_cfg->codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC;                                                                     \
+        }                                                                                                                            \
+        if (base_cfg->adc_enabled) {                                                                                                 \
+            codec_cfg->codec_mode |= ESP_CODEC_DEV_WORK_MODE_ADC;                                                                    \
+        }                                                                                                                            \
+        return 0; \
     }
 
-// DAC codec configuration setup function template (for ES8156, AW88298, TAS5805M, etc.)
-#define DEFINE_AUDIO_DAC_CONFIG_SETUP(codec_name)                                                                                \
+#define DEFINE_AUDIO_CODEC_CONFIG_SETUP_NO_MCLK_NO_HW_GAIN(codec_name)                                                               \
     static int codec_name##_config_setup(dev_audio_codec_config_t *base_cfg, dev_audio_codec_handles_t *handles, void *specific_cfg) \
-    {                                                                                                                            \
-        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                            \
-        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                           \
-        codec_cfg->gpio_if                         = handles->gpio_if;                                                           \
-        return 0;                                                                                                                \
+    {                                                                                                                                \
+        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                                \
+        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                               \
+        codec_cfg->gpio_if                         = handles->gpio_if;                                                               \
+        codec_cfg->pa_pin                          = base_cfg->pa_cfg.port;                                                          \
+        codec_cfg->pa_reverted                     = base_cfg->pa_cfg.active_level == 1 ? false : true;                              \
+        if (base_cfg->dac_enabled) {                                                                                                 \
+            codec_cfg->codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC;                                                                     \
+        }                                                                                                                            \
+        if (base_cfg->adc_enabled) {                                                                                                 \
+            codec_cfg->codec_mode |= ESP_CODEC_DEV_WORK_MODE_ADC;                                                                    \
+        }                                                                                                                            \
+        return 0; \
+    }
+
+// DAC codec configuration setup function template (for AW88298, TAS5805M, etc.)
+#define DEFINE_AUDIO_DAC_CONFIG_SETUP(codec_name)                                                                                    \
+    static int codec_name##_config_setup(dev_audio_codec_config_t *base_cfg, dev_audio_codec_handles_t *handles, void *specific_cfg) \
+    {                                                                                                                                \
+        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                                \
+        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                               \
+        codec_cfg->gpio_if                         = handles->gpio_if;                                                               \
+        return 0;                                                                                                                    \
+    }
+
+// DAC codec configuration setup function template with pa_reverted configuration (for ES8156, etc.)
+#define DEFINE_AUDIO_DAC_CONFIG_SETUP_WITH_PA_REVERTED(codec_name)                                                                   \
+    static int codec_name##_config_setup(dev_audio_codec_config_t *base_cfg, dev_audio_codec_handles_t *handles, void *specific_cfg) \
+    {                                                                                                                                \
+        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                                \
+        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                               \
+        codec_cfg->gpio_if                         = handles->gpio_if;                                                               \
+        codec_cfg->pa_reverted                     = base_cfg->pa_cfg.active_level == 1 ? false : true;                              \
+        return 0;                                                                                                                    \
     }
 
 // ADC codec configuration setup function template (for ES7210)
-#define DEFINE_AUDIO_ADC_ES7210_CONFIG_SETUP(codec_name)                                                                         \
+#define DEFINE_AUDIO_ADC_ES7210_CONFIG_SETUP(codec_name)                                                                             \
     static int codec_name##_config_setup(dev_audio_codec_config_t *base_cfg, dev_audio_codec_handles_t *handles, void *specific_cfg) \
-    {                                                                                                                            \
-        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                            \
-        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                           \
-        codec_cfg->mic_selected                    = base_cfg->adc_channel_mask;                                                 \
-        return 0;                                                                                                                \
+    {                                                                                                                                \
+        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                                \
+        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                               \
+        codec_cfg->mic_selected                    = base_cfg->adc_channel_mask;                                                     \
+        return 0;                                                                                                                    \
     }
 
 // Simple ADC codec configuration setup function template (for ES7243, ES7243E)
-#define DEFINE_AUDIO_ADC_SIMPLE_CONFIG_SETUP(codec_name)                                                                         \
+#define DEFINE_AUDIO_ADC_SIMPLE_CONFIG_SETUP(codec_name)                                                                             \
     static int codec_name##_config_setup(dev_audio_codec_config_t *base_cfg, dev_audio_codec_handles_t *handles, void *specific_cfg) \
-    {                                                                                                                            \
-        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                            \
-        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                           \
-        return 0;                                                                                                                \
+    {                                                                                                                                \
+        CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                                \
+        codec_cfg->ctrl_if                         = handles->ctrl_if;                                                               \
+        return 0;                                                                                                                    \
     }
+
 // Function pointer types
 typedef audio_codec_if_t *(*codec_factory_func_t)(void *cfg);
 typedef int (*codec_config_setup_func_t)(dev_audio_codec_config_t *base_cfg, dev_audio_codec_handles_t *handles, void *specific_cfg);
 
 // Codec registry entry
 typedef struct {
-    const char               *name;
-    codec_factory_func_t      factory_func;
-    codec_config_setup_func_t config_setup_func;
-    size_t                    cfg_size;
+    const char                *name;
+    codec_factory_func_t       factory_func;
+    codec_config_setup_func_t  config_setup_func;
+    size_t                     cfg_size;
 } codec_registry_entry_t;
 
 // Define codecs based on configuration
@@ -130,12 +162,12 @@ DEFINE_AUDIO_ADC_SIMPLE_CONFIG_SETUP(es7243e)
 
 #ifdef CONFIG_CODEC_ES8156_SUPPORT
 DEFINE_CODEC_FACTORY(es8156)
-DEFINE_AUDIO_DAC_CONFIG_SETUP(es8156)
+DEFINE_AUDIO_DAC_CONFIG_SETUP_WITH_PA_REVERTED(es8156)
 #endif  /* CONFIG_CODEC_ES8156_SUPPORT */
 
 #ifdef CONFIG_CODEC_ES8374_SUPPORT
 DEFINE_CODEC_FACTORY(es8374)
-DEFINE_AUDIO_CODEC_CONFIG_SETUP_NO_MCLK(es8374)
+DEFINE_AUDIO_CODEC_CONFIG_SETUP_NO_MCLK_NO_HW_GAIN(es8374)
 #endif  /* CONFIG_CODEC_ES8374_SUPPORT */
 
 #ifdef CONFIG_CODEC_ES8388_SUPPORT

@@ -6,6 +6,23 @@
 
 - Fixed the SD card mount failure issue
 
+## 0.4.7
+
+### Features
+
+- Added board support for M5STACK CORES3
+  * Complete YAML configuration files (board_info.yaml, board_peripherals.yaml, board_devices.yaml)
+  * Support for AW88298 DAC, ES7210 ADC, ILI9342 LCD, FT5X06 LCD TOUCH, AW9523B GPIO EXPANDER, AXP2101 PMU and SD card devices
+  * I2C, I2S, SPI and GPIO peripherals configuration
+- Supported configuring invert_color during lcd_spi initialization
+
+### Bug Fixes
+
+- Fixed the issue where the codec's gain configuration was not taking effect correctly
+- Fixed the issue with incorrect usage of handle for sdcard and sdcard_spi
+- Modified the GPIO expander and customer device test cases to make them more generic
+- Fixed the test app to allow sdcard_spi to also function properly in codec testing
+
 ## 0.4.5
 
 ### Bug Fixes
@@ -41,8 +58,7 @@
 - Fixed build errors caused by incorrect use of `extern "C"` guards in `esp_board_manager_includes.h`
 - Removed unused dependency on `test_apps`
 - Updated audio codec device implementation for better compatibility
-- Appended `esp_board_manager_defs.h` to `esp_board_manager_includes.h` to ensure all necessary header
-files are included
+- Appended `esp_board_manager_defs.h` to `esp_board_manager_includes.h` to ensure all necessary header files are included
 
 ## v0.4.1
 

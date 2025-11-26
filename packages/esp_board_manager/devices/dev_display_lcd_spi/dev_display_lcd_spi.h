@@ -30,11 +30,12 @@ typedef struct {
     esp_lcd_panel_dev_config_t     panel_config;   /*!< LCD panel device configuration */
     const char                    *spi_name;       /*!< SPI bus name */
     esp_lcd_panel_io_spi_config_t  io_spi_config;  /*!< SPI panel IO configuration */
-    uint8_t                        swap_xy: 1;     /*!< Swap X and Y coordinates */
-    uint8_t                        mirror_x: 1;    /*!< Mirror X coordinates */
-    uint8_t                        mirror_y: 1;    /*!< Mirror Y coordinates */
+    uint8_t                        swap_xy  : 1;   /*!< Swap X and Y coordinates */
+    uint8_t                        mirror_x : 1;   /*!< Mirror X coordinates */
+    uint8_t                        mirror_y : 1;   /*!< Mirror Y coordinates */
     uint16_t                       x_max;          /*!< X coordinates max  */
     uint16_t                       y_max;          /*!< Y coordinates max */
+    bool                           invert_color;   /*!< Invert color flag */
 } dev_display_lcd_spi_config_t;
 
 /**

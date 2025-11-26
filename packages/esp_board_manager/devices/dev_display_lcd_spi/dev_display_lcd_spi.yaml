@@ -15,6 +15,8 @@
     mirror_x: false
     x_max: 320
     y_max: 240
+    invert_color: false      # Invert color flag (default: false)
+
     # esp_lcd_panel_io_spi_config_t fields for SPI communication
     io_spi_config:
       cs_gpio_num: -1                   # GPIO pin for Chip Select (default: -1)

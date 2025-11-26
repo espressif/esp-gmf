@@ -40,7 +40,7 @@ int dev_display_lcd_spi_init(void *cfg, int cfg_size, void **device_handle)
     ESP_LOGI(TAG, "Initializing LCD display: %s, chip: %s", lcd_cfg->name, lcd_cfg->chip);
     periph_spi_handle_t *spi_handle = NULL;
     if (lcd_cfg->spi_name && strlen(lcd_cfg->spi_name) > 0) {
-        int ret = esp_board_periph_ref_handle(lcd_cfg->spi_name, (void**)&spi_handle);
+        int ret = esp_board_periph_ref_handle(lcd_cfg->spi_name, (void **)&spi_handle);
         if (ret != 0) {
             ESP_LOGE(TAG, "Failed to get SPI peripheral handle: %d", ret);
             free(lcd_handles);
@@ -101,6 +101,14 @@ int dev_display_lcd_spi_init(void *cfg, int cfg_size, void **device_handle)
         esp_lcd_panel_io_del(lcd_handles->io_handle);
         free(lcd_handles);
         return -1;
+    }
+
+    // Invert color if needed
+    if (lcd_cfg->invert_color) {
+        ret = esp_lcd_panel_invert_color(lcd_handles->panel_handle, true);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to invert color on LCD panel: %s", esp_err_to_name(ret));
+        }
     }
 
     // Turn on display

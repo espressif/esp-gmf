@@ -1,0 +1,3 @@
+config BOARD_CORE_S3
+    bool "Core-S3 Development Board"
+    depends on IDF_TARGET_ESP32S3
