@@ -31,6 +31,7 @@ extern "C" {
  */
 typedef struct {
     const char                 *dsi_name;           /*!< DSI bus name */
+    const char                 *ldo_name;           /*!< LDO name */
     int                         reset_gpio_num;     /*!< Reset GPIO number */
     uint8_t                     reset_active_high;  /*!< Setting this if the panel reset is high level active */
     esp_lcd_dbi_io_config_t     dbi_config;         /*!< DBI configuration */

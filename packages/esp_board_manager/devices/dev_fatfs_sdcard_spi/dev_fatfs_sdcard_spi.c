@@ -26,6 +26,11 @@ int dev_fatfs_sdcard_spi_init(void *cfg, int cfg_size, void **device_handle)
     }
 
     const dev_fatfs_sdcard_spi_config_t *config = (const dev_fatfs_sdcard_spi_config_t *)cfg;
+    if (config->mount_point == NULL) {
+        ESP_LOGE(TAG, "Invalid mount point");
+        return -1;
+    }
+
     periph_spi_handle_t *spi_handle = NULL;
     if (config->spi_bus_name && config->spi_bus_name[0]) {
         int ret = esp_board_periph_ref_handle(config->spi_bus_name, (void **)&spi_handle);
@@ -73,13 +78,7 @@ int dev_fatfs_sdcard_spi_init(void *cfg, int cfg_size, void **device_handle)
     }
 
     // Save mount point
-    handle->mount_point = strdup(config->mount_point);
-    if (handle->mount_point == NULL) {
-        ESP_LOGE(TAG, "Failed to allocate mount point");
-        esp_vfs_fat_sdcard_unmount(config->mount_point, handle->card);
-        goto cleanup;
-    }
-
+    handle->mount_point = (char *)config->mount_point;
     sdmmc_card_print_info(stdout, handle->card);
     ESP_LOGI(TAG, "Filesystem mounted, base path: %s", config->mount_point);
     *device_handle = handle;
@@ -108,8 +107,6 @@ int dev_fatfs_sdcard_spi_deinit(void *device_handle)
     if (cfg) {
         esp_board_periph_unref_handle(cfg->spi_bus_name);
     }
-
-    free((char *)handle->mount_point);
     free(handle);
     return 0;
 }

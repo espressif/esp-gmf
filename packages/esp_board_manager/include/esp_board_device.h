@@ -10,6 +10,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "esp_board_manager_err.h"
+#include "esp_board_extra_func_entry.h"
+
+#define DEVICE_EXTRA_FUNC_REGISTER(name, extra_func) EXTRA_FUNC_IMPLEMENT(name, extra_func)
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,30 +29,36 @@ typedef int (*esp_board_device_init_func)(void *cfg, int cfg_size, void **device
 typedef int (*esp_board_device_deinit_func)(void *device_handle);
 
 /**
+ * @brief  Function pointer type for device power control
+ */
+typedef int (*esp_board_device_power_ctrl_func)(void *dev_handle, const char *device_name, bool power_on);
+
+/**
  * @brief  Structure representing a device descriptor
  */
 typedef struct esp_board_device_desc {
-    const struct esp_board_device_desc *next;          /*!< Pointer to next device descriptor */
-    const char                         *name;          /*!< Device name */
-    const char                         *chip;          /*!< Device chip type */
-    const char                         *type;          /*!< Device type */
-    const void                         *cfg;           /*!< Device configuration data */
-    int                                cfg_size;       /*!< Size of configuration data */
-    uint8_t                            init_skip : 1;  /*!< Skip initialization when manager initializes all devices */
+    const struct esp_board_device_desc  *next;               /*!< Pointer to next device descriptor */
+    const char                          *name;               /*!< Device name */
+    const char                          *chip;               /*!< Device chip type */
+    const char                          *type;               /*!< Device type */
+    const void                          *cfg;                /*!< Device configuration data */
+    uint16_t                             cfg_size;           /*!< Size of configuration data */
+    uint8_t                              init_skip : 1;      /*!< Skip initialization when manager initializes all devices */
+    const char                          *power_ctrl_device;  /*!< Power control device name for this device */
 } esp_board_device_desc_t;
 
 /**
  * @brief  Structure representing a device handle
  */
 typedef struct esp_board_device_handle {
-    struct esp_board_device_handle *next;           /*!< Pointer to next device handle */
-    const char                     *name;           /*!< Device name */
-    const char                     *chip;           /*!< Device chip type */
-    const char                     *type;           /*!< Device type */
-    void                           *device_handle;  /*!< Device-specific handle */
-    uint32_t                        ref_count;      /*!< Reference count */
-    esp_board_device_init_func      init;           /*!< Device initialization function */
-    esp_board_device_deinit_func    deinit;         /*!< Device deinitialization function */
+    struct esp_board_device_handle  *next;           /*!< Pointer to next device handle */
+    const char                      *name;           /*!< Device name */
+    const char                      *chip;           /*!< Device chip type */
+    const char                      *type;           /*!< Device type */
+    void                            *device_handle;  /*!< Device-specific handle */
+    uint32_t                         ref_count;      /*!< Reference count */
+    esp_board_device_init_func       init;           /*!< Device initialization function */
+    esp_board_device_deinit_func     deinit;         /*!< Device deinitialization function */
 } esp_board_device_handle_t;
 
 /**
@@ -174,7 +183,7 @@ esp_err_t esp_board_device_show(const char *name);
  *         Iterates through all device descriptors and initializes each device
  *         Continues initializing even if some devices fail, but logs errors
  *
- *   NOTE: Device initialization strictly follows the order defined in board_devices.yaml
+ *         NOTE: Device initialization strictly follows the order defined in board_devices.yaml
  *         If a device depends on a peripheral for power-on, it must be initialized
  *         after that peripheral. For example, the LCD power control device should be
  *         listed before the Display LCD device in board_devices.yaml
@@ -210,6 +219,27 @@ esp_err_t esp_board_device_deinit_all(void);
  *       - Others  Pointer to device handle structure if found
  */
 const esp_board_device_handle_t *esp_board_device_find_by_handle(void *device_handle);
+
+/**
+ * @brief  Control power for a device
+ *
+ *         This function controls the power state for a device using its associated
+ *         power control device. If the device has a power_ctrl_device configured,
+ *         this function will call the power control function to enable or disable
+ *         power for the device.
+ *
+ * @param[in]  name      Device name to control power for
+ * @param[in]  power_on  True to enable power, false to disable power
+ * @param[in]  args      Optional arguments for power control (can be NULL)
+ *
+ * @return
+ *       - ESP_OK                              On success
+ *       - ESP_BOARD_ERR_DEVICE_INVALID_ARG    If name is NULL
+ *       - ESP_BOARD_ERR_DEVICE_NOT_FOUND      If device or power control device not found
+ *       - ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED  If device has no power control device configured
+ *       - Others                              Error codes from power control device
+ */
+esp_err_t esp_board_device_power_ctrl(const char *name, bool power_on);
 
 #ifdef __cplusplus
 }

@@ -58,6 +58,7 @@ def parse_dsi_sub_config(full_config: dict = None, peripherals_dict=None) -> dic
 
     # Get DSI bus name from peripherals
     dsi_bus_name = None
+    ldo_name = None
 
     # First try to get peripherals from config (for backward compatibility)
     peripherals_list = sub_config.get('peripherals')
@@ -72,11 +73,22 @@ def parse_dsi_sub_config(full_config: dict = None, peripherals_dict=None) -> dic
                     if peripherals_dict is not None and periph_name in peripherals_dict:
                         dsi_bus_name = periph_name
                     break
+                elif periph_name.startswith('ldo'):
+                    # Check if peripheral exists in peripherals_dict if provided
+                    if peripherals_dict is not None and periph_name in peripherals_dict:
+                        ldo_name = periph_name
+                    break
             elif isinstance(periph, str) and periph.startswith('dsi'):
-                # Check if peripheral exists in peripherals_dict if provided
-                if peripherals_dict is not None and periph in peripherals_dict:
-                    dsi_bus_name = periph
-                break
+                if periph.startswith('dsi'):
+                    # Check if peripheral exists in peripherals_dict if provided
+                    if peripherals_dict is not None and periph in peripherals_dict:
+                        dsi_bus_name = periph
+                    break
+                elif periph.startswith('ldo'):
+                    # Check if peripheral exists in peripherals_dict if provided
+                    if peripherals_dict is not None and periph in peripherals_dict:
+                        ldo_name = periph
+                    break
 
     # Fallback to peripherals_dict if not found in config
     if not dsi_bus_name and peripherals_dict:
@@ -84,7 +96,7 @@ def parse_dsi_sub_config(full_config: dict = None, peripherals_dict=None) -> dic
         for peripheral in peripherals_dict:
             if isinstance(peripheral, dict):
                 if peripheral.get('name') == 'dsi_display':
-                    dsi_bus_name = peripheral.get('name', 'dsi_display')
+                    dsi_bus_name = peripheral.get('name')
                     break
             elif isinstance(peripheral, str) and peripheral.startswith('dsi'):
                 if peripheral == 'dsi_display':
@@ -94,8 +106,27 @@ def parse_dsi_sub_config(full_config: dict = None, peripherals_dict=None) -> dic
     if not dsi_bus_name:
         raise ValueError(f"LCD display device {full_config.get('name')} require valid DSI peripherals.")
 
+    if not ldo_name and peripherals_dict:
+        # Look for dsi peripheral
+        for peripheral in peripherals_dict:
+            if isinstance(peripheral, dict):
+                if peripheral.get('name') == 'ldo_mipi':
+                    ldo_name = peripheral.get('name')
+                    break
+            elif isinstance(peripheral, str) and peripheral.startswith('ldo'):
+                if peripheral == 'ldo_mipi':
+                    ldo_name = peripheral
+                    break
+
+    if not dsi_bus_name:
+        raise ValueError(f"LCD display device {full_config.get('name')} require valid DSI peripherals.")
+
+    if not ldo_name:
+        raise ValueError(f"LCD display device {full_config.get('name')} require valid LDO peripherals.")
+
     return {
         'dsi_name': dsi_bus_name,
+        'ldo_name': ldo_name,
         'reset_gpio_num': reset_gpio_num,
         'reset_active_high': reset_active_high,
         'dbi_config': dbi_config_parsed,

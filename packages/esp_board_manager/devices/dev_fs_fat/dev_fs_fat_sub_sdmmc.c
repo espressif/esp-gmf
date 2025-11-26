@@ -24,7 +24,12 @@ int dev_fs_fat_sub_sdmmc_init(void *cfg, int cfg_size, void **device_handle)
 {
     // No need to check parameters here, it will be checked in dev_fs_fat_init
     esp_err_t ret = ESP_FAIL;
-    dev_fs_fat_handle_t *handle = (dev_fs_fat_handle_t *)*device_handle;
+    dev_fs_fat_handle_t *handle = calloc(1, sizeof(dev_fs_fat_handle_t));
+    if (handle == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate memory for dev_fs_fat_sub_sdmmc");
+        return -1;
+    }
+
     const dev_fs_fat_config_t *config = (const dev_fs_fat_config_t *)cfg;
     // Use SDMMC host
     handle->host = (sdmmc_host_t)SDMMC_HOST_DEFAULT();
@@ -84,10 +89,16 @@ int dev_fs_fat_sub_sdmmc_init(void *cfg, int cfg_size, void **device_handle)
                                   &mount_config, &handle->card);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to mount filesystem");
-        return -1;
+        goto clean_up;
     }
 
+    // Save mount point
+    handle->mount_point = (char *)config->mount_point;
+    *device_handle = handle;
     return 0;
+clean_up:
+    free(handle);
+    return -1;
 }
 
 int dev_fs_fat_sub_sdmmc_deinit(void *device_handle)
@@ -98,6 +109,7 @@ int dev_fs_fat_sub_sdmmc_deinit(void *device_handle)
     } else {
         ESP_LOGW(TAG, "Mount point or card handle is NULL, skipping unmount");
     }
+    free(handle);
     return 0;
 }
 

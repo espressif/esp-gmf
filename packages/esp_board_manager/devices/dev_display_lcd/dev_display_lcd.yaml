@@ -65,6 +65,7 @@
         vsync_front_porch: 20   # Vertical front porch
 
     peripherals:
+      - name: ldo_mipi          # LDO peripheral for dsi power management
       - name: dsi_display       # DSI peripheral instance used for this display
 
 # Example LCD Display device with SPI sub device configuration

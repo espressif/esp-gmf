@@ -12,19 +12,30 @@
 #include "esp_board_device.h"
 #include "esp_board_manager_err.h"
 #include "esp_board_find_utils.h"
+#if CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUPPORT
+#include "dev_power_ctrl.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUPPORT */
 
 static const char *TAG = "BOARD_DEVICE";
 
 extern const esp_board_device_desc_t g_esp_board_devices[];
-extern esp_board_device_handle_t g_esp_board_device_handles[];
+extern esp_board_device_handle_t     g_esp_board_device_handles[];
 
 esp_err_t esp_board_device_init(const char *name)
 {
     ESP_BOARD_RETURN_ON_FALSE(name, ESP_BOARD_ERR_DEVICE_INVALID_ARG, TAG, "name is null");
-
+    esp_err_t ret = ESP_OK;
     /* Find device descriptor */
     const esp_board_device_desc_t *desc = esp_board_find_device_desc(name);
     ESP_BOARD_RETURN_ON_DEVICE_NOT_FOUND(desc, name, TAG, "Device %s not found", name);
+
+    /* Power on device if power control device is specified */
+    if (desc->power_ctrl_device) {
+        ret = esp_board_device_power_ctrl(name, true);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to power on device: %s via power control device: %s", name, desc->power_ctrl_device);
+        }
+    }
 
     /* Find device handle */
     esp_board_device_handle_t *handle = esp_board_find_device_handle(name);
@@ -41,7 +52,7 @@ esp_err_t esp_board_device_init(const char *name)
         ESP_LOGI(TAG, "Device %s already initialized, ref_count: %" PRIu32, name, handle->ref_count);
         return ESP_OK;
     } else {
-        esp_err_t ret = handle->init((void *)desc->cfg, desc->cfg_size, &handle->device_handle);
+        ret = handle->init((void *)desc->cfg, desc->cfg_size, &handle->device_handle);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to init device: %s", name);
             handle->ref_count--;  /* Decrement ref_count on failure */
@@ -49,7 +60,7 @@ esp_err_t esp_board_device_init(const char *name)
         }
     }
     ESP_LOGD(TAG, "initialized device %s ref_count: %" PRIu32 " device_handle:%p", name, handle->ref_count, handle->device_handle);
-    return ESP_OK;
+    return ret;
 }
 
 esp_err_t esp_board_device_get_handle(const char *name, void **device_handle)
@@ -142,6 +153,12 @@ esp_err_t esp_board_device_deinit(const char *name)
     if (handle->ref_count == 0) {
         ESP_BOARD_RETURN_ON_FALSE(handle->deinit, ESP_BOARD_ERR_DEVICE_NO_INIT, TAG, "No deinit function for device: %s", name);
         /* Deinitialize device */
+        const esp_board_device_desc_t *desc = esp_board_find_device_desc(name);
+        ESP_BOARD_RETURN_ON_DEVICE_NOT_FOUND(desc, name, TAG, "Device %s not found", name);
+        if (desc->power_ctrl_device != NULL) {
+            /* Deinitialize power ctrl device if needed */
+            esp_board_device_deinit(desc->power_ctrl_device);
+        }
         esp_err_t ret = handle->deinit(handle->device_handle);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to deinit device: %s", name);
@@ -249,4 +266,53 @@ const esp_board_device_handle_t *esp_board_device_find_by_handle(void *device_ha
         handle = handle->next;
     }
     return NULL;
+}
+
+esp_err_t esp_board_device_power_ctrl(const char *name, bool power_on)
+{
+#ifdef CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUPPORT
+    if (name == NULL) {
+        ESP_LOGE(TAG, "Device name is NULL");
+        return ESP_BOARD_ERR_MANAGER_INVALID_ARG;
+    }
+    /* Find the device description by name */
+    const esp_board_device_desc_t *desc = esp_board_find_device_desc(name);
+    ESP_BOARD_RETURN_ON_DEVICE_NOT_FOUND(desc, name, TAG, "Device %s not found", name);
+    if (desc->power_ctrl_device == NULL) {
+        ESP_LOGW(TAG, "Device %s has no power control device configured", name);
+        return ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED;
+    }
+
+    /* Find the power control device handle by name, init if not already done */
+    esp_board_device_handle_t *handle = esp_board_find_device_handle(desc->power_ctrl_device);
+    ESP_BOARD_RETURN_ON_DEVICE_NOT_FOUND(handle, desc->power_ctrl_device, TAG, "Power control device %s not found", desc->power_ctrl_device);
+    if (handle->ref_count < 1) {
+        ESP_LOGI(TAG, "Power control device %s is not initialized, try to init it first", desc->power_ctrl_device);
+        esp_board_device_init(desc->power_ctrl_device);
+    }
+    const esp_board_device_desc_t *power_ctrl_desc = esp_board_find_device_desc(desc->power_ctrl_device);
+    ESP_BOARD_RETURN_ON_DEVICE_NOT_FOUND(power_ctrl_desc, desc->power_ctrl_device, TAG, "Device %s not found", name);
+    dev_power_ctrl_config_t *power_ctrl_cfg = (dev_power_ctrl_config_t *)power_ctrl_desc->cfg;
+
+    /* Get the power control function by name */
+    char power_ctrl_func_name[40];
+    snprintf(power_ctrl_func_name, sizeof(power_ctrl_func_name), "%s_power_ctrl", power_ctrl_cfg->sub_type);
+    void *extra_func = NULL;
+    if (esp_board_extra_func_get(power_ctrl_func_name, &extra_func) != 0) {
+        ESP_LOGE(TAG, "Power control function %s not found for device %s", power_ctrl_func_name, desc->power_ctrl_device);
+        return ESP_BOARD_ERR_MANAGER_INVALID_ARG;
+    }
+    esp_board_device_power_ctrl_func power_ctrl_func = (esp_board_device_power_ctrl_func)extra_func;
+
+    /* Call the power control function */
+    if (power_ctrl_func(handle->device_handle, name, power_on) != 0) {
+        ESP_LOGE(TAG, "Failed to control power for device %s", name);
+        return ESP_BOARD_ERR_MANAGER_INVALID_ARG;
+    }
+
+    return ESP_OK;
+#else
+    ESP_LOGW(TAG, "Power control support not enabled in configuration");
+    return ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED;
+#endif  /* CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUPPORT */
 }

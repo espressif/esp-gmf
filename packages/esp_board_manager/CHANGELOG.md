@@ -16,6 +16,7 @@
 - Added LDO and DSI peripheral types
 - Added `dev_display_lcd` device type to manage LCD devices of different bus types and supported dsi lcd
 - Added lcd support for `esp32_p4_function_ev` board
+- Added power_ctrl device type, added `power_ctrl_device` attribute in `esp_board_device_desc_t`, for devices configured with this attribute, the power will be automatically turned on during initialization
 
 ## 0.4.8
 

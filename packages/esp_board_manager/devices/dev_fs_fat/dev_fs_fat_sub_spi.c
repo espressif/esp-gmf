@@ -18,6 +18,12 @@ static const char *TAG = "DEV_FS_FAT_SUB_SPI";
 int dev_fs_fat_sub_spi_init(void *cfg, int cfg_size, void **device_handle)
 {
     // No need to check parameters here, it will be checked in dev_fs_fat_init
+    dev_fs_fat_handle_t *handle = calloc(1, sizeof(dev_fs_fat_handle_t));
+    if (handle == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate memory for dev_fs_fat_sub_spi");
+        return -1;
+    }
+
     const dev_fs_fat_config_t *config = (const dev_fs_fat_config_t *)cfg;
     const dev_fs_fat_spi_sub_config_t *spi_cfg = &config->sub_cfg.spi;
     periph_spi_handle_t *spi_handle = NULL;
@@ -34,7 +40,6 @@ int dev_fs_fat_sub_spi_init(void *cfg, int cfg_size, void **device_handle)
     }
 
     esp_err_t ret = 0;
-    dev_fs_fat_handle_t *handle = (dev_fs_fat_handle_t *)*device_handle;
     // Use SDSPI host
     handle->host = (sdmmc_host_t)SDSPI_HOST_DEFAULT();
     handle->host.max_freq_khz = config->frequency;
@@ -55,13 +60,19 @@ int dev_fs_fat_sub_spi_init(void *cfg, int cfg_size, void **device_handle)
     ESP_LOGD(TAG, "mount_config: format_if_mount_failed=%d, max_files=%d, allocation_unit_size=%d",
              mount_config.format_if_mount_failed, mount_config.max_files, mount_config.allocation_unit_size);
 
-    ESP_LOGI(TAG, "Mounting filesystem");
     ret = esp_vfs_fat_sdspi_mount(config->mount_point, &handle->host, &slot_config, &mount_config, &handle->card);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to mount filesystem");
-        return -1;
+        goto clean_up;
     }
+
+    // Save mount point
+    handle->mount_point = (char *)config->mount_point;
+    *device_handle = handle;
     return 0;
+clean_up:
+    free(handle);
+    return -1;
 }
 
 int dev_fs_fat_sub_spi_deinit(void *device_handle)
@@ -84,6 +95,7 @@ int dev_fs_fat_sub_spi_deinit(void *device_handle)
             ESP_LOGW(TAG, "Failed to unref SPI peripheral handle: %s", esp_err_to_name(ret));
         }
     }
+    free(handle);
     return 0;
 }
 

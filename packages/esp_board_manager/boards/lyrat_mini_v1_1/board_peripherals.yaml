@@ -51,6 +51,7 @@ peripherals:
     config:
       pin: 13
       mode: "GPIO_MODE_OUTPUT"
+      default_level: 1          # Default to power off
 
   - name: gpio_headphone_detection       # Headphone detection
     type: gpio

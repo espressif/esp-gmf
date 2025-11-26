@@ -221,6 +221,7 @@ class DeviceParser(LoggerMixin):
             peripherals: list
             init_skip: bool = False  # Default to False (do not skip initialization)
             sub_type: str = None  # Optional sub_type for devices that support it
+            power_ctrl_device: str = None  # Optional power control device reference
 
         # Load YAML with includes
         try:
@@ -309,7 +310,8 @@ class DeviceParser(LoggerMixin):
                     config=dev.get('config', {}),
                     peripherals=periph_list,
                     init_skip=dev.get('init_skip', False),  # Default to False (do not skip initialization)
-                    sub_type=dev.get('sub_type', None)  # Extract sub_type if present
+                    sub_type=dev.get('sub_type', None),  # Extract sub_type if present
+                    power_ctrl_device=dev.get('power_ctrl_device', None)  # Extract power_ctrl_device if present
                 ))
 
             except ValueError as e:

@@ -216,6 +216,7 @@ Board Manager's device names are recommended for user projects, while peripheral
 | `lcd_brightness` | LCD brightness control |
 | `gpio_expander` | GPIO expander device |
 | `camera_sensor` | Camera device |
+| `power_ctrl` | Power control device |
 
 ## YAML Configuration Rules
 For detailed YAML configuration rules and format specifications, please refer to [Device and Peripheral Rules](docs/device_and_peripheral_rules.md).
@@ -426,6 +427,7 @@ When multiple boards with the same name exist across different paths, the ESP Bo
 | [Custom Device](devices/dev_custom/README.md)  | custom | - | - | any | ✅ | User-defined custom device | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
 | GPIO Expander | gpio_expander | - | TCA9554/TCA95XX/HT8574 | i2c | ✅ | GPIO expander | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
 | Camera Sensor | camera | - | - | i2c | ✅ | Camera sensor | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
+| Power Control | power_ctrl | gpio | - | gpio | ✅ | Power Control Device | [`dev_power_ctrl.yaml`](devices/dev_power_ctrl/dev_power_ctrl.yaml) |
 
 > For the same device, we no longer distinguish different device types by interface type, for example, `dev_fatfs_sdcard` and `dev_fatfs_sdcard_spi` will be unified under fs_fat for management, `dev_display_lcd_spi` will also be changed to use `dev_display_lcd` for management.
 > These three device types will be deprecated in future versions. Users can refer to [`dev_fatfs_sdcard.yaml`](./devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml), [`dev_fatfs_sdcard_spi.yaml`](./devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml), and [`dev_display_lcd_spi.yaml`](./devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) to learn how to migrate their original configurations to the new device types

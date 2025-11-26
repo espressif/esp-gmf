@@ -108,6 +108,7 @@ devices:
           vsync_pulse_width : 1
           vsync_front_porch : 20
       peripherals:
+      - name: ldo_mipi
       - name: dsi_display
 
   # Touch Panel Configuration

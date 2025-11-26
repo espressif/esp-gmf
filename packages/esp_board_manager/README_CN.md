@@ -216,6 +216,7 @@ Board Manager 的设备名称推荐用于用户项目，而外设名称不推荐
 | `lcd_brightness` | LCD 亮度控制 |
 | `gpio_expander` | GPIO 扩展芯片 |
 | `camera_sensor` | 摄像头设备 |
+| `power_ctrl` | 电源控制设备 |
 
 ## YAML 配置规则
 有关详细的 YAML 配置规则和格式规范，请参阅 [设备和外设规则](docs/device_and_peripheral_rules.md)。
@@ -426,6 +427,8 @@ ESP Board Manager 支持通过三个不同的路径位置进行板级配置，�
 | [自定义设备](devices/dev_custom/README.md) | custom | - | - | any | ✅ | 用户定义的自定义设备 | [`dev_custom.yaml`](devices/dev_custom/dev_custom.yaml) |
 | GPIO 扩展芯片 | gpio_expander | - | TCA9554/TCA95XX/HT8574 | i2c | ✅ | GPIO 扩展芯片 | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) |
 | 摄像头 | camera | - | - | i2c | ✅ | 摄像头设备 | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) |
+| 电源控制设备 | power_ctrl | gpio | - | gpio | ✅ | 电源控制设备 | [`dev_power_ctrl.yaml`](devices/dev_power_ctrl/dev_power_ctrl.yaml) |
+
 
 > 对于同一设备，我们将不再通过接口类型来区分不同的设备类型。例如，`dev_fatfs_sdcard` 和 `dev_fatfs_sdcard_spi` 将统一在 fs_fat 下进行管理，`dev_display_lcd_spi` 也将改为使用 `dev_display_lcd` 进行管理。
 > 这三种设备类型将在未来版本中被弃用。用户可以参照 [`dev_fatfs_sdcard.yaml`](./devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml)、[`dev_fatfs_sdcard_spi.yaml`](./devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) 和 [`dev_display_lcd_spi.yaml`](./devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) 文件，了解如何将原有配置迁移到新的设备类型。

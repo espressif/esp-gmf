@@ -69,6 +69,18 @@ function(get_device_sources sources includes)
         list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fatfs_sdcard_spi")
     endif()
 
+    if(CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUPPORT)
+        list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_power_ctrl/dev_power_ctrl.c")
+        if(CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUB_GPIO_SUPPORT)
+            list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_power_ctrl/dev_power_ctrl_sub_gpio.c")
+        endif()
+        if(CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUB_LDO_SUPPORT)
+            list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_power_ctrl/dev_power_ctrl_sub_ldo.c")
+
+        endif()
+        list(APPEND incs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_power_ctrl")
+    endif()
+
     if(CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT)
         list(APPEND srcs "${CMAKE_CURRENT_LIST_DIR}/devices/dev_fs_fat/dev_fs_fat.c")
         if(CONFIG_ESP_BOARD_DEV_FS_FAT_SUB_SDMMC_SUPPORT)

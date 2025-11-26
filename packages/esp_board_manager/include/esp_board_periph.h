@@ -8,10 +8,13 @@
 #pragma once
 
 #include "esp_err.h"
+#include "esp_board_extra_func_entry.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif  /* __cplusplus */
+
+#define PERIPHERAL_EXTRA_FUNC_REGISTER(name, extra_func) EXTRA_FUNC_IMPLEMENT(name, extra_func)
 
 /**
  * @brief  Function pointer type for peripheral initialization

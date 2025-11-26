@@ -23,7 +23,11 @@ extern esp_err_t lcd_panel_factory_entry_t(esp_lcd_panel_io_handle_t io, const e
 int dev_display_lcd_sub_spi_init(void *cfg, int cfg_size, void **device_handle)
 {
     dev_display_lcd_config_t *lcd_cfg = (dev_display_lcd_config_t *)cfg;
-    dev_display_lcd_handles_t *lcd_handles = (dev_display_lcd_handles_t *)*device_handle;
+    dev_display_lcd_handles_t *lcd_handles = calloc(1, sizeof(dev_display_lcd_handles_t));
+    if (lcd_handles == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate memory for dev_display_lcd_sub_spi");
+        return -1;
+    }
 
     ESP_LOGI(TAG, "Initializing SPI LCD display: %s, chip: %s", lcd_cfg->name, lcd_cfg->chip);
     periph_spi_handle_t *spi_handle = NULL;
@@ -31,11 +35,11 @@ int dev_display_lcd_sub_spi_init(void *cfg, int cfg_size, void **device_handle)
         int ret = esp_board_periph_ref_handle(lcd_cfg->sub_cfg.spi.spi_name, (void **)&spi_handle);
         if (ret != 0) {
             ESP_LOGE(TAG, "Failed to get SPI peripheral handle: %d", ret);
-            return -1;
+            goto cleanup;
         }
     } else {
         ESP_LOGE(TAG, "No SPI name configured for LCD display: %s", lcd_cfg->name);
-        return -1;
+        goto cleanup;
     }
 
     ESP_LOGD(TAG, "SPI PORT:%d, cs_gpio=%d, dc_gpio=%d, spi_mode=%d, pclk_hz=%d, trans_queue_depth=%d, lcd_cmd_bits=%d, lcd_param_bits=%d, cs_ena_pretrans=%d, cs_ena_posttrans=%d, flags: dc_high_on_cmd=%d, dc_low_on_data=%d, dc_low_on_param=%d, octal_mode=%d, quad_mode=%d, sio_mode=%d, lsb_first=%d, cs_high_active=%d",
@@ -63,7 +67,7 @@ int dev_display_lcd_sub_spi_init(void *cfg, int cfg_size, void **device_handle)
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create LCD panel IO: %s", esp_err_to_name(ret));
         esp_board_periph_unref_handle(lcd_cfg->sub_cfg.spi.spi_name);
-        return -1;
+        goto cleanup;
     }
 
     ret = lcd_panel_factory_entry_t(lcd_handles->io_handle, &lcd_cfg->sub_cfg.spi.panel_config, &lcd_handles->panel_handle);
@@ -71,10 +75,13 @@ int dev_display_lcd_sub_spi_init(void *cfg, int cfg_size, void **device_handle)
         ESP_LOGE(TAG, "Failed to create LCD panel: %s", esp_err_to_name(ret));
         esp_lcd_panel_io_del(lcd_handles->io_handle);
         esp_board_periph_unref_handle(lcd_cfg->sub_cfg.spi.spi_name);
-        return -1;
+        goto cleanup;
     }
-
+    *device_handle = lcd_handles;
     return 0;
+cleanup:
+    free(lcd_handles);
+    return -1;
 }
 
 int dev_display_lcd_sub_spi_deinit(void *device_handle)
@@ -89,6 +96,7 @@ int dev_display_lcd_sub_spi_deinit(void *device_handle)
     esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
     if (cfg == NULL) {
         ESP_LOGE(TAG, "Failed to get device config");
+        free(device_handle);
         return -1;
     }
 
@@ -103,6 +111,7 @@ int dev_display_lcd_sub_spi_deinit(void *device_handle)
     }
 
     esp_board_periph_unref_handle(cfg->sub_cfg.spi.spi_name);
+    free(device_handle);
     return 0;
 }
 

@@ -3,15 +3,14 @@ chip: esp32
 version: 1.0.0
 # Devices Configuration
 devices:
-  # SD Card Power Control
-  - name: sd_power
-    type: gpio_ctrl
-    version: default
+  # Power Control for SD Card
+  - name: sdcard_power_ctrl
+    type: power_ctrl
+    sub_type: gpio
     config:
-      active_level: 0              # Low level to enable power
-      default_level: 1             # Default to power off
-    peripherals:
-      - name: gpio_sd_power              # SDCARD_PWR_CTRL
+      peripherals:
+        - name: gpio_sd_power
+          active_level: 0
 
   # Audio Codec (ES8311) - DAC for audio output
   - name: audio_dac
@@ -64,3 +63,4 @@ devices:
         clk: 14
         cmd: 15
         d0: 2
+    power_ctrl_device: sdcard_power_ctrl

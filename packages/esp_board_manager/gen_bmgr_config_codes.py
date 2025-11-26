@@ -576,6 +576,8 @@ help
                 struct_var = 'esp_bmgr_' + d.name.replace('-', '_') + '_cfg'
                 # Get init_skip value, default to false (do not skip initialization)
                 init_skip = getattr(d, 'init_skip', False)
+                # Get power_ctrl_device value, default to None
+                power_ctrl_device = getattr(d, 'power_ctrl_device', None)
                 f.write('    {\n')
                 f.write(f'        .next = {next_str},\n')
                 f.write(f'        .name = "{d.name}",\n')
@@ -583,6 +585,9 @@ help
                 f.write(f'        .cfg = &{struct_var},\n')
                 f.write(f'        .cfg_size = sizeof({struct_var}),\n')
                 f.write(f'        .init_skip = {str(init_skip).lower()},\n')
+                # Only write power_ctrl_device if it's configured
+                if power_ctrl_device is not None:
+                    f.write(f'        .power_ctrl_device = "{(d.power_ctrl_device)}",\n')
                 f.write('    },\n')
             f.write('};\n')
 
