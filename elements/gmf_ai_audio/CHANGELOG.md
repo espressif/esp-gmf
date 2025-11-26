@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.4
+
+### Bug Fixes
+
+- Fixed a crash issue that occurred when the AFE manager was destroyed.
+
 ## v0.7.3
 
 ### Features
