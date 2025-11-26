@@ -48,6 +48,7 @@ typedef struct __afe {
     esp_gmf_afe_manager_features_t  feat;          /*!< AFE feature state */
     EventGroupHandle_t              ctrl_events;   /*!< Control events */
     SemaphoreHandle_t               read_cb_lock;  /*!< Mutex for read callback */
+    SemaphoreHandle_t               result_cb_lock;/*!< Mutex for result callback */
     esp_afe_sr_iface_t             *esp_afe;       /*!< AFE interface */
 } esp_gmf_afe_manager_t;
 
@@ -72,8 +73,11 @@ static void feed_task(void *arg)
         if (bits & AFE_DESTROYING_EVENT) {
             break;
         }
+        int rlen = 0;
         xSemaphoreTake(afe_manager->read_cb_lock, portMAX_DELAY);
-        int rlen = afe_manager->read_cb(buf, buf_size, afe_manager->read_ctx, pdMS_TO_TICKS(500));
+        if (afe_manager->read_cb) {
+            rlen = afe_manager->read_cb(buf, buf_size, afe_manager->read_ctx, pdMS_TO_TICKS(500));
+        }
         xSemaphoreGive(afe_manager->read_cb_lock);
         if (rlen == buf_size) {
             afe_manager->esp_afe->feed(afe_manager->afe_data, buf);
@@ -101,9 +105,11 @@ static void fetch_task(void *arg)
             break;
         }
         afe_fetch_result_t *result = afe_manager->esp_afe->fetch(afe_manager->afe_data);
+        xSemaphoreTake(afe_manager->result_cb_lock, portMAX_DELAY);
         if (afe_manager->result_proc != NULL) {
             afe_manager->result_proc(result, afe_manager->result_ctx);
         }
+        xSemaphoreGive(afe_manager->result_cb_lock);
     }
     xEventGroupSetBits(afe_manager->ctrl_events, FETCH_TASK_DESTROYED);
     vTaskDelete(NULL);
@@ -113,8 +119,10 @@ esp_gmf_err_t esp_gmf_afe_manager_set_result_cb(esp_gmf_afe_manager_handle_t han
 {
     esp_gmf_afe_manager_t *afe_manager = (esp_gmf_afe_manager_t *)handle;
     ESP_RETURN_ON_FALSE(afe_manager, ESP_GMF_ERR_INVALID_ARG, TAG, "AFE set result cb invalid handle");
+    xSemaphoreTake(afe_manager->result_cb_lock, portMAX_DELAY);
     afe_manager->result_proc = proc;
     afe_manager->result_ctx = ctx;
+    xSemaphoreGive(afe_manager->result_cb_lock);
     return ESP_GMF_ERR_OK;
 }
 
@@ -133,13 +141,19 @@ esp_gmf_err_t esp_gmf_afe_manager_destroy(esp_gmf_afe_manager_handle_t handle)
         afe_manager->fetch.running = false;
         wait_bits |= FETCH_TASK_DESTROYED;
     }
-    EventBits_t bits = xEventGroupWaitBits(afe_manager->ctrl_events, wait_bits, true, true, pdMS_TO_TICKS(1000));
-    ESP_LOGD(TAG, "AFE destroy wait bits %" PRIu32, bits);
+    EventBits_t bits = xEventGroupWaitBits(afe_manager->ctrl_events, wait_bits, true, true, portMAX_DELAY);
+    if ((bits & wait_bits) != wait_bits) {
+        ESP_LOGE(TAG, "AFE destroy wait bits timeout %" PRIu32, bits);
+        return ESP_GMF_ERR_TIMEOUT;
+    }
     if (afe_manager->ctrl_events) {
         vEventGroupDelete(afe_manager->ctrl_events);
     }
     if (afe_manager->read_cb_lock) {
         vSemaphoreDelete(afe_manager->read_cb_lock);
+    }
+    if (afe_manager->result_cb_lock) {
+        vSemaphoreDelete(afe_manager->result_cb_lock);
     }
     if (afe_manager->afe_data) {
         afe_manager->esp_afe->destroy(afe_manager->afe_data);
@@ -173,6 +187,8 @@ esp_gmf_err_t esp_gmf_afe_manager_create(esp_gmf_afe_manager_cfg_t *cfg, esp_gmf
 
     afe_manager->read_cb_lock = xSemaphoreCreateMutex();
     ESP_GOTO_ON_FALSE(afe_manager->read_cb_lock, ESP_GMF_ERR_MEMORY_LACK, __err, TAG, "AFE manager create mutex failed");
+    afe_manager->result_cb_lock = xSemaphoreCreateMutex();
+    ESP_GOTO_ON_FALSE(afe_manager->result_cb_lock, ESP_GMF_ERR_MEMORY_LACK, __err, TAG, "AFE manager create mutex failed");
 
     if (afe_manager->read_cb) {
         xEventGroupSetBits(afe_manager->ctrl_events, AFE_RUN_EVENT);
@@ -330,10 +346,10 @@ esp_gmf_err_t esp_gmf_afe_manager_set_read_cb(esp_gmf_afe_manager_handle_t handl
     xSemaphoreTake(afe_manager->read_cb_lock, portMAX_DELAY);
     afe_manager->read_cb = read_cb;
     afe_manager->read_ctx = read_ctx;
-    xSemaphoreGive(afe_manager->read_cb_lock);
     if (afe_manager->read_cb) {
         esp_gmf_afe_manager_suspend(afe_manager, false);
     }
+    xSemaphoreGive(afe_manager->read_cb_lock);
     return ESP_GMF_ERR_OK;
 }
 
