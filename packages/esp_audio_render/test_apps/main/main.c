@@ -105,6 +105,11 @@ TEST_CASE("Audio Render with no pool", "[esp_audio_render]")
     TEST_ESP_OK(audio_render_with_no_pool(20));
 }
 
+TEST_CASE("Audio Render with solo", "[esp_audio_render]")
+{
+    TEST_ESP_OK(audio_render_dual_stream_solo(20));
+}
+
 #endif  /* TEST_USE_UNITY */
 
 void app_main(void)

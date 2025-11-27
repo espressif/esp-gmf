@@ -41,6 +41,7 @@ typedef uint8_t esp_audio_render_stream_id_t;
 #define ESP_AUDIO_RENDER_STREAM_ID(n)   ((esp_audio_render_stream_id_t)(n))
 #define ESP_AUDIO_RENDER_FIRST_STREAM   ESP_AUDIO_RENDER_STREAM_ID(0)
 #define ESP_AUDIO_RENDER_SECOND_STREAM  ESP_AUDIO_RENDER_STREAM_ID(1)
+#define ESP_AUDIO_RENDER_ALL_STREAM     ESP_AUDIO_RENDER_STREAM_ID(0xFF)
 
 /**
  * @brief  Audio render handle
@@ -185,6 +186,23 @@ esp_audio_render_err_t esp_audio_render_add_mixed_proc(esp_audio_render_handle_t
 esp_audio_render_err_t esp_audio_render_get_mixed_element(esp_audio_render_handle_t render,
                                                           esp_audio_render_proc_type_t proc_type,
                                                           esp_gmf_element_handle_t *element);
+
+/**
+ * @brief  Enable or disable solo play mode for a specific audio stream
+ *
+ * @note   In solo mode, the audio renderer bypasses the mixer and plays only the specified stream
+ *         - Can be called anytime during runtime
+ *         - Set `stream_id` to `ESP_AUDIO_RENDER_ALL_STREAM` to disable solo mode and re-enable mixing
+ *
+ * @param[in]   render     Audio render handle
+ * @param[in]   stream_id  Stream identification
+ *
+ * @return
+ *       - ESP_AUDIO_RENDER_ERR_OK           On success
+ *       - ESP_AUDIO_RENDER_ERR_INVALID_ARG  Invalid input argument
+ */
+esp_audio_render_err_t esp_audio_render_set_solo_stream(esp_audio_render_handle_t render,
+                                                        esp_audio_render_stream_id_t stream_id);
 
 /**
  * @brief  Get stream handle by stream identification

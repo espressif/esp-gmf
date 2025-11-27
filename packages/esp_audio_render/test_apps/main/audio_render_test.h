@@ -30,6 +30,8 @@ int audio_render_dual_stream_one_slow(int write_count);
 
 int audio_render_with_no_pool(int write_count);
 
+int audio_render_dual_stream_solo(int write_count);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

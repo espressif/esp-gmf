@@ -36,7 +36,6 @@
 
 #define SAMPLE_SIZE(sample_info)            (sample_info.bits_per_sample * sample_info.channel / 8)
 #define SAMPLE_SIZE_PER_SECOND(sample_info) (sample_info.sample_rate * SAMPLE_SIZE(sample_info))
-#define SAME_SAMPLE_INFO(a, b)              (a.sample_rate == b.sample_rate && a.bits_per_sample == b.bits_per_sample && a.channel == b.channel)
 #define AAC_FRAME_SAMPLES                   (1024)
 #define ELEMS(arr)                          sizeof(arr)/sizeof(arr[0])
 #define DEFAULT_MIXER_INTERVAL              (20)
@@ -1100,5 +1099,138 @@ int audio_render_with_no_pool(int write_count)
     if (render) {
         esp_audio_render_destroy(render);
     }
+    return success ? 0 : -1;
+}
+
+
+static int render_solo_verify_hdlr(uint8_t *pcm_data, uint32_t len, void *ctx)
+{
+    render_out_res_t *res = (render_out_res_t*)ctx;
+    res->actual_samples[0] = pcm_data[0];
+    res->actual_samples[1] = pcm_data[len - 1];
+    vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL));
+    return 0;
+}
+
+int audio_render_dual_stream_solo(int write_count)
+{
+    render_out_res_t res = {};
+    // Force to use mixer
+    esp_audio_render_cfg_t cfg = {
+        .max_stream_num = 2,
+        .out_sample_info = {
+            .sample_rate = 8000,
+            .bits_per_sample = 16,
+            .channel = 2,
+        },
+        .out_writer = render_solo_verify_hdlr,
+        .out_ctx = &res,
+    };
+    create_default_pool((esp_gmf_pool_handle_t*)&cfg.pool);
+    esp_audio_render_err_t ret;
+    esp_audio_render_handle_t render = NULL;
+    bool success = false;
+    // Force input and out sample info same to verify data
+    esp_audio_render_sample_info_t in_sample_info = {
+        .sample_rate = 8000,
+        .bits_per_sample = 16,
+        .channel = 2,
+    };
+    uint8_t actual_data[2];
+    res.actual_samples = actual_data;
+    int frame_size = DEFAULT_MIXER_INTERVAL * in_sample_info.sample_rate / 1000 * SAMPLE_SIZE(in_sample_info);
+    uint8_t *write_data = (uint8_t*)calloc(1, frame_size);
+    do {
+        if (write_data == NULL) {
+            BREAK_ON_FAIL(ESP_AUDIO_RENDER_ERR_NO_MEM);
+        }
+        ret = esp_audio_render_create(&cfg, &render);
+        BREAK_ON_FAIL(ret);
+
+        ret = esp_audio_render_set_event_cb(render, render_event_hdlr, &res);
+        BREAK_ON_FAIL(ret);
+
+        esp_audio_render_stream_handle_t stream[2] = {NULL};
+        esp_audio_render_stream_get(render, ESP_AUDIO_RENDER_FIRST_STREAM, &stream[0]);
+        BREAK_ON_FAIL(stream[0] == NULL);
+        esp_audio_render_stream_get(render, ESP_AUDIO_RENDER_SECOND_STREAM, &stream[1]);
+        BREAK_ON_FAIL(stream[1] == NULL);
+
+        ret = esp_audio_render_stream_open(stream[0], &in_sample_info);
+        BREAK_ON_FAIL(ret);
+        ret = esp_audio_render_stream_open(stream[1], &in_sample_info);
+        BREAK_ON_FAIL(ret);
+        uint8_t stream_value[2] = {16, 48};
+        // Wait for enter stable status
+        for (int i = 0; i < 20; i++) {
+            ret = esp_audio_render_stream_write(stream[0], write_data, frame_size);
+            BREAK_ON_FAIL(ret);
+        }
+        vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL));
+        ret = esp_audio_render_set_solo_stream(render, ESP_AUDIO_RENDER_FIRST_STREAM);
+        BREAK_ON_FAIL(ret);
+
+        memset(write_data, stream_value[0], frame_size);
+        ret = esp_audio_render_stream_write(stream[0], write_data, frame_size);
+        BREAK_ON_FAIL(ret);
+        memset(write_data, stream_value[1], frame_size);
+        ret = esp_audio_render_stream_write(stream[1], write_data, frame_size);
+        BREAK_ON_FAIL(ret);
+        if (actual_data[0] != stream_value[0] || actual_data[1] != stream_value[0]) {
+            ESP_LOGE(TAG, "First stream expect %d but get %d-%d", stream_value[0], actual_data[0], actual_data[1]);
+            ret = -1;
+            BREAK_ON_FAIL(ret);
+        }
+
+        ret = esp_audio_render_set_solo_stream(render, ESP_AUDIO_RENDER_SECOND_STREAM);
+        BREAK_ON_FAIL(ret);
+        memset(write_data, stream_value[1], frame_size);
+        ret = esp_audio_render_stream_write(stream[1], write_data, frame_size);
+        BREAK_ON_FAIL(ret);
+        memset(write_data, stream_value[0], frame_size);
+        ret = esp_audio_render_stream_write(stream[0], write_data, frame_size);
+        BREAK_ON_FAIL(ret);
+        if (actual_data[0] != stream_value[1] || actual_data[1] != stream_value[1]) {
+            ESP_LOGE(TAG, "Second stream expect %d but get %d-%d", stream_value[1], actual_data[0], actual_data[1]);
+            ret = -1;
+            BREAK_ON_FAIL(ret);
+        }
+
+        ret = esp_audio_render_set_solo_stream(render, ESP_AUDIO_RENDER_ALL_STREAM);
+        BREAK_ON_FAIL(ret);
+
+        for (int j = 0; j < 2; j++) {
+            for (int i = 0; i < 2; i++) {
+                memset(write_data, stream_value[i], frame_size);
+                ret = esp_audio_render_stream_write(stream[i], write_data, frame_size);
+                BREAK_ON_FAIL(ret);
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL));
+        uint8_t expected = (stream_value[0] + stream_value[1]) / 2;
+        #define IS_EXPECT(a, b) (a == b || a == b - 1)
+        if (!IS_EXPECT(actual_data[0], expected) || !IS_EXPECT(actual_data[1], expected)) {
+            ESP_LOGE(TAG, "Mixed stream expect %d but get %d-%d", expected, actual_data[0], actual_data[1]);
+            ret = -1;
+            BREAK_ON_FAIL(ret);
+        }
+        ret = esp_audio_render_stream_close(stream[0]);
+        BREAK_ON_FAIL(ret);
+        ret = esp_audio_render_stream_close(stream[1]);
+        BREAK_ON_FAIL(ret);
+         // Verify result
+        if (res.is_open == false || res.is_close == false) {
+            ESP_LOGE(TAG, "Failed to verify open:%d close:%d", res.is_open, res.is_close);
+            break;
+        }
+        success = true;
+    } while (0);
+    if (render) {
+        esp_audio_render_destroy(render);
+    }
+    if (write_data) {
+        free(write_data);
+    }
+    destroy_default_pool((esp_gmf_pool_handle_t)cfg.pool);
     return success ? 0 : -1;
 }
