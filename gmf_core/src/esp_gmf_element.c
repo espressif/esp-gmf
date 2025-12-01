@@ -17,6 +17,25 @@
 
 static const char *TAG = "ESP_GMF_ELEMENT";
 
+static void *s_load_mutex = NULL; // Static mutex for protecting caps and methods
+
+static inline esp_gmf_err_t _ensure_load_mutex(void)
+{
+    if (s_load_mutex == NULL) {
+        void *new_mutex = esp_gmf_oal_mutex_create();
+        if (new_mutex != NULL && s_load_mutex == NULL) {
+            s_load_mutex = new_mutex;
+        } else if (new_mutex != NULL) {
+            // Another thread created it first, destroy duplicate
+            esp_gmf_oal_mutex_destroy(new_mutex);
+        } else {
+            ESP_LOGE(TAG, "Failed to create load mutex");
+            return ESP_GMF_ERR_MEMORY_LACK;
+        }
+    }
+    return ESP_GMF_ERR_OK;
+}
+
 static inline int _get_port_cnt(esp_gmf_port_handle_t port)
 {
     int k = 0;
@@ -451,12 +470,25 @@ esp_gmf_err_t esp_gmf_element_get_method(esp_gmf_element_handle_t handle, const 
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, mthd, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
-    if ((el->method == NULL) && el->ops.load_methods) {
-        int ret = el->ops.load_methods(handle);
+    if (el->method != NULL) {
+        *mthd = el->method;
+        return ESP_GMF_ERR_OK;
+    }
+    if (el->ops.load_methods) {
+        esp_gmf_err_t ret = _ensure_load_mutex();
         if (ret != ESP_GMF_ERR_OK) {
-            ESP_LOGE(TAG, "Load method failed, ret:%x, [%p-%s]\r\n", ret, el, OBJ_GET_TAG(el));
             return ret;
         }
+        esp_gmf_oal_mutex_lock(s_load_mutex);
+        if (el->method == NULL) {
+            ret = el->ops.load_methods(handle);
+            if (ret != ESP_GMF_ERR_OK) {
+                esp_gmf_oal_mutex_unlock(s_load_mutex);
+                ESP_LOGE(TAG, "Load method failed, ret:%x, [%p-%s]\r\n", ret, el, OBJ_GET_TAG(el));
+                return ret;
+            }
+        }
+        esp_gmf_oal_mutex_unlock(s_load_mutex);
     }
     *mthd = el->method;
     return ESP_GMF_ERR_OK;
@@ -467,12 +499,25 @@ esp_gmf_err_t esp_gmf_element_get_caps(esp_gmf_element_handle_t handle, const es
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, caps, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
-    if ((el->caps == NULL) && el->ops.load_caps) {
-        int ret = el->ops.load_caps(handle);
+    if (el->caps != NULL) {
+        *caps = el->caps;
+        return ESP_GMF_ERR_OK;
+    }
+    if (el->ops.load_caps) {
+        esp_gmf_err_t ret = _ensure_load_mutex();
         if (ret != ESP_GMF_ERR_OK) {
-            ESP_LOGE(TAG, "Load caps failed, ret:%x, [%p-%s]\r\n", ret, el, OBJ_GET_TAG(el));
             return ret;
         }
+        esp_gmf_oal_mutex_lock(s_load_mutex);
+        if (el->caps == NULL) {
+            ret = el->ops.load_caps(handle);
+            if (ret != ESP_GMF_ERR_OK) {
+                esp_gmf_oal_mutex_unlock(s_load_mutex);
+                ESP_LOGE(TAG, "Load caps failed, ret:%x, [%p-%s]\r\n", ret, el, OBJ_GET_TAG(el));
+                return ret;
+            }
+        }
+        esp_gmf_oal_mutex_unlock(s_load_mutex);
     }
     *caps = el->caps;
     return ESP_GMF_ERR_OK;

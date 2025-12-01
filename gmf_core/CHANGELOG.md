@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.7.6
+
+### Bug Fixes
+
+- Fixed racing condition when load method and capability
+- Fixed dependency and non-dependency element wrong open order
+- Refine some warning log output
+- Correct logic for API `esp_gmf_pipeline_get_next_el`
+
 ## v0.7.5
 
 ### Features

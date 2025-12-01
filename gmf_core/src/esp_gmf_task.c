@@ -489,7 +489,7 @@ esp_gmf_err_t esp_gmf_task_stop(esp_gmf_task_handle_t handle)
     if ((tsk->state != ESP_GMF_EVENT_STATE_RUNNING)
         && (tsk->state != ESP_GMF_EVENT_STATE_PAUSED)) {
         esp_gmf_oal_mutex_unlock(tsk->lock);
-        ESP_LOGW(TAG, "Already stopped, %s, [%s,%p]", esp_gmf_event_get_state_str(tsk->state), OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
+        ESP_LOGD(TAG, "Already stopped, %s, [%s,%p]", esp_gmf_event_get_state_str(tsk->state), OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         return ESP_GMF_ERR_OK;
     }
     if ((tsk->_task_run == false)) {

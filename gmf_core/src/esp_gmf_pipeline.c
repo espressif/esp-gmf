@@ -45,7 +45,7 @@ static inline esp_gmf_err_t register_working_jobs_to_task(esp_gmf_pipeline_handl
         return ESP_GMF_ERR_NOT_READY;
     }
     if (pipeline->thread == NULL) {
-        ESP_LOGW(TAG, "There is no thread for add jobs, pipe:%p, tsk:%p, [el:%s-%p]", pipeline, pipeline->thread, OBJ_GET_TAG(el), el);
+        ESP_LOGD(TAG, "There is no thread for add jobs, pipe:%p, tsk:%p, [el:%s-%p]", pipeline, pipeline->thread, OBJ_GET_TAG(el), el);
         esp_gmf_oal_mutex_unlock(pipeline->lock);
         return ESP_GMF_ERR_NOT_SUPPORT;
     }
@@ -71,6 +71,10 @@ static inline void _set_pipe_linked_el_state(esp_gmf_pipeline_handle_t pipeline,
         esp_gmf_event_state_t st = ESP_GMF_EVENT_STATE_NONE;
         esp_gmf_element_get_state(next_el, &st);
         if (st == ESP_GMF_EVENT_STATE_INITIALIZED) {
+            if (event == ESP_GMF_EVENT_STATE_OPENING) {
+                // Never force opening
+                break;
+            }
             esp_gmf_element_set_state(next_el, event);
         }
         next_el = (esp_gmf_element_handle_t)esp_gmf_node_for_next((esp_gmf_node_t *)next_el);
@@ -211,6 +215,7 @@ static esp_gmf_err_t pipeline_element_events(esp_gmf_event_pkt_t *evt, void *ctx
     if (evt->type == ESP_GMF_EVT_TYPE_REPORT_INFO) {
         if (next_el) {
             esp_gmf_element_handle_t tmp = next_el;
+            // Get first non-opening element
             while (tmp) {
                 esp_gmf_event_state_t st = ESP_GMF_EVENT_STATE_NONE;
                 esp_gmf_element_get_state(tmp, &st);
@@ -356,8 +361,11 @@ esp_gmf_err_t esp_gmf_pipeline_loading_jobs(esp_gmf_pipeline_handle_t pipeline)
     esp_gmf_element_handle_t el = pipeline->head_el;
     do {
         int ret = register_working_jobs_to_task(pipeline, el);
-        if ((ret != ESP_GMF_ERR_OK) && (el == pipeline->head_el)) {
-            ESP_LOGW(TAG, "The first element not ready to register job, ret:0x%x", ret);
+        if (ret != ESP_GMF_ERR_OK) {
+            // Not load all following element job if current is not ready yet
+            if (el == pipeline->head_el) {
+                ESP_LOGW(TAG, "Element[%s-%p] not ready to register job, ret:0x%x", OBJ_GET_TAG(el), el, ret);
+            }
             break;
         }
         node = (esp_gmf_node_t *)el;
@@ -640,7 +648,7 @@ esp_gmf_err_t esp_gmf_pipeline_get_next_el(esp_gmf_pipeline_handle_t pipeline, e
     ESP_GMF_NULL_CHECK(TAG, head, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, next, return ESP_GMF_ERR_INVALID_ARG);
     *next = (esp_gmf_element_handle_t)esp_gmf_node_for_next((esp_gmf_node_t *)head);
-    return ESP_GMF_ERR_OK;
+    return *next ? ESP_GMF_ERR_OK : ESP_GMF_ERR_NOT_FOUND;
 }
 
 esp_gmf_err_t esp_gmf_pipeline_get_el_by_name(esp_gmf_pipeline_handle_t pipeline, const char *tag, esp_gmf_element_handle_t *out_handle)
