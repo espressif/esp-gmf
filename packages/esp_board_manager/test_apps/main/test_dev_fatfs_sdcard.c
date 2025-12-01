@@ -7,6 +7,12 @@
 #include "esp_board_device.h"
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
+#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
+#include "dev_fatfs_sdcard.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT */
+#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT
+#include "dev_fatfs_sdcard_spi.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT */
 
 static const char *TAG = "TEST_SDCARD";
 
@@ -58,14 +64,20 @@ void test_sdcard(void)
     } else {
         ESP_LOGE(TAG, "Failed to read test file: %s", strerror(errno));
     }
-    sdmmc_card_t *card = NULL;
-    ret = esp_board_device_get_handle("fs_sdcard", (void **)&card);
+
+#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
+    dev_fatfs_sdcard_handle_t *fs_sdcard_handle = NULL;
+#endif
+#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT
+    dev_fatfs_sdcard_spi_handle_t *fs_sdcard_handle = NULL;
+#endif
+    ret = esp_board_device_get_handle("fs_sdcard", (void **)&fs_sdcard_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get SD card handle");
         return;
     }
     /* Print SD card information */
-    sdmmc_card_print_info(stdout, card);
+    sdmmc_card_print_info(stdout, fs_sdcard_handle->card);
 
     /* List directory contents */
     ESP_LOGI(TAG, "SD card root directory contents:");

@@ -20,8 +20,8 @@ idf_component_register(
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT}>:test_dev_camera.c>
 
         # Audio board manager test (conditionally included based on SD card support)
-        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>>:test_board_mgr_audio_sdcard.c>
-        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<NOT:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>>>:test_board_mgr_audio_embed.c>
+        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT}>>>:test_board_mgr_audio_sdcard.c>
+        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<NOT:$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT}>>>>:test_board_mgr_audio_embed.c>
 
         # Utility files (conditionally included)
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>:wav_header.c>

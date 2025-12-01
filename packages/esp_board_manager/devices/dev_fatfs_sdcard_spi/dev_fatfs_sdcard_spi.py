@@ -91,14 +91,14 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     allocation_unit_size = vfs_config.get('allocation_unit_size', config.get('allocation_unit_size', 16384))
 
     # Get frequency from YAML with validation
-    frequency_raw = config.get('frequency', 'SDMMC_FREQ_HIGHSPEED')
-    frequency = get_enum_value(frequency_raw, 'SDMMC_FREQ_HIGHSPEED', 'frequency')
+    frequency_raw = config.get('frequency', 'SDMMC_FREQ_DEFAULT')
+    frequency = get_enum_value(frequency_raw, 'SDMMC_FREQ_DEFAULT', 'frequency')
 
     # Get SPI configuration
     cs_gpio_num = config.get('cs_gpio_num', -1)  # Default not used
     if cs_gpio_num == -1:
         raise ValueError(f"Missing required 'cs_gpio_num' for SDCARD device '{name}' using SPI bus")
-    
+
     # Get SPI peripheral name
     peripherals = config.get('peripherals', [])
     spi_bus_name = ''
@@ -117,10 +117,10 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
                 raise ValueError(f"SPI SD card device {name} references undefined peripheral '{periph}'")
             spi_bus_name = periph
             break
-    
+
     if not spi_bus_name:
         raise ValueError(f"Missing required SPI peripheral for SDCARD device '{name}' using SPI bus. Please specify in 'peripherals'.")
-    
+
     # Build the result
     result = {
         'struct_type': 'dev_fatfs_sdcard_spi_config_t',
@@ -138,5 +138,5 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
             'cs_gpio_num': cs_gpio_num,
         }
     }
-    
+
     return result
