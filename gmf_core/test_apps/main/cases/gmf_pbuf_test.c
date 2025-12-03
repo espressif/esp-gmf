@@ -378,3 +378,86 @@ TEST_CASE("Abort when read task and write task thread safe test", "[ESP_GMF_PBUF
     esp_gmf_ut_teardown_sdmmc(card);
     ESP_LOGI(TAG, "%s,%d", __func__, __LINE__);
 }
+
+TEST_CASE("Abort when read task and write task thread safe test", "[ESP_GMF_PBUF]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("ESP_GMF_PBUF", ESP_LOG_INFO);
+    ESP_LOGI(TAG, "TEST Create GMF Pbuf");
+
+    sdmmc_card_t *card = NULL;
+    esp_gmf_ut_setup_sdmmc(&card);
+
+    task_is_done = false;
+    is_abort_read = false;
+    is_abort_write = false;
+    esp_gmf_pbuf_handle_t pbuf = NULL;
+    esp_gmf_pbuf_create(10, &pbuf);
+    ESP_LOGI(TAG, "TEST Create GMF, %p", pbuf);
+    TEST_ASSERT_NOT_NULL(pbuf);
+    xTaskCreate(read_task, "read", 4096, pbuf, 3, NULL);
+    xTaskCreate(write_task, "wr_to_file", 4096, pbuf, 3, NULL);
+    int timeout_ms = 100;
+    while (1) {
+        vTaskDelay(2 / portTICK_PERIOD_MS);
+        timeout_ms -= 2;
+        if (timeout_ms == 0) {
+            ESP_LOGI(TAG, "Calling abort after 100ms");
+            esp_gmf_pbuf_abort(pbuf);
+            vTaskDelay(50 / portTICK_PERIOD_MS);
+        }
+        if (task_is_done) {
+            break;
+        }
+    }
+    TEST_ASSERT_TRUE(is_abort_read);
+    TEST_ASSERT_TRUE(is_abort_write);
+    esp_gmf_pbuf_destroy(pbuf);
+    esp_gmf_ut_teardown_sdmmc(card);
+    ESP_LOGI(TAG, "%s,%d", __func__, __LINE__);
+}
+
+TEST_CASE("Abort when read task and write task thread safe test", "[ESP_GMF_PBUF]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("ESP_GMF_PBUF", ESP_LOG_INFO);
+    ESP_LOGI(TAG, "TEST Create GMF Pbuf");
+
+    sdmmc_card_t *card = NULL;
+    esp_gmf_ut_setup_sdmmc(&card);
+
+    esp_gmf_pbuf_handle_t pbuf = NULL;
+    esp_gmf_pbuf_create(10, &pbuf);
+    ESP_LOGI(TAG, "TEST Create GMF, %p", pbuf);
+    TEST_ASSERT_NOT_NULL(pbuf);
+    for (size_t i = 0; i < 3; i++) {
+        read_is_done = false;
+        write_is_done = false;
+        is_abort_read = false;
+        is_abort_write = false;
+        xTaskCreate(read_task, "read", 4096, pbuf, 3, NULL);
+        xTaskCreate(write_task, "wr_to_file", 4096, pbuf, 3, NULL);
+        int timeout_ms = 100 * ((i % 3) + 1);
+        while (1) {
+            vTaskDelay(10 / portTICK_PERIOD_MS);
+            timeout_ms -= 10;
+            if (timeout_ms == 0) {
+                esp_gmf_pbuf_abort(pbuf);
+                vTaskDelay(100 / portTICK_PERIOD_MS);
+            }
+            if (read_is_done && write_is_done) {
+                break;
+            }
+        }
+        if (write_run) {
+            TEST_ASSERT_TRUE(is_abort_read);
+        }
+        if (read_run) {
+            TEST_ASSERT_TRUE(is_abort_write);
+        }
+        esp_gmf_pbuf_reset(pbuf);
+    }
+    esp_gmf_pbuf_destroy(pbuf);
+    esp_gmf_ut_teardown_sdmmc(card);
+    ESP_LOGI(TAG, "%s,%d", __func__, __LINE__);
+}

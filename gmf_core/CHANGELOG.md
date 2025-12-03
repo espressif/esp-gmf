@@ -54,6 +54,18 @@
 - Refine some warning log output
 - Correct logic for API `esp_gmf_pipeline_get_next_el`
 
+## v0.7.7
+
+### Bug Fixes
+
+- Uniformed the `esp_gmf_db_abort` and `esp_gmf_db_done_write` behavior for all data_bus types
+- Uniformed the `esp_gmf_db_reset` behavior for all data_bus types
+- Fixed wrong return values for data_bus related api
+- Fixed incorrect comments for data_bus related api
+- Fixed create fifo data_bus use wrong handle type
+- Added unit test for `esp_gmf_db_abort`
+- Added `esp_gmf_db_reset` and `esp_gmf_db_done_write` in unit test
+
 ## v0.7.6
 
 ### Bug Fixes
