@@ -35,6 +35,12 @@ struct esp_gmf_ringbuffer {
 
 esp_gmf_err_t esp_gmf_rb_create(int block_size, int n_blocks, esp_gmf_rb_handle_t *handle)
 {
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    if ((n_blocks < 1)
+        || (block_size < 1)) {
+        ESP_LOGE(TAG, "Invalid parameters,cnt:%d, size:%d", n_blocks, block_size);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
     struct esp_gmf_ringbuffer *rb = NULL;
     *handle = NULL;
     bool _success = (
@@ -97,6 +103,8 @@ esp_gmf_err_t esp_gmf_rb_reset(esp_gmf_rb_handle_t handle)
     rb->is_done_write = 0;
     rb->abort_read = 0;
     rb->abort_write = 0;
+    xSemaphoreTake(rb->can_read, 0);
+    xSemaphoreTake(rb->can_write, 0);
     return ESP_GMF_ERR_OK;
 }
 
@@ -140,6 +148,7 @@ esp_gmf_err_io_t esp_gmf_rb_acquire_read(esp_gmf_rb_handle_t handle, esp_gmf_dat
             if (rb->is_done_write) {
                 blk->is_last = 1;
                 xSemaphoreGive(rb->lock);
+                ESP_LOGD(TAG, "ACQ_RD, write done, read_size is 0, p:%p", rb);
                 goto read_err;
             }
             if (rb->abort_read) {
@@ -155,9 +164,17 @@ esp_gmf_err_io_t esp_gmf_rb_acquire_read(esp_gmf_rb_handle_t handle, esp_gmf_dat
                 ret_val = ESP_GMF_IO_TIMEOUT;
                 goto read_err;
             }
+            if (rb->abort_read) {
+                ret_val = ESP_GMF_IO_ABORT;
+                goto read_err;
+            }
             continue;
         }
-
+        if (rb->abort_read) {
+            ret_val = ESP_GMF_IO_ABORT;
+            xSemaphoreGive(rb->lock);
+            goto read_err;
+        }
         if ((rb->p_r + read_size) > (rb->p_o + rb->size)) {
             int rlen1 = rb->p_o + rb->size - rb->p_r;
             int rlen2 = read_size - rlen1;
@@ -247,9 +264,19 @@ esp_gmf_err_io_t esp_gmf_rb_release_write(esp_gmf_rb_handle_t handle, esp_gmf_da
                 ESP_LOGD(TAG, "WR:%p, timeout:%d\r\n", rb, block_ticks);
                 goto write_err;
             }
+            if (rb->abort_write) {
+                ret_val = ESP_GMF_IO_ABORT;
+                ESP_LOGD(TAG, "WR:%p, abort\r\n", rb);
+                goto write_err;
+            }
             continue;
         }
-
+        if (rb->abort_write) {
+            ret_val = ESP_GMF_IO_ABORT;
+            xSemaphoreGive(rb->lock);
+            ESP_LOGD(TAG, "WR:%p, abort\r\n", rb);
+            goto write_err;
+        }
         if ((rb->p_w + write_size) > (rb->p_o + rb->size)) {
             int wlen1 = rb->p_o + rb->size - rb->p_w;
             int wlen2 = write_size - wlen1;

@@ -64,12 +64,12 @@ esp_gmf_err_t esp_gmf_pbuf_destroy(esp_gmf_pbuf_handle_t handle);
  * @param[in]   handle       Handle to the pointer buffer
  * @param[out]  blk          Pointer to the data bus block structure to store the acquired data
  * @param[in]   wanted_size  Desired size of data to be acquired
- * @param[in]   block_ticks  Ticks to wait for the operation
+ * @param[in]   block_ticks  Currently unused (reserved for callback compatibility)
  *
  * @return
- *       - > 0              The specific length of data being read
- *       - ESP_GMF_IO_OK    Operation succeeded
- *       - ESP_GMF_IO_FAIL  Invalid arguments, or no filled data
+ *       - ESP_GMF_IO_OK     Operation succeeded
+ *       - ESP_GMF_IO_FAIL   Invalid arguments, or no filled data
+ *       - ESP_GMF_IO_ABORT  Operation aborted
  */
 esp_gmf_err_io_t esp_gmf_pbuf_acquire_read(esp_gmf_pbuf_handle_t handle, esp_gmf_data_bus_block_t *blk, uint32_t wanted_size, int block_ticks);
 
@@ -82,11 +82,12 @@ esp_gmf_err_io_t esp_gmf_pbuf_acquire_read(esp_gmf_pbuf_handle_t handle, esp_gmf
  *
  * @param[in]  handle       Handle to the pointer buffer
  * @param[in]  blk          Pointer to the data bus block structure containing the data to be released
- * @param[in]  block_ticks  Ticks to wait for the operation
+ * @param[in]  block_ticks  Currently unused (reserved for callback compatibility)
  *
  * @return
- *       - ESP_GMF_IO_OK    Operation succeeded
- *       - ESP_GMF_IO_FAIL  Invalid arguments, or the buffer does not belong to the provided handle
+ *       - ESP_GMF_IO_OK     Operation succeeded
+ *       - ESP_GMF_IO_FAIL   Invalid arguments, or the buffer does not belong to the provided handle
+ *       - ESP_GMF_IO_ABORT  Operation aborted
  */
 esp_gmf_err_io_t esp_gmf_pbuf_release_read(esp_gmf_pbuf_handle_t handle, esp_gmf_data_bus_block_t *blk, int block_ticks);
 
@@ -101,12 +102,12 @@ esp_gmf_err_io_t esp_gmf_pbuf_release_read(esp_gmf_pbuf_handle_t handle, esp_gmf
  * @param[in]   handle       Handle to the pointer buffer
  * @param[out]  blk          Pointer to the data bus block structure to store the acquired space
  * @param[in]   wanted_size  Desired size of space to be acquired
- * @param[in]   block_ticks  Ticks to wait for the operation
+ * @param[in]   block_ticks  Currently unused (reserved for callback compatibility)
  *
  * @return
- *       - > 0              The specific length of space can be write
- *       - ESP_GMF_IO_OK    Operation succeeded, or it's done to write
- *       - ESP_GMF_IO_FAIL  Invalid arguments, or no filled data
+ *       - ESP_GMF_IO_OK     Operation succeeded, or it's done to write
+ *       - ESP_GMF_IO_FAIL   Invalid arguments, or no filled data
+ *       - ESP_GMF_IO_ABORT  Operation aborted
  */
 esp_gmf_err_io_t esp_gmf_pbuf_acquire_write(esp_gmf_pbuf_handle_t handle, esp_gmf_data_bus_block_t *blk, uint32_t wanted_size, int block_ticks);
 
@@ -119,11 +120,12 @@ esp_gmf_err_io_t esp_gmf_pbuf_acquire_write(esp_gmf_pbuf_handle_t handle, esp_gm
  *
  * @param[in]  handle       Handle to the pointer buffer
  * @param[in]  blk          Pointer to the data bus block structure containing the space to be released
- * @param[in]  block_ticks  Ticks to wait for the operation
+ * @param[in]  block_ticks  Currently unused (reserved for callback compatibility)
  *
  * @return
- *       - ESP_GMF_IO_OK    Operation succeeded
- *       - ESP_GMF_IO_FAIL  Invalid arguments, or the buffer does not belong to the provided handle
+ *       - ESP_GMF_IO_OK     Operation succeeded
+ *       - ESP_GMF_IO_FAIL   Invalid arguments, or the buffer does not belong to the provided handle
+ *       - ESP_GMF_IO_ABORT  Operation aborted
  */
 esp_gmf_err_io_t esp_gmf_pbuf_release_write(esp_gmf_pbuf_handle_t handle, esp_gmf_data_bus_block_t *blk, int block_ticks);
 

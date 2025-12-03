@@ -16,6 +16,8 @@
 
 static const char *TAG = "TEST_ESP_GMF_PBUF";
 static bool        task_is_done;
+static bool        is_abort_read;
+static bool        is_abort_write;
 static bool        read_run;
 static bool        write_run;
 
@@ -47,16 +49,21 @@ static void read_task(void *param)
             vTaskDelay(1);
             continue;
         }
+        if (ret == ESP_GMF_IO_ABORT) {
+            is_abort_write = true;
+            break;
+        }
         ret = fread(blk.buf, 1, blk.buf_length, f);
         ESP_LOGI(TAG, "Reading from file, ret:%d, buf:%p, len:%d", ret, blk.buf, blk.buf_length);
         blk.valid_size = ret;
-        if (ret != blk.buf_length) {
-            blk.is_last = true;
-            read_run = false;
-        }
         start_cnt = esp_clk_rtc_time();
         esp_gmf_pbuf_release_write(pbuf, &blk, 0);
         total_cnt += (esp_clk_rtc_time() - start_cnt);
+        if (ret != blk.buf_length) {
+            esp_gmf_pbuf_done_write(pbuf);
+            blk.is_last = true;
+            read_run = false;
+        }
     }
     fclose(f);
     esp_gmf_oal_free(buf);
@@ -85,6 +92,10 @@ static void write_task(void *param)
             // Pbuf is empty, waiting the buffer to be fill.
             vTaskDelay(1);
             continue;
+        }
+        if (ret == ESP_GMF_IO_ABORT) {
+            is_abort_read = true;
+            break;
         }
         total_cnt += (esp_clk_rtc_time() - start_cnt);
         ESP_LOGI(TAG, "Writing to file, ret:%d, buf:%p, len:%d", ret, blk.buf, blk.valid_size);
@@ -127,16 +138,16 @@ static void wr_rd_task(void *param)
         esp_gmf_pbuf_acquire_write(pbuf, &blk, read_len, portMAX_DELAY);
         int ret = fread(blk.buf, 1, blk.buf_length, f);
         blk.valid_size = ret;
-        if (ret != read_len) {
-            blk.is_last = true;
-            ESP_LOGE(TAG, "Reading, buf:%p,vld:%d, len:%d", blk.buf, blk.valid_size, blk.buf_length);
-
-        } else {
-            ESP_LOGI(TAG, "Reading, buf:%p,vld:%d, len:%d", blk.buf, blk.valid_size, blk.buf_length);
-        }
         start_cnt = esp_clk_rtc_time();
         esp_gmf_pbuf_release_write(pbuf, &blk, 0);
         total_cnt += (esp_clk_rtc_time() - start_cnt);
+        if (ret != read_len) {
+            esp_gmf_pbuf_done_write(pbuf);
+            blk.is_last = true;
+            ESP_LOGE(TAG, "Reading, buf:%p,vld:%d, len:%d", blk.buf, blk.valid_size, blk.buf_length);
+        } else {
+            ESP_LOGI(TAG, "Reading, buf:%p,vld:%d, len:%d", blk.buf, blk.valid_size, blk.buf_length);
+        }
 
         esp_gmf_data_bus_block_t rd_blk = {0};
         start_cnt = esp_clk_rtc_time();
@@ -185,17 +196,16 @@ static void wr_rd_task2(void *param)
             esp_gmf_pbuf_acquire_write(pbuf, &blk, read_len, portMAX_DELAY);
             int ret = fread(blk.buf, 1, blk.buf_length, f);
             blk.valid_size = ret;
-            if (ret != read_len) {
-                ESP_LOGW(TAG, "Write, buf:%p,vld:%d, len:%d,%d", blk.buf, blk.valid_size, blk.buf_length, blk.is_last);
-                blk.is_last = true;
-            } else {
-                ESP_LOGI(TAG, "Write, buf:%p,vld:%d, len:%d", blk.buf, blk.valid_size, blk.buf_length);
-            }
             start_cnt = esp_clk_rtc_time();
             esp_gmf_pbuf_release_write(pbuf, &blk, 0);
             total_cnt += (esp_clk_rtc_time() - start_cnt);
             if (ret != read_len) {
+                ESP_LOGW(TAG, "Write, buf:%p,vld:%d, len:%d,%d", blk.buf, blk.valid_size, blk.buf_length, blk.is_last);
+                esp_gmf_pbuf_done_write(pbuf);
+                blk.is_last = true;
                 break;
+            } else {
+                ESP_LOGI(TAG, "Write, buf:%p,vld:%d, len:%d", blk.buf, blk.valid_size, blk.buf_length);
             }
         }
 
@@ -317,6 +327,44 @@ TEST_CASE("Read task and write task thread safe test", "[ESP_GMF_PBUF]")
     int ret = verify_two_files(file_name, file2_name);
     TEST_ASSERT_EQUAL(ESP_OK, ret);
 
+    esp_gmf_pbuf_destroy(pbuf);
+    esp_gmf_ut_teardown_sdmmc(card);
+    ESP_LOGE(TAG, "%s,%d", __func__, __LINE__);
+}
+
+TEST_CASE("Abort when read task and write task thread safe test", "[ESP_GMF_PBUF]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("ESP_GMF_PBUF", ESP_LOG_INFO);
+    ESP_LOGI(TAG, "TEST Create GMF Pbuf");
+
+    sdmmc_card_t *card = NULL;
+    esp_gmf_ut_setup_sdmmc(&card);
+
+    task_is_done = false;
+    is_abort_read = false;
+    is_abort_write = false;
+    esp_gmf_pbuf_handle_t pbuf = NULL;
+    esp_gmf_pbuf_create(10, &pbuf);
+    ESP_LOGI(TAG, "TEST Create GMF, %p", pbuf);
+    TEST_ASSERT_NOT_NULL(pbuf);
+    xTaskCreate(read_task, "read", 4096, pbuf, 3, NULL);
+    xTaskCreate(write_task, "wr_to_file", 4096, pbuf, 3, NULL);
+    int timeout_ms = 100;
+    while (1) {
+        vTaskDelay(2 / portTICK_PERIOD_MS);
+        timeout_ms -= 2;
+        if (timeout_ms == 0) {
+            ESP_LOGI(TAG, "Calling abort after 100ms");
+            esp_gmf_pbuf_abort(pbuf);
+            vTaskDelay(50 / portTICK_PERIOD_MS);
+        }
+        if (task_is_done) {
+            break;
+        }
+    }
+    TEST_ASSERT_TRUE(is_abort_read);
+    TEST_ASSERT_TRUE(is_abort_write);
     esp_gmf_pbuf_destroy(pbuf);
     esp_gmf_ut_teardown_sdmmc(card);
     ESP_LOGE(TAG, "%s,%d", __func__, __LINE__);

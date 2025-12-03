@@ -170,15 +170,21 @@ esp_gmf_err_io_t esp_gmf_fifo_acquire_read(esp_gmf_fifo_handle_t handle, esp_gmf
     ESP_GMF_NULL_CHECK(TAG, blk, return ESP_GMF_IO_FAIL);
     esp_gmf_fifo_t *fifo = (esp_gmf_fifo_t *)handle;
     ESP_LOGD(TAG, "RD_ACQ+, hd:%p, wanted:%ld, ticks:%d", handle, wanted_size, block_ticks);
-    if (fifo->fill_head == NULL) {
-        while (fifo->fill_head == NULL) {
-            if (xSemaphoreTake(fifo->can_read, block_ticks) != pdTRUE) {
-                ESP_LOGE(TAG, "FIFO acquire read timeout");
-                return ESP_GMF_IO_TIMEOUT;
-            }
-            if (fifo->_is_abort) {
-                return ESP_GMF_IO_ABORT;
-            }
+    if (fifo->_is_abort) {
+        return ESP_GMF_IO_ABORT;
+    }
+    while (fifo->fill_head == NULL) {
+        if (fifo->_is_write_done) {
+            blk->is_last = 1;
+            blk->valid_size = 0;
+            return ESP_GMF_IO_OK;
+        }
+        if (xSemaphoreTake(fifo->can_read, block_ticks) != pdTRUE) {
+            ESP_LOGE(TAG, "FIFO acquire read timeout");
+            return ESP_GMF_IO_TIMEOUT;
+        }
+        if (fifo->_is_abort) {
+            return ESP_GMF_IO_ABORT;
         }
     }
     esp_gmf_fifo_node_t *node = fifo->fill_head;
@@ -198,6 +204,13 @@ esp_gmf_err_io_t esp_gmf_fifo_release_read(esp_gmf_fifo_handle_t handle, esp_gmf
     esp_gmf_fifo_t *fifo = (esp_gmf_fifo_t *)handle;
 
     ESP_LOGD(TAG, "RD_RLS+, hd:%p, b:%p, l:%d", handle, blk->buf, blk->buf_length);
+    if (fifo->_is_abort) {
+        return ESP_GMF_IO_ABORT;
+    }
+    if (fifo->_is_write_done && fifo->fill_head == NULL) {
+        ESP_LOGD(TAG, "RLS_RD, write done, fill head is empty, p:%p", fifo);
+        return ESP_GMF_IO_OK;
+    }
     esp_gmf_oal_mutex_lock(fifo->lock);
     esp_gmf_fifo_node_t *node = fifo->fill_head;
     fifo->fill_head = node->next;
@@ -234,6 +247,9 @@ esp_gmf_err_io_t esp_gmf_fifo_acquire_write(esp_gmf_fifo_handle_t handle, esp_gm
 
     ESP_LOGD(TAG, "WR_ACQ+, hd:%p, wanted:%ld, ticks:%d", handle, wanted_size, block_ticks);
     esp_gmf_fifo_node_t *node = NULL;
+    if (fifo->_is_abort) {
+        return ESP_GMF_IO_ABORT;
+    }
     esp_gmf_oal_mutex_lock(fifo->lock);
     if (fifo->empty_head == NULL) {
         if (fifo->node_cnt < fifo->capacity) {
@@ -260,7 +276,14 @@ esp_gmf_err_io_t esp_gmf_fifo_acquire_write(esp_gmf_fifo_handle_t handle, esp_gm
     if (node->buf_length < wanted_size) {
         esp_gmf_oal_free(node->buffer);
         node->buffer = esp_gmf_oal_malloc(wanted_size);
-        ESP_GMF_NULL_CHECK(TAG, node->buffer, {esp_gmf_oal_mutex_unlock(fifo->lock); return ESP_GMF_ERR_MEMORY_LACK;});
+        if (node->buffer == NULL) {
+            ESP_LOGE(TAG, "Allocate got NULL Pointer on acquire write, size:%ld", wanted_size);
+            fifo->empty_head = node->next;
+            esp_gmf_fifo_node_destroy(node);
+            fifo->node_cnt--;
+            esp_gmf_oal_mutex_unlock(fifo->lock);
+            return ESP_GMF_ERR_MEMORY_LACK;
+        }
         node->buf_length = wanted_size;
     }
 
@@ -280,6 +303,9 @@ esp_gmf_err_io_t esp_gmf_fifo_release_write(esp_gmf_fifo_handle_t handle, esp_gm
     esp_gmf_fifo_t *fifo = (esp_gmf_fifo_t *)handle;
     ESP_LOGD(TAG, "WR_RLS+, hd:%p, b:%p, l:%d, valid:%d, %d, %d", handle, blk->buf, blk->buf_length, blk->valid_size, esp_gmf_fifo_node_get_cnt(fifo->empty_head),
              esp_gmf_fifo_node_get_cnt(fifo->fill_head));
+    if (fifo->_is_abort) {
+        return ESP_GMF_IO_ABORT;
+    }
     esp_gmf_oal_mutex_lock(fifo->lock);
     esp_gmf_fifo_node_t *node = fifo->empty_head;
     if (node == NULL) {
@@ -303,12 +329,15 @@ esp_gmf_err_io_t esp_gmf_fifo_release_write(esp_gmf_fifo_handle_t handle, esp_gm
     node->buf_length = blk->buf_length;
     node->valid_size = blk->valid_size;
     node->is_done = blk->is_last;
-
-    xSemaphoreGive(fifo->can_read);
     esp_gmf_oal_mutex_unlock(fifo->lock);
     ESP_LOGD(TAG, "WR_RLS-, hd:%p, b:%p, l:%d, valid:%d, n:%ld, e:%d, f:%d", handle, blk->buf, blk->buf_length, blk->valid_size,
              fifo->node_cnt, esp_gmf_fifo_node_get_cnt(fifo->empty_head), esp_gmf_fifo_node_get_cnt(fifo->fill_head));
-    return ESP_GMF_ERR_OK;
+    if (blk->is_last) {
+        esp_gmf_fifo_done_write(fifo);
+    } else {
+        xSemaphoreGive(fifo->can_read);
+    }
+    return ESP_GMF_IO_OK;
 }
 
 esp_gmf_err_t esp_gmf_fifo_done_write(esp_gmf_fifo_handle_t handle)
@@ -317,7 +346,6 @@ esp_gmf_err_t esp_gmf_fifo_done_write(esp_gmf_fifo_handle_t handle)
     esp_gmf_fifo_t *fifo = (esp_gmf_fifo_t *)handle;
     fifo->_is_write_done = 1;
     xSemaphoreGive(fifo->can_read);
-    xSemaphoreGive(fifo->can_write);
     return ESP_GMF_ERR_OK;
 }
 
@@ -349,6 +377,8 @@ esp_gmf_err_t esp_gmf_fifo_reset(esp_gmf_fifo_handle_t handle)
     }
     fifo->_is_write_done = 0;
     fifo->_is_abort = 0;
+    xSemaphoreTake(fifo->can_read, 0);
+    xSemaphoreTake(fifo->can_write, 0);
     return ESP_GMF_ERR_OK;
 }
 

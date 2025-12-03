@@ -18,6 +18,8 @@
 static const char *TAG = "TEST_ESP_GMF_FIFO";
 static bool        read_is_done;
 static bool        write_is_done;
+static bool        is_abort_read;
+static bool        is_abort_write;
 static bool        read_run;
 static bool        write_run;
 
@@ -44,18 +46,25 @@ static void read_task(void *param)
     uint32_t total_cnt = 0;
     uint32_t file_size = 0;
     while (read_run) {
-        esp_gmf_fifo_acquire_write(fifo, &blk, len, portMAX_DELAY);
-        int ret = fread(blk.buf, 1, len, f);
+        int ret = esp_gmf_fifo_acquire_write(fifo, &blk, len, portMAX_DELAY);
+        if (ret != ESP_GMF_ERR_OK) {
+            if (ret == ESP_GMF_IO_ABORT) {
+                is_abort_write = true;
+            }
+            ESP_LOGE(TAG, "Acquire write failed, ret:%d", ret);
+            break;
+        }
+        ret = fread(blk.buf, 1, len, f);
         blk.valid_size = ret;
+        file_size +=blk.valid_size;
+        start_cnt = esp_clk_rtc_time();
+        esp_gmf_fifo_release_write(fifo, &blk, portMAX_DELAY);
+        total_cnt += (esp_clk_rtc_time() - start_cnt);
         if (ret == 0) {
+            esp_gmf_fifo_done_write(fifo);
             blk.is_last = true;
             read_run = false;
         }
-        file_size +=blk.valid_size;
-
-        start_cnt = esp_clk_rtc_time();
-        ret = esp_gmf_fifo_release_write(fifo, &blk, portMAX_DELAY);
-        total_cnt += (esp_clk_rtc_time() - start_cnt);
     }
     ESP_LOGW(TAG, "Done to read, consumed time:%ld, read size:%ld", total_cnt, file_size);
 read_task_err:
@@ -86,7 +95,10 @@ static void write_task(void *param)
         start_cnt = esp_clk_rtc_time();
         int ret = esp_gmf_fifo_acquire_read(fifo, &blk, len, portMAX_DELAY);
         if (ret != ESP_GMF_ERR_OK) {
-            ESP_LOGE(TAG, "Acquire read failed");
+            if (ret == ESP_GMF_IO_ABORT) {
+                is_abort_read = true;
+            }
+            ESP_LOGE(TAG, "Acquire read failed, ret:%d", ret);
             break;
         }
         total_cnt += (esp_clk_rtc_time() - start_cnt);
@@ -136,6 +148,53 @@ TEST_CASE("FIFO read and write on different task", "[ESP_GMF_FIFO]")
         }
         int ret = verify_two_files(file_name, file2_name);
         TEST_ASSERT_EQUAL(ret, ESP_OK);
+        esp_gmf_fifo_reset(fifo);
+    }
+
+    esp_gmf_fifo_destroy(fifo);
+
+    esp_gmf_ut_teardown_sdmmc(card);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+}
+
+TEST_CASE("Abort when FIFO read and write on different task", "[ESP_GMF_FIFO]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("ESP_GMF_FIFO", ESP_LOG_VERBOSE);
+
+    sdmmc_card_t *card = NULL;
+    esp_gmf_ut_setup_sdmmc(&card);
+
+    esp_gmf_fifo_handle_t fifo = NULL;
+    esp_gmf_fifo_create(10, 1, &fifo);
+    ESP_LOGI(TAG, "TEST Create GMF FIFO, %p", fifo);
+    TEST_ASSERT_NOT_NULL(fifo);
+    uint8_t priority[][2] = { {5, 5}, {0,10,}, {10, 0}};
+
+    for (size_t i = 0; i < sizeof(priority) / sizeof(priority[0]); i++) {
+        ESP_LOGW(TAG, "Test FIFO with priority %d, %d\r\n", priority[i][0], priority[i][1]);
+        read_is_done = false;
+        write_is_done = false;
+        is_abort_read = false;
+        is_abort_write = false;
+        xTaskCreate(read_task, "read", 4096, fifo, priority[i][0], NULL);
+        xTaskCreate(write_task, "write", 4096, fifo, priority[i][1], NULL);
+        int timeout_ms = 100;
+        while (1) {
+            vTaskDelay(10 / portTICK_PERIOD_MS);
+            timeout_ms -= 10;
+            if (timeout_ms == 0) {
+                ESP_LOGI(TAG, "Calling abort after 100ms");
+                esp_gmf_fifo_abort(fifo);
+                vTaskDelay(50 / portTICK_PERIOD_MS);
+            }
+            if (read_is_done && write_is_done) {
+                break;
+            }
+        }
+        TEST_ASSERT_TRUE(is_abort_read);
+        TEST_ASSERT_TRUE(is_abort_write);
+        esp_gmf_fifo_reset(fifo);
     }
 
     esp_gmf_fifo_destroy(fifo);

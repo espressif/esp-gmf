@@ -144,7 +144,7 @@ int esp_gmf_db_new_pbuf(int num, int item_cnt, esp_gmf_db_handle_t *h)
 int esp_gmf_db_new_fifo(int num, int item_cnt, esp_gmf_db_handle_t *h)
 {
     ESP_GMF_NULL_CHECK(TAG, h, return ESP_GMF_ERR_INVALID_ARG);
-    esp_gmf_pbuf_handle_t handle = NULL;
+    esp_gmf_fifo_handle_t handle = NULL;
     esp_gmf_fifo_create(num, item_cnt, &handle);
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_db_config_t db_config = {

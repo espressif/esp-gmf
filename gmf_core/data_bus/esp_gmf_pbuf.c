@@ -118,7 +118,13 @@ esp_gmf_err_io_t esp_gmf_pbuf_acquire_read(esp_gmf_pbuf_handle_t handle, esp_gmf
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_IO_FAIL);
     ESP_GMF_NULL_CHECK(TAG, blk, return ESP_GMF_IO_FAIL);
     esp_gmf_pbuf_t *pbuf = (esp_gmf_pbuf_t *)handle;
-    if (pbuf->_is_write_done) {
+    if (pbuf->_is_abort) {
+        return ESP_GMF_IO_ABORT;
+    }
+    if (pbuf->_is_write_done && pbuf->fill_head == NULL) {
+        blk->valid_size = 0;
+        blk->is_last = 1;
+        ESP_LOGD(TAG, "ACQ_RD, write done, fill head is empty, p:%p", pbuf);
         return ESP_GMF_IO_OK;
     }
     if (pbuf->fill_head == NULL) {
@@ -143,6 +149,13 @@ esp_gmf_err_io_t esp_gmf_pbuf_release_read(esp_gmf_pbuf_handle_t handle, esp_gmf
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_IO_FAIL);
     ESP_GMF_NULL_CHECK(TAG, blk, return ESP_GMF_IO_FAIL);
     esp_gmf_pbuf_t *pbuf = (esp_gmf_pbuf_t *)handle;
+    if (pbuf->_is_abort) {
+        return ESP_GMF_IO_ABORT;
+    }
+    if (pbuf->_is_write_done && pbuf->fill_head == NULL) {
+        ESP_LOGE(TAG, "RLS_RD, write done, fill head is empty, p:%p", pbuf);
+        return ESP_GMF_IO_OK;
+    }
     pbuf_lock(pbuf->lock);
     if (pbuf->fill_head->block.buf == blk->buf) {
         pbuf->fill_head->block.buf_length = blk->buf_length;
@@ -182,6 +195,9 @@ esp_gmf_err_io_t esp_gmf_pbuf_acquire_write(esp_gmf_pbuf_handle_t handle, esp_gm
     if (wanted_size == 0) {
         ESP_LOGE(TAG, "ACQ_WR, the wanted size is not correct, p:%p, size:%ld", pbuf, wanted_size);
         return ESP_GMF_IO_FAIL;
+    }
+    if (pbuf->_is_abort) {
+        return ESP_GMF_IO_ABORT;
     }
     if (pbuf->_is_write_done) {
         return ESP_GMF_IO_OK;
@@ -232,7 +248,12 @@ esp_gmf_err_io_t esp_gmf_pbuf_release_write(esp_gmf_pbuf_handle_t handle, esp_gm
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_IO_FAIL);
     ESP_GMF_NULL_CHECK(TAG, blk, return ESP_GMF_IO_FAIL);
     esp_gmf_pbuf_t *pbuf = (esp_gmf_pbuf_t *)handle;
-
+    if (pbuf->_is_abort) {
+        return ESP_GMF_IO_ABORT;
+    }
+    if (pbuf->_is_write_done) {
+        return ESP_GMF_IO_OK;
+    }
     pbuf_lock(pbuf->lock);
     if (pbuf->empty_head->block.buf == blk->buf) {
         pbuf->empty_head->block.buf_length = blk->buf_length;
@@ -261,6 +282,9 @@ esp_gmf_err_io_t esp_gmf_pbuf_release_write(esp_gmf_pbuf_handle_t handle, esp_gm
     ESP_LOGD(TAG, "RLS_WR, p:%p, h:%p, b:%p, l:%d, vld:%d,last:%d, c:%d", pbuf, pbuf->empty_head, blk->buf,
              blk->buf_length, blk->valid_size, blk->is_last, pbuf->buf_cnt);
     pbuf_unlock(pbuf->lock);
+    if (blk->is_last) {
+        esp_gmf_pbuf_done_write(pbuf);
+    }
     return ESP_GMF_IO_OK;
 }
 

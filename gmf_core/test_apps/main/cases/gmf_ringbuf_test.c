@@ -16,6 +16,8 @@
 
 static const char *TAG = "TEST_ESP_GMF_RINGBUF";
 static bool        is_done;
+static bool        is_abort_read;
+static bool        is_abort_write;
 static bool        read_run;
 static bool        write_run;
 
@@ -46,11 +48,19 @@ static void read_task(void *param)
         int ret = fread(blk.buf, 1, len, f);
         blk.valid_size = ret;
         if (ret == 0) {
+            esp_gmf_rb_done_write(rb);
             blk.is_last = true;
             read_run = false;
         }
         start_cnt = esp_clk_rtc_time();
         ret = esp_gmf_rb_release_write(rb, &blk, portMAX_DELAY);
+        if (ret != ESP_GMF_ERR_OK) {
+            if (ret == ESP_GMF_IO_ABORT) {
+                is_abort_write = true;
+            }
+            ESP_LOGE(TAG, "Acquire write failed, ret:%d", ret);
+            break;
+        }
         total_cnt += (esp_clk_rtc_time() - start_cnt);
     }
     ESP_LOGW(TAG, "Done to read, %ld", total_cnt);
@@ -87,7 +97,10 @@ static void write_task(void *param)
         start_cnt = esp_clk_rtc_time();
         int ret = esp_gmf_rb_acquire_read(rb, &blk, len, portMAX_DELAY);
         if (ret != ESP_GMF_ERR_OK) {
-            ESP_LOGE(TAG, "Acquire read failed");
+            if (ret == ESP_GMF_IO_ABORT) {
+                is_abort_read = true;
+            }
+            ESP_LOGE(TAG, "Acquire read failed, ret:%d", ret);
             break;
         }
         total_cnt += (esp_clk_rtc_time() - start_cnt);
@@ -136,6 +149,43 @@ TEST_CASE("Ringbuffer read and write on different task", "[ESP_GMF_RINGBUF]")
 
     esp_gmf_rb_destroy(rb);
 
+    esp_gmf_ut_teardown_sdmmc(card);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+}
+
+TEST_CASE("Abort when Ringbuffer read and write on different task", "[ESP_GMF_RINGBUF]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("ESP_GMF_RINGBUF", ESP_LOG_VERBOSE);
+
+    sdmmc_card_t *card = NULL;
+    esp_gmf_ut_setup_sdmmc(&card);
+
+    is_done = false;
+    is_abort_read = false;
+    is_abort_write = false;
+    esp_gmf_rb_handle_t rb = NULL;
+    esp_gmf_rb_create(2, 8 * 1024, &rb);
+    ESP_LOGI(TAG, "TEST Create GMF ringbuffer, %p", rb);
+    TEST_ASSERT_NOT_NULL(rb);
+    xTaskCreate(read_task, "read", 4096, rb, 5, NULL);
+    xTaskCreate(write_task, "write", 4096, rb, 5, NULL);
+    int timeout_ms = 100;
+    while (1) {
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+        timeout_ms -= 10;
+        if (timeout_ms == 0) {
+            ESP_LOGI(TAG, "Calling abort after 100ms");
+            esp_gmf_rb_abort(rb);
+            vTaskDelay(50 / portTICK_PERIOD_MS);
+        }
+        if (is_done) {
+            break;
+        }
+    }
+    TEST_ASSERT_TRUE(is_abort_read);
+    TEST_ASSERT_TRUE(is_abort_write);
+    esp_gmf_rb_destroy(rb);
     esp_gmf_ut_teardown_sdmmc(card);
     vTaskDelay(10 / portTICK_PERIOD_MS);
 }

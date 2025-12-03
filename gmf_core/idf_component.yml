@@ -1,4 +1,4 @@
-version: "0.7.6"
+version: "0.7.7"
 description: Espressif General Multimedia Framework (gmf-core) module
 url: https://github.com/espressif/esp-gmf/tree/main/gmf_core
 documentation: "https://github.com/espressif/esp-gmf/blob/main/gmf_core/README.md"

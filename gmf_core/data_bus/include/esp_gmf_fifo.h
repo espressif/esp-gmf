@@ -82,9 +82,9 @@ esp_gmf_err_t esp_gmf_fifo_destroy(esp_gmf_fifo_handle_t handle);
  * @param[in]   block_ticks  Maximum ticks to wait if the block is not available
  *
  * @return
- *       - > 0                 The specific length of data being read
  *       - ESP_GMF_IO_OK       Operation succeeded
  *       - ESP_GMF_IO_FAIL     Invalid arguments, or wanted_size > total size
+ *       - ESP_GMF_IO_ABORT    Operation aborted
  *       - ESP_GMF_IO_TIMEOUT  Operation timed out
  */
 esp_gmf_err_io_t esp_gmf_fifo_acquire_read(esp_gmf_fifo_handle_t handle, esp_gmf_data_bus_block_t *blk, uint32_t wanted_size, int block_ticks);
@@ -92,8 +92,8 @@ esp_gmf_err_io_t esp_gmf_fifo_acquire_read(esp_gmf_fifo_handle_t handle, esp_gmf
 /**
  * @brief  Returned acquired block address to the specific handle
  *
- * @note  1. The returned block MUST be acquired from `esp_gmf_block_acquire_read` to ensure proper synchronization
- *        2. `esp_gmf_block_acquire_read` and `esp_gmf_block_release_read` must be called in pairs
+ * @note  1. The returned block MUST be acquired from `esp_gmf_fifo_acquire_read` to ensure proper synchronization
+ *        2. `esp_gmf_fifo_acquire_read` and `esp_gmf_fifo_release_read` must be called in pairs
  *        3. Calling this function once makes one block available for the write operation
  *
  * @param[in]  handle       FIFO handle
@@ -101,8 +101,9 @@ esp_gmf_err_io_t esp_gmf_fifo_acquire_read(esp_gmf_fifo_handle_t handle, esp_gmf
  * @param[in]  block_ticks  Maximum ticks to wait if necessary
  *
  * @return
- *       - ESP_GMF_IO_OK    Operation succeeded
- *       - ESP_GMF_IO_FAIL  Invalid arguments, or the buffer does not belong to the provided handle
+ *       - ESP_GMF_IO_OK     Operation succeeded
+ *       - ESP_GMF_IO_FAIL   Invalid arguments, or the buffer does not belong to the provided handle
+ *       - ESP_GMF_IO_ABORT  Operation aborted
  */
 esp_gmf_err_io_t esp_gmf_fifo_release_read(esp_gmf_fifo_handle_t handle, esp_gmf_data_bus_block_t *blk, int block_ticks);
 
@@ -123,9 +124,9 @@ esp_gmf_err_io_t esp_gmf_fifo_release_read(esp_gmf_fifo_handle_t handle, esp_gmf
  * @param[in]   block_ticks  Maximum ticks to wait if the block is not available
  *
  * @return
- *       - > 0                 The specific length of space can be write
  *       - ESP_GMF_IO_OK       Operation succeeded, or it's done to write
  *       - ESP_GMF_IO_FAIL     Invalid arguments, or no filled data
+ *       - ESP_GMF_IO_ABORT    Operation aborted
  *       - ESP_GMF_IO_TIMEOUT  Operation timed out
  */
 esp_gmf_err_io_t esp_gmf_fifo_acquire_write(esp_gmf_fifo_handle_t handle, esp_gmf_data_bus_block_t *blk, uint32_t wanted_size, int block_ticks);
@@ -142,8 +143,9 @@ esp_gmf_err_io_t esp_gmf_fifo_acquire_write(esp_gmf_fifo_handle_t handle, esp_gm
  * @param[in]  block_ticks  Maximum ticks to wait if necessary
  *
  * @return
- *       - ESP_GMF_ERR_OK           On success
- *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ *       - ESP_GMF_IO_OK     Operation succeeded
+ *       - ESP_GMF_IO_FAIL   Invalid arguments, or the buffer does not belong to the provided handle
+ *       - ESP_GMF_IO_ABORT  Operation aborted
  */
 esp_gmf_err_io_t esp_gmf_fifo_release_write(esp_gmf_fifo_handle_t handle, esp_gmf_data_bus_block_t *blk, int block_ticks);
 

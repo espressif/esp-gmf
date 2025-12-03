@@ -148,7 +148,6 @@ esp_gmf_err_t esp_gmf_db_write(esp_gmf_db_handle_t handle, void *buffer, int buf
  * @param[in]   block_ticks  Maximum time to wait for the acquire operation
  *
  * @return
- *       - > 0                 The specific length of data being read
  *       - ESP_GMF_IO_OK       Operation successful
  *       - ESP_GMF_IO_FAIL     Operation failed
  *       - ESP_GMF_IO_ABORT    Operation aborted
@@ -180,7 +179,6 @@ esp_gmf_err_io_t esp_gmf_db_release_read(esp_gmf_db_handle_t handle, esp_gmf_dat
  * @param[in]   block_ticks  Maximum time to wait for the acquire operation
  *
  * @return
- *       - > 0                 The specific length of space can be write
  *       - ESP_GMF_IO_OK       Operation successful
  *       - ESP_GMF_IO_FAIL     Operation failed
  *       - ESP_GMF_IO_ABORT    Operation aborted
