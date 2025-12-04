@@ -213,7 +213,7 @@ static inline esp_gmf_job_t *_esp_gmf_get_next_job(esp_gmf_task_t *tsk, esp_gmf_
 
 static inline bool gmf_task_handle_user_action(esp_gmf_task_t *tsk, esp_gmf_job_t *worker, esp_gmf_event_state_t *quit_state)
 {
-    if (tsk->_stop && (tsk->state != ESP_GMF_EVENT_STATE_ERROR)) {
+    if (TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP) && (tsk->state != ESP_GMF_EVENT_STATE_ERROR)) {
         ESP_LOGV(TAG, "Stop job, [%s-%p, wk:%p, job:%p-%s]",
                  OBJ_GET_TAG((esp_gmf_obj_handle_t)(tsk)), tsk, worker, worker->ctx, worker->label);
         __esp_gmf_task_delete_jobs(tsk);
@@ -221,14 +221,14 @@ static inline bool gmf_task_handle_user_action(esp_gmf_task_t *tsk, esp_gmf_job_
         // Delete job and return true
         return true;
     }
-    if (tsk->_pause) {
+    if (TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE)) {
         if (tsk->state != ESP_GMF_EVENT_STATE_ERROR) {
             ESP_LOGI(TAG, "Pause job, [%s-%p, wk:%p, job:%p-%s],st:%s",
                      OBJ_GET_TAG((esp_gmf_obj_handle_t)(tsk)), tsk, worker, worker->ctx, worker->label,
                      esp_gmf_event_get_state_str(tsk->state));
             esp_gmf_task_event_state_change_and_notify(tsk, ESP_GMF_EVENT_STATE_PAUSED);
+            TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE);
             GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_PAUSE_BIT);
-            tsk->_pause = 0;
             esp_gmf_task_acquire_signal(tsk, portMAX_DELAY);
             ESP_LOGI(TAG, "Resume job, [%s-%p, wk:%p, job:%p-%s]",
                      OBJ_GET_TAG((esp_gmf_obj_handle_t)(tsk)), tsk, worker, worker->ctx, worker->label);
@@ -238,8 +238,8 @@ static inline bool gmf_task_handle_user_action(esp_gmf_task_t *tsk, esp_gmf_job_
             ESP_LOGI(TAG, "Skip pause by error state, [%s-%p, wk:%p, job:%p-%s],st:%s",
                      OBJ_GET_TAG((esp_gmf_obj_handle_t)(tsk)), tsk, worker, worker->ctx, worker->label,
                      esp_gmf_event_get_state_str(tsk->state));
+            TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE);
             GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_PAUSE_BIT);
-            tsk->_pause = 0;
         }
     }
     return false;
@@ -347,7 +347,7 @@ static inline int process_func(esp_gmf_task_handle_t handle, void *para)
     tsk->state = quit_state;
     esp_gmf_event_state_notify(tsk, ESP_GMF_EVT_TYPE_CHANGE_STATE, tsk->state);
     GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT);
-    tsk->_stop = 0;
+    TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP);
     return result;
 }
 

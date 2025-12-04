@@ -54,6 +54,14 @@
 - Refine some warning log output
 - Correct logic for API `esp_gmf_pipeline_get_next_el`
 
+## v0.7.8
+
+### Bug Fixes
+
+- Fixed pre-release input port when bypass of payload in last element
+- Use atomic operation to avoid task action flag race condition
+- Fixed `esp_gmf_node_del_at` corner cases
+
 ## v0.7.7
 
 ### Bug Fixes
