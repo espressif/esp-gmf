@@ -37,6 +37,9 @@
 - Modify the periph role macro definition from string to enum
 - Removed the unused periph type macro definition and added the commonly used periph name macro definition
 - Added BUTTON device type with test support, supported gpio and adc buttons
+- Added [`play_sdcard_music`](example/play_sdcard_music/README.md) example to show how to use board manager to initialize codec and play wav audio files
+- Added [`record_to_sdcard`](example/record_to_sdcard/README.md) example to show how to use board manager to initialize codec and record wav audio files
+- Added `clk_src` configuration for `dev_audio_codec`
 
 ## 0.4.8
 

@@ -38,7 +38,7 @@ peripherals:
   - name: i2s_audio_in
     type: i2s
     format: "std-in"
-    role: slave
+    role: master
     config: *i2s_config
 
   # PA CONTROL

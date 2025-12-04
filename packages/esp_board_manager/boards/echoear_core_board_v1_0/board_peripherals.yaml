@@ -40,7 +40,7 @@ peripherals:
 
   - name: i2s_audio_in
     type: i2s
-    role: slave
+    role: master
     format: std-in
     config: *i2s_config
 

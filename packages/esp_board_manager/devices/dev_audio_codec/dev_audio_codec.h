@@ -53,8 +53,9 @@ typedef struct {
  * @brief  Board codec I2S configuration structure
  */
 typedef struct {
-    const char  *name;  /*!< I2S device name */
-    int8_t       port;  /*!< I2S port number */
+    const char  *name;     /*!< I2S device name */
+    int8_t       port;     /*!< I2S port number */
+    int          clk_src;  /*!< I2S clock source, need converted from `i2s_clock_src_t`. If set to 0 will use default clock source */
 } board_codec_i2s_t;
 
 /**

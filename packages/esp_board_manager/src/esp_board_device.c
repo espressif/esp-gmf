@@ -49,7 +49,7 @@ esp_err_t esp_board_device_init(const char *name)
 
     /* Initialize device if not already initialized */
     if (handle->device_handle) {
-        ESP_LOGI(TAG, "Device %s already initialized, ref_count: %" PRIu32, name, handle->ref_count);
+        ESP_LOGI(TAG, "Device %s already initialized, ref_count: %d", name, handle->ref_count);
         return ESP_OK;
     } else {
         ret = handle->init((void *)desc->cfg, desc->cfg_size, &handle->device_handle);
@@ -59,7 +59,7 @@ esp_err_t esp_board_device_init(const char *name)
             return ret;
         }
     }
-    ESP_LOGD(TAG, "initialized device %s ref_count: %" PRIu32 " device_handle:%p", name, handle->ref_count, handle->device_handle);
+    ESP_LOGD(TAG, "initialized device %s ref_count: %d device_handle:%p", name, handle->ref_count, handle->device_handle);
     return ret;
 }
 
@@ -147,7 +147,7 @@ esp_err_t esp_board_device_deinit(const char *name)
 
     /* Decrement reference count */
     handle->ref_count--;
-    ESP_LOGI(TAG, "Deinit device %s ref_count: %" PRIu32 " device_handle:%p", name, handle->ref_count, handle->device_handle);
+    ESP_LOGI(TAG, "Deinit device %s ref_count: %d device_handle:%p", name, handle->ref_count, handle->device_handle);
 
     /* Only deinitialize if ref_count reaches 0 */
     if (handle->ref_count == 0) {
@@ -166,7 +166,7 @@ esp_err_t esp_board_device_deinit(const char *name)
         }
         handle->device_handle = NULL;
     } else {
-        ESP_LOGW(TAG, "Device %s still has %" PRIu32 " references, not deinitializing", name, handle->ref_count);
+        ESP_LOGW(TAG, "Device %s still has %d references, not deinitializing", name, handle->ref_count);
     }
     return ESP_OK;
 }
@@ -185,7 +185,7 @@ esp_err_t esp_board_device_show(const char *name)
         if (handle) {
             ESP_LOGI(TAG, "  Handle: %p", handle->device_handle);
             ESP_LOGI(TAG, "  Status: %s", handle->device_handle ? "Initialized" : "Not initialized");
-            ESP_LOGI(TAG, "  Ref count: %" PRIu32, handle->ref_count);
+            ESP_LOGI(TAG, "  Ref count: %d", handle->ref_count);
         } else {
             ESP_LOGI(TAG, "  No handle found");
         }
@@ -200,7 +200,7 @@ esp_err_t esp_board_device_show(const char *name)
             if (handle) {
                 ESP_LOGI(TAG, "  Handle: %p", handle->device_handle);
                 ESP_LOGI(TAG, "  Status: %s", handle->device_handle ? "Initialized" : "Not initialized");
-                ESP_LOGI(TAG, "  Ref count: %" PRIu32, handle->ref_count);
+                ESP_LOGI(TAG, "  Ref count: %d", handle->ref_count);
             } else {
                 ESP_LOGI(TAG, "  No handle found");
             }

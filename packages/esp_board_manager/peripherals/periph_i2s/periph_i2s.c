@@ -13,13 +13,13 @@
 static const char *TAG = "PERIPH_I2S";
 
 typedef struct {
-    i2s_chan_handle_t  chan_in;
-    i2s_chan_handle_t  chan_out;
-    uint8_t            in_en  : 1;
-    uint8_t            out_en : 1;
+    i2s_chan_handle_t  chan_in;     /*!< I2S input channel handle */
+    i2s_chan_handle_t  chan_out;    /*!< I2S output channel handle */
+    uint8_t            in_en  : 1;  /*!< Input channel enable flag */
+    uint8_t            out_en : 1;  /*!< Output channel enable flag */
 } periph_i2s_chan_t;
 
-static periph_i2s_chan_t i2s_chan_handles[SOC_I2S_NUM] = {0};
+periph_i2s_chan_t i2s_chan_handles[SOC_I2S_NUM] = {0};
 
 int periph_i2s_init(void *cfg, int cfg_size, void **periph_handle)
 {
@@ -65,8 +65,8 @@ int periph_i2s_init(void *cfg, int cfg_size, void **periph_handle)
             ESP_LOGW(TAG, "I2S[%d] STD already enabled, tx:%p, rx:%p", config->port, i2s_chan_handles[config->port].chan_out, i2s_chan_handles[config->port].chan_in);
         }
         ESP_LOGI(TAG, "I2S[%d] STD, %s, ws: %d, bclk: %d, dout: %d, din: %d", config->port,
-                    config->direction == I2S_DIR_TX ? " TX" : "RX", config->i2s_cfg.std.gpio_cfg.ws, config->i2s_cfg.std.gpio_cfg.bclk,
-                    config->i2s_cfg.std.gpio_cfg.dout, config->i2s_cfg.std.gpio_cfg.din);
+                 config->direction == I2S_DIR_TX ? " TX" : "RX", config->i2s_cfg.std.gpio_cfg.ws, config->i2s_cfg.std.gpio_cfg.bclk,
+                 config->i2s_cfg.std.gpio_cfg.dout, config->i2s_cfg.std.gpio_cfg.din);
     }
 #if CONFIG_SOC_I2S_SUPPORTS_TDM
     else if (config->mode == I2S_COMM_MODE_TDM) {
@@ -87,10 +87,10 @@ int periph_i2s_init(void *cfg, int cfg_size, void **periph_handle)
             ESP_LOGW(TAG, "I2S[%d] TDM already enabled, tx:%p, rx:%p", config->port, i2s_chan_handles[config->port].chan_out, i2s_chan_handles[config->port].chan_in);
         }
         ESP_LOGI(TAG, "I2S[%d] TDM, %s, ws: %d, bclk: %d, dout: %d, din: %d", config->port,
-                    config->direction == I2S_DIR_TX ? " TX" : "RX", config->i2s_cfg.tdm.gpio_cfg.ws, config->i2s_cfg.tdm.gpio_cfg.bclk,
-                    config->i2s_cfg.tdm.gpio_cfg.dout, config->i2s_cfg.tdm.gpio_cfg.din);
+                 config->direction == I2S_DIR_TX ? " TX" : "RX", config->i2s_cfg.tdm.gpio_cfg.ws, config->i2s_cfg.tdm.gpio_cfg.bclk,
+                 config->i2s_cfg.tdm.gpio_cfg.dout, config->i2s_cfg.tdm.gpio_cfg.din);
     }
-#endif // CONFIG_SOC_I2S_SUPPORTS_TDM
+#endif  // CONFIG_SOC_I2S_SUPPORTS_TDM
 #if CONFIG_SOC_I2S_SUPPORTS_PDM
     else if (config->mode == I2S_COMM_MODE_PDM) {
         if (config->direction == I2S_DIR_TX && !i2s_chan_handles[config->port].out_en) {
@@ -99,19 +99,19 @@ int periph_i2s_init(void *cfg, int cfg_size, void **periph_handle)
             err = i2s_channel_enable(i2s_chan_handles[config->port].chan_out);
             i2s_chan_handles[config->port].out_en = true;
             ESP_LOGI(TAG, "I2S[%d] PDM-TX, clk: %d, dout: %d", config->port, config->i2s_cfg.pdm_tx.gpio_cfg.clk, config->i2s_cfg.pdm_tx.gpio_cfg.dout);
-#endif // CONFIG_SOC_I2S_SUPPORTS_PDM_TX
+#endif  // CONFIG_SOC_I2S_SUPPORTS_PDM_TX
         } else if (config->direction == I2S_DIR_RX && !i2s_chan_handles[config->port].in_en) {
 #if CONFIG_SOC_I2S_SUPPORTS_PDM_RX
             err = i2s_channel_init_pdm_rx_mode(i2s_chan_handles[config->port].chan_in, &config->i2s_cfg.pdm_rx);
             err = i2s_channel_enable(i2s_chan_handles[config->port].chan_in);
             i2s_chan_handles[config->port].in_en = true;
             ESP_LOGI(TAG, "I2S[%d] PDM-RX, clk: %d, din: %d", config->port, config->i2s_cfg.pdm_rx.gpio_cfg.clk, config->i2s_cfg.pdm_rx.gpio_cfg.din);
-#endif // CONFIG_SOC_I2S_SUPPORTS_PDM_RX
+#endif  // CONFIG_SOC_I2S_SUPPORTS_PDM_RX
         } else {
             ESP_LOGW(TAG, "I2S[%d] PDM already enabled, tx:%p, rx:%p", config->port, i2s_chan_handles[config->port].chan_out, i2s_chan_handles[config->port].chan_in);
         }
     }
-#endif // CONFIG_SOC_I2S_SUPPORTS_PDM
+#endif  // CONFIG_SOC_I2S_SUPPORTS_PDM
     else {
         ESP_LOGE(TAG, "I2S[%d] Invalid mode: %d", config->port, config->mode);
         return -1;

@@ -78,9 +78,11 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
             if peripherals_dict and periph_name in peripherals_dict:
                 peripheral_config = peripherals_dict[periph_name]
                 port = peripheral_config.config.get('port', 0)
+                clk_src = periph.get('clk_src', 0)
             i2s_cfg = {
                 'name': periph_name,  # Use original name from YAML
-                'port': port
+                'port': port,
+                'clk_src': clk_src,
             }
 
     # Convert string masks to integers
