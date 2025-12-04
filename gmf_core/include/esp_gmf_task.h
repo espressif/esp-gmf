@@ -38,40 +38,6 @@ typedef struct esp_gmf_task_config {
 } esp_gmf_task_config_t;
 
 /**
- * @brief  GMF task structure
- *
- *         Represents a GMF task, including its properties, configuration, and internal state.
- */
-typedef struct _esp_gmf_task {
-    struct esp_gmf_obj_    base;           /*!< Base object for GMF tasks */
-    esp_gmf_job_t         *working;        /*!< Currently executing job in the task */
-    esp_gmf_job_stack_t   *start_stack;    /*!< Stack for the start job */
-
-    /* Properties */
-    esp_gmf_event_cb       event_func;     /*!< Callback function for task events */
-    esp_gmf_event_state_t  state;          /*!< Current state of the task */
-
-    /* Protect */
-    esp_gmf_task_config_t  thread;         /*!< Configuration settings for the task */
-    void                  *ctx;            /*!< Context associated with the task */
-
-    /* Private */
-    void                  *oal_thread;     /*!< Handle to the thread */
-    void                  *lock;           /*!< Mutex lock for task synchronization */
-    void                  *event_group;    /*!< Event group for wait events */
-    void                  *block_sem;      /*!< Semaphore for blocking tasks */
-    void                  *wait_sem;       /*!< Semaphore for task waiting */
-    int                    api_sync_time;  /*!< Timeout for synchronization */
-
-    uint8_t                _task_run : 1;  /*!< Internal flag for task execution */
-    uint8_t                _running  : 1;  /*!< Internal flag for task running state */
-    uint8_t                _run      : 1;  /*!< Internal flag for task run API flag */
-    uint8_t                _pause    : 1;  /*!< Internal flag for task pause API flag */
-    uint8_t                _stop     : 1;  /*!< Internal flag for task stop API flag */
-    uint8_t                _destroy  : 1;  /*!< Internal flag for task destruction API flag */
-} esp_gmf_task_t;
-
-/**
  * @brief  GMF Task configuration
  *
  *         Configuration structure for GMF tasks, specifying parameters such as thread configuration,

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdatomic.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -41,6 +42,48 @@ static const char *TAG = "ESP_GMF_TASK";
 
 #define GMF_TASK_CLR_STATE_BITS(event_group, bits) \
     xEventGroupClearBits((EventGroupHandle_t)event_group, bits);
+
+#define TASK_HAS_ACTION(flag, type)  (atomic_load(&flag) & (1 << type))
+#define TASK_SET_ACTION(flag, type)  (atomic_fetch_or(&flag, (1 << type)))
+#define TASK_CLR_ACTION(flag, type)  (atomic_fetch_and(&flag, ~(1 << type)))
+
+typedef enum {
+    GMF_TASK_ACTION_TYPE_CREATED = 0,
+    GMF_TASK_ACTION_TYPE_RUN     = 1,
+    GMF_TASK_ACTION_TYPE_RUNNING = 2,
+    GMF_TASK_ACTION_TYPE_PAUSE   = 3,
+    GMF_TASK_ACTION_TYPE_STOP    = 4,
+    GMF_TASK_ACTION_TYPE_DESTROY = 5,
+} gmf_task_action_type_t;
+
+/**
+ * @brief  GMF task structure
+ *
+ *         Represents a GMF task, including its properties, configuration, and internal state.
+ */
+typedef struct _esp_gmf_task {
+    struct esp_gmf_obj_    base;           /*!< Base object for GMF tasks */
+    esp_gmf_job_t         *working;        /*!< Currently executing job in the task */
+    esp_gmf_job_stack_t   *start_stack;    /*!< Stack for the start job */
+
+    /* Properties */
+    esp_gmf_event_cb       event_func;     /*!< Callback function for task events */
+    esp_gmf_event_state_t  state;          /*!< Current state of the task */
+
+    /* Protect */
+    esp_gmf_task_config_t  thread;         /*!< Configuration settings for the task */
+    void                  *ctx;            /*!< Context associated with the task */
+
+    /* Private */
+    void                  *oal_thread;     /*!< Handle to the thread */
+    void                  *lock;           /*!< Mutex lock for task synchronization */
+    void                  *event_group;    /*!< Event group for wait events */
+    void                  *block_sem;      /*!< Semaphore for blocking tasks */
+    void                  *wait_sem;       /*!< Semaphore for task waiting */
+    int                    api_sync_time;  /*!< Timeout for synchronization */
+
+    atomic_ushort          _actions;       /*!< Task actions */
+} esp_gmf_task_t;
 
 static inline esp_gmf_err_t esp_gmf_event_state_notify(esp_gmf_task_handle_t handle, esp_gmf_event_type_t type, esp_gmf_event_state_t st)
 {
@@ -187,7 +230,7 @@ static inline int process_func(esp_gmf_task_handle_t handle, void *para)
             // The means need more loops
             worker = tsk->working;
             // When receive command need process command
-            if (tsk->_pause == false && tsk->_stop == false) {
+            if ((!TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE)) && (!TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP))) {
                 continue;
             }
         } else if (worker->ret == ESP_GMF_JOB_ERR_TRUNCATE) {
@@ -224,7 +267,7 @@ static inline int process_func(esp_gmf_task_handle_t handle, void *para)
                 break;
             }
         }
-        if (tsk->_pause) {
+        if (TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE)) {
             if (tsk->state != ESP_GMF_EVENT_STATE_ERROR) {
                 ESP_LOGI(TAG, "Pause job, [%s-%p, wk:%p, job:%p-%s],st:%s", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, worker, worker->ctx, worker->label,
                          esp_gmf_event_get_state_str(tsk->state));
@@ -240,7 +283,7 @@ static inline int process_func(esp_gmf_task_handle_t handle, void *para)
                 GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_PAUSE_BIT);
             }
         }
-        if (tsk->_stop && (tsk->state != ESP_GMF_EVENT_STATE_ERROR)) {
+        if (TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP) && (tsk->state != ESP_GMF_EVENT_STATE_ERROR)) {
             ESP_LOGV(TAG, "Stop job, [%s-%p, wk:%p, job:%p-%s]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, worker, worker->ctx, worker->label);
             __esp_gmf_task_delete_jobs(tsk);
             quit_state = ESP_GMF_EVENT_STATE_STOPPED;
@@ -272,31 +315,35 @@ static inline int process_func(esp_gmf_task_handle_t handle, void *para)
 static void esp_gmf_thread_fun(void *pv)
 {
     esp_gmf_task_t *tsk = (esp_gmf_task_t *)pv;
-    tsk->_destroy = 0;
-    while (tsk->_task_run) {
-        while ((tsk->working == NULL) || (tsk->_running == 0)) {
-            ESP_LOGI(TAG, "Waiting to run... [tsk:%s-%p, wk:%p, run:%d]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, tsk->working, tsk->_running);
+    TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_DESTROY);
+    while (TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_CREATED)) {
+        while ((tsk->working == NULL) || (!TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUNNING))) {
+            ESP_LOGI(TAG, "Waiting to run... [tsk:%s-%p, wk:%p, run:%d]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk,
+                     tsk->working, TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUNNING));
             xSemaphoreTake(tsk->block_sem, portMAX_DELAY);
-            if (tsk->_destroy) {
-                tsk->_destroy = 0;
+            if (TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_DESTROY)) {
+                TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_DESTROY);
                 ESP_LOGD(TAG, "Thread will be destroyed, [%s,%p]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
                 goto ESP_GMF_THREAD_EXIT;
             }
-            if (tsk->_run == 1) {
-                tsk->_running = 1;
-                tsk->_run = 0;
+            if (TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUN)) {
+                TASK_SET_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUNNING);
+                TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUN);
             }
         }
         int ret = esp_gmf_task_event_state_change_and_notify(tsk, ESP_GMF_EVENT_STATE_RUNNING);
         GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_RUN_BIT);
         if (ret != ESP_GMF_ERR_OK) {
-            tsk->_running = 0;
+            TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUNNING);
             ESP_LOGE(TAG, "Failed on prepare, [%s,%p],ret:%d", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, ret);
+            // Clear the jobs, to make sure the task re-running must need to loading jobs again
+            __esp_gmf_task_delete_jobs(tsk);
+            esp_gmf_job_stack_clear(tsk->start_stack);
             continue;
         }
         // Loop jobs until done or error
         process_func(tsk, tsk->ctx);
-        tsk->_running = 0;
+        TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUNNING);
     }
 ESP_GMF_THREAD_EXIT:
     tsk->state = ESP_GMF_EVENT_STATE_NONE;
@@ -361,12 +408,12 @@ esp_gmf_err_t esp_gmf_task_init(esp_gmf_task_cfg_t *config, esp_gmf_task_handle_
     } else {
         handle->thread.core = DEFAULT_ESP_GMF_TASK_CORE;
     }
-    handle->_task_run = true;
+    TASK_SET_ACTION(handle->_actions, GMF_TASK_ACTION_TYPE_CREATED);
     if (handle->thread.stack > 0) {
         ret = esp_gmf_oal_thread_create(&handle->oal_thread, OBJ_GET_TAG(obj), esp_gmf_thread_fun, handle, handle->thread.stack,
                                         handle->thread.prio, handle->thread.stack_in_ext, handle->thread.core);
         if (ret == ESP_GMF_ERR_FAIL) {
-            handle->_task_run = false;
+            TASK_CLR_ACTION(handle->_actions, GMF_TASK_ACTION_TYPE_CREATED);
             ESP_LOGE(TAG, "Create thread failed, [%s]", OBJ_GET_TAG((esp_gmf_obj_handle_t)handle));
             goto _tsk_init_failed;
         }
@@ -384,17 +431,17 @@ esp_gmf_err_t esp_gmf_task_deinit(esp_gmf_task_handle_t handle)
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_task_t *tsk = (esp_gmf_task_t *)handle;
     // Wait for thread quit if already run
-    if (tsk->_task_run) {
+    if (TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_CREATED)) {
         esp_gmf_oal_mutex_lock(tsk->lock);
         if ((tsk->state == ESP_GMF_EVENT_STATE_RUNNING)
             || (tsk->state == ESP_GMF_EVENT_STATE_PAUSED)) {
-            tsk->_stop = 1;
+            TASK_SET_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP);
         }
         if (tsk->state == ESP_GMF_EVENT_STATE_PAUSED) {
             esp_gmf_task_release_signal(tsk, portMAX_DELAY);
         }
-        tsk->_task_run = 0;
-        tsk->_destroy = 1;
+        TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_CREATED);
+        TASK_SET_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_DESTROY);
         xSemaphoreGive(tsk->block_sem);
         // Wait for task exit
         if (GMF_TASK_WAIT_FOR_STATE_BITS(tsk->event_group, GMF_TASK_EXIT_BIT, portMAX_DELAY) == false) {
@@ -463,12 +510,12 @@ esp_gmf_err_t esp_gmf_task_run(esp_gmf_task_handle_t handle)
         ESP_LOGW(TAG, "Can't run on %s, [%s,%p]", esp_gmf_event_get_state_str(tsk->state), OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         return ESP_GMF_ERR_NOT_SUPPORT;
     }
-    if (tsk->_task_run == false) {
+    if (!TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_CREATED)) {
         esp_gmf_oal_mutex_unlock(tsk->lock);
         ESP_LOGW(TAG, "No task for run, %s, [%s,%p]", esp_gmf_event_get_state_str(tsk->state), OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         return ESP_GMF_ERR_INVALID_STATE;
     }
-    tsk->_run = 1;
+    TASK_SET_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUN);
     xSemaphoreGive(tsk->block_sem);
     // Wait for run finished
     if (GMF_TASK_WAIT_FOR_STATE_BITS(tsk->event_group, GMF_TASK_RUN_BIT, tsk->api_sync_time) == false) {
@@ -492,7 +539,7 @@ esp_gmf_err_t esp_gmf_task_stop(esp_gmf_task_handle_t handle)
         ESP_LOGD(TAG, "Already stopped, %s, [%s,%p]", esp_gmf_event_get_state_str(tsk->state), OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         return ESP_GMF_ERR_OK;
     }
-    if ((tsk->_task_run == false)) {
+    if (!TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_CREATED)) {
         esp_gmf_oal_mutex_unlock(tsk->lock);
         ESP_LOGW(TAG, "The task is not running, %s, [%s,%p]", esp_gmf_event_get_state_str(tsk->state), OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         return ESP_GMF_ERR_INVALID_STATE;
@@ -502,17 +549,17 @@ esp_gmf_err_t esp_gmf_task_stop(esp_gmf_task_handle_t handle)
         ESP_LOGW(TAG, "Can't stop on %s, [%s,%p]", esp_gmf_event_get_state_str(tsk->state), OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         return ESP_GMF_ERR_NOT_SUPPORT;
     }
-    tsk->_stop = 1;
+    TASK_SET_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP);
     if (tsk->state == ESP_GMF_EVENT_STATE_PAUSED) {
         esp_gmf_task_release_signal(tsk, portMAX_DELAY);
     }
     if (GMF_TASK_WAIT_FOR_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT, tsk->api_sync_time) == false) {
         ESP_LOGE(TAG, "Stop timeout,[%s,%p]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         esp_gmf_oal_mutex_unlock(tsk->lock);
-        tsk->_stop = 0;
+        TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP);
         return ESP_GMF_ERR_TIMEOUT;
     }
-    tsk->_stop = 0;
+    TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP);
     esp_gmf_oal_mutex_unlock(tsk->lock);
     return ESP_GMF_ERR_OK;
 }
@@ -538,14 +585,14 @@ esp_gmf_err_t esp_gmf_task_pause(esp_gmf_task_handle_t handle)
         ESP_LOGW(TAG, "Can't pause on %s, [%s,%p]", esp_gmf_event_get_state_str(tsk->state), OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         return ESP_GMF_ERR_NOT_SUPPORT;
     }
-    tsk->_pause = 1;
+    TASK_SET_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE);
     if (GMF_TASK_WAIT_FOR_MULTI_STATE_BITS(tsk->event_group, GMF_TASK_PAUSE_BIT | GMF_TASK_STOP_BIT, tsk->api_sync_time) == false) {
         ESP_LOGE(TAG, "Pause timeout,[%s,%p]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         esp_gmf_oal_mutex_unlock(tsk->lock);
-        tsk->_pause = 0;
+        TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE);
         return ESP_GMF_ERR_TIMEOUT;
     }
-    tsk->_pause = 0;
+    TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE);
     // Only clear pause bits
     GMF_TASK_CLR_STATE_BITS(tsk->event_group, GMF_TASK_PAUSE_BIT);
     esp_gmf_oal_mutex_unlock(tsk->lock);
@@ -563,7 +610,7 @@ esp_gmf_err_t esp_gmf_task_resume(esp_gmf_task_handle_t handle)
         ESP_LOGW(TAG, "Can't resume on %s, [%s,%p]", esp_gmf_event_get_state_str(tsk->state), OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         return ESP_GMF_ERR_NOT_SUPPORT;
     }
-    tsk->_pause = 0;
+    TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE);
     esp_gmf_task_release_signal(tsk, portMAX_DELAY);
     if (GMF_TASK_WAIT_FOR_MULTI_STATE_BITS(tsk->event_group, GMF_TASK_RESUME_BIT | GMF_TASK_STOP_BIT, tsk->api_sync_time) == false) {
         ESP_LOGE(TAG, "Resume timeout,[%s,%p]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);

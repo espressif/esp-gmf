@@ -309,8 +309,10 @@ esp_gmf_err_io_t esp_gmf_port_acquire_out(esp_gmf_port_handle_t handle, esp_gmf_
                 next_in->payload = *load;
                 esp_gmf_port_t *ref_in = ESP_GMF_ELEMENT_GET(el)->in;
                 ref_in = ref_in->ref_port ? ref_in->ref_port : ref_in;
-                next_in->ref_port = ref_in;
-                ref_in->ref_count++;
+                if (ref_in->ref_count > 0) {
+                    next_in->ref_port = ref_in;
+                    ref_in->ref_count++;
+                }
             }
         } else {
             esp_gmf_port_t *next_in = ESP_GMF_ELEMENT_GET(((esp_gmf_node_t *)el)->next)->in;
@@ -337,6 +339,16 @@ esp_gmf_err_io_t esp_gmf_port_acquire_out(esp_gmf_port_handle_t handle, esp_gmf_
         if (port->ops.acquire) {
             ret = port->ops.acquire(port->ctx, *load, wanted_size, wait_ticks);
         }
+        port->ref_port = NULL;
+        if (ret == ESP_GMF_ERR_OK && el && in_original_load) {
+            // No reader but in_port pointer bypass out, also add reference count
+            esp_gmf_port_t *ref_in = ESP_GMF_ELEMENT_GET(el)->in;
+            ref_in = ref_in && ref_in->ref_port ? ref_in->ref_port : ref_in;
+            if (ref_in && ref_in->ref_count > 0) {
+                port->ref_port = ref_in;
+                ref_in->ref_count++;
+            }
+        }
     }
     return ret;
 }
@@ -358,6 +370,9 @@ esp_gmf_err_io_t esp_gmf_port_release_out(esp_gmf_port_handle_t handle, esp_gmf_
         port->payload = NULL;
     } else {
         ret = port->ops.release(port->ctx, load, wait_ticks);
+    }
+    if (port->ref_port) {
+        esp_gmf_port_dec_ref(port->ref_port, load, wait_ticks);
     }
     return ret;
 }
