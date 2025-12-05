@@ -185,6 +185,7 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
     x_max = int(device_config.get('x_max', lcd_panel_config.get('x_max', 320)))
     y_max = int(device_config.get('y_max', lcd_panel_config.get('y_max', 240)))
     invert_color = bool(device_config.get('invert_color', False))
+    need_reset = bool(device_config.get('need_reset', True))
 
     result = {
         'struct_type': 'dev_display_lcd_spi_config_t',
@@ -238,7 +239,8 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
             'mirror_y': mirror_y,
             'x_max': x_max,
             'y_max': y_max,
-            'invert_color': invert_color
+            'invert_color': invert_color,
+            'need_reset': need_reset,
         }
     }
 

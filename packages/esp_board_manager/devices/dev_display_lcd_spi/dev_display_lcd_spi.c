@@ -85,15 +85,20 @@ int dev_display_lcd_spi_init(void *cfg, int cfg_size, void **device_handle)
         free(lcd_handles);
         return -1;
     }
-    // Initialize LCD panel
-    ret = esp_lcd_panel_reset(lcd_handles->panel_handle);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to reset LCD panel: %s", esp_err_to_name(ret));
-        esp_lcd_panel_del(lcd_handles->panel_handle);
-        esp_lcd_panel_io_del(lcd_handles->io_handle);
-        free(lcd_handles);
-        return -1;
+
+    // Reset LCD panel if needed
+    if (lcd_cfg->need_reset) {
+        ret = esp_lcd_panel_reset(lcd_handles->panel_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to reset LCD panel: %s", esp_err_to_name(ret));
+            esp_lcd_panel_del(lcd_handles->panel_handle);
+            esp_lcd_panel_io_del(lcd_handles->io_handle);
+            free(lcd_handles);
+            return -1;
+        }
     }
+
+    // Initialize LCD panel
     ret = esp_lcd_panel_init(lcd_handles->panel_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize LCD panel: %s", esp_err_to_name(ret));

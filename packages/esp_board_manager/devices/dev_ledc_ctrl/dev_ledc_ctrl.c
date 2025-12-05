@@ -32,13 +32,13 @@ int dev_ledc_ctrl_init(void *cfg, int cfg_size, void **device_handle)
         ESP_LOGE(TAG, "Failed to get LEDC peripheral handle '%s': %d", config->ledc_name, ret);
         return -1;
     }
-    periph_ledc_config_t ledc_config = {0};
-    esp_err_t config_ret = esp_board_periph_get_config(config->ledc_name, (void*)&ledc_config);
+    periph_ledc_config_t *ledc_config = NULL;
+    esp_err_t config_ret = esp_board_periph_get_config(config->ledc_name, (void**)&ledc_config);
     if (config_ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LEDC peripheral config '%s': %s", config->ledc_name, esp_err_to_name(config_ret));
         return -1;
     }
-    uint32_t duty = (config->default_percent * ((1 << (uint32_t)ledc_config.duty_resolution) - 1)) / 100;
+    uint32_t duty = (config->default_percent * ((1 << (uint32_t)ledc_config->duty_resolution) - 1)) / 100;
 
     // Set initial duty cycle using the peripheral handle
     esp_err_t err = ledc_set_duty(ledc_handle->speed_mode, ledc_handle->channel, duty);

@@ -23,6 +23,14 @@ devices:
     peripherals:
       - name: gpio_power_lcd
 
+  - name: lcd_brightness
+    type: ledc_ctrl
+    version: default
+    config:
+      default_percent: 0  # 0-100, default 0 percent
+    peripherals:
+      - name: ledc_backlight               # LEDC peripheral for GPIO 44
+
   - name: audio_dac
     chip: es8311
     type: audio_codec
@@ -94,6 +102,7 @@ devices:
     config:
       x_max: 360
       y_max: 360
+      need_reset: false
       # esp_lcd_panel_io_spi_config_t fields
       io_spi_config:
         cs_gpio_num: 14                   # GPIO14 - LCD_CS (BSP_LCD_CS)
@@ -132,10 +141,12 @@ devices:
         y_max: 360                        # Maximum Y coordinate (BSP_LCD_V_RES)
         int_gpio_num: 10                  # Interrupt GPIO (BSP_LCD_TOUCH_INT)
 
-  - name: lcd_brightness
-    type: ledc_ctrl
+  # LED GREEN
+  - name: led_green
+    type: gpio_ctrl
     version: default
     config:
-      default_percent: 100  # 0-100, default 0 percent
+      active_level: 0
+      default_level: 1
     peripherals:
-      - name: ledc_backlight               # LEDC peripheral for GPIO 44
+      - name: gpio_led_g

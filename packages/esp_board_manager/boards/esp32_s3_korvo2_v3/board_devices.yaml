@@ -81,6 +81,7 @@ devices:
       mirror_y: true
       x_max: 320
       y_max: 240
+      need_reset: false
       # esp_lcd_panel_io_spi_config_t fields
       io_spi_config:
         cs_gpio_num: -1                   # GPIO14 - LCD_CS (BSP_LCD_CS)

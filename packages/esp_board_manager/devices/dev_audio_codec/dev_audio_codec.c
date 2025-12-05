@@ -94,6 +94,7 @@ static const char *TAG = "DEV_AUDIO_CODEC";
         CODEC_CONFIG_STRUCT(codec_name) *codec_cfg = (CODEC_CONFIG_STRUCT(codec_name) *)specific_cfg;                                \
         codec_cfg->ctrl_if                         = handles->ctrl_if;                                                               \
         codec_cfg->gpio_if                         = handles->gpio_if;                                                               \
+        codec_cfg->hw_gain.pa_gain                 = base_cfg->pa_cfg.gain;                                                          \
         return 0;                                                                                                                    \
     }
 
@@ -105,6 +106,7 @@ static const char *TAG = "DEV_AUDIO_CODEC";
         codec_cfg->ctrl_if                         = handles->ctrl_if;                                                               \
         codec_cfg->gpio_if                         = handles->gpio_if;                                                               \
         codec_cfg->pa_reverted                     = base_cfg->pa_cfg.active_level == 1 ? false : true;                              \
+        codec_cfg->hw_gain.pa_gain                 = base_cfg->pa_cfg.gain;                                                          \
         return 0;                                                                                                                    \
     }
 

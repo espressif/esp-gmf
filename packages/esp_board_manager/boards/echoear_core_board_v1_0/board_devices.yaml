@@ -120,6 +120,6 @@ devices:
     type: ledc_ctrl
     version: default
     config:
-      default_percent: 100                # 0-100, default 0 percent
+      default_percent: 0                  # 0-100, default 0 percent
     peripherals:
       - name: ledc_backlight              # LEDC peripheral for GPIO 44
