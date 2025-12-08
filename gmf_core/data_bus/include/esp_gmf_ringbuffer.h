@@ -75,7 +75,6 @@ esp_gmf_err_t esp_gmf_rb_reset(esp_gmf_rb_handle_t handle);
  * @param[in]   ticks_to_wait  Maximum duration to wait for the operation to complete
  *
  * @return
- *       - > 0                 The specific length of data being read
  *       - ESP_GMF_IO_OK       Operation succeeded
  *       - ESP_GMF_IO_FAIL     Invalid arguments
  *       - ESP_GMF_IO_TIMEOUT  Operation timed out
@@ -108,11 +107,7 @@ esp_gmf_err_io_t esp_gmf_rb_release_read(esp_gmf_rb_handle_t handle, esp_gmf_dat
  * @param[in]   ticks_to_wait  Maximum duration to wait for the operation to complete
  *
  * @return
- *       - > 0                 The specific length of space can be write
- *       - ESP_GMF_IO_OK       Operation succeeded
- *       - ESP_GMF_IO_FAIL     Invalid arguments
- *       - ESP_GMF_IO_TIMEOUT  Operation timed out
- *       - ESP_GMF_IO_ABORT    Operation aborted
+ *       - ESP_GMF_IO_OK  Operation succeeded
  */
 esp_gmf_err_io_t esp_gmf_rb_acquire_write(esp_gmf_rb_handle_t handle, esp_gmf_data_bus_block_t *blk, uint32_t wanted_size, int ticks_to_wait);
 
@@ -164,17 +159,6 @@ esp_gmf_err_t esp_gmf_rb_done_write(esp_gmf_rb_handle_t handle);
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid arguments
  */
 esp_gmf_err_t esp_gmf_rb_reset_done_write(esp_gmf_rb_handle_t handle);
-
-/**
- * @brief  Unblock the reader of the ring buffer
- *
- * @param[in]  handle  The Ringbuffer handle
- *
- * @return
- *       - ESP_GMF_ERR_OK           On success
- *       - ESP_GMF_ERR_INVALID_ARG  Invalid arguments
- */
-esp_gmf_err_t esp_gmf_rb_unblock_reader(esp_gmf_rb_handle_t handle);
 
 /**
  * @brief  Get the number of bytes available for reading from the ring buffer

@@ -18,9 +18,10 @@
 
 static const char *TAG = "TEST_ESP_GMF_BLOCK";
 static bool        is_done;
+static bool        is_abort_read;
+static bool        is_abort_write;
 static uint8_t     block_size_type;  // 1 for random size; 2 for specific size; others is fixed size
 static bool        use_random_delay;
-uint8_t           *dest_buf            = NULL;
 uint32_t           specific_block_size = 0;
 
 static const char *file_name       = "/sdcard/gmf_ut_test2.mp3";
@@ -74,6 +75,9 @@ static void acquire_write_task(void *param)
         if (result >= ESP_OK) {
             buf = blk_buf.buf;
         } else {
+            if (result == ESP_GMF_IO_ABORT) {
+                is_abort_write = true;
+            }
             ESP_LOGE(TAG, "Acquire write quit,ret:%d", result);
             break;
         }
@@ -84,13 +88,13 @@ static void acquire_write_task(void *param)
 
         file_sz += ret;
         blk_buf.valid_size = ret;
+        esp_gmf_block_release_write(bk, &blk_buf, 0);
+
         if (ret == 0 || (blk_buf.buf_length != ret)) {
             ESP_LOGI(TAG, "File read finished, size:%ld ret:%d", file_sz, ret);
             esp_gmf_block_done_write(bk);
             run = false;
         }
-
-        esp_gmf_block_release_write(bk, &blk_buf, 0);
         if (ret != wanted_size) {
             ESP_LOGD(TAG, "W2:%ld, ret:%d,sz:%ld,%p-%d-%d", wanted_size, ret, file_sz, blk_buf.buf, blk_buf.valid_size, blk_buf.is_last);
             blk_buf.is_last = true;
@@ -146,6 +150,9 @@ static void acquire_read_task(void *param)
         }
 
         if (ret < ESP_OK) {
+            if (ret == ESP_GMF_IO_ABORT) {
+                is_abort_read = true;
+            }
             ESP_LOGE(TAG, "Acquire read quit,ret:%d", ret);
             break;
         }
@@ -186,14 +193,11 @@ TEST_CASE("Read and write with RANDOM SIZE + NO DELAY on different task", "[ESP_
     block_size_type = 1;
     use_random_delay = false;
 
-    dest_buf = esp_gmf_oal_calloc(1, 120 * 1024);
-    TEST_ASSERT_NOT_NULL(dest_buf);
 
     uint32_t task_prio[3][2] = {{0, 2}, {0, 2}, {0, 5}};
 
     uint32_t loop_times = 12;
     for (int i = 0; i < loop_times; ++i) {
-        memset(dest_buf, 0, 120 * 1024);
         file2_indx = i;
         printf("\r\n\r\n ---------- RANDOM SIZE + NO DELAY, %d, priority:%ld, %ld  ---------- \r\n", i, task_prio[i % 3][0], task_prio[i % 3][1]);
         start_cnt = esp_clk_rtc_time();
@@ -212,7 +216,6 @@ TEST_CASE("Read and write with RANDOM SIZE + NO DELAY on different task", "[ESP_
         is_done = false;
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
-    esp_gmf_oal_free(dest_buf);
     esp_gmf_block_destroy(bk);
     esp_gmf_ut_teardown_sdmmc(card);
 }
@@ -236,13 +239,10 @@ TEST_CASE("Read and write with FIXED SIZE + NO DELAY on different task", "[ESP_G
     block_size_type = 0;
     use_random_delay = false;
     ESP_GMF_MEM_SHOW(TAG);
-    dest_buf = esp_gmf_oal_calloc(1, 120 * 1024);
-    TEST_ASSERT_NOT_NULL(dest_buf);
     uint32_t task_prio[3][2] = {{5, 2}, {2, 2}, {2, 5}};
     uint32_t loop_times = 10;
     file2_indx = 0;
     for (int i = 0; i < loop_times; ++i) {
-        memset(dest_buf, 0, 120 * 1024);
         printf("\r\n\r\n ---------- FIXED SIZE + NO DELAY, %d, priority:%ld, %ld  ---------- \r\n", i, task_prio[i % 3][0], task_prio[i % 3][1]);
 
         start_cnt = esp_clk_rtc_time();
@@ -260,7 +260,6 @@ TEST_CASE("Read and write with FIXED SIZE + NO DELAY on different task", "[ESP_G
         esp_gmf_block_reset(bk);
         is_done = false;
     }
-    esp_gmf_oal_free(dest_buf);
     esp_gmf_block_destroy(bk);
     esp_gmf_ut_teardown_sdmmc(card);
 }
@@ -284,15 +283,11 @@ TEST_CASE("Read and write with RANDOM SIZE + RANDOM DELAY on different task", "[
     block_size_type = 1;
     use_random_delay = true;
 
-    dest_buf = esp_gmf_oal_calloc(1, 120 * 1024);
-    TEST_ASSERT_NOT_NULL(dest_buf);
-
     uint32_t task_prio[3][2] = {{5, 2}, {2, 2}, {2, 5}};
 
     uint32_t loop_times = 10;
     file2_indx = 0;
     for (int i = 0; i < loop_times; ++i) {
-        memset(dest_buf, 0, 120 * 1024);
         printf("\r\n\r\n ---------- RANDOM SIZE + RANDOM DELAY, %d, priority:%ld, %ld  ---------- \r\n", i, task_prio[i % 3][0], task_prio[i % 3][1]);
         start_cnt = esp_clk_rtc_time();
         xTaskCreate(acquire_read_task, "acq_read", 4096, bk, task_prio[i % 3][0], NULL);
@@ -310,7 +305,6 @@ TEST_CASE("Read and write with RANDOM SIZE + RANDOM DELAY on different task", "[
         is_done = false;
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
-    esp_gmf_oal_free(dest_buf);
     esp_gmf_block_destroy(bk);
     esp_gmf_ut_teardown_sdmmc(card);
 }
@@ -334,14 +328,11 @@ TEST_CASE("Read and write with FIXED SIZE + RANDOM DELAY", "[ESP_GMF_BLOCK]")
     block_size_type = 0;
     use_random_delay = true;
     ESP_GMF_MEM_SHOW(TAG);
-    dest_buf = esp_gmf_oal_calloc(1, 120 * 1024);
-    TEST_ASSERT_NOT_NULL(dest_buf);
     uint32_t task_prio[3][2] = {{5, 2}, {2, 2}, {2, 5}};
 
     uint32_t loop_times = 10;
     file2_indx = 0;
     for (int i = 0; i < loop_times; ++i) {
-        memset(dest_buf, 0, 120 * 1024);
         printf("\r\n\r\n ---------- FIXED SIZE + RANDOM DELAY %d, priority:%ld, %ld  ---------- \r\n", i, task_prio[i % 3][0], task_prio[i % 3][1]);
 
         start_cnt = esp_clk_rtc_time();
@@ -359,7 +350,6 @@ TEST_CASE("Read and write with FIXED SIZE + RANDOM DELAY", "[ESP_GMF_BLOCK]")
         esp_gmf_block_reset(bk);
         is_done = false;
     }
-    esp_gmf_oal_free(dest_buf);
     esp_gmf_block_destroy(bk);
     esp_gmf_ut_teardown_sdmmc(card);
 }
@@ -383,15 +373,12 @@ TEST_CASE("Read and write with SPECIFIC SIZE + NO DELAY", "[ESP_GMF_BLOCK]")
     block_size_type = 2;
     use_random_delay = false;
     ESP_GMF_MEM_SHOW(TAG);
-    dest_buf = esp_gmf_oal_calloc(1, 120 * 1024);
-    TEST_ASSERT_NOT_NULL(dest_buf);
 
     uint32_t task_prio[3][2] = {{5, 2}, {2, 2}, {2, 5}};
     uint32_t size_percent[10] = {1, 2, 10, 30, 50, 60, 70, 80, 99, 100};
     uint32_t loop_times = sizeof(size_percent) / sizeof(uint32_t);
     file2_indx = 0;
     for (int i = 0; i < loop_times; ++i) {
-        memset(dest_buf, 0, 120 * 1024);
         uint32_t total_size = 0;
         esp_gmf_block_get_total_size(bk, &total_size);
         specific_block_size = total_size * size_percent[i] / 100;
@@ -414,7 +401,55 @@ TEST_CASE("Read and write with SPECIFIC SIZE + NO DELAY", "[ESP_GMF_BLOCK]")
         esp_gmf_block_reset(bk);
         is_done = false;
     }
-    esp_gmf_oal_free(dest_buf);
+    esp_gmf_block_destroy(bk);
+    esp_gmf_ut_teardown_sdmmc(card);
+}
+
+TEST_CASE("Abort when read and write with FIXED SIZE + RANDOM DELAY", "[ESP_GMF_BLOCK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+
+    sdmmc_card_t *card = NULL;
+    esp_gmf_ut_setup_sdmmc(&card);
+
+    is_done = false;
+    is_abort_read = false;
+    is_abort_write = false;
+    esp_gmf_block_handle_t bk = NULL;
+    esp_gmf_block_create(2 * 1000, 4, &bk);
+    TEST_ASSERT_NOT_NULL(bk);
+    block_size_type = 0;
+    use_random_delay = true;
+    ESP_GMF_MEM_SHOW(TAG);
+    uint32_t task_prio[3][2] = {{5, 2}, {2, 2}, {2, 5}};
+
+    uint32_t loop_times = 10;
+    file2_indx = 0;
+    for (int i = 0; i < loop_times; ++i) {
+        printf("\r\n\r\n ----------ABORT with FIXED SIZE + RANDOM DELAY %d, priority:%ld, %ld  ---------- \r\n", i, task_prio[i % 3][0], task_prio[i % 3][1]);
+
+        xTaskCreate(acquire_read_task, "acq_read", 4096, bk, task_prio[i % 3][0], NULL);
+        xTaskCreate(acquire_write_task, "acq_write", 4096, bk, task_prio[i % 3][1], NULL);
+        int timeout_ms = 100;
+        while (1) {
+            vTaskDelay(1 / portTICK_PERIOD_MS);
+            timeout_ms -= 1;
+            if (timeout_ms == 0) {
+                ESP_LOGI(TAG, "Calling abort after 100ms");
+                esp_gmf_block_abort(bk);
+                vTaskDelay(50 / portTICK_PERIOD_MS);
+            }
+            if (is_done) {
+                break;
+            }
+        }
+        TEST_ASSERT_TRUE(is_abort_read);
+        TEST_ASSERT_TRUE(is_abort_write);
+        esp_gmf_block_reset(bk);
+        is_abort_read = false;
+        is_abort_write = false;
+        is_done = false;
+    }
     esp_gmf_block_destroy(bk);
     esp_gmf_ut_teardown_sdmmc(card);
 }

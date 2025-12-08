@@ -72,9 +72,9 @@ esp_gmf_err_t esp_gmf_block_destroy(esp_gmf_block_handle_t handle);
  * @param[in]   block_ticks  Ticks to wait for the operation
  *
  * @return
- *       - > 0                 The specific length of data being read
  *       - ESP_GMF_IO_OK       Operation succeeded
  *       - ESP_GMF_IO_FAIL     Invalid arguments, or wanted_size > total size
+ *       - ESP_GMF_IO_ABORT    Operation aborted
  *       - ESP_GMF_IO_TIMEOUT  Operation timed out
  */
 esp_gmf_err_io_t esp_gmf_block_acquire_read(esp_gmf_block_handle_t handle, esp_gmf_data_bus_block_t *blk, uint32_t wanted_size, int block_ticks);
@@ -92,8 +92,9 @@ esp_gmf_err_io_t esp_gmf_block_acquire_read(esp_gmf_block_handle_t handle, esp_g
  * @param[in]  block_ticks  Ticks to wait for the operation
  *
  * @return
- *       - ESP_GMF_IO_OK    Operation succeeded
- *       - ESP_GMF_IO_FAIL  Invalid arguments, or the buffer does not belong to the provided handle
+ *       - ESP_GMF_IO_OK     Operation succeeded
+ *       - ESP_GMF_IO_FAIL   Invalid arguments, or the buffer does not belong to the provided handle
+ *       - ESP_GMF_IO_ABORT  Operation aborted
  */
 esp_gmf_err_io_t esp_gmf_block_release_read(esp_gmf_block_handle_t handle, esp_gmf_data_bus_block_t *blk, int block_ticks);
 
@@ -112,9 +113,9 @@ esp_gmf_err_io_t esp_gmf_block_release_read(esp_gmf_block_handle_t handle, esp_g
  * @param[in]   block_ticks  Ticks to wait for the operation
  *
  * @return
- *       - > 0                 The specific length of space can be write
  *       - ESP_GMF_IO_OK       Operation succeeded, or it's done to write
  *       - ESP_GMF_IO_FAIL     Invalid arguments, or no filled data
+ *       - ESP_GMF_IO_ABORT    Operation aborted
  *       - ESP_GMF_IO_TIMEOUT  Operation timed out
  */
 esp_gmf_err_io_t esp_gmf_block_acquire_write(esp_gmf_block_handle_t handle, esp_gmf_data_bus_block_t *blk, uint32_t wanted_size, int block_ticks);
@@ -132,8 +133,9 @@ esp_gmf_err_io_t esp_gmf_block_acquire_write(esp_gmf_block_handle_t handle, esp_
  * @param[in]  block_ticks  Ticks to wait for the operation
  *
  * @return
- *       - ESP_GMF_IO_OK    Operation succeeded
- *       - ESP_GMF_IO_FAIL  Invalid arguments, or the buffer does not belong to the provided handle
+ *       - ESP_GMF_IO_OK     Operation succeeded
+ *       - ESP_GMF_IO_FAIL   Invalid arguments, or the buffer does not belong to the provided handle
+ *       - ESP_GMF_IO_ABORT  Operation aborted
  */
 esp_gmf_err_io_t esp_gmf_block_release_write(esp_gmf_block_handle_t handle, esp_gmf_data_bus_block_t *blk, int block_ticks);
 
