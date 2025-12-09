@@ -91,20 +91,23 @@ void esp_gmf_node_insert_after(esp_gmf_node_t *prev, esp_gmf_node_t *new)
 
 void esp_gmf_node_del_at(esp_gmf_node_t **root, esp_gmf_node_t *del)
 {
-    if (*root == NULL || del == NULL) {
+    if (root == NULL || *root == NULL || del == NULL) {
         return;
     }
-    if (*root == del) {
+    if (del->prev == NULL) {
+        if (del != *root) {
+            // Bad node
+            return;
+        }
         *root = del->next;
-        return;
-    }
-    if (del->next) {
-        del->next->prev = del->prev;
+        if (*root) {
+            // Still have nodes
+            (*root)->prev = NULL;
+        }
     } else {
-        del->prev->next = NULL;
-    }
-
-    if (del->prev) {
+        if (del->next) {
+            del->next->prev = del->prev;
+        }
         del->prev->next = del->next;
     }
     del->next = NULL;
