@@ -65,7 +65,7 @@ peripherals:
     config:
       gpio_num: 44                      # GPIO44 - LED control pin
       freq_hz: 2000                     # PWM frequency 2kHz
-      duty: 2048                        # Initial duty cycle (50% for 13-bit resolution)
+      duty: 0                           # Initial duty cycle (0%)
       duty_resolution: LEDC_TIMER_10_BIT               # 10-bit duty resolution
 
   # CHIP POWER_ON_OFF LCD and SD card power control

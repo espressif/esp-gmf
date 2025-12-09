@@ -24,18 +24,19 @@ extern "C" {
  *         SPI name, and panel IO configuration.
  */
 typedef struct {
-    const char                    *name;           /*!< Device name */
-    const char                    *chip;           /*!< LCD chip type */
-    const char                    *type;           /*!< Display type */
-    esp_lcd_panel_dev_config_t     panel_config;   /*!< LCD panel device configuration */
-    const char                    *spi_name;       /*!< SPI bus name */
-    esp_lcd_panel_io_spi_config_t  io_spi_config;  /*!< SPI panel IO configuration */
-    uint8_t                        swap_xy  : 1;   /*!< Swap X and Y coordinates */
-    uint8_t                        mirror_x : 1;   /*!< Mirror X coordinates */
-    uint8_t                        mirror_y : 1;   /*!< Mirror Y coordinates */
-    uint16_t                       x_max;          /*!< X coordinates max  */
-    uint16_t                       y_max;          /*!< Y coordinates max */
-    bool                           invert_color;   /*!< Invert color flag */
+    const char                    *name;            /*!< Device name */
+    const char                    *chip;            /*!< LCD chip type */
+    const char                    *type;            /*!< Display type */
+    esp_lcd_panel_dev_config_t     panel_config;    /*!< LCD panel device configuration */
+    const char                    *spi_name;        /*!< SPI bus name */
+    esp_lcd_panel_io_spi_config_t  io_spi_config;   /*!< SPI panel IO configuration */
+    uint8_t                        swap_xy    : 1;  /*!< Swap X and Y coordinates */
+    uint8_t                        mirror_x   : 1;  /*!< Mirror X coordinates */
+    uint8_t                        mirror_y   : 1;  /*!< Mirror Y coordinates */
+    uint8_t                        need_reset : 1;  /*!< Whether the panel needs reset during initialization */
+    uint16_t                       x_max;           /*!< X coordinates max  */
+    uint16_t                       y_max;           /*!< Y coordinates max */
+    bool                           invert_color;    /*!< Invert color flag */
 } dev_display_lcd_spi_config_t;
 
 /**
@@ -60,8 +61,8 @@ typedef struct {
  * @param[out]  device_handle  Pointer to a variable to receive the dev_display_lcd_spi_handles_t handle
  *
  * @return
- *       - 0               On success
- *       - Negative value  On failure
+ *       - 0         On success
+ *       - Negative  value  On failure
  */
 int dev_display_lcd_spi_init(void *cfg, int cfg_size, void **device_handle);
 
@@ -74,8 +75,8 @@ int dev_display_lcd_spi_init(void *cfg, int cfg_size, void **device_handle);
  * @param[in]  device_handle  Pointer to the device handle to be deinitialized
  *
  * @return
- *       - 0               On success
- *       - Negative value  On failure
+ *       - 0         On success
+ *       - Negative  value  On failure
  */
 int dev_display_lcd_spi_deinit(void *device_handle);
 

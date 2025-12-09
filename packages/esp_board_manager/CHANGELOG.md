@@ -1,10 +1,16 @@
 # Changelog
 
-## 0.4.6
+## 0.4.8
 
 ### Bug Fixes
 
-- Fixed the SD card mount failure issue
+- Fixed the issue where the configuration of the periph_ledc was not correctly obtained during the initialization of dev_ledc_ctrl
+- Added `need_reset` configuration to control whether to reset lcd during the initialization of `display_lcd_spi`
+- Modified the default configuration of echoear_core_board_v1_2 to prevent screen flickering during initialization
+- Fixed incorrect PA gain assigned for codec_device
+
+### Features
+- Added gpio_led support for echoear_core_board_v1_2
 
 ## 0.4.7
 
@@ -22,6 +28,12 @@
 - Fixed the issue with incorrect usage of handle for sdcard and sdcard_spi
 - Modified the GPIO expander and customer device test cases to make them more generic
 - Fixed the test app to allow sdcard_spi to also function properly in codec testing
+
+## 0.4.6
+
+### Bug Fixes
+
+- Fixed the SD card mount failure issue
 
 ## 0.4.5
 

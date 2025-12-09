@@ -32,7 +32,7 @@ class BoardManagerConfig:
     }
 
     # Default values
-    DEFAULT_BOARD = 'esp32s3_korvo_3'
+    DEFAULT_BOARD = 'esp32_s3_korvo_3'
     DEFAULT_VERSION = '1.0.0'
     DEFAULT_MANUFACTURER = 'ESPRESSIF'
 

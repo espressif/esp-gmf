@@ -48,15 +48,6 @@ peripherals:
       slot_mask: I2S_TDM_SLOT0 | I2S_TDM_SLOT1 | I2S_TDM_SLOT2  # Override specific slot mask
       slot_mode: I2S_SLOT_MODE_STEREO
 
-  - name: ledc_backlight
-    type: ledc
-    role: none
-    config:
-      gpio_num: 48                      # GPIO48 - LED control pin
-      freq_hz: 2000                     # PWM frequency 2kHz
-      duty: 2048                        # Initial duty cycle (50% for 13-bit resolution)
-      duty_resolution: LEDC_TIMER_10_BIT               # 10-bit duty resolution
-
   # Power amplifier control
   - name: gpio_power_amp
     type: gpio

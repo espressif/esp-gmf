@@ -15,7 +15,8 @@
     mirror_x: false
     x_max: 320
     y_max: 240
-    invert_color: false      # Invert color flag (default: false)
+    invert_color: false  # Invert color flag (default: false)
+    need_reset: true     # Whether the LCD needs to reset during initialization (default: true)
 
     # esp_lcd_panel_io_spi_config_t fields for SPI communication
     io_spi_config:

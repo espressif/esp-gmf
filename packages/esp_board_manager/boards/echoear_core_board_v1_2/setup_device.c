@@ -7,7 +7,6 @@
 
 #include <string.h>
 #include "esp_board_device.h"
-#include "esp_codec_dev.h"
 #include "esp_lcd_st77916.h"
 #include "esp_lcd_touch_cst816s.h"
 #include "esp_log.h"
