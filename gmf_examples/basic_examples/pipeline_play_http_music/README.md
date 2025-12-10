@@ -29,16 +29,28 @@ Here are the summarized steps for compilation:
 cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_play_http_music
 ```
 
-- Select the target chip for compilation. For example, to use the ESP32S3:
+- Execute the prebuild script, select the target chip, automatically setup IDF Action Extension
+
+On Linux / macOS, run following command:
+```bash/zsh
+source prebuild.sh
+```
+
+On Windows, run following command:
+```powershell
+.\prebuild.ps1
+```
+
+- Use `esp_board_manager` to select supported board and custom board, be sure to see [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager), taking ESP32-S3-Korvo2 V3.1 as an example:
 
 ```
-idf.py set-target esp32s3
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
 
-- Select the target board and configure the WIFI information taking ESP32-S3-Korvo-2 as an example:
-In `menuconfig`, select `GMF APP Configuration` -> `Target Board` -> `ESP32 S3 Korvo V2`, then specify
-`Example Connection Configuration` -> `WiFi SSID` and `WiFi Password`, and save and exit.
+- Configure the WIFI information:
+In `menuconfig`, specify `Example Connection Configuration` -> `WiFi SSID` and `WiFi Password`, and save and exit.
 If you need to support aac or other formatted URLs, you need to configure them in `Component Configuration` → `Audio Codec Configuration` → `Audio Decoder Configuration`.
+
 ```
 idf.py menuconfig
 ```

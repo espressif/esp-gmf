@@ -29,15 +29,28 @@
 cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_play_http_music
 ```
 
-- 选择编译芯片，以 esp32s3 为例：
+- 执行预编译脚本，根据提示选择编译芯片，自动设置 IDF Action 扩展
+
+在 Linux / macOS 中运行以下命令：
+```bash/zsh
+source prebuild.sh
+```
+
+在 Windows 中运行以下命令：
+```powershell
+.\prebuild.ps1
+```
+
+- 通过 `esp_board_manager` 选择支持的开发板或自定义开发板，请务必参阅 [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager)，以 ESP32-S3-Korvo2 V3.1 为例：
 
 ```
-idf.py set-target esp32s3
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
-- 选择编译板子，配置 WIFI 信息，以 ESP32-S3-Korvo-2 为例：
-在 `menuconfig` 中选择 `GMF APP Configuration` -> `Target Board` -> `ESP32 S3 Korvo V2`，
-设定 `Example Connection Configuration` -> `(myssid) WiFi SSID` -> `(myssid) WiFi Password`, 然后保存退出。
+
+- 配置 WIFI 信息：
+在 `menuconfig` 中设定 `Example Connection Configuration` -> `(myssid) WiFi SSID` 和 `(myssid) WiFi Password`, 然后保存退出。
 如果需要支持 aac 或其他格式的 URL，需要在 `Component config` → `Audio Codec Configuration` → `Audio Decoder Configuration` 中进行配置。
+
 ```
 idf.py menuconfig
 ```

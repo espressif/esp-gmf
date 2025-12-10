@@ -42,16 +42,21 @@ python $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_record_http/server.py
 cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_record_http
 ```
 
-- 选择编译芯片，以 esp32s3 为例：
+- 执行预编译脚本，根据提示选择编译芯片，自动设置 IDF Action 扩展
 
+在 Linux / macOS 中运行以下命令：
+```bash/zsh
+source prebuild.sh
 ```
-idf.py set-target esp32s3
+
+在 Windows 中运行以下命令：
+```powershell
+.\prebuild.ps1
 ```
 
 - 通过 `esp_board_manager` 选择支持的开发板或自定义开发板，请务必参阅 [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager)，以 ESP32-S3-Korvo2 V3.1 为例：
 
 ```
-export IDF_EXTRA_ACTIONS_PATH=./managed_components/espressif__esp_board_manager
 idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
 

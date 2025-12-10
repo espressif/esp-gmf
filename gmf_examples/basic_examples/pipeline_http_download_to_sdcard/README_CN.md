@@ -50,34 +50,46 @@
    cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_http_download_to_sdcard
    ```
 
-2. **设置目标芯片**（以 ESP32-S3 为例）
+2. **执行预编译脚本**（根据提示选择编译芯片，自动设置 IDF Action 扩展）
+   在 Linux / macOS 中运行以下命令：
    ```bash
-   idf.py set-target esp32s3
+   source prebuild.sh
    ```
 
-3. **配置项目参数**（以 ESP32-S3-Korvo-2 为例）
+   在 Windows 中运行以下命令：
+   ```powershell
+   .\prebuild.ps1
+   ```
+
+3. **选择目标板子**
+   通过 `esp_board_manager` 选择支持的开发板或自定义开发板，请务必参阅 [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager)，以 ESP32-S3-Korvo2 V3.1 为例：
+
+   ```bash
+   idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+   ```
+
+4. **配置项目参数**（以 ESP32-S3-Korvo-2 为例）
    ```bash
    idf.py menuconfig
    ```
 
    在 menuconfig 中进行以下配置：
-   - `GMF APP Configuration` → `Target Board` → `ESP32 S3 Korvo V2`
    - `GMF APP Configuration` → `Example Connection Configuration` → `WiFi SSID`
    - `GMF APP Configuration` → `Example Connection Configuration` → `WiFi Password`
 
    > 配置完成后按 `s` 保存，然后按 `Esc` 退出。
 
-4. **编译项目**
+5. **编译项目**
    ```bash
    idf.py build
    ```
 
-5. **烧录并监控**（请将 PORT 替换为实际的串口名称）
+6. **烧录并监控**（请将 PORT 替换为实际的串口名称）
    ```bash
    idf.py -p PORT flash monitor
    ```
 
-6. **退出监控模式**
+7. **退出监控模式**
    使用 `Ctrl-]` 组合键退出串口监控界面。
 
 ## 使用说明

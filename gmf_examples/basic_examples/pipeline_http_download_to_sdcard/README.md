@@ -50,34 +50,46 @@ For detailed ESP-IDF configuration and usage guide, please refer to the [ESP-IDF
    cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_http_download_to_sdcard
    ```
 
-2. **Set target chip** (using ESP32-S3 as an example)
+2. **Execute prebuild script** (select the target chip, automatically setup IDF Action Extension)
+   On Linux / macOS, run following command:
    ```bash
-   idf.py set-target esp32s3
+   source prebuild.sh
    ```
 
-3. **Configure project parameters** (using ESP32-S3-Korvo-2 as an example)
+   On Windows, run following command:
+   ```powershell
+   .\prebuild.ps1
+   ```
+
+3. **Select the board**
+   Use `esp_board_manager` to select supported board and custom board, be sure to see [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager), taking ESP32-S3-Korvo2 V3.1 as an example:
+
+   ```
+   idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+   ```
+
+4. **Configure project parameters**
    ```bash
    idf.py menuconfig
    ```
 
    In menuconfig, perform the following configuration:
-   - `GMF APP Configuration` → `Target Board` → `ESP32 S3 Korvo V2`
    - `GMF APP Configuration` → `Example Connection Configuration` → `WiFi SSID`
    - `GMF APP Configuration` → `Example Connection Configuration` → `WiFi Password`
 
    > After configuration, press `s` to save, then press `Esc` to exit.
 
-4. **Build the project**
+5. **Build the project**
    ```bash
    idf.py build
    ```
 
-5. **Flash and monitor** (please replace PORT with the actual serial port name)
+6. **Flash and monitor** (please replace PORT with the actual serial port name)
    ```bash
    idf.py -p PORT flash monitor
    ```
 
-6. **Exit monitoring mode**
+7. **Exit monitoring mode**
    Use the `Ctrl-]` key combination to exit the serial monitoring interface.
 
 ## Usage Instructions
