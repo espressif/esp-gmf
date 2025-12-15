@@ -168,6 +168,10 @@ esp_gmf_err_io_t esp_gmf_block_acquire_read(esp_gmf_block_handle_t handle, esp_g
     }
     blk->is_last = 0;
     while (get_fill_size(hd) < wanted_size) {
+        if (hd->_is_abort) {
+            esp_gmf_oal_mutex_unlock(hd->lock);
+            return ESP_GMF_IO_ABORT;
+        }
         if (hd->buf < hd->p_wr_end) {
             if (hd->p_wr_end != hd->p_rd) {
                 wanted_size = hd->p_wr_end - hd->p_rd;
@@ -189,9 +193,6 @@ esp_gmf_err_io_t esp_gmf_block_acquire_read(esp_gmf_block_handle_t handle, esp_g
             break;
         }
         esp_gmf_oal_mutex_unlock(hd->lock);
-        if (hd->_is_abort) {
-            return ESP_GMF_IO_ABORT;
-        }
         ESP_LOGV(TAG, "R-T:%p, %p, %p, wanted:%ld, fill:%ld", hd->p_rd, hd->p_wr, hd->p_wr_end, wanted_size, get_fill_size(hd));
         if (xSemaphoreTake(hd->can_read, block_ticks) != pdPASS) {
             ESP_LOGE(TAG, "Read timeout");
@@ -269,6 +270,7 @@ esp_gmf_err_io_t esp_gmf_block_acquire_write(esp_gmf_block_handle_t handle, esp_
     blk->is_last = 0;
     while ((emtpy_size = get_empty_size(hd)) < wanted_size) {
         if (hd->_is_abort) {
+            esp_gmf_oal_mutex_unlock(hd->lock);
             return ESP_GMF_IO_ABORT;
         }
         if (hd->p_wr >= hd->p_rd) {
