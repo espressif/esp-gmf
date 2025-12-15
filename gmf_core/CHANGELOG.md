@@ -54,6 +54,15 @@
 - Refine some warning log output
 - Correct logic for API `esp_gmf_pipeline_get_next_el`
 
+## v0.7.9
+
+### Bug Fixes
+
+- Fixed block data_bus abort return miss unlock
+- Fixed pbuf data_bus reset miss buffer and count process
+- Fixed unit test for `esp_gmf_db_abort` through a random time delay before abort
+- Corrected read and write task return logic for data_bus unit test
+
 ## v0.7.8
 
 ### Bug Fixes
