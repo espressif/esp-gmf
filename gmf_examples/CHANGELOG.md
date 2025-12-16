@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.2
+
+### Bug Fixes
+
+- Added prebuild script to solve compilation issue
+
 ## v0.7.1
 
 ### Bug Fixes

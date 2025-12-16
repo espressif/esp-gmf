@@ -36,16 +36,22 @@ Here are the summarized steps for compilation:
 cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_record_sdcard
 ```
 
-- Select the target chip for compilation. For example, to use the ESP32S3:
+- Execute the prebuild script, select the target chip, automatically setup IDF Action Extension
+
+On Linux / macOS, run following command:
+```bash/zsh
+source prebuild.sh
+```
+
+On Windows, run following command:
+```powershell
+.\prebuild.ps1
+```
+
+- Use `esp_board_manager` to select supported board and custom board, be sure to see [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager), taking ESP32-S3-Korvo2 V3.1 as an example:
 
 ```
-idf.py set-target esp32s3
-```
-- Select the compilation board, taking esp32 s3 Korvo V2 as an example:
-
-```
-idf.py menuconfig
-In 'menuconfig', select 'GMF APP Configuration' -> 'Audio Board' -> 'ESP32-S3-Korvo V2', and then save and exit
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
 
 - Build the Example
