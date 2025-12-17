@@ -204,7 +204,7 @@ esp_gmf_err_io_t esp_gmf_pbuf_acquire_write(esp_gmf_pbuf_handle_t handle, esp_gm
     }
     pbuf_lock(pbuf->lock);
     if (pbuf->empty_head == NULL) {
-        if (pbuf->capacity < pbuf->buf_cnt) {
+        if (pbuf->capacity <= pbuf->buf_cnt) {
             ESP_LOGE(TAG, "ACQ_WR, the buffer size is out of range, %p, cnt:%d, cap:%ld", pbuf, pbuf->buf_cnt, pbuf->capacity);
             pbuf_unlock(pbuf->lock);
             return ESP_GMF_IO_FAIL;
@@ -309,8 +309,20 @@ esp_gmf_err_t esp_gmf_pbuf_reset(esp_gmf_pbuf_handle_t handle)
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_pbuf_t *pbuf = (esp_gmf_pbuf_t *)handle;
     pbuf_lock(pbuf->lock);
+    if (pbuf->fill_head) {
+        if (pbuf->empty_tail) {
+            pbuf->empty_tail->next = pbuf->fill_head;
+            pbuf->empty_tail = pbuf->fill_tail;
+        } else {
+            pbuf->empty_head = pbuf->fill_head;
+            pbuf->empty_tail = pbuf->fill_tail;
+        }
+        pbuf->fill_head = NULL;
+        pbuf->fill_tail = NULL;
+    }
     pbuf->_is_write_done = 0;
     pbuf->_is_abort = 0;
+    pbuf->buf_cnt = 0;
     pbuf_unlock(pbuf->lock);
     return ESP_GMF_ERR_OK;
 }

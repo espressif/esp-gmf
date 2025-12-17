@@ -179,14 +179,13 @@ TEST_CASE("Abort when FIFO read and write on different task", "[ESP_GMF_FIFO]")
         is_abort_write = false;
         xTaskCreate(read_task, "read", 4096, fifo, priority[i][0], NULL);
         xTaskCreate(write_task, "write", 4096, fifo, priority[i][1], NULL);
-        int timeout_ms = 100;
+        int timeout_ms = 100 * ((i % 3) + 1);
         while (1) {
             vTaskDelay(10 / portTICK_PERIOD_MS);
             timeout_ms -= 10;
             if (timeout_ms == 0) {
-                ESP_LOGI(TAG, "Calling abort after 100ms");
                 esp_gmf_fifo_abort(fifo);
-                vTaskDelay(50 / portTICK_PERIOD_MS);
+                vTaskDelay(100 / portTICK_PERIOD_MS);
             }
             if (read_is_done && write_is_done) {
                 break;
