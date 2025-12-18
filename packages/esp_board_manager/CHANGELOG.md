@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 ### ⚠️ Important Changes
 
@@ -18,28 +18,30 @@
 - Enhanced board parameter handling in test cases
 - Added support for `sdkconfig.defaults.board` file in each board directory. When switching boards, the script automatically appends board-specific configurations to the project's `sdkconfig.defaults` file.
 - Added automatic `sdkconfig` backup to `sdkconfig.bmgr_board.backup` when switching boards
-- Added UART peripheral type with test support
-- Added ADC peripheral type with test support
-- Reorganized the peripherals directory structure
-- Added RMT peripheral type with test support
-- Added PCNT peripheral type with test support
-- Added DAC peripheral type with test support
-- Added SDM peripheral type with test support
-- Added MCPMW peripheral type with test support
-- Added ANACMPR peripheral type with test support
-- Added LDO and DSI peripheral types
-- Added `dev_display_lcd` device type to manage LCD devices of different bus types and supported dsi lcd
-- Added lcd support for `esp32_p4_function_ev` board
+- Implement sub_type field for device configurations, add hierarchical Kconfig generation (ESP_BOARD_DEV_SUB<SUB_TYPE>_SUPPORT)
+- Add unified entry registration system using linker sections
 - Implement device extra function registration interface `EXTRA_FUNC_IMPLEMENT`
-- Added power_ctrl device type, added `power_ctrl_device` attribute in `esp_board_device_desc_t`, for devices configured with this attribute, the power will be automatically turned on during initialization
-- Added support for `csi` camera
-- Added camera support for `esp32_p4_function_ev` board
-- Modify the periph role macro definition from string to enum
-- Removed the unused periph type macro definition and added the commonly used periph name macro definition
-- Added BUTTON device type with test support, supported gpio and adc buttons
+- Devices type support:
+  - Create FS_FAT device with SDMMC/SPI sub-type implementations, `dev_fs_sdcard` and `dev_fs_sdcard_spi` while be deprecated in feature version
+  - Create DISPLAY_LCD device with SPI/DSI sub-type implementations, `dev_display_lcd_spi` while be deprecated in feature version
+  - Create BUTTON device with GPIO/ADC sub-type implementations
+  - Create CAMERA device with DVP/CSI sub-type implementations
+  - Create POWER_CTRL device, added `power_ctrl_device` attribute in `esp_board_device_desc_t`, for devices configured with this attribute, the power will be automatically turned on during initialization
+- Board support:
+  - Added lcd, camera support for `esp32_p4_function_ev` board
+- Peripheral type support:
+  - UART, ADC, RMT, PCNT, DAC, SDM, MCPWM, ANACMPR, LDO and DSI.
 - Added [`play_sdcard_music`](example/play_sdcard_music/README.md) example to show how to use board manager to initialize codec and play wav audio files
 - Added [`record_to_sdcard`](example/record_to_sdcard/README.md) example to show how to use board manager to initialize codec and record wav audio files
+
+### Modifications
 - Added `clk_src` configuration for `dev_audio_codec`
+- Reorganized the peripherals directory structure
+- Modify the periph role macro definition from string to enum
+- Removed the unused periph type macro definition and added the commonly used periph name macro definition
+
+### Bug Fixes
+- Fixed pa active_level configuration for `esp32_p4_function_ev` board
 
 ## 0.4.8
 

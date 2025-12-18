@@ -1033,9 +1033,9 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
                 deleted_dirs = self._delete_all_directories(gen_bmgr_codes_dir)
 
                 if deleted_files or deleted_dirs:
-                    self.logger.info(f' ✅ gen_bmgr_codes directory cleared successfully ({len(deleted_files)} files, {len(deleted_dirs)} directories)')
+                    self.logger.info(f'✅ gen_bmgr_codes directory cleared successfully ({len(deleted_files)} files, {len(deleted_dirs)} directories)')
                 else:
-                    self.logger.info(' ✅ gen_bmgr_codes directory cleared successfully (already empty)')
+                    self.logger.info('✅ gen_bmgr_codes directory cleared successfully (already empty)')
             else:
                 self.logger.debug(f'gen_bmgr_codes directory does not exist: {gen_bmgr_codes_dir}')
 

@@ -8,7 +8,7 @@
 /**
  * @brief  Periph PCNT test
  *
- *         This test example can be used to test the adc peripheral that has been initialized through the board manager.
+ *         This test example can be used to test the PCNT peripheral that has been initialized through the board manager.
  *         Use the PCNT peripheral to decode the differential signals generated from a EC11 rotary encoder (or other encoders which can produce quadrature waveforms)
  *
  */

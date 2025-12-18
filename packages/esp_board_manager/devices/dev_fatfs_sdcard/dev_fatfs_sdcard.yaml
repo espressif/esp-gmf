@@ -58,29 +58,29 @@
   type: fs_fat     # The type of the device, change it from "fatfs_sdcard" to "fs_fat"
   sub_type: sdmmc  # Bus type for the sdmmc sdcard device, should be "sdmmc" for dev_fatfs_sdcard
   version: default
-  # The rest of the configuration remains unchanged
   config:
     mount_point: "/sdcard"
     vfs_config:
       format_if_mount_failed: false
       max_files: 5
       allocation_unit_size: 16384
-    slot: SDMMC_HOST_SLOT_1
-    frequency: SDMMC_FREQ_HIGHSPEED
-    bus_width: 1
-    slot_flags: SDMMC_SLOT_FLAG_INTERNAL_PULLUP
-    pins:
-      clk: -1
-      cmd: -1
-      d0: -1
-      d1: -1
-      d2: -1
-      d3: -1
-      d4: -1
-      d5: -1
-      d6: -1
-      d7: -1
-      cd: -1
-      wp: -1
-
-    ldo_chan_id: -1
+    # Place the following configuration under the sub_config field
+    sub_config:
+      slot: SDMMC_HOST_SLOT_1
+      frequency: SDMMC_FREQ_HIGHSPEED
+      bus_width: 1
+      slot_flags: SDMMC_SLOT_FLAG_INTERNAL_PULLUP
+      pins:
+        clk: -1
+        cmd: -1
+        d0: -1
+        d1: -1
+        d2: -1
+        d3: -1
+        d4: -1
+        d5: -1
+        d6: -1
+        d7: -1
+        cd: -1
+        wp: -1
+      ldo_chan_id: -1

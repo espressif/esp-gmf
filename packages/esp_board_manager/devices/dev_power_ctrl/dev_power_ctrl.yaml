@@ -10,14 +10,6 @@
     - name: gpio_power_audio      # GPIO peripheral name (must reference a GPIO peripheral)
       active_level: 1             # Active level (0-low, 1-high) when power is on
 
-# Example Power Control device with LDO sub type configuration
-- name: lcd_sdcard_power_ctrl     # The name of the device, must be unique
-  type: power_ctrl                # The type of the device, must be unique
-  sub_type: ldo                   # The sub type of the device, must be 'gpio' or 'ldo'
-  peripherals:
-    - name: ldo_mipi              # LDO peripheral name (must reference an LDO peripheral)
-      voltage_mv: 2500            # Active level (0-low, 1-high) when power is on
-
 # Example usage in devices, add the power_ctrl_device attribute to the device configuration
 # - name: audio_dac
 #   chip: es8311
