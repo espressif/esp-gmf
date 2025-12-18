@@ -455,40 +455,20 @@ class SDKConfigManager(LoggerMixin):
         if board_name is None:
             board_name = Path(board_path).name
 
-        # Auto-detect project path if not provided
-        if project_path is None:
-            project_path = self.project_path if hasattr(self, 'project_path') else os.getcwd()
-
-        sdkconfig_defaults_path = Path(project_path) / 'sdkconfig.defaults'
-
-        # Read existing sdkconfig.defaults
-        if sdkconfig_defaults_path.exists():
-            try:
-                with open(sdkconfig_defaults_path, 'r', encoding='utf-8') as f:
-                    existing_content = f.read()
-            except Exception as e:
-                self.logger.error(f'   Error reading sdkconfig.defaults: {e}')
-                return result
-        else:
-            existing_content = ''
+        project_path = self._get_project_path(project_path)
+        existing_content, sdkconfig_defaults_path = self._read_sdkconfig_defaults(project_path)
+        if existing_content is None:
+            return result
+        if not sdkconfig_defaults_path.exists():
             self.logger.info(f'   sdkconfig.defaults not found, will create it')
 
         # Remove old board-specific section if exists
+        existing_content = self._remove_board_section(existing_content)
+
+        # Build new board-specific section
         marker_start = '# --- Board-specific configuration (managed by esp_board_manager) ---'
         marker_end = '# --- End of board-specific configuration ---'
 
-        if marker_start in existing_content:
-            # Remove old board section
-            start_idx = existing_content.find(marker_start)
-            end_idx = existing_content.find(marker_end)
-            if end_idx != -1:
-                end_idx = existing_content.find('\n', end_idx) + 1
-                if end_idx == 0:  # No newline found after marker_end
-                    end_idx = len(existing_content)
-                existing_content = existing_content[:start_idx] + existing_content[end_idx:]
-                existing_content = existing_content.rstrip()
-
-        # Build new board-specific section
         new_content = existing_content.rstrip()
         if new_content:
             new_content += '\n\n'
@@ -542,3 +522,78 @@ class SDKConfigManager(LoggerMixin):
             return result
 
         return result
+
+    def clear_board_sdkconfig_defaults(self, project_path: Optional[str] = None) -> bool:
+        """
+        Clear board-specific section from sdkconfig.defaults file.
+
+        Args:
+            project_path: Path to the project directory (auto-detect if None)
+
+        Returns:
+            True if successful, False otherwise
+        """
+        project_path = self._get_project_path(project_path)
+        existing_content, sdkconfig_defaults_path = self._read_sdkconfig_defaults(project_path)
+
+        if existing_content is None:
+            return False
+        if not existing_content:
+            self.logger.debug('   sdkconfig.defaults not found, nothing to clean')
+            return True
+
+        cleaned_content = self._remove_board_section(existing_content)
+        if cleaned_content == existing_content:
+            self.logger.debug('   No board-specific section found in sdkconfig.defaults')
+            return True
+
+        # Ensure trailing newline
+        cleaned_content = cleaned_content.rstrip()
+        if cleaned_content:
+            cleaned_content += '\n'
+
+        try:
+            with open(sdkconfig_defaults_path, 'w', encoding='utf-8') as f:
+                f.write(cleaned_content)
+            self.logger.info('   Cleared board-specific section from sdkconfig.defaults')
+            return True
+        except Exception as e:
+            self.logger.error(f'   Error writing sdkconfig.defaults: {e}')
+            return False
+
+    def _remove_board_section(self, content: str) -> str:
+        """Remove board-specific section from content string."""
+        marker_start = '# --- Board-specific configuration (managed by esp_board_manager) ---'
+        marker_end = '# --- End of board-specific configuration ---'
+
+        if marker_start not in content:
+            return content
+
+        start_idx = content.find(marker_start)
+        end_idx = content.find(marker_end)
+        if end_idx != -1:
+            end_idx = content.find('\n', end_idx) + 1
+            if end_idx == 0:
+                end_idx = len(content)
+            content = content[:start_idx] + content[end_idx:]
+            content = content.rstrip()
+
+        return content
+
+    def _get_project_path(self, project_path: Optional[str]) -> str:
+        """Get project path, auto-detect if None."""
+        if project_path is None:
+            return self.project_path if hasattr(self, 'project_path') else os.getcwd()
+        return project_path
+
+    def _read_sdkconfig_defaults(self, project_path: str) -> Tuple[Optional[str], Path]:
+        """Read sdkconfig.defaults file content. Returns (content, path) or (None, path) on error."""
+        sdkconfig_defaults_path = Path(project_path) / 'sdkconfig.defaults'
+        if not sdkconfig_defaults_path.exists():
+            return '', sdkconfig_defaults_path
+        try:
+            with open(sdkconfig_defaults_path, 'r', encoding='utf-8') as f:
+                return f.read(), sdkconfig_defaults_path
+        except Exception as e:
+            self.logger.error(f'   Error reading sdkconfig.defaults: {e}')
+            return None, sdkconfig_defaults_path

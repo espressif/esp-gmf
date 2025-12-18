@@ -1069,6 +1069,9 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             # 3. Reset idf_component.yml using shared method
             self._reset_idf_component_yml(gen_bmgr_codes_dir)
 
+            # 4. Clear board-specific section from sdkconfig.defaults
+            self.sdkconfig_manager.clear_board_sdkconfig_defaults(project_root)
+
             self.logger.info('✅ Generated files cleared successfully')
             return True
 
