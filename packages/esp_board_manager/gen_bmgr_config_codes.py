@@ -119,6 +119,79 @@ class BoardConfigGenerator(LoggerMixin):
 """
         return entry
 
+    def generate_nested_kconfig_entry(self, name, path, is_device, default_value='n', sub_types=None, sub_type_separator='_SUB_'):
+        """Generate a nested Kconfig entry for a component with sub_types.
+
+        Args:
+            name: Component name
+            path: Component path
+            is_device: Whether this is a device (True) or peripheral (False)
+            default_value: Default value for the config
+            sub_types: List of sub-types for this component
+            sub_type_separator: Separator used in sub-type macro names (default: '_SUB_')
+        """
+        component_type = 'Device' if is_device else 'Peripheral'
+        prefix = 'DEV' if is_device else 'PERIPH'
+        macro_name = f'ESP_BOARD_{prefix}_{name.upper()}_SUPPORT'
+
+        entry = f"""config {macro_name}
+    bool "{component_type} '{name}' support"
+    default {default_value}
+    help
+        Enable {name} {component_type.lower()} support.
+        This option enables the {name} {component_type.lower()} driver.
+        The driver is located at: {path}
+
+"""
+
+        # Add sub_type configurations if they exist
+        if sub_types:
+            entry += f"""if {macro_name}
+
+"""
+            for sub_type in sorted(sub_types):
+                sub_macro_name = f'ESP_BOARD_{prefix}_{name.upper()}{sub_type_separator}{sub_type.upper()}_SUPPORT'
+                entry += f"""    config {sub_macro_name}
+        bool "{component_type} '{name}' {sub_type} sub-type support"
+        default {default_value}
+        help
+            Enable {name} {sub_type} sub-type support.
+            This option enables the {name} {sub_type} sub-type driver.
+
+"""
+            entry += f"""endif
+
+"""
+
+        return entry
+
+    def _generate_device_kconfig_entry(self, name, path, default_value, sub_types, device_names):
+        """Helper method to generate device Kconfig entry (reduces code duplication)."""
+        if sub_types:
+            # Generate nested Kconfig entry with sub_types
+            kconfig_content = self.generate_nested_kconfig_entry(
+                name,
+                path,
+                True,
+                default_value,
+                sub_types
+            )
+            device_names.append(name)
+            # Add sub_type names to device_names for logging
+            for sub_type in sub_types:
+                device_names.append(f'{name}_{sub_type}')
+        else:
+            # Generate regular Kconfig entry without sub_types
+            kconfig_content = self.generate_kconfig_entry(
+                name,
+                path,
+                True,
+                default_value
+            )
+            device_names.append(name)
+
+        return kconfig_content
+
     def generate_board_kconfig(self, all_boards, board_customer_path=None, selected_board=None):
         """Generate board selection Kconfig content"""
         # Use the already scanned boards, no need to scan again
@@ -171,7 +244,7 @@ help
 
         return kconfig_content
 
-    def generate_components_kconfig(self, peripheral_types=None, device_types=None):
+    def generate_components_kconfig(self, peripheral_types=None, device_types=None, device_subtypes=None):
         """Generate peripheral and device Kconfig content"""
 
         kconfig_content = "menu \"Peripheral Support\"\n\n"
@@ -180,7 +253,7 @@ help
         periph_dir = self.peripherals_dir
         periph_names = []
 
-        for file in sorted(periph_dir.glob('periph_*.h')):
+        for file in sorted(periph_dir.glob('periph_*/periph_*.h')):
             name = self.get_component_name(file)
             # Set default to 'y' if this peripheral type is used in the current board
             default_value = 'y' if (peripheral_types and name in peripheral_types) else 'n'
@@ -214,26 +287,36 @@ help
                     name = device_type[4:]  # Remove 'dev_' prefix
                     # Set default to 'y' if this device type is used in the current board
                     default_value = 'y' if (device_types and name in device_types) else 'n'
-                    kconfig_content += self.generate_kconfig_entry(
+
+                    # Check if this device has sub_types
+                    sub_types = device_subtypes.get(name) if device_subtypes else None
+
+                    # Generate Kconfig entry using helper method
+                    kconfig_content += self._generate_device_kconfig_entry(
                         name,
                         f'devices/{device_type}',
-                        True,
-                        default_value
+                        default_value,
+                        sub_types,
+                        device_names
                     )
-                    device_names.append(name)
         else:
             # Fallback to old structure for backward compatibility
             for file in sorted(device_dir.glob('dev_*.h')):
                 name = self.get_component_name(file)
                 # Set default to 'y' if this device type is used in the current board
                 default_value = 'y' if (device_types and name in device_types) else 'n'
-                kconfig_content += self.generate_kconfig_entry(
+
+                # Check if this device has sub_types
+                sub_types = device_subtypes.get(name) if device_subtypes else None
+
+                # Generate Kconfig entry using helper method
+                kconfig_content += self._generate_device_kconfig_entry(
                     name,
                     f'devices/dev_{name}',
-                    True,
-                    default_value
+                    default_value,
+                    sub_types,
+                    device_names
                 )
-                device_names.append(name)
 
         kconfig_content += 'endmenu\n'
 
@@ -268,29 +351,7 @@ help
 
         return None
 
-    def find_components_boards(self, project_root):
-        """Search for 'boards' directories in all components"""
-        component_boards = []
-        components_dir = os.path.join(project_root, 'components')
-
-        if not os.path.exists(components_dir):
-            return component_boards
-
-        for component in os.listdir(components_dir):
-            component_path = os.path.join(components_dir, component)
-            boards_path = os.path.join(component_path, 'boards')
-
-            if os.path.isdir(boards_path):
-                for board in os.listdir(boards_path):
-                    board_path = os.path.join(boards_path, board)
-                    kconfig_path = os.path.join(board_path, 'Kconfig')
-
-                    if os.path.isdir(board_path) and os.path.isfile(kconfig_path):
-                        component_boards.append(board)
-
-        return component_boards
-
-    def generate_kconfig(self, all_boards, board_customer_path=None, peripheral_types=None, device_types=None, selected_board=None):
+    def generate_kconfig(self, all_boards, board_customer_path=None, peripheral_types=None, device_types=None, device_subtypes=None, selected_board=None):
         """Generate unified Kconfig content"""
         try:
             # Generate unified Kconfig content without the outer menu wrapper
@@ -304,7 +365,7 @@ help
             kconfig_content += board_kconfig + '\n'
 
             # Add components configuration with actual types from board
-            kconfig_content += self.generate_components_kconfig(peripheral_types, device_types)
+            kconfig_content += self.generate_components_kconfig(peripheral_types, device_types, device_subtypes)
 
             # Write unified Kconfig file using the root directory
             kconfig_path = self.gen_codes_dir / 'Kconfig.in'
@@ -323,6 +384,15 @@ help
             import traceback
             traceback.print_exc()
             return False
+
+    def _role_to_enum(self, role_str: str) -> str:
+        """Convert role string to enum value by generating ESP_BOARD_PERIPH_ROLE_<ROLE>"""
+        if not role_str:
+            return 'ESP_BOARD_PERIPH_ROLE_NONE'
+
+        # Convert role string to uppercase and replace underscores
+        role_upper = role_str.upper().replace('-', '_')
+        return f'ESP_BOARD_PERIPH_ROLE_{role_upper}'
 
     def write_periph_c(self, periph_structs, peripherals, periph_parsers, out_path: str):
         """Write peripheral configuration C file"""
@@ -349,6 +419,24 @@ help
                 f.write(f'#include "{include}"\n')
             f.write('\n')
 
+            # Check if peripherals list is empty
+            if not peripherals:
+                # Write descriptor array with NULL sentinel when empty
+                f.write('// Peripheral descriptor array (empty - no peripherals defined)\n')
+                f.write('const esp_board_periph_desc_t g_esp_board_peripherals[] = {\n')
+                f.write('    {\n')
+                f.write('        .next = NULL,\n')
+                f.write('        .name = NULL,\n')
+                f.write('        .type = NULL,\n')
+                f.write('        .format = NULL,\n')
+                f.write('        .role = ESP_BOARD_PERIPH_ROLE_NONE,\n')
+                f.write('        .cfg = NULL,\n')
+                f.write('        .cfg_size = 0,\n')
+                f.write('        .id = 0,\n')
+                f.write('    },\n')
+                f.write('};\n')
+                return
+
             # Write config structures
             f.write('// Peripheral configuration structures\n')
             for s, p in zip(periph_structs, peripherals):
@@ -371,6 +459,7 @@ help
                 else:
                     next_str = 'NULL'
                 struct_var = 'esp_bmgr_' + p.name.replace('-', '_') + '_cfg'
+                role_enum = self._role_to_enum(p.role)
                 f.write('    {\n')
                 f.write(f'        .next = {next_str},\n')
                 f.write(f'        .name = "{p.name}",\n')
@@ -379,7 +468,7 @@ help
                     f.write(f'        .format = NULL,\n')
                 else:
                     f.write(f'        .format = "{p.format}",\n')
-                f.write(f'        .role = "{p.role}",\n')
+                f.write(f'        .role = {role_enum},\n')
                 f.write(f'        .cfg = &{struct_var},\n')
                 f.write(f'        .cfg_size = sizeof({struct_var}),\n')
                 f.write(f'        .id = 0,\n')
@@ -471,9 +560,32 @@ help
                         f.write('};\n\n')
                 f.write('\n')
 
+            # Check if devices list is empty
+            if not devices:
+                # Write descriptor array with NULL sentinel when empty
+                f.write('// Device descriptor array (empty - no devices defined)\n')
+                f.write('const esp_board_device_desc_t g_esp_board_devices[] = {\n')
+                f.write('    {\n')
+                f.write('        .next = NULL,\n')
+                f.write('        .name = NULL,\n')
+                f.write('        .type = NULL,\n')
+                f.write('        .cfg = NULL,\n')
+                f.write('        .cfg_size = 0,\n')
+                f.write('        .init_skip = false,\n')
+                f.write('    },\n')
+                f.write('};\n')
+                return
+
             # Write config structures
             f.write('// Device configuration structures\n')
             for s, d in zip(device_structs, devices):
+                if 'extra_configs' in s:
+                    # Process extra configs first if presented
+                    for e in s['extra_configs']:
+                        e_struct_init = e['struct_init'].copy()
+                        f.write(f"static {e['struct_type']} {e['struct_var']} = {{\n")
+                        f.writelines('    ' + l + '\n' for l in self.config_generator.dict_to_c_initializer(e_struct_init, 4))
+                        f.write('};\n\n')
                 struct_var = 'esp_bmgr_' + d.name.replace('-', '_') + '_cfg'
                 struct_init = s['struct_init'].copy()
                 struct_init['name'] = d.name  # Force use YAML name
@@ -493,6 +605,8 @@ help
                 struct_var = 'esp_bmgr_' + d.name.replace('-', '_') + '_cfg'
                 # Get init_skip value, default to false (do not skip initialization)
                 init_skip = getattr(d, 'init_skip', False)
+                # Get power_ctrl_device value, default to None
+                power_ctrl_device = getattr(d, 'power_ctrl_device', None)
                 f.write('    {\n')
                 f.write(f'        .next = {next_str},\n')
                 f.write(f'        .name = "{d.name}",\n')
@@ -500,6 +614,9 @@ help
                 f.write(f'        .cfg = &{struct_var},\n')
                 f.write(f'        .cfg_size = sizeof({struct_var}),\n')
                 f.write(f'        .init_skip = {str(init_skip).lower()},\n')
+                # Only write power_ctrl_device if it's configured
+                if power_ctrl_device is not None:
+                    f.write(f'        .power_ctrl_device = "{(d.power_ctrl_device)}",\n')
                 f.write('    },\n')
             f.write('};\n')
 
@@ -521,6 +638,21 @@ help
                 f.write(f'#include "periph_{type_name}.h"\n')
             f.write('\n')
 
+            # Check if peripheral types list is empty
+            if not periph_types:
+                # Write handle array with NULL sentinel when empty
+                f.write('// Peripheral handle array (empty - no peripherals defined)\n')
+                f.write('esp_board_periph_entry_t g_esp_board_periph_handles[] = {\n')
+                f.write('    {\n')
+                f.write('        .next = NULL,\n')
+                f.write('        .type = NULL,\n')
+                f.write('        .role = ESP_BOARD_PERIPH_ROLE_NONE,\n')
+                f.write('        .init = NULL,\n')
+                f.write('        .deinit = NULL\n')
+                f.write('    },\n')
+                f.write('};\n')
+                return
+
             # Write handle array
             f.write('// Peripheral handle array\n')
             f.write('esp_board_periph_entry_t g_esp_board_periph_handles[] = {\n')
@@ -536,7 +668,7 @@ help
                 f.write('    {\n')
                 f.write(f'        .next = {next_str},\n')
                 f.write(f'        .type = "{type_name}",\n')
-                f.write(f'        .role = "{role_str}",\n')
+                f.write(f'        .role = {self._role_to_enum(role_str)},\n')
                 f.write(f'        .init = periph_{type_name}_init,\n')
                 f.write(f'        .deinit = periph_{type_name}_deinit\n')
                 f.write('    },\n')
@@ -557,6 +689,22 @@ help
             for dev_type in sorted(device_types):
                 f.write(f'#include "dev_{dev_type}.h"\n')
             f.write('\n')
+
+            # Check if devices list is empty
+            if not devices:
+                # Write handle array with NULL sentinel when empty
+                f.write('// Device handle array (empty - no devices defined)\n')
+                f.write('esp_board_device_handle_t g_esp_board_device_handles[] = {\n')
+                f.write('    {\n')
+                f.write('        .next = NULL,\n')
+                f.write('        .name = NULL,\n')
+                f.write('        .type = NULL,\n')
+                f.write('        .device_handle = NULL,\n')
+                f.write('        .init = NULL,\n')
+                f.write('        .deinit = NULL\n')
+                f.write('    },\n')
+                f.write('};\n')
+                return
 
             # Write handle array
             f.write('// Device handle array\n')
@@ -656,13 +804,13 @@ help
                 continue
             version, parse_func, _ = parse_entry  # Unpack only what we need here
             # Pass complete peripheral information
-            result = parse_func(p.name, {'format': p.format, 'config': p.config})
+            result = parse_func(p.name, {'format': p.format, 'role': p.role, 'config': p.config})
             periph_structs.append(result)
 
         self.logger.debug('   Writing peripheral configuration files...')
         # Generate files directly to components/gen_bmgr_codes
         if hasattr(self, 'project_root') and self.project_root:
-            gen_bmgr_codes_dir = os.path.join(self.project_root, 'components', 'gen_bmgr_codes')
+            gen_bmgr_codes_dir = self._get_gen_bmgr_codes_dir(self.project_root)
             os.makedirs(gen_bmgr_codes_dir, exist_ok=True)
             self.write_periph_c(periph_structs, flattened_peripherals, periph_parsers, out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_periph_config.c'))
             self.write_periph_handles(flattened_peripherals, periph_parsers, out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_periph_handles.c'))
@@ -696,11 +844,17 @@ help
         self.logger.debug('   Loading device parsers...')
         device_structs = []
 
-        # Extract device types for Kconfig update
+        # Extract device types and sub_types for Kconfig update
         device_types = set()
+        device_subtypes = {}  # {device_type: set of sub_types}
         for d in devices:
             if hasattr(d, 'type') and d.type:
                 device_types.add(d.type)
+                # Check if device has sub_type information
+                if hasattr(d, 'sub_type') and d.sub_type:
+                    if d.type not in device_subtypes:
+                        device_subtypes[d.type] = set()
+                    device_subtypes[d.type].add(d.sub_type)
 
         self.logger.debug('   ⚙️  Generating device structures...')
         for d in devices:
@@ -721,9 +875,11 @@ help
             dev_yml = load_yaml_with_includes(dev_yaml_path)
             for dev in dev_yml.get('devices', []):
                 if dev.get('name') == d.name:
-                    # Add device-level fields like chip
+                    # Add device-level fields like chip and sub_type
                     if 'chip' in dev:
                         full_config['chip'] = dev['chip']
+                    if 'sub_type' in dev:
+                        full_config['sub_type'] = dev['sub_type']
                     # Parse peripheral names in the config
                     peripherals = []
 
@@ -762,7 +918,7 @@ help
         if project_root is None:
             project_root = os.getcwd()
 
-        gen_bmgr_codes_dir = os.path.join(project_root, 'components', 'gen_bmgr_codes')
+        gen_bmgr_codes_dir = self._get_gen_bmgr_codes_dir(project_root)
         os.makedirs(gen_bmgr_codes_dir, exist_ok=True)
         # Generate custom device structure header first
         self.write_device_custom_h(device_structs, devices, out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_device_custom.h'))
@@ -773,34 +929,156 @@ help
         self.logger.debug('   ✅ Validating extra device configurations...')
         self.dependency_manager.validate_extra_dev_usage(extra_configs, devices)
 
-        return device_types
+        return device_types, device_subtypes
+
+    def _get_gen_bmgr_codes_dir(self, project_root: str) -> str:
+        """Get the gen_bmgr_codes directory path"""
+        return os.path.join(project_root, 'components', 'gen_bmgr_codes')
+
+    def _delete_files_by_extension(self, gen_bmgr_codes_dir: str, extensions: Optional[tuple]) -> List[str]:
+        """Delete files with specified extensions in gen_bmgr_codes directory
+
+        Args:
+            gen_bmgr_codes_dir: Path to gen_bmgr_codes directory
+            extensions: Tuple of file extensions to delete (e.g., ('.c', '.h')). Use None to delete all files.
+
+        Returns:
+            List of deleted filenames
+        """
+        deleted_files = []
+        if not os.path.exists(gen_bmgr_codes_dir):
+            return deleted_files
+
+        for filename in os.listdir(gen_bmgr_codes_dir):
+            file_path = os.path.join(gen_bmgr_codes_dir, filename)
+            if os.path.isfile(file_path):
+                # If extensions is None, delete all files; otherwise check extension
+                if extensions is None or filename.endswith(extensions):
+                    os.remove(file_path)
+                    deleted_files.append(filename)
+                    self.logger.debug(f'   Deleted: {filename}')
+
+        return deleted_files
+
+    def _delete_all_directories(self, gen_bmgr_codes_dir: str) -> List[str]:
+        """Delete all subdirectories in gen_bmgr_codes directory
+
+        Args:
+            gen_bmgr_codes_dir: Path to gen_bmgr_codes directory
+
+        Returns:
+            List of deleted directory names
+        """
+        deleted_dirs = []
+        if not os.path.exists(gen_bmgr_codes_dir):
+            return deleted_dirs
+
+        import shutil
+        for filename in os.listdir(gen_bmgr_codes_dir):
+            file_path = os.path.join(gen_bmgr_codes_dir, filename)
+            if os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+                deleted_dirs.append(filename)
+                self.logger.debug(f'   Removed directory: {filename}')
+
+        return deleted_dirs
+
+    def _reset_cmakelists(self, gen_bmgr_codes_dir: str) -> bool:
+        """Reset CMakeLists.txt to default state (SRC_DIRS and INCLUDE_DIRS set to ".")"""
+        cmakelists_path = os.path.join(gen_bmgr_codes_dir, 'CMakeLists.txt')
+        if os.path.exists(cmakelists_path):
+            cmakelists_content = """idf_component_register(
+    SRC_DIRS "."
+    INCLUDE_DIRS "."
+    REQUIRES
+)
+
+# This is equivalent to adding WHOLE_ARCHIVE option to the idf_component_register call above:
+idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
+"""
+            with open(cmakelists_path, 'w', encoding='utf-8') as f:
+                f.write(cmakelists_content)
+            self.logger.info('✅ Cleared CMakeLists.txt (SRC_DIRS and INCLUDE_DIRS set to ".")')
+            return True
+        else:
+            self.logger.debug('   CMakeLists.txt does not exist, skipping')
+            return False
+
+    def _reset_idf_component_yml(self, gen_bmgr_codes_dir: str) -> bool:
+        """Reset idf_component.yml to default state (dependencies set to empty)"""
+        idf_component_path = os.path.join(gen_bmgr_codes_dir, 'idf_component.yml')
+        if os.path.exists(idf_component_path):
+            idf_component_content = {
+                'dependencies': {}
+            }
+            with open(idf_component_path, 'w', encoding='utf-8') as f:
+                yaml.dump(idf_component_content, f, default_flow_style=False, sort_keys=False)
+            self.logger.info('✅ Cleared idf_component.yml (dependencies set to empty)')
+            return True
+        else:
+            self.logger.debug('   idf_component.yml does not exist, skipping')
+            return False
 
     def clear_gen_bmgr_codes_directory(self, project_root: str) -> bool:
         """Clear all files and directories in the gen_bmgr_codes directory before generating new ones"""
         try:
-            gen_bmgr_codes_dir = os.path.join(project_root, 'components', 'gen_bmgr_codes')
+            gen_bmgr_codes_dir = self._get_gen_bmgr_codes_dir(project_root)
 
             if os.path.exists(gen_bmgr_codes_dir):
                 self.logger.debug(f'   Clearing gen_bmgr_codes directory: {gen_bmgr_codes_dir}')
 
-                # Remove all files in the directory
-                for filename in os.listdir(gen_bmgr_codes_dir):
-                    file_path = os.path.join(gen_bmgr_codes_dir, filename)
-                    if os.path.isfile(file_path):
-                        os.remove(file_path)
-                        self.logger.debug(f'   Removed file: {filename}')
-                    elif os.path.isdir(file_path):
-                        import shutil
-                        shutil.rmtree(file_path)
-                        self.logger.debug(f'   Removed directory: {filename}')
+                # Remove all files using shared method
+                deleted_files = self._delete_files_by_extension(gen_bmgr_codes_dir, None)
+                # Remove all directories using shared method
+                deleted_dirs = self._delete_all_directories(gen_bmgr_codes_dir)
 
-                self.logger.info(' ✅ gen_bmgr_codes directory cleared successfully')
+                if deleted_files or deleted_dirs:
+                    self.logger.info(f'✅ gen_bmgr_codes directory cleared successfully ({len(deleted_files)} files, {len(deleted_dirs)} directories)')
+                else:
+                    self.logger.info('✅ gen_bmgr_codes directory cleared successfully (already empty)')
             else:
                 self.logger.debug(f'gen_bmgr_codes directory does not exist: {gen_bmgr_codes_dir}')
 
             return True
         except Exception as e:
             self.logger.error(f'❌ Error clearing gen_bmgr_codes directory: {e}')
+            return False
+
+    def clear_generated_files(self, project_root: str) -> bool:
+        """Clear generated .c and .h files, and reset CMakeLists.txt and idf_component.yml"""
+        try:
+            gen_bmgr_codes_dir = self._get_gen_bmgr_codes_dir(project_root)
+
+            if not os.path.exists(gen_bmgr_codes_dir):
+                self.logger.warning(f'⚠️  gen_bmgr_codes directory does not exist: {gen_bmgr_codes_dir}')
+                return True
+
+            self.logger.info(f'⚙️  Clearing generated files in: {gen_bmgr_codes_dir}')
+
+            # 1. Delete all .c and .h files using shared method
+            deleted_files = self._delete_files_by_extension(gen_bmgr_codes_dir, ('.c', '.h'))
+
+            if deleted_files:
+                self.logger.info(f'✅ Deleted {len(deleted_files)} generated files: {", ".join(deleted_files)}')
+            else:
+                self.logger.info('✅ No .c or .h files found to delete')
+
+            # 2. Reset CMakeLists.txt using shared method
+            self._reset_cmakelists(gen_bmgr_codes_dir)
+
+            # 3. Reset idf_component.yml using shared method
+            self._reset_idf_component_yml(gen_bmgr_codes_dir)
+
+            # 4. Clear board-specific section from sdkconfig.defaults
+            self.sdkconfig_manager.clear_board_sdkconfig_defaults(project_root)
+
+            self.logger.info('✅ Generated files cleared successfully')
+            return True
+
+        except Exception as e:
+            self.logger.error(f'❌ Error clearing generated files: {e}')
+            import traceback
+            traceback.print_exc()
             return False
 
     def get_chip_name_from_board_path(self, board_path: str) -> Optional[str]:
@@ -880,16 +1158,21 @@ help
 
         return version_info
 
-    def run(self, args):
-        """Run the complete 8-step board configuration generation process"""
+    def run(self, args, cached_boards=None):
+        """Run the complete 8-step board configuration generation process
+
+        Args:
+            args: Command line arguments
+            cached_boards: Optional dict of pre-scanned boards to avoid re-scanning
+        """
         self.logger.info('=== Board Manager Configuration Generator ===')
 
         # Initialize device and peripheral types sets
         device_types = set()
         peripheral_types = set()
 
-        # 1. Scan all board directories (FIRST STEP - only scan once)
-        self.logger.info('⚙️  Step 1/8: Scanning board directories...')
+        # 1. Scan all board directories and clean environment
+        self.logger.info('⚙️  Step 1/8: Scanning board directories and cleaning environment...')
 
         # Show scanning directories
         self.logger.debug('   Scanning directories:')
@@ -913,7 +1196,10 @@ help
             components_dir = os.path.join(project_root, 'components')
             self.logger.debug(f'      • Components boards: {components_dir}')
 
-            # Remove only CMakeCache.txt in build directory to avoid full clean when switching different chip boards
+            # Clean environment before generating new configuration
+            self.logger.debug('   Cleaning environment...')
+
+            # 1.1 Remove CMakeCache.txt in build directory
             try:
                 cmake_cache_path = os.path.join(project_root, 'build', 'CMakeCache.txt')
                 if os.path.exists(cmake_cache_path):
@@ -923,14 +1209,38 @@ help
                 self.logger.error(f'❌ Error: Failed to remove CMakeCache.txt: {e}')
                 return False
 
-            # Clear gen_bmgr_codes directory before generating new files
+            # 1.2 Clear gen_bmgr_codes directory before generating new files
             if not self.clear_gen_bmgr_codes_directory(project_root):
                 self.logger.error('❌ Error: Failed to clear gen_bmgr_codes directory!')
                 return False
+
+            # 1.3 Backup and remove sdkconfig to prevent configuration pollution
+            # Skip for --kconfig-only as it only generates Kconfig menu without board switching
+            if not args.kconfig_only:
+                try:
+                    sdkconfig_path = os.path.join(project_root, 'sdkconfig')
+                    if os.path.exists(sdkconfig_path):
+                        # Create backup (fixed name, will be overwritten each time)
+                        backup_path = os.path.join(project_root, 'sdkconfig.bmgr_board.backup')
+                        import shutil
+                        shutil.copy2(sdkconfig_path, backup_path)
+                        self.logger.info(f'   Backed up sdkconfig to: {backup_path}')
+
+                        # Remove original sdkconfig
+                        os.remove(sdkconfig_path)
+                        self.logger.info(f'   Removed sdkconfig to prevent configuration pollution')
+                except Exception as e:
+                    self.logger.error(f'❌ Error: Failed to backup/remove sdkconfig: {e}')
+                    return False
         else:
             self.logger.debug(f'      • Components boards: (project root not found)')
 
-        all_boards = self.config_generator.scan_board_directories(args.board_customer_path)
+        # Use cached boards if available, otherwise scan
+        if cached_boards is not None:
+            self.logger.debug('   Using cached board list (skipping re-scan)')
+            all_boards = cached_boards
+        else:
+            all_boards = self.config_generator.scan_board_directories(args.board_customer_path)
 
         if not all_boards:
             self.logger.error('❌ Error: No valid board directories found!')
@@ -964,9 +1274,7 @@ help
             self.logger.error('❌ Error: Could not find configuration files for selected board')
             if not periph_yaml_path:
                 self.logger.error(f"   Missing: peripherals.yaml for board '{selected_board}'")
-                self.logger.error(f"   Missing: peripherals.yaml for board '{selected_board}'")
             if not dev_yaml_path:
-                self.logger.error(f"   Missing: board_devices.yaml for board '{selected_board}'")
                 self.logger.error(f"   Missing: board_devices.yaml for board '{selected_board}'")
             return False
 
@@ -978,6 +1286,7 @@ help
         peripherals_dict = None
         periph_name_map = None
         device_dependencies = {}  # Initialize device_dependencies
+        device_subtypes = {}  # Initialize device_subtypes
 
         # Set board path for global board utilities
         board_path = all_boards.get(selected_board) if selected_board in all_boards else None
@@ -1052,7 +1361,7 @@ help
 
             self.logger.debug('   Processing device configurations...')
             try:
-                device_types = self.process_devices(dev_yaml_path, peripherals_dict, periph_name_map, board_path, extra_configs, extra_includes)
+                device_types, device_subtypes = self.process_devices(dev_yaml_path, peripherals_dict, periph_name_map, board_path, extra_configs, extra_includes)
                 self.logger.info(f'✅ Device processing completed: {len(device_types)} types found')
             except ValueError as e:
                 # Re-raise ValueError to stop the generation process
@@ -1067,7 +1376,7 @@ help
         # 6. Generate Kconfig if requested (SIXTH STEP - after device and peripheral processing)
         self.logger.info('⚙️  Step 6/8: Generating Kconfig menu system...')
 
-        if not self.generate_kconfig(all_boards, args.board_customer_path, peripheral_types, device_types, selected_board):
+        if not self.generate_kconfig(all_boards, args.board_customer_path, peripheral_types, device_types, device_subtypes, selected_board):
             self.logger.error('❌ Error: Kconfig generation failed!')
             return False
 
@@ -1081,53 +1390,66 @@ help
         # 7. Update sdkconfig based on board device and peripheral types
         self.logger.info('⚙️  Step 7/8: Updating SDK configuration...')
 
-        # Check if auto-config is disabled via sdkconfig
-        auto_config_disabled_via_sdkconfig = False
-        if not args.disable_sdkconfig_auto_update:
-            # Only check sdkconfig if not explicitly disabled via command line
-            auto_config_disabled_via_sdkconfig = self.sdkconfig_manager.is_auto_config_disabled_in_sdkconfig()
-            if auto_config_disabled_via_sdkconfig:
-                self.logger.info('   ⏭️  Board-based SDK configuration update... (DISABLED via sdkconfig)')
+        # Get chip name from board_info.yaml (needed for both sdkconfig and sdkconfig.defaults)
+        board_path = all_boards.get(selected_board)
+        if not board_path:
+            self.logger.error(f'❌ Board path not found for {selected_board}')
+            return False
 
-        if args.disable_sdkconfig_auto_update or auto_config_disabled_via_sdkconfig:
-            # Disabled by user via command line or sdkconfig
-            if args.disable_sdkconfig_auto_update:
-                self.logger.info('   ⏭️  Board-based SDK configuration update... (DISABLED via command line)')
-            # auto_config_disabled_via_sdkconfig case already logged above
-        elif args.sdkconfig_only:
-            # Only check without enabling
-            self.logger.info('   Checking sdkconfig features...')
-            self.sdkconfig_manager.update_sdkconfig_from_board_types(
-                device_types=device_types,
-                peripheral_types=peripheral_types,
-                sdkconfig_path=None,
-                enable=False
-            )
-        else:
-            # Default behavior: update sdkconfig based on board types and board selection
-            self.logger.debug('   Updating sdkconfig based on board types and board selection...')
+        chip_name = self.get_chip_name_from_board_path(board_path)
+        if not chip_name:
+            self.logger.error(f'❌ Chip name not found in board_info.yaml for {selected_board}')
+            return False
 
-            # Get chip name from board_info.yaml
-            board_path = all_boards.get(selected_board)
-            if not board_path:
-                self.logger.error(f'❌ Board path not found for {selected_board}')
-                return False
+        # # Check if auto-config is disabled via sdkconfig
+        # auto_config_disabled_via_sdkconfig = False
+        # if not args.disable_sdkconfig_auto_update:
+        #     # Only check sdkconfig if not explicitly disabled via command line
+        #     auto_config_disabled_via_sdkconfig = self.sdkconfig_manager.is_auto_config_disabled_in_sdkconfig()
+        #     if auto_config_disabled_via_sdkconfig:
+        #         self.logger.info('   ⏭️  Board-based SDK configuration update... (DISABLED via sdkconfig)')
 
-            chip_name = self.get_chip_name_from_board_path(board_path)
-            if not chip_name:
-                self.logger.error(f'❌ Chip name not found in board_info.yaml for {selected_board}')
-                return False
+        # if args.disable_sdkconfig_auto_update or auto_config_disabled_via_sdkconfig:
+        #     # Disabled by user via command line or sdkconfig
+        #     if args.disable_sdkconfig_auto_update:
+        #         self.logger.info('   ⏭️  Board-based SDK configuration update... (DISABLED via command line)')
+        #     # auto_config_disabled_via_sdkconfig case already logged above
+        # elif args.sdkconfig_only:
+        #     # Only check without enabling
+        #     self.logger.info('   Checking sdkconfig features...')
+        #     self.sdkconfig_manager.update_sdkconfig_from_board_types(
+        #         device_types=device_types,
+        #         peripheral_types=peripheral_types,
+        #         sdkconfig_path=None,
+        #         enable=False
+        #     )
+        # else:
+        #     # Default behavior: update sdkconfig based on board device/peripheral types
+        #     # Note: Board selection and chip target are managed by apply_board_sdkconfig_defaults()
+        #     # which writes to sdkconfig.defaults. ESP-IDF will use those during build.
+        #     self.logger.debug('   Updating sdkconfig based on board types...')
 
-            result = self.sdkconfig_manager.update_sdkconfig_from_board_types(
-                device_types=device_types,
-                peripheral_types=peripheral_types,
-                sdkconfig_path=str(Path.cwd()/'sdkconfig'),
-                enable=True,
-                board_name=selected_board,
-                chip_name=chip_name
-            )
-            if result['enabled']:
-                self.logger.info(f"✅ Updated {len(result['enabled'])} sdkconfig features")
+        #     result = self.sdkconfig_manager.update_sdkconfig_from_board_types(
+        #         device_types=device_types,
+        #         peripheral_types=peripheral_types,
+        #         sdkconfig_path=str(Path.cwd()/'sdkconfig'),
+        #         enable=True
+        #     )
+        #     if result['enabled']:
+        #         self.logger.info(f"✅ Updated {len(result['enabled'])} sdkconfig features")
+
+        # Apply board-specific sdkconfig defaults from sdkconfig.defaults.board
+        # This appends board configs to sdkconfig.defaults, ensuring they persist
+        # across ESP-IDF build system operations (menuconfig, reconfigure, etc.)
+        # Also adds CONFIG_IDF_TARGET, CONFIG_BOARD_XXX and CONFIG_BOARD_NAME
+        board_defaults_result = self.sdkconfig_manager.apply_board_sdkconfig_defaults(
+            board_path=board_path,
+            project_path=str(Path.cwd()),
+            board_name=selected_board,
+            chip_name=chip_name  # chip_name from board_info.yaml
+        )
+        if board_defaults_result['added']:
+            self.logger.info(f'✅ Applied board-specific sdkconfig defaults to sdkconfig.defaults')
 
         # 8. Write board information and setup components/gen_bmgr_codes
         self.logger.info('⚙️  Step 8/8: Writing board information and setting up components...')
@@ -1137,7 +1459,7 @@ help
             self.logger.warning('⚠️  Project root not found, creating components directory in current directory')
             project_root = os.getcwd()
 
-        gen_bmgr_codes_dir = os.path.join(project_root, 'components', 'gen_bmgr_codes')
+        gen_bmgr_codes_dir = self._get_gen_bmgr_codes_dir(project_root)
         os.makedirs(gen_bmgr_codes_dir, exist_ok=True)
         if selected_board in all_boards:
             self.write_board_info(all_boards[selected_board], out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_info.c'))
@@ -1172,8 +1494,8 @@ help
                 project_root = os.getcwd()
 
             # 1. Create components/gen_bmgr_codes directory
-            components_dir = os.path.join(project_root, 'components')
-            gen_bmgr_codes_dir = os.path.join(components_dir, 'gen_bmgr_codes')
+            gen_bmgr_codes_dir = self._get_gen_bmgr_codes_dir(project_root)
+            components_dir = os.path.dirname(gen_bmgr_codes_dir)
 
             # Create components directory if it doesn't exist
             if not os.path.exists(components_dir):
@@ -1280,6 +1602,49 @@ idf_component_set_property(${{COMPONENT_NAME}} WHOLE_ARCHIVE TRUE)
             self.logger.error(f'❌ Error setting up gen_bmgr_codes component: {e}')
             return False
 
+def resolve_board_name_or_index(board_input: str, all_boards: dict, generator, board_customer_path: Optional[str] = None) -> Optional[str]:
+    """Resolve board name from input (board name or index number)
+
+    Args:
+        board_input: Board name or index number (as string)
+        all_boards: Dictionary of all available boards
+        generator: BoardConfigGenerator instance (for boards_dir access)
+        board_customer_path: Optional customer boards path
+
+    Returns:
+        Board name or None if not found
+    """
+    # Check if input is a number
+    if board_input.isdigit():
+        board_idx = int(board_input)
+        if board_idx < 1 or board_idx > len(all_boards):
+            return None
+
+        # Group boards by source (same as list-boards display)
+        main_boards = {}
+        customer_boards = {}
+        component_boards = {}
+
+        for board_name, board_path in all_boards.items():
+            board_path_obj = Path(board_path)
+            if board_path_obj.parent == generator.boards_dir:
+                main_boards[board_name] = board_path
+            elif board_customer_path and board_path.startswith(board_customer_path):
+                customer_boards[board_name] = board_path
+            else:
+                component_boards[board_name] = board_path
+
+        # Create ordered list (same order as display)
+        ordered_boards = []
+        ordered_boards.extend(sorted(main_boards.keys()))
+        ordered_boards.extend(sorted(customer_boards.keys()))
+        ordered_boards.extend(sorted(component_boards.keys()))
+
+        return ordered_boards[board_idx - 1]
+    else:
+        # Direct board name
+        return board_input if board_input in all_boards else None
+
 def main():
     """Main entry point with command line argument parsing and error handling"""
     print('ESP Board Manager - Configuration Generator')
@@ -1292,27 +1657,36 @@ def main():
         epilog="""
 Examples:
     python gen_bmgr_config_codes.py                                   # Use sdkconfig and default boards (auto-sets CONFIG_IDF_TARGET)
-    python gen_bmgr_config_codes.py -b echoear_core_board_v1_0        # Specify board directly (auto-sets CONFIG_IDF_TARGET)
-    python gen_bmgr_config_codes.py -c /custom/boards                 # Add customer boards directory
-    python gen_bmgr_config_codes.py -c /path/to/single/board          # Add single board directory
-    python gen_bmgr_config_codes.py -b my_board -c /custom/boards     # Both options
+    python gen_bmgr_config_codes.py echoear_core_board_v1_0           # Specify board directly (auto-sets CONFIG_IDF_TARGET)
+    python gen_bmgr_config_codes.py 1                                 # Specify board by index number
+    python gen_bmgr_config_codes.py -b echoear_core_board_v1_0        # Specify board using -b parameter (auto-sets CONFIG_IDF_TARGET)
+    python gen_bmgr_config_codes.py -b 1                              # Specify board by index number using -b
+    python gen_bmgr_config_codes.py 1 -p /custom/boards               # Specify board with custom boards directory
+    python gen_bmgr_config_codes.py -b my_board -p /custom/boards     # Both -b and -p options
+    python gen_bmgr_config_codes.py -p /path/to/single/board          # Add single board directory
     python gen_bmgr_config_codes.py --peripherals-only                # Only process peripherals
     python gen_bmgr_config_codes.py --devices-only                    # Only process devices
     python gen_bmgr_config_codes.py --kconfig-only                    # Generate Kconfig menu system (default enabled)
-    python gen_bmgr_config_codes.py --sdkconfig-only                  # Only process sdkconfig features
-    python gen_bmgr_config_codes.py --disable-sdkconfig-auto-update   # Disable automatic sdkconfig update
     python gen_bmgr_config_codes.py --log-level DEBUG                 # Set log level to DEBUG
+    python gen_bmgr_config_codes.py -c                                # Clear generated files and reset configs
+    python gen_bmgr_config_codes.py --clear                           # Clear generated files and reset configs (same as -c)
             """
+    )
+
+    parser.add_argument(
+        'board',
+        nargs='?',
+        help='Board name or index number (bypasses sdkconfig reading)'
     )
 
     parser.add_argument(
         '-b', '--board',
         dest='board_name',
-        help='Specify board name directly (bypasses sdkconfig reading)'
+        help='Specify board name or index number (bypasses sdkconfig reading, overrides positional argument)'
     )
 
     parser.add_argument(
-        '-c', '--customer-path', '--custom',
+        '-c', '--customer-path',
         dest='board_customer_path',
         help='Path to customer boards directory or single board directory (use "NONE" to skip)'
     )
@@ -1330,21 +1704,9 @@ Examples:
     )
 
     parser.add_argument(
-        '--disable-sdkconfig-auto-update',
-        action='store_true',
-        help='Disable automatic sdkconfig feature enabling (default is enabled)'
-    )
-
-    parser.add_argument(
         '--kconfig-only',
         action='store_true',
         help='Generate Kconfig menu system for board and component selection (default enabled)'
-    )
-
-    parser.add_argument(
-        '--sdkconfig-only',
-        action='store_true',
-        help='Only process sdkconfig features without generating Kconfig'
     )
 
     parser.add_argument(
@@ -1360,7 +1722,17 @@ Examples:
         help='Set log level (default: INFO)'
     )
 
+    parser.add_argument(
+        '-x', '--clean',
+        action='store_true',
+        help='Clean generated .c and .h files, and reset CMakeLists.txt and idf_component.yml'
+    )
+
     args = parser.parse_args()
+
+    # Merge positional argument with -b parameter (priority: -b > positional)
+    if args.board_name is None and args.board:
+        args.board_name = args.board
 
     # Set global log level first
     log_level_map = {
@@ -1379,6 +1751,35 @@ Examples:
     # Create generator and run
     script_dir = Path(__file__).parent
     generator = BoardConfigGenerator(script_dir)
+
+    # Handle clean option
+    if args.clean:
+        print('ESP Board Manager - Clean Generated Files')
+        print('=' * 60)
+
+        try:
+            # Find project root
+            project_root = os.environ.get('PROJECT_DIR')
+            if not project_root:
+                project_root = generator.find_project_root(os.getcwd())
+
+            if not project_root:
+                generator.logger.error('❌ Project root not found! Please run this command from a project directory.')
+                sys.exit(1)
+
+            success = generator.clear_generated_files(project_root)
+            if not success:
+                generator.logger.error('❌ Failed to clean generated files!')
+                sys.exit(1)
+
+            generator.logger.info('✅ Clean operation completed successfully!')
+            return
+
+        except Exception as e:
+            generator.logger.error(f'Error cleaning generated files: {e}')
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
 
     # Handle list-boards option
     if args.list_boards:
@@ -1407,25 +1808,31 @@ Examples:
                     else:
                         component_boards[board_name] = board_path
 
+                # Create ordered list for numbering
+                board_idx = 1
+
                 # Display main boards
                 if main_boards:
                     generator.logger.info('Main Boards:')
                     for board_name in sorted(main_boards.keys()):
-                        generator.logger.info(f'  • {board_name}')
+                        generator.logger.info(f'  [{board_idx}] {board_name}')
+                        board_idx += 1
                     print()
 
                 # Display customer boards
                 if customer_boards:
                     generator.logger.info('Customer Boards:')
                     for board_name in sorted(customer_boards.keys()):
-                        generator.logger.info(f'  • {board_name}')
+                        generator.logger.info(f'  [{board_idx}] {board_name}')
+                        board_idx += 1
                     print()
 
                 # Display component boards
                 if component_boards:
                     generator.logger.info('Component Boards:')
                     for board_name in sorted(component_boards.keys()):
-                        generator.logger.info(f'  • {board_name}')
+                        generator.logger.info(f'  [{board_idx}] {board_name}')
+                        board_idx += 1
                     print()
             else:
                 generator.logger.warning('No boards found!')
@@ -1439,8 +1846,24 @@ Examples:
             traceback.print_exc()
             sys.exit(1)
 
+    # Resolve board name from name or index
+    cached_boards = None
+    if args.board_name:
+        all_boards = generator.config_generator.scan_board_directories(args.board_customer_path)
+        cached_boards = all_boards  # Cache for reuse in run()
+        resolved_board = resolve_board_name_or_index(args.board_name, all_boards, generator, args.board_customer_path)
+        if resolved_board is None:
+            if args.board_name.isdigit():
+                generator.logger.error(f'❌ Board index {args.board_name} is out of range (1-{len(all_boards)})')
+            else:
+                generator.logger.error(f'❌ Board "{args.board_name}" not found')
+                generator.logger.info(f'Available boards: {sorted(all_boards.keys())}')
+            sys.exit(1)
+        args.board_name = resolved_board
+        generator.logger.info(f'ℹ️  Resolved board: {resolved_board}')
+
     try:
-        success = generator.run(args)
+        success = generator.run(args, cached_boards=cached_boards)
         if not success:
             generator.logger.error('❌ Configuration generation failed!')
             sys.exit(1)

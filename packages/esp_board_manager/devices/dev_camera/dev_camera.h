@@ -7,12 +7,6 @@
 
 #pragma once
 
-#include "esp_idf_version.h"
-
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 1)
-    #warning "ESP_IDF version is lower than 5.5.1, under which the ESP32S3 cannot use the camera normally."
-#endif
-
 #if CONFIG_SOC_LCDCAM_CAM_SUPPORTED
 #include "esp_cam_ctlr_dvp.h"
 #endif  /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
@@ -24,12 +18,16 @@ extern "C" {
 /**
  * @brief  CSI configuration structure (placeholder)
  *
- *         This structure is intended to contain configuration parameters for a CSI interface.
- *         Currently, it is a placeholder and will be implemented in the future.
+ *         This structure contains all the configuration parameters needed to initialize
+ *         a camera device over CSI interface, including I2C configuration and GPIO pins.
  */
 typedef struct {
-    // TODO
-} dev_csi_config_t;
+    const char  *i2c_name;       /*!< I2C bus name */
+    uint32_t     i2c_freq;       /*!< I2C frequency */
+    gpio_num_t   reset_io;       /*!< GPIO io for reset signal */
+    gpio_num_t   pwdn_io;        /*!< GPIO io for power down signal */
+    bool         dont_init_ldo;  /*!< If true, MIPI-CSI video device will not initialize the LDO; otherwise, MIPI-CSI video device will initialize the LDO */
+} dev_camera_sub_csi_cfg;
 
 /**
  * @brief  SPI configuration structure (placeholder)
@@ -39,7 +37,7 @@ typedef struct {
  */
 typedef struct {
     // TODO
-} dev_spi_config_t;
+} dev_camera_sub_spi_cfg;
 
 /**
  * @brief  USB UVC configuration structure (placeholder)
@@ -49,7 +47,7 @@ typedef struct {
  */
 typedef struct {
     // TODO
-} dev_usb_uvc_config_t;
+} dev_camera_sub_usb_uvc_cfg;
 
 /**
  * @brief  Camera configuration structure for DVP interface
@@ -65,7 +63,7 @@ typedef struct {
     gpio_num_t                     pwdn_io;    /*!< GPIO io for power down signal */
     esp_cam_ctlr_dvp_pin_config_t  dvp_io;     /*!< DVP io configuration structure */
     uint32_t                       xclk_freq;  /*!< XCLK frequency in Hz */
-} dev_dvp_config_t;
+} dev_camera_sub_dvp_cfg;
 #endif  /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
 
 /**
@@ -77,16 +75,15 @@ typedef struct {
 typedef struct {
     const char  *name;      /*!< Device name */
     const char  *type;      /*!< Device type */
-    const char  *dev_path;  /*!< Device path */
-    const char  *bus_type;  /*!< Bus type (e.g., "csi", "spi", "dvp", "usb_uvc" etc.) */
+    const char  *sub_type;  /*!< Bus type (e.g., "csi", "spi", "dvp", "usb_uvc" etc.) */
     union {
 #ifdef CONFIG_SOC_LCDCAM_CAM_SUPPORTED
-        dev_dvp_config_t      dvp;      /*!< DVP interface configuration */
+        dev_camera_sub_dvp_cfg  dvp;          /*!< DVP interface configuration */
 #endif /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
-        dev_csi_config_t      csi;      /*!< CSI interface configuration (placeholder) */
-        dev_spi_config_t      spi;      /*!< SPI interface configuration (placeholder) */
-        dev_usb_uvc_config_t  usb_uvc;  /*!< USB UVC interface configuration (placeholder) */
-    } config;
+        dev_camera_sub_csi_cfg      csi;      /*!< CSI interface configuration (placeholder) */
+        dev_camera_sub_spi_cfg      spi;      /*!< SPI interface configuration (placeholder) */
+        dev_camera_sub_usb_uvc_cfg  usb_uvc;  /*!< USB UVC interface configuration (placeholder) */
+    } sub_cfg;
 } dev_camera_config_t;
 
 /**
@@ -102,6 +99,7 @@ typedef struct {
 typedef struct {
     const char  *dev_path;   /*!< Camera device path or identifier */
     const char  *meta_path;  /*!< Camera metadata path or identifier (if applicable) */
+                             /*!< For csi camera, meta_path is ISP path */
 } dev_camera_handle_t;
 
 /**

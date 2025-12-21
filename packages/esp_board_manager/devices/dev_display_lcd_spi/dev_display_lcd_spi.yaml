@@ -53,3 +53,51 @@
 
       # Chip-specific configuration
       vendor_config: ""                 # Vendor-specific configuration (default: empty string)
+
+# Configuration file for adapting the initialization of the spi lcd through the display_lcd device
+- name: display_lcd
+  chip: generic_lcd
+  type: display_lcd                     # The type of the device, change it from "dev_display_lcd_spi" to "display_lcd"
+  version: default
+  sub_type: spi                         # Bus type for the LCD device, should be "spi" for dev_display_lcd_spi
+  dependencies:
+    espressif/esp_lcd_generic: "*"
+  # The rest of the configuration remains unchanged
+  config:
+    swap_xy: false
+    mirror_y: false
+    mirror_x: false
+    x_max: 320
+    y_max: 240
+    io_spi_config:
+      cs_gpio_num: -1
+      dc_gpio_num: -1
+      spi_mode: 0
+      pclk_hz: 40000000
+      trans_queue_depth: 2
+      lcd_cmd_bits: 8
+      lcd_param_bits: 8
+      cs_ena_pretrans: 0
+      cs_ena_posttrans: 0
+      flags:
+        dc_high_on_cmd: false
+        dc_low_on_data: false
+        dc_low_on_param: false
+        octal_mode: false
+        quad_mode: false
+        sio_mode: false
+        lsb_first: false
+        cs_high_active: false
+
+      peripherals:
+        - name: spi-1
+
+    lcd_panel_config:
+      reset_gpio_num: -1
+      rgb_ele_order: "LCD_RGB_ELEMENT_ORDER_RGB"
+      data_endian: "LCD_RGB_DATA_ENDIAN_BIG"
+      bits_per_pixel: 16
+      flags:
+        reset_active_high: false
+
+      vendor_config: ""

@@ -41,6 +41,56 @@
 #include "periph_ledc.h"
 #endif  /* CONFIG_ESP_BOARD_PERIPH_LEDC_SUPPORT */
 
+/* ADC Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_ADC_SUPPORT
+#include "periph_adc.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_ADC_SUPPORT */
+
+/* Analog Comparator Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_ANACMPR_SUPPORT
+#include "periph_anacmpr.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_ANACMPR_SUPPORT */
+
+/* DAC Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_DAC_SUPPORT
+#include "periph_dac.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_DAC_SUPPORT */
+
+/* MCPWM Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_MCPWM_SUPPORT
+#include "periph_mcpwm.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_MCPWM_SUPPORT */
+
+/* PCNT Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_PCNT_SUPPORT
+#include "periph_pcnt.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_PCNT_SUPPORT */
+
+/* RMT Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_RMT_SUPPORT
+#include "periph_rmt.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_RMT_SUPPORT */
+
+/* SDM Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_SDM_SUPPORT
+#include "periph_sdm.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_SDM_SUPPORT */
+
+/* UART Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_UART_SUPPORT
+#include "periph_uart.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_UART_SUPPORT */
+
+/* DSI Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_DSI_SUPPORT
+#include "periph_dsi.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_DSI_SUPPORT */
+
+/* LDO Peripheral */
+#ifdef CONFIG_ESP_BOARD_PERIPH_LDO_SUPPORT
+#include "periph_ldo.h"
+#endif  /* CONFIG_ESP_BOARD_PERIPH_LDO_SUPPORT */
+
 /* ============================================================================
  * Device Headers
  * ============================================================================ */
@@ -64,6 +114,10 @@
 #ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
 #include "dev_display_lcd_spi.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
+#include "dev_display_lcd.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
 
 /* FATFS SD Card Device */
 #ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
@@ -99,3 +153,7 @@
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 #include "dev_ledc_ctrl.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT
+#include "dev_button.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT */

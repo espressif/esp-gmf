@@ -1,0 +1,13 @@
+board: test_board_d
+chip: esp32c3
+version: 1.0.0
+# Peripherals Configuration
+peripherals:
+  - name: i2c_0
+    type: i2c
+    role: master
+    config:
+      port: 0
+      pins:
+        sda: 8
+        scl: 9

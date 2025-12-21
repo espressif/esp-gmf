@@ -1,0 +1,27 @@
+# DSI Display Configuration
+# This configuration sets up a MIPI DSI display interface
+# Based on common DSI display parameters
+
+- name: dsi_display
+  type: dsi
+  config:
+    # DSI bus identifier (default: 0 for primary bus)
+    # Valid values depending on available DSI controllers, esp32p4 support only 1 MIPI DSI bus
+    bus_id: 0
+
+    # Number of data lanes (default: 2 for dual-lane mode)
+    # esp32p4 support up to 2 data lanes
+    data_lanes: 2
+
+    # Physical layer clock source (default: MIPI_DSI_PHY_CLK_SRC_DEFAULT)
+    phy_clk_src: 0
+    # Valid values:
+    # - 0 (Set it to 0 and then let the driver configure it)
+    # - MIPI_DSI_PHY_CLK_SRC_DEFAULT
+    # - MIPI_DSI_PHY_CLK_SRC_PLL_F20M
+    # - MIPI_DSI_PHY_CLK_SRC_PLL_F25M
+    # - MIPI_DSI_PHY_CLK_SRC_RC_FAST
+
+    # Bit rate per data lane in Mbps (default: 1000 for 1Gbps per lane)
+    # Common values between 80 to 1500 Mbps depending on display capabilities
+    lane_bit_rate_mbps: 1000

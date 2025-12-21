@@ -1,0 +1,5 @@
+board: test_board_e
+chip: esp32s2
+version: 1.0.0
+description: "Test Board E - Single board directly under components"
+manufacturer: "TEST"

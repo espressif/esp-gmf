@@ -15,8 +15,8 @@
       max_files: 5                    # Maximum number of files that can be open simultaneously
       allocation_unit_size: 16384     # Allocation unit size in bytes (0 for default)
 
-    # Due to the limitations of the SPI driver, 
-    # the SPI SD card does not exceed the speed of SDMMC_FREQ_DEFAULT 
+    # Due to the limitations of the SPI driver,
+    # the SPI SD card does not exceed the speed of SDMMC_FREQ_DEFAULT
     # when transmitting and communicating with the main device via the SPI bus
     frequency: SDMMC_FREQ_DEFAULT
 
@@ -26,3 +26,21 @@
     # SPI bus configuration, must match the SPI peripheral configuration)
     peripherals:
       - name: "spi_master"  # SPI bus name
+
+# Configuration file for adapting the initialization of the spi sdcard through the display_lcd device
+- name: fs_sdcard
+  type: fs_fat   # The type of the device, change it from "fatfs_sdcard_spi" to "fs_fat"
+  sub_type: spi  # Bus type for the spi sdcard device, should be "spi" for dev_fatfs_sdcard_spi
+  version: default
+  config:
+    mount_point: "/sdcard"
+    vfs_config:
+      format_if_mount_failed: false
+      max_files: 5
+      allocation_unit_size: 16384
+    # Place the following configuration under the sub_config field
+    sub_config:
+      cs_gpio_num: 15
+  # The peripheral must be defined at device level (not inside config)
+  peripherals:
+    - name: "spi_master"

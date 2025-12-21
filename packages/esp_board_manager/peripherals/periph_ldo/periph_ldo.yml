@@ -1,0 +1,29 @@
+# LDO Configuration
+# This configuration sets up a LDO peripheral
+# It is used to power external devices or peripherals
+# Based on periph_ldo.py parsing script
+
+- name: ldo_mipi
+  type: ldo
+  config:
+    # LDO (Low-Dropout Regulator) configuration for power management
+    ldo_cfg:
+      # This is an hardware-specific configuration, please your SoC's datasheet for valid LDO channel IDs
+      # You must specify a LDO channel ID manually, based on your board schematic.
+      # e.g. For ESP32_P4, the valid values for chan_id are 1-4,
+      # where channel 1 and channel 2 are respectively used for powering the internal Flash and PSRAM,
+      # channels 3 and 4 can be used to power external devices
+      # In P4 Function-EV Board, channel 3 is used for powering the MIPI phy
+      chan_id: 3
+
+      # Output voltage in millivolts (default: 2500 for 2.5V)
+      # Common values: equal to 3300 or between 500 to 2700, depending on device requirements
+      voltage_mv: 2500
+
+      # Whether voltage is adjustable (default: 1 for true)
+      # Valid values: 0 (fixed), 1 (adjustable)
+      adjustable: 1
+
+      # Hardware ownership flag (default: 0 for software control)
+      # Valid values: 0 (software-controlled), 1 (hardware-controlled)
+      owned_by_hw: 0

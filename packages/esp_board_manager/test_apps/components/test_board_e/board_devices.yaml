@@ -1,0 +1,18 @@
+board: test_board_e
+chip: esp32s2
+version: 1.0.0
+# Devices Configuration
+devices:
+  - name: sdcard_fat
+    type: fs_fat
+    sub_type: spi
+    config:
+      mount_point: "/sdcard"
+      vfs_config:
+        format_if_mount_failed: false
+        max_files: 5
+        allocation_unit_size: 16384
+      sub_config:
+        cs_gpio_num: 10
+    peripherals:
+      - name: spi_0

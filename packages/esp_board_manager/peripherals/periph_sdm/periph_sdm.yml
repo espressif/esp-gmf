@@ -1,0 +1,22 @@
+# SDM Peripheral Default Configuration
+# This file shows the default values used by the SDM peripheral parser
+# Based on periph_sdm.py parsing script
+
+sdm-0:
+  config:
+    # GPIO pin number for SDM output (required, no default - must be >= 0)
+    gpio_num: 0
+
+    # Clock source (default: SDM_CLK_SRC_DEFAULT)
+    # Valid values depend on the selected chip,
+    # please refer to the enum 'soc_periph_sdm_clk_src_t' in 'soc/clk_tree_defs.h'
+    clk_src: "SDM_CLK_SRC_DEFAULT"
+
+    # Sample rate in Hz (default: 1000000)
+    sample_rate_hz: 1000000
+
+    # Invert output signal (default: false)
+    invert_out: false
+
+    # IO loop back for debug/test (default: false)
+    io_loop_back: false

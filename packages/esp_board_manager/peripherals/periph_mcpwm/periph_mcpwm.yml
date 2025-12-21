@@ -1,0 +1,138 @@
+# MCPWM Peripheral Default Configuration
+# This file shows the default values used by the MCPWM peripheral parser
+# Based on periph_mcpwm.py parsing script
+# Version: 1.1.0 - Added support for multiple comparators
+
+mcpwm-0:
+  config:
+    # Timer configuration
+    timer_config:
+      # Group ID (default: 0), must be less than 'SOC_MCPWM_GROUPS'
+      # Please check the 'SOC_MCPWM_GROUPS' in 'soc/soc_caps.h' for valid values
+      group_id: 0
+
+      # Clock source (default: MCPWM_TIMER_CLK_SRC_DEFAULT)
+      # Valid values depend on the selected chip,
+      # please refer to the enum 'soc_periph_mcpwm_timer_clk_src_t' in 'soc/clk_tree_defs.h'
+      clk_src: "MCPWM_TIMER_CLK_SRC_DEFAULT"
+
+      # Timer resolution in Hz (default: 1000000, 1MHz = 1us per tick)
+      # The step size of each count tick equals to (1 / resolution_hz) seconds
+      resolution_hz: 1000000
+
+      # Count mode (default: MCPWM_TIMER_COUNT_MODE_UP)
+      count_mode: MCPWM_TIMER_COUNT_MODE_UP
+      # Valid values:
+      # - MCPWM_TIMER_COUNT_MODE_PAUSE
+      # - MCPWM_TIMER_COUNT_MODE_UP
+      # - MCPWM_TIMER_COUNT_MODE_DOWN
+      # - MCPWM_TIMER_COUNT_MODE_UP_DOWN
+
+      # Number of count ticks within a period (default: 20000, 20ms for 50Hz PWM)
+      period_ticks: 20000
+
+      # MCPWM timer interrupt priority
+      # If set to 0, the driver will try to allocate an interrupt with a relative low priority (1,2,3)
+      intr_priority: 0
+
+      # Timer flags
+      flags:
+        # Whether to update period when timer counts to zero (default: false)
+        update_period_on_empty: false
+
+        # Whether to update period on sync event (default: false)
+        update_period_on_sync: false
+
+        # Allow power down (default: false)
+        # When this flag set, the driver will backup/restore the MCPWM registers before/after entering/exit sleep mode.
+        # By this approach, the system can power off MCPWM's power domain.
+        # This can save power, but at the expense of more RAM being consumed.
+        allow_pd: false
+
+    # Operator configuration
+    operator_config:
+      # Group ID, must be less than 'SOC_MCPWM_GROUPS' (default: 0)
+      # Please check the 'SOC_MCPWM_GROUPS' in 'soc/soc_caps.h' for valid values
+      # Operator and timer should reside in the same group
+      group_id: 0
+
+      # Interrupt priority (default: 0)
+      intr_priority: 0
+
+      # Operator flags
+      flags:
+        # Whether to update generator action when timer counts to zero (default: false)
+        update_gen_action_on_tez: false
+
+        # Whether to update generator action when timer counts to peak (default: false)
+        update_gen_action_on_tep: false
+
+        # Whether to update generator action on sync event (default: false)
+        update_gen_action_on_sync: false
+
+        # Whether to update dead time when timer counts to zero (default: false)
+        update_dead_time_on_tez: false
+
+        # Whether to update dead time when timer counts to peak (default: false)
+        update_dead_time_on_tep: false
+
+        # Whether to update dead time on sync event (default: false)
+        update_dead_time_on_sync: false
+
+    # Comparator configurations, support for multiple comparators,
+    # the supported number of comparators for each operator can be determined by checking the 'SOC_MCPWM_COMPARATORS_PER_OPERATOR' in soc/soc_caps.h
+    # Use either 'comparator_config' for single comparator or 'comparator_configs' for multiple comparators
+    comparator_configs:
+
+      # First comparator configuration
+      - comparator: 0
+
+        # Interrupt priority (default: 0)
+        intr_priority: 0
+        flags:
+          # Whether to update compare value when timer counts to zero (default: true)
+          update_cmp_on_tez: true
+
+          # Whether to update compare value when timer counts to peak (default: false)
+          update_cmp_on_tep: false
+
+          # Whether to update compare value on sync event (default: false)
+          update_cmp_on_sync: false
+
+      # Second comparator configuration (optional)
+      # - comparator: 1
+      #   intr_priority: 0
+      #   flags:
+      #     update_cmp_on_tez: true
+      #     update_cmp_on_tep: false
+      #     update_cmp_on_sync: false
+
+    # Alternative: single comparator configuration
+    # comparator_config:
+    #   intr_priority: 0
+    #   flags:
+    #     update_cmp_on_tez: true
+    #     update_cmp_on_tep: false
+    #     update_cmp_on_sync: false
+
+    # Generator configuration
+    generator_config:
+      # GPIO pin number for PWM output (required, no default - must be >= 0)
+      gpio_num: 0
+
+      # Generator flags
+      flags:
+        # Whether to invert PWM output signal (default: false)
+        invert_pwm: false
+
+        # IO loop back for debug/test (default: false)
+        io_loop_back: false
+
+        # Configure GPIO as open-drain mode (default: false)
+        io_od_mode: false
+
+        # Whether to pull up internally (default: false)
+        pull_up: false
+
+        # Whether to pull down internally (default: false)
+        pull_down: false

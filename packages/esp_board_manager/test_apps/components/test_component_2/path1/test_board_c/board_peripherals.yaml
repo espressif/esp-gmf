@@ -1,0 +1,21 @@
+board: test_board_c
+chip: esp32p4
+version: 1.0.0
+# Peripherals Configuration
+peripherals:
+  - name: uart_0
+    type: uart
+    role: console
+    config:
+      uart_num: 0
+      uart_config:
+        baud_rate: 115200
+
+  - name: ledc_backlight
+    type: ledc
+    role: none
+    config:
+      gpio_num: 10
+      freq_hz: 5000
+      duty: 0
+      duty_resolution: LEDC_TIMER_10_BIT

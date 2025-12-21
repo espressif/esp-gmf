@@ -48,6 +48,7 @@
 
     # I2S interface configuration
     - name: i2s-0                        # I2S peripheral for audio data interface
+      clk_src: 0                         # I2S clock source, need converted from `i2s_clock_src_t`. If set to 0 will use default clock source (default: 0)
 
     # I2C interface configuration
     - name: i2c-0                        # I2C peripheral for codec control

@@ -1,0 +1,5 @@
+board: esp32_p4_core
+chip: esp32p4
+version: 1.0.0
+description: "ESP32-P4 Core Board"
+manufacturer: "ESPRESSIF"

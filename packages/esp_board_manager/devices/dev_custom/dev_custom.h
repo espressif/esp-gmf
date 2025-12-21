@@ -8,55 +8,16 @@
 #pragma once
 
 #include "esp_board_manager_err.h"
+#include "esp_board_entry.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif  /* __cplusplus */
 
 /**
- * @brief Maximum number of peripherals supported by custom device
+ * @brief  Maximum number of peripherals supported by custom device
  */
 #define MAX_PERIPHERALS 4
-
-/**
- * @brief  Function pointer type for custom device initialization
- */
-typedef int (*custom_device_init_func_t)(void *config, int cfg_size, void **device_handle);
-
-/**
- * @brief  Function pointer type for custom device deinitialization
- */
-typedef int (*custom_device_deinit_func_t)(void *device_handle);
-
-/**
- * @brief  Structure describing a custom device implementation
- *
- *         This structure is placed in a special linker section (.custom_devices_desc)
- *         and automatically discovered by the custom device system.
- */
-typedef struct {
-    const char                   *device_name;  /*!< Custom device name (must match YAML config) */
-    custom_device_init_func_t    init_func;     /*!< Device initialization function */
-    custom_device_deinit_func_t  deinit_func;   /*!< Device deinitialization function */
-} custom_device_desc_t;
-
-/**
- * @brief  Macro to define a custom device implementation
- *
- *         This macro places the device descriptor in the special linker section
- *         for automatic discovery by the custom device system
- *
- * @param  name         Device name (must match YAML config)
- * @param  init_func    Initialization function pointer
- * @param  deinit_func  Deinitialization function pointer
- */
-#define CUSTOM_DEVICE_IMPLEMENT(name, init_func_entry, deinit_func_entry) \
-    static const custom_device_desc_t __attribute__((section(".custom_devices_desc"), used)) \
-    custom_device_##name = { \
-        .device_name = #name, \
-        .init_func = init_func_entry, \
-        .deinit_func = deinit_func_entry \
-    }
 
 /**
  * @brief  Generic custom device configuration structure
@@ -65,11 +26,11 @@ typedef struct {
  *         structures based on the YAML configuration.
  */
 typedef struct {
-    const char *name;                               /*!< Custom device name */
-    const char *type;                               /*!< Device type: "custom" */
-    const char *chip;                               /*!< Chip name */
-    uint8_t     peripheral_count;                   /*!< Number of peripherals */
-    const char *peripheral_names[MAX_PERIPHERALS];  /*!< Peripheral names array */
+    const char  *name;                               /*!< Custom device name */
+    const char  *type;                               /*!< Device type: "custom" */
+    const char  *chip;                               /*!< Chip name */
+    uint8_t      peripheral_count;                   /*!< Number of peripherals */
+    const char  *peripheral_names[MAX_PERIPHERALS];  /*!< Peripheral names array */
 } dev_custom_base_config_t;
 
 /**
@@ -81,7 +42,7 @@ typedef struct {
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_custom_init(void *cfg, int cfg_size, void **device_handle);
 
@@ -92,7 +53,7 @@ int dev_custom_init(void *cfg, int cfg_size, void **device_handle);
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_custom_deinit(void *device_handle);
 

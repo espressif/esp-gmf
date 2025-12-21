@@ -1,0 +1,2 @@
+config ESP32_C3_LYRA_BOARD
+    bool

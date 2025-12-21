@@ -81,38 +81,3 @@ esp_err_t lcd_touch_factory_entry_t(esp_lcd_panel_io_handle_t io, const esp_lcd_
     }
     return ESP_OK;
 }
-
-esp_err_t camera_factory_entry_t(const dev_camera_config_t *camera_cfg, dev_camera_handle_t *ret_camera)
-{
-    ESP_LOGI(TAG, "Creating camera driver...");
-
-    void *i2c_handle = NULL;
-    esp_err_t ret = esp_board_periph_ref_handle(camera_cfg->config.dvp.i2c_name, &i2c_handle);
-    if (ret != ESP_OK || !i2c_handle) {
-        ESP_LOGE(TAG, "Failed to get I2C handle\n");
-        return -1;
-    }
-
-    const esp_video_init_dvp_config_t s_dvp_config = {
-        .sccb_config.init_sccb = false,
-        .sccb_config.i2c_handle = i2c_handle,
-        .sccb_config.freq = camera_cfg->config.dvp.i2c_freq,
-        .reset_pin = camera_cfg->config.dvp.reset_io,
-        .pwdn_pin = camera_cfg->config.dvp.pwdn_io,
-        .dvp_pin = camera_cfg->config.dvp.dvp_io,
-        .xclk_freq = camera_cfg->config.dvp.xclk_freq,
-    };
-
-    const esp_video_init_config_t cam_config_ptr = {
-        .dvp = &s_dvp_config,
-    };
-
-    ret = esp_video_init(&cam_config_ptr);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize camera driver: %s", esp_err_to_name(ret));
-        return ret;
-    }
-
-    ret_camera->dev_path = camera_cfg->dev_path;
-    return ESP_OK;
-}

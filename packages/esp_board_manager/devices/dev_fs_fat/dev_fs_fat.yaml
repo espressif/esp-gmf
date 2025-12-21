@@ -1,0 +1,74 @@
+# Example board_devices.yaml configuration for FS_FAT device
+# This shows how to integrate the FS_FAT device with SDMMC and SPI sub device into a board configuration
+
+# Example FS_FAT device with SDMMC sub device configuration
+- name: fs_fat          # The name of the device, must be unique
+  type: fs_fat          # The type of the device, must be unique
+  version: default
+  sub_type: sdmmc       # The sub type of the device, must be 'sdmmc' or 'spi'
+  config:
+    # Mount point configuration
+    mount_point: "/sdcard"            # The mount point path for the SD card filesystem
+    # VFS (Virtual File System) configuration
+    vfs_config:
+      format_if_mount_failed: false   # Format the card if mount fails
+      max_files: 5                    # Maximum number of files that can be open simultaneously
+      allocation_unit_size: 16384     # Allocation unit size in bytes (0 for default)
+
+    sub_config:
+      slot: SDMMC_HOST_SLOT_1           # SD card slot: SDMMC_HOST_SLOT_1 or SDMMC_HOST_SLOT_2
+      frequency: SDMMC_FREQ_HIGHSPEED   # Clock frequency:
+                                        #   SDMMC_FREQ_DEFAULT      (20000 Hz)
+                                        #   SDMMC_FREQ_HIGHSPEED    (40000 Hz)
+                                        #   SDMMC_FREQ_PROBING      (400 Hz)
+                                        #   SDMMC_FREQ_52M          (52000 Hz)
+                                        #   SDMMC_FREQ_26M          (26000 Hz)
+                                        #   SDMMC_FREQ_DDR50        (50000 Hz)
+                                        #   SDMMC_FREQ_SDR50        (100000 Hz)
+      bus_width: 1                      # Bus width: 1, 4, or 8 bits
+      slot_flags: SDMMC_SLOT_FLAG_INTERNAL_PULLUP # Slot flags (SDMMC_SLOT_FLAG_INTERNAL_PULLUP, SDMMC_SLOT_FLAG_WP_ACTIVE_HIGH, SDMMC_SLOT_FLAG_UHS1)
+
+      # GPIO pin configuration
+      pins:
+        clk: -1                         # Clock pin (-1 for not used)
+        cmd: -1                         # Command pin (-1 for not used)
+        d0: -1                          # Data line 0 pin (-1 for not used)
+        d1: -1                          # Data line 1 pin (-1 for not used)
+        d2: -1                          # Data line 2 pin (-1 for not used)
+        d3: -1                          # Data line 3 pin (-1 for not used)
+        d4: -1                          # Data line 4 pin (-1 for not used, 8-bit mode only)
+        d5: -1                          # Data line 5 pin (-1 for not used, 8-bit mode only)
+        d6: -1                          # Data line 6 pin (-1 for not used, 8-bit mode only)
+        d7: -1                          # Data line 7 pin (-1 for not used, 8-bit mode only)
+        cd: -1                          # Card detect pin (-1 for not used)
+        wp: -1                          # Write protect pin (-1 for not used)
+
+      # For SoCs where the SD power can be supplied both via an internal or external (e.g. on-board LDO) power supply.
+      # When using specific IO pins (which can be used for ultra high-speed SDMMC) to connect to the SD card
+      # and the internal LDO power supply, we need to initialize the power supply first.
+      # This is an optional configuration, You can determine the available channel ID by checking the SoC datasheet.
+      # whether it needs to be configured depends on your board.
+      # Please check the schematic diagram or other documentation to determine if SDMMC is powered by LDO.
+      # e.g., In ESP32-P4 Function-EV Board, VO4_LDO is connected to power the SDMMC IO. set it to 4 for VO4_LDO.
+      ldo_chan_id: -1
+
+# Example FS_FAT with SPI sub device configuration
+- name: fs_fat          # The name of the device, must be unique
+  type: fs_fat          # The type of the device, must be unique
+  version: default
+  sub_type: spi         # The sub type of the device, must be 'sdmmc' or 'spi'
+  config:
+    # Mount point configuration
+    mount_point: "/sdcard"            # The mount point path for the SD card filesystem
+    # VFS (Virtual File System) configuration
+    vfs_config:
+      format_if_mount_failed: false   # Format the card if mount fails
+      max_files: 5                    # Maximum number of files that can be open simultaneously
+      allocation_unit_size: 16384     # Allocation unit size in bytes (0 for default)
+
+    sub_config:
+      cs_gpio_num: 15         # Chip select GPIO number
+  # Peripherals must be defined at device level (consistent with other devices)
+  # The SPI peripheral must have: type: spi and role: master
+  peripherals:
+    - name: "spi_master"  # SPI bus name (can be any name, e.g., spi_0, spi_sdcard, etc.)

@@ -1,15 +1,13 @@
 # Example board_devices.yaml configuration for camera device
 # This shows how to integrate the camera device into a board configuration
-# All values shown are example values for DVP interface configuration
+# Please note that multiple cameras are not currently supported on the same board
+# All values shown are example values for DVP and CSI interface configuration
 
 # Example camera device configuration
-- name: camera_sensor  # The name of the device, must be unique
-  type: camera         # The type of the device, must be unique
-
+- name: camera         # The name of the device, must be unique
+  type: camera         # The type of the camera, must be equal to "camera"
+  sub_type: "dvp"      # The bus type: dvp
   config:
-    dev_path: "/dev/video2"  # Refer to the esp-video definition
-    bus_type: "dvp"          # The bus type: dvp, csi, spi, usb_uvc (defau
-
     # DVP interface configuration (used when bus_type is "dvp")
     dvp_config:
       reset_io: -1        # GPIO pin for reset signal (default: -1, not connected)
@@ -41,17 +39,25 @@
         data_io_13: -1     # GPIO pin for data bit 13 (default: -1, not used in 8-bit mode)
         data_io_14: -1     # GPIO pin for data bit 14 (default: -1, not used in 8-bit mode)
         data_io_15: -1     # GPIO pin for data bit 15 (default: -1, not used in 8-bit mode)
-    
-    # CSI interface configuration (placeholder, used when bus_type is "csi")
-    csi_config: NULL       # Configuration for CSI interface (default: NULL, not implemented)
-    
-    # SPI interface configuration (placeholder, used when bus_type is "spi")
-    spi_config: NULL       # Configuration for SPI interface (default: NULL, not implemented)
-    
-    # USB UVC interface configuration (placeholder, used when bus_type is "usb_uvc")
-    usb_uvc_config: NULL   # Configuration for USB UVC interface (default: NULL, not implemented)
 
   # I2C configuration for camera control (For the USB-UVC camera, this configuration is not required)
   peripherals:
     - name: "i2c_master"   # I2C bus name for camera control (default: depends on implementation)
       frequency: 400000    # I2C frequency in Hz (default: 400kHz)
+
+# Example CSI camera configuration
+- name: camera             # The name of the device, must be unique
+  type: camera             # The type of the camera, must be equal to "camera"
+  sub_type: "csi"          # The bus type: csi
+  config:
+    # CSI interface configuration (used when bus_type is "csi")
+    csi_config:
+      reset_io: 1           # GPIO pin for reset signal (example value)
+      pwdn_io: 2            # GPIO pin for power down signal (example value)
+      dont_init_ldo: true   # If true, MIPI-CSI video device will not initialize the LDO (default: true)
+                            # If using the periph_ldo in esp_board_manager to manage the ldo peripheral, it needs to be set to true
+
+  # I2C configuration for camera control
+  peripherals:
+    - name: "i2c_master"    # I2C bus name for camera control
+      frequency: 400000     # I2C frequency in Hz

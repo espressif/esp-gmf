@@ -1,0 +1,18 @@
+board: test_board_a
+chip: esp32s3
+version: 1.0.0
+# Peripherals Configuration
+peripherals:
+  - name: gpio_0
+    type: gpio
+    config:
+      pin: 0
+      mode: GPIO_MODE_INPUT
+      pull_up: true
+
+  - name: gpio_power_ctrl
+    type: gpio
+    config:
+      pin: 2
+      mode: GPIO_MODE_OUTPUT
+      default_level: 0

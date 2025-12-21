@@ -1,0 +1,5 @@
+board: test_board_d
+chip: esp32c3
+version: 1.0.0
+description: "Test Board D - Directly expanded boards"
+manufacturer: "TEST"

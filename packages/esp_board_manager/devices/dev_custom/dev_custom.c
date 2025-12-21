@@ -9,22 +9,9 @@
 #include "dev_custom.h"
 #include "esp_log.h"
 #include "esp_board_device.h"
+#include "esp_board_entry.h"
 
 static const char *TAG = "DEV_CUSTOM";
-
-// Helper function to find custom device descriptor
-static const custom_device_desc_t *find_custom_device_desc(const char *device_name)
-{
-    extern const custom_device_desc_t _custom_devices_array_start;
-    extern const custom_device_desc_t _custom_devices_array_end;
-    for (const custom_device_desc_t *desc = &_custom_devices_array_start;
-         desc != &_custom_devices_array_end; desc++) {
-        if (strcmp(desc->device_name, device_name) == 0) {
-            return desc;
-        }
-    }
-    return NULL;
-}
 
 int dev_custom_init(void *cfg, int cfg_size, void **device_handle)
 {
@@ -34,7 +21,7 @@ int dev_custom_init(void *cfg, int cfg_size, void **device_handle)
     }
     // Cast to base config to get device name
     dev_custom_base_config_t *base_cfg = (dev_custom_base_config_t *)cfg;
-    const custom_device_desc_t *desc = find_custom_device_desc(base_cfg->name);
+    const esp_board_entry_desc_t *desc = esp_board_entry_find_desc(base_cfg->name);
     if (desc && desc->init_func) {
         void *user_handle = NULL;
         int ret = desc->init_func(cfg, cfg_size, &user_handle);
@@ -63,7 +50,7 @@ int dev_custom_deinit(void *device_handle)
         ESP_LOGE(TAG, "Device handle[%p] not found, deinit failed", device_handle);
         return -1;
     }
-    const custom_device_desc_t *desc = find_custom_device_desc(board_device->name);
+    const esp_board_entry_desc_t *desc = esp_board_entry_find_desc(board_device->name);
     if (desc && desc->deinit_func) {
         int ret = desc->deinit_func(device_handle);
         if (ret != 0) {

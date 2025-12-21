@@ -17,8 +17,6 @@ from .utils.logger import LoggerMixin
 from .utils.file_utils import find_project_root, safe_write_file
 from .utils.yaml_utils import load_yaml_safe
 from .settings import BoardManagerConfig
-import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from .parser_loader import load_parsers
@@ -52,6 +50,10 @@ class ConfigGenerator(LoggerMixin):
     def dict_to_c_initializer(self, d: Dict[str, Any], indent: int = 4) -> List[str]:
         """Convert dictionary to C initializer format with proper type handling and formatting"""
         lines = []
+        if isinstance(d, list):
+            arr = ', '.join(str(x) for x in d)
+            lines.append(f'{arr}')
+            return lines
         for k, v in d.items():
             if isinstance(v, dict):
                 lines.append(f'.{k} = {{')
@@ -79,8 +81,22 @@ class ConfigGenerator(LoggerMixin):
             elif isinstance(v, float):
                 lines.append(f'.{k} = {v},')
             elif isinstance(v, list):
-                arr = '{' + ', '.join(str(x) for x in v) + '}'
-                lines.append(f'.{k} = {arr},')
+                # Handle arrays of structures properly
+                if v and isinstance(v[0], dict):
+                    # This is an array of structures, generate proper C initializer
+                    lines.append(f'.{k} = {{')
+                    for i, item in enumerate(v):
+                        if isinstance(item, dict):
+                            lines.append(' ' * (indent + 4) + '{')
+                            lines += [' ' * (indent + 8) + l for l in self.dict_to_c_initializer(item, indent + 4)]
+                            lines.append(' ' * (indent + 4) + '},')
+                        else:
+                            lines.append(' ' * (indent + 4) + f'{item},')
+                    lines.append(' ' * indent + '},')
+                else:
+                    # Simple array of primitive types
+                    arr = '{' + ', '.join(str(x) for x in v) + '}'
+                    lines.append(f'.{k} = {arr},')
             else:
                 lines.append(f'.{k} = 0, // unsupported type')
         return lines
@@ -100,39 +116,46 @@ class ConfigGenerator(LoggerMixin):
             self.logger.info(f'   Scanning main boards: {self.boards_dir}')
             for d in os.listdir(self.boards_dir):
                 board_path = self.boards_dir / d
-                kconfig_path = board_path / 'Kconfig'
-                board_info_path = board_path / 'board_info.yaml'
 
-                if board_path.is_dir() and kconfig_path.exists():
+                if not board_path.is_dir():
+                    continue
+
+                # Check if this is a valid board (has all 4 required files)
+                if self._is_board_directory(str(board_path)):
                     all_boards[d] = str(board_path)
-                    self.logger.debug(f'Found board in main directory: {d}')
-                    if board_info_path.exists():
-                        self.logger.debug(f'  - Has board_info.yaml')
-                    else:
-                        self.logger.debug(f'  - No board_info.yaml (will use defaults)')
+                    self.logger.debug(f'Found valid board in main directory: {d}')
+                else:
+                    # Check if it has Kconfig but missing other files (invalid board)
+                    kconfig_path = board_path / 'Kconfig'
+                    if kconfig_path.exists():
+                        missing_files = []
+                        for filename in ['board_info.yaml', 'board_peripherals.yaml', 'board_devices.yaml']:
+                            if not (board_path / filename).exists():
+                                missing_files.append(filename)
 
-        # 2. Scan components boards directories
+                        if missing_files:
+                            self.logger.warning(
+                                f'⚠️  Skipping invalid board "{d}" in main directory - missing required files: {", ".join(missing_files)}'
+                            )
+
+        # 2. Scan components boards directories (recursive scan)
         project_root = os.environ.get('PROJECT_DIR')
         if not project_root:
             # Start searching from current working directory, not script directory
             project_root = find_project_root(Path(os.getcwd()))
 
         if project_root:
-            components_boards = self._find_components_boards(project_root)
-            for boards_dir in components_boards:
-                self.logger.info(f'   Scanning component boards: {boards_dir}')
-                for d in os.listdir(boards_dir):
-                    board_path = os.path.join(boards_dir, d)
-                    kconfig_path = os.path.join(board_path, 'Kconfig')
-                    board_info_path = os.path.join(board_path, 'board_info.yaml')
-
-                    if os.path.isdir(board_path) and os.path.isfile(kconfig_path):
-                        all_boards[d] = board_path
-                        self.logger.debug(f'Found board in component directory: {d}')
-                        if os.path.exists(board_info_path):
-                            self.logger.debug(f'  - Has board_info.yaml')
-                        else:
-                            self.logger.debug(f'  - No board_info.yaml (will use defaults)')
+            components_dir = os.path.join(project_root, 'components')
+            if os.path.exists(components_dir):
+                self.logger.info(f'   Scanning component boards (recursive): {components_dir}')
+                # Get absolute path of Default boards to exclude
+                default_boards_path = str(self.boards_dir.resolve()) if hasattr(self.boards_dir, 'resolve') else str(self.boards_dir)
+                component_boards = self._scan_all_directories_for_boards(
+                    components_dir,
+                    'component',
+                    exclude_path=default_boards_path
+                )
+                all_boards.update(component_boards)
 
         # 3. Scan customer boards directory if provided
         if board_customer_path and board_customer_path != 'NONE':
@@ -155,60 +178,127 @@ class ConfigGenerator(LoggerMixin):
 
         return all_boards
 
-    def _find_components_boards(self, project_root: str) -> List[str]:
-        """Find boards directories in all components, excluding board_manager to avoid duplication"""
-        boards_dirs = []
-        components_dir = os.path.join(project_root, 'components')
+    def _scan_all_directories_for_boards(
+        self,
+        root_dir: str,
+        dir_name: str,
+        exclude_path: Optional[str] = None,
+        depth: int = 0,
+        max_depth: int = 10
+    ) -> Dict[str, str]:
+        """
+        Recursively scan all subdirectories for valid boards.
 
-        if not os.path.exists(components_dir):
-            self.logger.warning(f'⚠️  Components directory not found: {components_dir}')
-            return boards_dirs
+        A valid board must have all 4 required files:
+        - Kconfig
+        - board_info.yaml
+        - board_peripherals.yaml
+        - board_devices.yaml
 
-        for component in os.listdir(components_dir):
-            component_path = os.path.join(components_dir, component)
-            if os.path.isdir(component_path):
-                boards_path = os.path.join(component_path, 'boards')
-                if os.path.exists(boards_path) and os.path.isdir(boards_path):
-                    # Skip board_manager's own boards directory to avoid duplication
-                    if component != 'board_manager':
-                        boards_dirs.append(boards_path)
-                        self.logger.debug(f"   Found boards directory in component '{component}': {boards_path}")
+        Args:
+            root_dir: Root directory to scan
+            dir_name: Name for logging purposes
+            exclude_path: Optional path to exclude (e.g., Default boards directory)
+            depth: Current recursion depth
+            max_depth: Maximum recursion depth to prevent infinite loops
 
-        return boards_dirs
-
-    def _scan_all_directories_for_boards(self, root_dir: str, dir_name: str) -> Dict[str, str]:
-        """Recursively scan all subdirectories for boards with Kconfig files"""
+        Returns:
+            Dictionary of board_name -> board_path
+        """
         board_dirs = {}
 
         if not os.path.exists(root_dir):
             self.logger.warning(f'⚠️  {dir_name} directory does not exist: {root_dir}')
             return board_dirs
 
-        self.logger.info(f'Scanning all directories in {dir_name} path: {root_dir}')
+        # Limit recursion depth for safety
+        if depth >= max_depth:
+            self.logger.debug(f'Max recursion depth ({max_depth}) reached at: {root_dir}')
+            return board_dirs
 
-        for d in os.listdir(root_dir):
-            board_path = os.path.join(root_dir, d)
-            kconfig_path = os.path.join(board_path, 'Kconfig')
-            board_info_path = os.path.join(board_path, 'board_info.yaml')
+        if depth == 0:
+            self.logger.info(f'Scanning all directories in {dir_name} path: {root_dir}')
 
-            if os.path.isdir(board_path) and os.path.isfile(kconfig_path):
-                board_dirs[d] = board_path
-                self.logger.debug(f'Found board in {dir_name}: {d}')
-                if os.path.exists(board_info_path):
-                    self.logger.debug(f'  - Has board_info.yaml')
+        try:
+            for d in os.listdir(root_dir):
+                board_path = os.path.join(root_dir, d)
+
+                if not os.path.isdir(board_path):
+                    continue
+
+                # Check if this is a valid board directory (has all 4 required files)
+                if self._is_board_directory(board_path):
+                    # Check if this path should be excluded
+                    if exclude_path:
+                        board_abs_path = os.path.abspath(board_path)
+                        parent_abs_path = os.path.abspath(os.path.dirname(board_path))
+                        exclude_abs_path = os.path.abspath(exclude_path)
+
+                        if parent_abs_path == exclude_abs_path:
+                            self.logger.debug(f'Skipping excluded board: {d}')
+                            continue
+
+                    # Found a valid board
+                    board_dirs[d] = board_path
+                    self.logger.debug(f'Found valid board in {dir_name}: {d}')
                 else:
-                    self.logger.debug(f'  - No board_info.yaml (will use defaults)')
-            elif os.path.isdir(board_path):
-                # Recursively scan subdirectories
-                sub_boards = self._scan_all_directories_for_boards(board_path, f'{dir_name}/{d}')
-                board_dirs.update(sub_boards)
+                    # Check if it has Kconfig but missing other files (invalid board)
+                    kconfig_path = os.path.join(board_path, 'Kconfig')
+                    if os.path.isfile(kconfig_path):
+                        # This looks like it was intended to be a board but is incomplete
+                        missing_files = []
+                        for filename in ['board_info.yaml', 'board_peripherals.yaml', 'board_devices.yaml']:
+                            if not os.path.isfile(os.path.join(board_path, filename)):
+                                missing_files.append(filename)
+
+                        if missing_files:
+                            self.logger.warning(
+                                f'⚠️  Skipping invalid board "{d}" - missing required files: {", ".join(missing_files)}'
+                            )
+                    else:
+                        # Not a board directory, continue scanning subdirectories
+                        sub_boards = self._scan_all_directories_for_boards(
+                            board_path,
+                            f'{dir_name}/{d}',
+                            exclude_path=exclude_path,
+                            depth=depth + 1,
+                            max_depth=max_depth
+                        )
+                        board_dirs.update(sub_boards)
+
+        except PermissionError:
+            self.logger.warning(f'⚠️  Permission denied accessing {root_dir}')
+        except Exception as e:
+            self.logger.debug(f'Error scanning {root_dir}: {e}')
 
         return board_dirs
 
     def _is_board_directory(self, path: str) -> bool:
-        """Check if a directory is a valid board directory by verifying Kconfig file exists"""
-        kconfig_path = os.path.join(path, 'Kconfig')
-        return os.path.isdir(path) and os.path.isfile(kconfig_path)
+        """
+        Check if a directory is a valid board directory by verifying all required files exist.
+
+        A valid board must have:
+        1. Kconfig
+        2. board_info.yaml
+        3. board_peripherals.yaml
+        4. board_devices.yaml
+        """
+        if not os.path.isdir(path):
+            return False
+
+        required_files = [
+            'Kconfig',
+            'board_info.yaml',
+            'board_peripherals.yaml',
+            'board_devices.yaml'
+        ]
+
+        for filename in required_files:
+            file_path = os.path.join(path, filename)
+            if not os.path.isfile(file_path):
+                return False
+
+        return True
 
     def get_selected_board_from_sdkconfig(self) -> str:
         """Read sdkconfig file to determine which board is selected, fallback to default if not found"""

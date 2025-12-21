@@ -46,18 +46,18 @@ static void wav_playback_task(void *pvParameters)
     audio_config_t dac_config = {
         .sample_rate = sample_rate,
         .bits_per_sample = bits_per_sample,
-        .duration_seconds = 10
+        .duration_seconds = 10,
     };
 
     dev_audio_codec_config_t *dac_cfg = NULL;
-    ret = esp_board_manager_get_device_config("audio_dac", (void**)&dac_cfg);
+    ret = esp_board_manager_get_device_config("audio_dac", (void **)&dac_cfg);
     if (ret != ESP_OK || dac_cfg == NULL) {
         ESP_LOGE(TAG, "Failed to get audio_dac device config");
         goto cleanup_playback;
     }
 
     periph_i2s_config_t *i2s_tx_cfg = NULL;
-    ret = esp_board_manager_get_periph_config(dac_cfg->i2s_cfg.name, (void**)&i2s_tx_cfg);
+    ret = esp_board_manager_get_periph_config(dac_cfg->i2s_cfg.name, (void **)&i2s_tx_cfg);
     if (ret != ESP_OK || i2s_tx_cfg == NULL) {
         ESP_LOGE(TAG, "Failed to get I2S TX config for %s", dac_cfg->i2s_cfg.name);
         goto cleanup_playback;
@@ -66,7 +66,7 @@ static void wav_playback_task(void *pvParameters)
     if (i2s_tx_cfg->mode == I2S_COMM_MODE_TDM) {
         dac_config.channels = i2s_tx_cfg->i2s_cfg.tdm.slot_cfg.total_slot;
     } else
-#endif
+#endif  /* CONFIG_SOC_I2S_SUPPORTS_TDM */
     {
         // When mode is I2S_STD, there is no total_slot, so use slot_mode instead
         dac_config.channels = i2s_tx_cfg->i2s_cfg.std.slot_cfg.slot_mode == I2S_SLOT_MODE_STEREO ? 2 : 1;
@@ -77,7 +77,7 @@ static void wav_playback_task(void *pvParameters)
         goto cleanup_playback;
     }
 
-    const size_t buffer_size = 5 * 1024;
+    const size_t buffer_size = 1 * 1024;
     uint8_t *playback_buffer = malloc(buffer_size);
     if (playback_buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate playback buffer");
@@ -118,14 +118,14 @@ static void i2s_recording_task(void *pvParameters)
     }
 
     dev_audio_codec_config_t *adc_cfg = NULL;
-    esp_err_t ret = esp_board_manager_get_device_config("audio_adc", (void**)&adc_cfg);
+    esp_err_t ret = esp_board_manager_get_device_config("audio_adc", (void **)&adc_cfg);
     if (ret != ESP_OK || adc_cfg == NULL) {
         ESP_LOGE(TAG, "Failed to get audio_adc device config");
         goto cleanup_recording;
     }
 
     periph_i2s_config_t *i2s_rx_cfg = NULL;
-    ret = esp_board_manager_get_periph_config(adc_cfg->i2s_cfg.name, (void**)&i2s_rx_cfg);
+    ret = esp_board_manager_get_periph_config(adc_cfg->i2s_cfg.name, (void **)&i2s_rx_cfg);
     if (ret != ESP_OK || i2s_rx_cfg == NULL) {
         ESP_LOGE(TAG, "Failed to get I2S RX config for %s", adc_cfg->i2s_cfg.name);
         goto cleanup_recording;
@@ -135,13 +135,13 @@ static void i2s_recording_task(void *pvParameters)
     audio_config_t adc_config = {
         .sample_rate = i2s_rx_cfg->i2s_cfg.std.clk_cfg.sample_rate_hz,
         .bits_per_sample = 16,
-        .duration_seconds = 10
+        .duration_seconds = 10,
     };
 #if CONFIG_SOC_I2S_SUPPORTS_TDM
     if (i2s_rx_cfg->mode == I2S_COMM_MODE_TDM) {
         adc_config.channels = i2s_rx_cfg->i2s_cfg.tdm.slot_cfg.total_slot;
     } else
-#endif
+#endif  /* CONFIG_SOC_I2S_SUPPORTS_TDM */
     {
         // When mode is I2S_STD, there is no total_slot, so use slot_mode instead
         adc_config.channels = i2s_rx_cfg->i2s_cfg.std.slot_cfg.slot_mode == I2S_SLOT_MODE_STEREO ? 2 : 1;

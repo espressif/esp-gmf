@@ -51,6 +51,7 @@ peripherals:
     config:
       pin: 13
       mode: "GPIO_MODE_OUTPUT"
+      default_level: 1          # Default to power off
 
   - name: gpio_headphone_detection       # Headphone detection
     type: gpio
@@ -84,9 +85,12 @@ peripherals:
       mode: "GPIO_MODE_INPUT"
       pullup_en: true
 
-  - name: gpio_adc_button                  # ADC button input
-    type: gpio
+  # ADC for Button
+  - name: adc_button
+    type: adc
+    role: oneshot
     config:
-      pin: 39
-      mode: "GPIO_MODE_INPUT"
-      pulldown_en: true
+      unit_id: ADC_UNIT_1
+      channel_id: 3
+      atten: ADC_ATTEN_DB_12
+      bit_width: ADC_BITWIDTH_12

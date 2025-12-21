@@ -1,0 +1,5 @@
+board: esp32_devkitc
+chip: esp32
+version: 1.0.0
+# Devices Configuration
+devices:

@@ -10,7 +10,15 @@ Parser loader for ESP Board Manager
 import importlib.util
 import os
 from pathlib import Path
-from typing import Dict, Tuple, Callable, List
+from typing import Dict, Tuple, Callable, List, Optional
+
+# Constants for component prefixes and directory names
+DEV_PREFIX = 'dev_'
+PERIPH_PREFIX = 'periph_'
+DEV_PREFIX_LEN = len(DEV_PREFIX)
+PERIPH_PREFIX_LEN = len(PERIPH_PREFIX)
+DEVICES_DIR = 'devices'
+PERIPHERALS_DIR = 'peripherals'
 
 def load_parsers(search_dirs: List[str], prefix: str, base_dir: str = None) -> Dict[str, Tuple[str, Callable, Callable]]:
     """
@@ -27,9 +35,15 @@ def load_parsers(search_dirs: List[str], prefix: str, base_dir: str = None) -> D
 
     # Special handling for devices directory with new folder structure
     # When prefix is "dev_" and base_dir points to devices directory, load from folder structure
-    if prefix == 'dev_' and base_dir and os.path.basename(base_dir) == 'devices':
-        parsers.update(load_device_parsers_from_folders(base_dir))
+    if prefix == DEV_PREFIX and base_dir and os.path.basename(base_dir) == DEVICES_DIR:
+        parsers.update(load_component_parsers_from_folders(base_dir, DEV_PREFIX, DEVICES_DIR, add_both_keys=True))
         return parsers
+
+    # Special handling for peripherals directory with new folder structure
+    # When prefix is "periph_" and base_dir points to peripherals directory, load from both folders and files
+    if prefix == PERIPH_PREFIX and base_dir and os.path.basename(base_dir) == PERIPHERALS_DIR:
+        parsers.update(load_component_parsers_from_folders(base_dir, PERIPH_PREFIX, PERIPHERALS_DIR, add_both_keys=False))
+        # Continue to also load from direct files in the directory
 
     for search_dir in search_dirs:
         # Construct absolute path if base_dir is provided
@@ -43,12 +57,15 @@ def load_parsers(search_dirs: List[str], prefix: str, base_dir: str = None) -> D
             continue
 
         # Special handling for devices directory with new folder structure
-        if search_dir == 'devices' and prefix == 'dev_':
-            parsers.update(load_device_parsers_from_folders(base_dir))
+        if search_dir == DEVICES_DIR and prefix == DEV_PREFIX:
+            parsers.update(load_component_parsers_from_folders(base_dir, DEV_PREFIX, DEVICES_DIR, add_both_keys=True))
             continue
 
-        # Original logic for other directories
+        # Original logic for other directories - load files directly in the directory
         for fname in os.listdir(search_path):
+            # Skip if it's a directory (we already handled subfolders for peripherals)
+            if os.path.isdir(os.path.join(search_path, fname)):
+                continue
             if fname.startswith(prefix) and fname.endswith('.py'):
                 type_name = fname[len(prefix):-3]
                 script_path = os.path.join(search_path, fname)
@@ -67,74 +84,92 @@ def load_parsers(search_dirs: List[str], prefix: str, base_dir: str = None) -> D
                     parsers[type_name] = (version, parse_func, get_includes_func)
     return parsers
 
-def load_device_parsers_from_folders(base_dir: str = None) -> Dict[str, Tuple[str, Callable, Callable]]:
+def load_component_parsers_from_folders(base_dir: Optional[str], prefix: str, dir_name: str, add_both_keys: bool = False) -> Dict[str, Tuple[str, Callable, Callable]]:
     """
-    Load device parsers from the new device folder structure.
-    Each device type has its own folder under devices/ directory.
+    Generic function to load component parsers from folder structure.
+    Each component type can have its own folder under the component directory.
+    The folder name should match the file name (e.g., periph_spi/periph_spi.py or dev_xxx/dev_xxx.py).
 
     Args:
-        base_dir: Base directory to search for devices directory (defaults to current directory)
+        base_dir: Base directory to search for component directory (defaults to current directory)
+        prefix: Component prefix ('dev_' or 'periph_')
+        dir_name: Component directory name ('devices' or 'peripherals')
+        add_both_keys: If True, add parser with both folder name and type name (for devices).
+                      If False, only add with type name (for peripherals).
 
     Returns:
-        dict: Dictionary of device parsers {device_type: (version, parse_func, get_includes_func)}
+        dict: Dictionary of component parsers {component_type: (version, parse_func, get_includes_func)}
     """
     parsers = {}
+    prefix_len = len(prefix)
 
     # Construct absolute path if base_dir is provided
     if base_dir:
-        # Check if base_dir already points to devices directory
-        if os.path.basename(base_dir) == 'devices':
-            devices_dir = Path(base_dir)
+        # Check if base_dir already points to the component directory
+        if os.path.basename(base_dir) == dir_name:
+            component_dir = Path(base_dir)
         else:
-            devices_dir = Path(base_dir) / 'devices'
+            component_dir = Path(base_dir) / dir_name
     else:
-        devices_dir = Path('devices')
+        component_dir = Path(dir_name)
 
-    if not devices_dir.exists():
-        print(f'Warning: Devices directory not found: {devices_dir}')
+    if not component_dir.exists():
+        print(f'Warning: {dir_name.capitalize()} directory not found: {component_dir}')
         return parsers
 
-    for device_folder in devices_dir.iterdir():
-        if not device_folder.is_dir():
+    for component_folder in component_dir.iterdir():
+        if not component_folder.is_dir():
             continue
 
-        device_type = device_folder.name
-        if not device_type.startswith('dev_'):
+        # Check if folder name starts with the expected prefix
+        if not component_folder.name.startswith(prefix):
             continue
 
-        # Extract the actual device type by removing 'dev_' prefix
-        actual_device_type = device_type[4:]  # Remove 'dev_' prefix
+        # Extract the actual component type by removing prefix
+        component_type = component_folder.name[prefix_len:]
 
-        # Look for Python parser file
-        parser_file = device_folder / f'{device_type}.py'
+        # Look for Python parser file - folder name should match file name
+        parser_file = component_folder / f'{component_folder.name}.py'
         if not parser_file.exists():
-            print(f'Warning: No parser file found for device {device_type}: {parser_file}')
+            print(f'Warning: No parser file found for {dir_name[:-1]} {component_folder.name}: {parser_file}')
             continue
 
         try:
             # Import the parser module
-            spec = importlib.util.spec_from_file_location(device_type, str(parser_file))
+            spec = importlib.util.spec_from_file_location(component_folder.name, str(parser_file))
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
 
             # Look for parse and get_includes functions
             version = getattr(mod, 'VERSION', '1.0.0')
-            parse_func = getattr(mod, 'parse', None)  # Device parsers use 'parse' function
+            parse_func = getattr(mod, 'parse', None)
             get_includes_func = getattr(mod, 'get_includes', None)
 
             if parse_func:
-                # Add the parser with both the folder name and the actual device type
-                parsers[device_type] = (version, parse_func, get_includes_func)
-                parsers[actual_device_type] = (version, parse_func, get_includes_func)
+                # Add the parser with the component type name
+                parsers[component_type] = (version, parse_func, get_includes_func)
+
+                # For devices, also add with the full folder name
+                if add_both_keys:
+                    parsers[component_folder.name] = (version, parse_func, get_includes_func)
 
                 # Use logger for debug output
                 from .utils.logger import get_logger
                 logger = get_logger('parser_loader')
-                logger.debug(f'Loaded parser for {device_type} -> {actual_device_type} (version: {version})')
+                logger.debug(f'Loaded parser for {component_folder.name} -> {component_type} (version: {version})')
             else:
                 print(f'Warning: No parse function found in {parser_file}')
 
         except Exception as e:
-            print(f'Error loading parser for {device_type}: {e}')
+            logger.error(f'Error loading parser for {component_folder.name}: {e}')
 
     return parsers
+
+# Backward compatibility aliases
+def load_device_parsers_from_folders(base_dir: str = None) -> Dict[str, Tuple[str, Callable, Callable]]:
+    """Load device parsers from folder structure (backward compatibility)"""
+    return load_component_parsers_from_folders(base_dir, DEV_PREFIX, DEVICES_DIR, add_both_keys=True)
+
+def load_peripheral_parsers_from_folders(base_dir: str = None) -> Dict[str, Tuple[str, Callable, Callable]]:
+    """Load peripheral parsers from folder structure (backward compatibility)"""
+    return load_component_parsers_from_folders(base_dir, PERIPH_PREFIX, PERIPHERALS_DIR, add_both_keys=False)

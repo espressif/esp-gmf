@@ -66,13 +66,9 @@ int dev_gpio_ctrl_deinit(void *device_handle)
         ESP_LOGE(TAG, "Invalid handle");
         return -1;
     }
-    const char *name = NULL;
-    const esp_board_device_handle_t *device_handle_struct = esp_board_device_find_by_handle(device_handle);
-    if (device_handle_struct) {
-        name = device_handle_struct->name;
-    }
+
     dev_gpio_ctrl_config_t *cfg = NULL;
-    esp_board_device_get_config(name, (void **)&cfg);
+    esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
     if (cfg) {
         esp_board_periph_unref_handle(cfg->gpio_name);
     }

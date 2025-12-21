@@ -1,0 +1,12 @@
+board: test_board_g
+chip: esp32p4
+version: 1.0.0
+# Peripherals Configuration
+peripherals:
+  - name: uart_0
+    type: uart
+    role: console
+    config:
+      uart_num: 0
+      uart_config:
+        baud_rate: 115200

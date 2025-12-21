@@ -18,9 +18,9 @@ extern "C" {
  *         This structure contains the handle for the SPI SD card device, including the card, host, and mount point
  */
 typedef struct {
-    sdmmc_card_t *card;         /*!< SPI SD card card handle */
-    sdmmc_host_t  host;         /*!< SPI SD card host handle */
-    const char   *mount_point;  /*!< Mount point path */
+    sdmmc_card_t  *card;         /*!< SPI SD card card handle */
+    sdmmc_host_t   host;         /*!< SPI SD card host handle */
+    const char    *mount_point;  /*!< Mount point path */
 } dev_fatfs_sdcard_spi_handle_t;
 
 /**
@@ -41,11 +41,11 @@ typedef struct {
  */
 typedef struct {
     const char                  *name;
-    const char                  *mount_point;  /*!< Mount point path */
-    uint32_t                     frequency;    /*!< SPI SD card clock frequency in Hz */
-    dev_sdcard_spi_vfs_config_t  vfs_config;   /*!< VFS configuration */
-    int                          cs_gpio_num;  /*!< Chip select GPIO number */
-    const char                  *spi_bus_name;     /*!< SPI bus name */
+    const char                  *mount_point;   /*!< Mount point path */
+    uint32_t                     frequency;     /*!< SPI SD card clock frequency in Hz */
+    dev_sdcard_spi_vfs_config_t  vfs_config;    /*!< VFS configuration */
+    int                          cs_gpio_num;   /*!< Chip select GPIO number */
+    const char                  *spi_bus_name;  /*!< SPI bus name */
 } dev_fatfs_sdcard_spi_config_t;
 
 /**
@@ -60,7 +60,7 @@ typedef struct {
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_fatfs_sdcard_spi_init(void *cfg, int cfg_size, void **device_handle);
 
@@ -74,7 +74,7 @@ int dev_fatfs_sdcard_spi_init(void *cfg, int cfg_size, void **device_handle);
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_fatfs_sdcard_spi_deinit(void *device_handle);
 

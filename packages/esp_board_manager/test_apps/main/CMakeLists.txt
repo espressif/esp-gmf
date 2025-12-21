@@ -3,30 +3,40 @@ idf_component_register(
         # Main application
         "main.c"
 
-        # Peripheral tests (always included)
-        "test_periph_i2c.c"
-        "test_periph_gpio.c"
+        # Peripheral tests
+        "periph/test_periph_i2c.c"
+        "periph/test_periph_gpio.c"
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_UART_SUPPORT}>:periph/test_periph_uart.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_ADC_SUPPORT}>:periph/test_periph_adc.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_RMT_SUPPORT}>:periph/test_periph_rmt.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_PCNT_SUPPORT}>:periph/test_periph_pcnt.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_DAC_SUPPORT}>:periph/test_periph_dac.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_SDM_SUPPORT}>:periph/test_periph_sdm.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_MCPWM_SUPPORT}>:periph/test_periph_mcpwm.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_PERIPH_ANACMPR_SUPPORT}>:periph/test_periph_anacmpr.c>
 
         # Device tests (conditionally included based on Kconfig)
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>:test_dev_audio_codec.c>
         $<$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT}>>:test_dev_fatfs_sdcard.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_SPIFFS_SUPPORT}>:test_dev_fs_spiffs.c>
-        $<$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT}>:test_dev_lcd_lvgl.c>
-        $<$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT}>:test_dev_lcd_init.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT}>:test_dev_fs_fat.c>
+        $<$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT}>>:test_dev_lcd_lvgl.c>
+        $<$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT}>>:test_dev_lcd_init.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT}>:test_dev_pwr_ctrl.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT}>:test_dev_ledc.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT}>:test_dev_custom.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT}>:test_dev_gpio_expander.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT}>:test_dev_camera.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT}>:test_dev_button.c>
 
         # Audio board manager test (conditionally included based on SD card support)
-        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT}>>>:test_board_mgr_audio_sdcard.c>
-        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<NOT:$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT}>>>>:test_board_mgr_audio_embed.c>
+        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT}>>>:test_board_mgr_audio_sdcard.c>
+        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<NOT:$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT}>>>>:test_board_mgr_audio_embed.c>
 
         # Utility files (conditionally included)
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>:wav_header.c>
-    INCLUDE_DIRS "."
-    REQUIRES esp_board_manager esp_lcd esp_timer esp_partition spiffs gen_bmgr_codes
+    INCLUDE_DIRS "." "./periph"
+    REQUIRES esp_board_manager esp_lcd esp_timer esp_partition spiffs
     EMBED_TXTFILES audio_files/test.wav
 )
 

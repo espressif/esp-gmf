@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.5.0
+
+### ⚠️ Important Changes
+
+- Board Switching Now Deletes `sdkconfig`: When switching boards, the script automatically backs up `sdkconfig` to `sdkconfig.bmgr_board.backup` and removes the original to prevent configuration pollution. Additionally, board-specific configurations from `boards/<board_name>/sdkconfig.defaults.board` are automatically appended to your project's `sdkconfig.defaults`.
+- Simplified board selection - board name/index as direct parameter (gen_bmgr_config_codes.py only)
+- Removed automatic sdkconfig modification (breaking change)
+
+### Features
+
+- Added `-x, --clean` command to clean generated files and reset CMakeLists.txt and idf_component.yml
+- Enhanced board selection - board name/index as direct parameter (gen_bmgr_config_codes.py only)
+- Added comprehensive test suite with Python pytest
+- Added 7 test boards for testing coverage
+- Enhanced board scanning mechanism for better discovery
+- Enhanced board parameter handling in test cases
+- Added support for `sdkconfig.defaults.board` file in each board directory. When switching boards, the script automatically appends board-specific configurations to the project's `sdkconfig.defaults` file.
+- Added automatic `sdkconfig` backup to `sdkconfig.bmgr_board.backup` when switching boards
+- Implement sub_type field for device configurations, add hierarchical Kconfig generation (ESP_BOARD_DEV_SUB<SUB_TYPE>_SUPPORT)
+- Add unified entry registration system using linker sections
+- Implement device extra function registration interface `EXTRA_FUNC_IMPLEMENT`
+- Devices type support:
+  - Create FS_FAT device with SDMMC/SPI sub-type implementations, `dev_fs_sdcard` and `dev_fs_sdcard_spi` while be deprecated in feature version
+  - Create DISPLAY_LCD device with SPI/DSI sub-type implementations, `dev_display_lcd_spi` while be deprecated in feature version
+  - Create BUTTON device with GPIO/ADC sub-type implementations
+  - Create CAMERA device with DVP/CSI sub-type implementations
+  - Create POWER_CTRL device, added `power_ctrl_device` attribute in `esp_board_device_desc_t`, for devices configured with this attribute, the power will be automatically turned on during initialization
+- Board support:
+  - Added lcd, camera support for `esp32_p4_function_ev` board
+- Peripheral type support:
+  - UART, ADC, RMT, PCNT, DAC, SDM, MCPWM, ANACMPR, LDO and DSI.
+- Added [`play_sdcard_music`](example/play_sdcard_music/README.md) example to show how to use board manager to initialize codec and play wav audio files
+- Added [`record_to_sdcard`](example/record_to_sdcard/README.md) example to show how to use board manager to initialize codec and record wav audio files
+
+### Modifications
+- Added `clk_src` configuration for `dev_audio_codec`
+- Reorganized the peripherals directory structure
+- Modify the periph role macro definition from string to enum
+- Removed the unused periph type macro definition and added the commonly used periph name macro definition
+
+### Bug Fixes
+- Fixed pa active_level configuration for `esp32_p4_function_ev` board
+
 ## 0.4.8
 
 ### Bug Fixes
@@ -81,6 +124,7 @@
 - Update the README to include information about how to add new boards and the development roadmap
 - Added the esp_board_periph_ref_handle and esp_board_periph_unref_handle APIs to obtain and release a handle
 - Added esp_board_find_utils.h and esp_board_manager_includes.h
+- Added `esp_board_device_get_config_by_handle()` API for finding device configuration by handle
 
 ### Bug Fixes
 

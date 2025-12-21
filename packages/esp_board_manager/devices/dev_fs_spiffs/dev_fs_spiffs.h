@@ -23,11 +23,11 @@ extern "C" {
  *         a SPIFFS filesystem device, including base path, partition label, and formatting options.
  */
 typedef struct {
-    const char *name;                    /*!< Device name */
-    const char *base_path;               /*!< Base path for mounting */
-    const char *partition_label;         /*!< Partition label */
-    uint8_t     max_files;               /*!< Maximum number of files */
-    bool        format_if_mount_failed;  /*!< Format if mount failed */
+    const char  *name;                    /*!< Device name */
+    const char  *base_path;               /*!< Base path for mounting */
+    const char  *partition_label;         /*!< Partition label */
+    uint8_t      max_files;               /*!< Maximum number of files */
+    bool         format_if_mount_failed;  /*!< Format if mount failed */
 } dev_fs_spiffs_config_t;
 
 /**
@@ -39,7 +39,7 @@ typedef struct {
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_fs_spiffs_init(void *cfg, int cfg_size, void **device_handle);
 
@@ -50,7 +50,7 @@ int dev_fs_spiffs_init(void *cfg, int cfg_size, void **device_handle);
  *
  * @return
  *       - 0               On success
- *       - Negative value  On failure
+ *       - Negative_value  On failure
  */
 int dev_fs_spiffs_deinit(void *device_handle);
 

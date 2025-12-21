@@ -1,15 +1,5 @@
 menu "ESP Board Manager Configuration"
 
-    menu "Board Manager Setting"
-        config ESP_BOARD_MANAGER_AUTO_CONFIG_DEVICE_AND_PERIPHERAL
-            bool "Enable automatic configure device and peripheral in sdkconfig"
-            default y
-            help
-                When enabled, the board manager will automatically configure corresponding
-                device and peripheral types in user's sdkconfig based on detected
-                device and peripheral information from YAML configuration files.
-    endmenu
-
     orsource "./gen_codes/Kconfig.in"
 
 endmenu

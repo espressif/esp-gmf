@@ -8,10 +8,14 @@
 #pragma once
 
 #include "esp_err.h"
+#include "esp_board_extra_func_entry.h"
+#include "esp_board_manager_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif  /* __cplusplus */
+
+#define PERIPHERAL_EXTRA_FUNC_REGISTER(name, extra_func) EXTRA_FUNC_IMPLEMENT(name, extra_func)
 
 /**
  * @brief  Function pointer type for peripheral initialization
@@ -27,14 +31,14 @@ typedef esp_err_t (*esp_board_periph_deinit_func)(void *periph_handle);
  * @brief  Structure representing a peripheral descriptor
  */
 typedef struct esp_board_periph_desc {
-    const struct esp_board_periph_desc *next;      /*!< Pointer to next peripheral descriptor */
-    const char                         *name;      /*!< Peripheral name */
-    const char                         *type;      /*!< Peripheral type */
-    const char                         *role;      /*!< Peripheral role */
-    const char                         *format;    /*!< Peripheral format */
-    const void                         *cfg;       /*!< Peripheral configuration data */
-    int                                 cfg_size;  /*!< Size of configuration data */
-    int                                 id;        /*!< Peripheral ID extracted from name (e.g., 48 from gpio48, 0 from iic0) */
+    const struct esp_board_periph_desc  *next;      /*!< Pointer to next peripheral descriptor */
+    const char                          *name;      /*!< Peripheral name */
+    const char                          *type;      /*!< Peripheral type */
+    esp_board_periph_role_t              role;      /*!< Peripheral role */
+    const char                          *format;    /*!< Peripheral format */
+    const void                          *cfg;       /*!< Peripheral configuration data */
+    int                                  cfg_size;  /*!< Size of configuration data */
+    int                                  id;        /*!< Peripheral ID extracted from name (e.g., 48 from gpio48, 0 from iic0) */
 } esp_board_periph_desc_t;
 
 /**
@@ -43,7 +47,7 @@ typedef struct esp_board_periph_desc {
 typedef struct esp_board_periph_entry {
     struct esp_board_periph_entry  *next;    /*!< Pointer to next peripheral entry */
     const char                     *type;    /*!< Peripheral type */
-    const char                     *role;    /*!< Peripheral role */
+    esp_board_periph_role_t         role;    /*!< Peripheral role */
     esp_board_periph_init_func      init;    /*!< Peripheral initialization function */
     esp_board_periph_deinit_func    deinit;  /*!< Peripheral deinitialization function */
 } esp_board_periph_entry_t;
@@ -52,12 +56,12 @@ typedef struct esp_board_periph_entry {
  * @brief  Structure representing a peripheral list entry
  */
 typedef struct esp_board_periph_list {
-    struct esp_board_periph_list *next;           /*!< Pointer to next peripheral list entry */
-    const char                   *name;           /*!< Peripheral name */
-    const char                   *type;           /*!< Peripheral type */
-    const char                   *role;           /*!< Peripheral role */
-    void                         *periph_handle;  /*!< Peripheral-specific handle */
-    unsigned int                  ref_count;      /*!< Reference count */
+    struct esp_board_periph_list  *next;           /*!< Pointer to next peripheral list entry */
+    const char                    *name;           /*!< Peripheral name */
+    const char                    *type;           /*!< Peripheral type */
+    esp_board_periph_role_t        role;           /*!< Peripheral role */
+    void                          *periph_handle;  /*!< Peripheral-specific handle */
+    uint8_t                        ref_count;      /*!< Reference count */
 } esp_board_periph_list_t;
 
 /**
@@ -136,7 +140,7 @@ esp_err_t esp_board_periph_ref_handle(const char *name, void **periph_handle);
  *         Decreases the reference count for the peripheral
  *         The peripheral is only actually deinitialized when the reference count reaches 0
  *
- * @param[in]   name  Peripheral name
+ * @param[in]  name  Peripheral name
  *
  * @return
  *       - ESP_OK                            On success
@@ -221,7 +225,7 @@ esp_err_t esp_board_periph_show(const char *name);
  *         Iterates through all peripheral descriptors and initializes each peripheral
  *         Continues initializing even if some peripherals fail, but logs errors
  *
- *   NOTE: Peripheral initialization follows the order defined in board_peripherals.yaml
+ * @note  Peripheral initialization follows the order defined in board_peripherals.yaml
  *
  * @return
  *       - ESP_OK  On success (always returns ESP_OK, errors are logged)

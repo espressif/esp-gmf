@@ -1,0 +1,126 @@
+# Example board_devices.yaml configuration for LCD Display device
+# This shows how to integrate the LCD display device with DSI and SPI sub device into a board configuration
+
+# Example LCD Display device with DSI sub device configuration
+- name: dsi_display          # The name of the device, must be unique
+  type: display_lcd          # The type of the device, must be unique
+  version: default
+  sub_type: dsi              # The sub type of the device, must be 'dsi' or 'spi'
+  chip: ek79007              # LCD chip type (EK79007)
+  dependencies:
+    espressif/esp_lcd_ek79007: "^1.0.0"  # Component dependency for the EK79007 driver
+  config:
+    need_reset: true                          # Whether to reset the LCD panel during initialization (default: true)
+    reset_gpio_num: 27                         # GPIO pin for reset signal
+    rgb_ele_order: LCD_RGB_ELEMENT_ORDER_RGB  # RGB element order (default: RGB)
+    # Valid values:
+    # - LCD_RGB_ELEMENT_ORDER_RGB
+    # - LCD_RGB_ELEMENT_ORDER_BGR
+    data_endian: LCD_RGB_DATA_ENDIAN_BIG      # Data endianness (default: BIG)
+    # Valid values:
+    # - LCD_RGB_DATA_ENDIAN_BIG
+    # - LCD_RGB_DATA_ENDIAN_LITTLE
+    bits_per_pixel: 24                        # Bits per pixel (24bpp, RGB888)
+    reset_active_high: 0                      # Reset pin active level (0 = active low)
+
+    # DBI interface configuration (command/parameter transfer)
+    dbi_config:
+      virtual_channel: 0  # Virtual channel number (default: 0)
+      lcd_cmd_bits: 8     # Bit width of LCD command (default: 8)
+      lcd_param_bits: 8   # Bit width of LCD parameter (default: 8)
+
+    # DPI interface configuration (pixel data transfer)
+    dpi_config:
+      virtual_channel: 0                           # Virtual channel number (default: 0)
+      dpi_clk_src: MIPI_DSI_DPI_CLK_SRC_DEFAULT    # DPI clock source (default)
+      # Refer to `soc_periph_mipi_dsi_dpi_clk_src_t` for valid values
+      dpi_clock_freq_mhz: 48                       # DPI clock frequency in MHz (default: 48)
+      pixel_format: LCD_COLOR_PIXEL_FORMAT_RGB565  # Pixel format that used by the MIPI LCD device (default: RGB565)
+      # Valid values
+      # - LCD_COLOR_PIXEL_FORMAT_RGB565
+      # - LCD_COLOR_PIXEL_FORMAT_RGB666
+      # - LCD_COLOR_PIXEL_FORMAT_RGB888
+      in_color_format: LCD_COLOR_FMT_RGB565        # Input color format (default: RGB565)
+      # Valid values
+      # - LCD_COLOR_FMT_RGB565
+      # - LCD_COLOR_FMT_RGB666
+      # - LCD_COLOR_FMT_RGB888
+      # - LCD_COLOR_FMT_YUV422
+      # - LCD_COLOR_FMT_GRAY8
+      out_color_format: LCD_COLOR_FMT_RGB565       # Output color format (default: RGB565)
+      num_fbs: 1                                   # Number of frame buffers (default: 1)
+      flags:
+        use_dma2d: false                         # Use DMA2D for pixel data transfer (default: false)
+        disable_lp: false                        # Disable low power mode (default: false)
+
+      # Video timing parameters (resolution + sync signals)
+      video_timing:
+        h_size: 1024            # Horizontal resolution
+        v_size: 600             # Vertical resolution
+        hsync_back_porch: 120   # Horizontal back porch
+        hsync_pulse_width: 10   # Horizontal sync pulse width
+        hsync_front_porch: 120  # Horizontal front porch
+        vsync_back_porch: 20    # Vertical back porch
+        vsync_pulse_width: 1    # Vertical sync pulse width
+        vsync_front_porch: 20   # Vertical front porch
+
+    peripherals:
+      - name: ldo_mipi          # LDO peripheral for dsi power management
+      - name: dsi_display       # DSI peripheral instance used for this display
+
+# Example LCD Display device with SPI sub device configuration
+- name: display_lcd          # The name of the device, must be unique
+  type: display_lcd          # The type of the device, must be unique
+  version: default
+  sub_type: spi              # The sub type of the device, must be 'dsi' or 'spi'
+  chip: generic_lcd          # LCD chip type (e.g., st77916, st7789, ili9341, gc9a01)
+  dependencies:
+    espressif/esp_lcd_generic: "*"  # Component dependency for the LCD chip
+  config:
+    swap_xy: false
+    mirror_y: false
+    mirror_x: false
+    x_max: 320
+    y_max: 240
+    need_reset: true                    # Whether to reset the LCD panel during initialization (default: true)
+    # esp_lcd_panel_io_spi_config_t fields for SPI communication
+    io_spi_config:
+      cs_gpio_num: -1                   # GPIO pin for Chip Select (default: -1)
+      dc_gpio_num: -1                   # GPIO pin for Data/Command (default: -1)
+      spi_mode: 0                       # Traditional SPI mode (0~3) (default: 0)
+      pclk_hz: 40000000                 # Frequency of pixel clock (default: 40MHz)
+      trans_queue_depth: 2              # Size of internal transaction queue (default: 2)
+      lcd_cmd_bits: 8                   # Bit-width of LCD command (default: 8)
+      lcd_param_bits: 8                 # Bit-width of LCD parameter (default: 8)
+      cs_ena_pretrans: 0                # CS pre-transmission cycles (default: 0)
+      cs_ena_posttrans: 0               # CS post-transmission cycles (default: 0)
+      flags:
+        dc_high_on_cmd: false           # DC level = 1 indicates command transfer (default: false)
+        dc_low_on_data: false           # DC level = 0 indicates color data transfer (default: false)
+        dc_low_on_param: false          # DC level = 0 indicates parameter transfer (default: false)
+        octal_mode: false               # Octal mode (8 data lines) (default: false)
+        quad_mode: false                # Quad mode (4 data lines) (default: false)
+        sio_mode: false                 # Single line mode (default: false)
+        lsb_first: false                # MSB first (default: false)
+        cs_high_active: false           # CS line is low active (default: false)
+
+    # esp_lcd_panel_dev_config_t fields for panel configuration
+    lcd_panel_config:
+      reset_gpio_num: -1                # Reset GPIO pin (default: -1)
+      rgb_ele_order: LCD_RGB_ELEMENT_ORDER_RGB  # RGB element order (default: RGB)
+      # Valid values:
+      # - LCD_RGB_ELEMENT_ORDER_RGB
+      # - LCD_RGB_ELEMENT_ORDER_BGR
+      data_endian: LCD_RGB_DATA_ENDIAN_BIG      # Data endianness (default: BIG)
+      # Valid values:
+      # - LCD_RGB_DATA_ENDIAN_BIG
+      # - LCD_RGB_DATA_ENDIAN_LITTLE
+      bits_per_pixel: 16                # Bits per pixel (default: 16)
+      flags:
+        reset_active_high: false        # Reset pin active level (default: false)
+
+      # Chip-specific configuration
+      vendor_config: ""                 # Vendor-specific configuration (default: empty string)
+
+    peripherals:
+      - name: spi-1                   # SPI peripheral for LCD communication

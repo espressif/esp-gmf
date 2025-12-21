@@ -81,19 +81,19 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
 
     # Get the device config
     device_config = config.get('config', {})
-    
-    # Get device path
-    dev_path = device_config.get('dev_path')
-    if dev_path is None:
-        raise ValueError(f"YAML validation error in camera device: Missing 'dev_path' field")
-    # Get bus type
-    bus_type = device_config.get('bus_type')
-    if bus_type is None:
-        raise ValueError(f"YAML validation error in camera device: Missing 'bus_type' field")
+
+    sub_type = config.get('sub_type')
+    if sub_type is None:
+        bus_type = device_config.get('bus_type')
+        if bus_type is not None:
+            raise ValueError(f"Please use 'sub_type' to distinguish camera sensor type in the 'board_devices.yaml', refer to 'dev_camera.yaml'")
+        else:
+            raise ValueError(f"YAML validation error in camera device: Missing 'sub_type' field")
+
     # Initialize bus config
     bus_config = None
     # Parse configuration based on bus type
-    if bus_type == 'dvp':
+    if sub_type == 'dvp':
         # Process peripherals to find I2C master
         i2c_name = ''
         i2c_freq = 0
@@ -105,11 +105,11 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
                 if peripherals_dict is not None and periph_name not in peripherals_dict:
                     raise ValueError(f"IO Expander device {name} references undefined peripheral '{periph_name}'")
                 i2c_name = periph_name
-                i2c_freq = int(device_config.get('i2c_freq', 400000))
+                i2c_freq = int(periph.get('frequency', 100000))
                 break
 
         dvp_config_dict = device_config.get('dvp_config', {})
-        
+
         # Parse DVP IO and settings
         reset_io = int(dvp_config_dict.get('reset_io', -1))
         pwdn_io = int(dvp_config_dict.get('pwdn_io', -1))
@@ -120,17 +120,17 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
         xclk_freq = int(dvp_config_dict.get('xclk_freq', 10000000))
         data_width = dvp_config_dict.get('data_width', 'CAM_CTLR_DATA_WIDTH_8')
         data_width_enum = get_enum_value(data_width, 'CAM_CTLR_DATA_WIDTH_8', 'data_width')
-        
+
         # Parse DVP data io configuration
         data_io_config = dvp_config_dict.get('data_io', {})
-        
+
         # Build data_io array from data_io_0 to data_io_15
         data_io_array = []
         for i in range(16):
             io_key = f'data_io_{i}'
             io_value = int(data_io_config.get(io_key, -1))
             data_io_array.append(io_value)
-          
+
         # Build dvp_io structure
         dvp_io = {
             'data_width': data_width_enum,
@@ -140,7 +140,7 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
             'pclk_io': pclk_io,
             'xclk_io': xclk_io
         }
-        
+
         # Build full DVP config
         bus_config = {
             'i2c_name': i2c_name,
@@ -150,20 +150,49 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
             'dvp_io': dvp_io,
             'xclk_freq': xclk_freq
         }
-    
-    # Placeholder for other bus types (CSI, SPI, USB-UVC)
+
+    # CSI configuration parsing
+    elif sub_type == 'csi':
+        # Process peripherals to find I2C master
+        i2c_name = ''
+        i2c_freq = 0
+        peripherals = config.get('peripherals', [])
+        for periph in peripherals:
+            periph_name = periph.get('name', '')
+            if periph_name.startswith('i2c'):
+                # Check if peripheral exists in peripherals_dict if provided
+                if peripherals_dict is not None and periph_name not in peripherals_dict:
+                    raise ValueError(f"Camera device {name} references undefined peripheral '{periph_name}'")
+                i2c_name = periph_name
+                i2c_freq = int(periph.get('frequency', 100000))
+                break
+
+        csi_config_dict = device_config.get('csi_config', {})
+
+        # Parse CSI settings
+        reset_io = int(csi_config_dict.get('reset_io', -1))
+        pwdn_io = int(csi_config_dict.get('pwdn_io', -1))
+        dont_init_ldo = bool(csi_config_dict.get('dont_init_ldo', True))
+
+        # Build CSI config
+        bus_config = {
+            'i2c_name': i2c_name,
+            'i2c_freq': i2c_freq,
+            'reset_io': reset_io,
+            'pwdn_io': pwdn_io,
+            'dont_init_ldo': dont_init_ldo,
+        }
+
+    # Placeholder for other bus types (SPI, USB-UVC)
     # These can be implemented similarly when their configurations are defined
-    elif bus_type == 'csi':
-        # CSI configuration parsing would go here
-        bus_config = {}  # Placeholder
-    elif bus_type == 'spi':
+    elif sub_type == 'spi':
         # SPI configuration parsing would go here
         bus_config = {}  # Placeholder
-    elif bus_type == 'usb_uvc':
+    elif sub_type == 'usb_uvc':
         # USB-UVC configuration parsing would go here
         bus_config = {}  # Placeholder
     else:
-        raise ValueError(f"Unsupported bus_type '{bus_type}' for camera device {name}")
+        raise ValueError(f"Unsupported sub_type '{sub_type}' for camera device {name}")
 
     # Create the base result structure
     result = {
@@ -172,12 +201,11 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
         'struct_init': {
             'name': c_name,
             'type': str(config.get('type', 'camera')),
-            'dev_path': dev_path,
-            'bus_type': bus_type,
-            'config' : {}
+            'sub_type': sub_type,
+            'sub_cfg' : {}
         }
     }
-    
+
     # Add the bus-specific configuration
-    result['struct_init']['config'][bus_type] = bus_config
+    result['struct_init']['sub_cfg'][sub_type] = bus_config
     return result

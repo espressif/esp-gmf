@@ -46,11 +46,11 @@ extern "C" {
 #define ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED      (ESP_BOARD_ERR_DEVICE_BASE - 0x06)  /*!< No configuration supported */
 
 /* Error handling macros with ## operator for flexible usage */
-#define ESP_BOARD_RETURN_ON_FALSE(condition, error_code, tag, ...) do {  \
-    if (!(condition)) {                                              \
-        ESP_LOGE(tag, "[%s] " __VA_ARGS__, __func__);                \
-        return error_code;                                           \
-    }                                                                \
+#define ESP_BOARD_RETURN_ON_FALSE(condition, error_code, tag, format, ...) do {  \
+    if (!(condition)) {                                                          \
+        ESP_LOGE(tag, "[%s] " format, __func__, ##__VA_ARGS__);                  \
+        return error_code;                                                       \
+    }                                                                            \
 } while (0)
 
 #define ESP_BOARD_RETURN_ON_ERROR(operation, tag, ...) do {  \

@@ -5,23 +5,14 @@
  * See LICENSE file for details.
  */
 
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
 #include "esp_log.h"
-
-#include "esp_check.h"
-#include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
-#include "esp_lcd_panel_vendor.h"
-#include "esp_lcd_panel_dev.h"
-
-#include "dev_display_lcd_spi.h"
 #include "esp_board_periph.h"
 #include "periph_spi.h"
 #include "esp_board_device.h"
+#include "dev_display_lcd_spi.h"
 
 static const char *TAG = "DEV_DISPLAY_LCD_SPI";
 
@@ -127,7 +118,6 @@ int dev_display_lcd_spi_init(void *cfg, int cfg_size, void **device_handle)
 int dev_display_lcd_spi_deinit(void *device_handle)
 {
     dev_display_lcd_spi_handles_t *lcd_handles = (dev_display_lcd_spi_handles_t *)device_handle;
-
     if (lcd_handles->panel_handle) {
         esp_lcd_panel_del(lcd_handles->panel_handle);
         lcd_handles->panel_handle = NULL;
@@ -138,13 +128,8 @@ int dev_display_lcd_spi_deinit(void *device_handle)
         lcd_handles->io_handle = NULL;
     }
 
-    const char *name = NULL;
-    const esp_board_device_handle_t *device_handle_struct = esp_board_device_find_by_handle(device_handle);
-    if (device_handle_struct) {
-        name = device_handle_struct->name;
-    }
     dev_display_lcd_spi_config_t *cfg = NULL;
-    esp_board_device_get_config(name, (void **)&cfg);
+    esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
     if (cfg) {
         esp_board_periph_unref_handle(cfg->spi_name);
     }

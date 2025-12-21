@@ -1,2 +1,0 @@
-config BOARD_ESP32_C3_BOARD
-    bool

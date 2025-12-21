@@ -1,0 +1,29 @@
+# Example board_devices.yaml configuration for Power Control device
+# This shows how to integrate the Power Control device into a board configuration
+# All values shown are the actual default values from the device parser
+
+# Example Power Control device with GPIO sub type configuration
+- name: audio_power_ctrl          # The name of the device, must be unique
+  type: power_ctrl                # The type of the device, must be unique
+  sub_type: gpio                  # The sub type of the device, must be 'gpio' or 'ldo'
+  peripherals:
+    - name: gpio_power_audio      # GPIO peripheral name (must reference a GPIO peripheral)
+      active_level: 1             # Active level (0-low, 1-high) when power is on
+
+# Example usage in devices, add the power_ctrl_device attribute to the device configuration
+# - name: audio_dac
+#   chip: es8311
+#   type: audio_codec
+#   version: default
+#   power_ctrl_device: audio_power_ctrl  # Reference to power control device
+#   config:
+#     adc_enabled: false
+#     dac_enabled: true
+#     dac_max_channel: 1
+#     dac_channel_mask: "1"
+#     mclk_enabled: true
+#   peripherals:
+#     - name: i2s_audio_out
+#     - name: i2c_master
+#       address: 0x30
+#       frequency: 400000

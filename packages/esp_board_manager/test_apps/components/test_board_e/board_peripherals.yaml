@@ -1,0 +1,14 @@
+board: test_board_e
+chip: esp32s2
+version: 1.0.0
+# Peripherals Configuration
+peripherals:
+  - name: spi_0
+    type: spi
+    role: master
+    config:
+      spi_port: SPI2_HOST
+      spi_bus_config:
+        mosi_io_num: 11
+        miso_io_num: 13
+        sclk_io_num: 12

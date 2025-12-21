@@ -1,0 +1,2 @@
+config BOARD_ESP32_P4_CORE
+    bool

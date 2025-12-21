@@ -1,0 +1,22 @@
+board: esp32_p4_core
+chip: esp32p4
+version: 1.0.0
+# Peripherals Configuration
+peripherals:
+  - name: gpio_monitor
+    type: gpio
+    config:
+      pin: 4
+      mode: GPIO_MODE_OUTPUT
+      pull_up: false
+      pull_down: false
+      intr_type: GPIO_INTR_DISABLE
+
+  - name: anacmpr_unit_0
+    type: anacmpr
+    config:
+      unit: 0
+      ref_src: ANA_CMPR_REF_SRC_INTERNAL
+      cross_type: ANA_CMPR_CROSS_ANY
+      clk_src: ANA_CMPR_CLK_SRC_DEFAULT
+      intr_priority: 0

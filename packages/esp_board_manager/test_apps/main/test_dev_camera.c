@@ -14,6 +14,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_board_device.h"
+#include "esp_board_manager_defs.h"
 #include "dev_camera.h"
 #include "test_dev_camera.h"
 #include "esp_jpeg_enc.h"
@@ -52,7 +53,6 @@ static esp_err_t camera_capture_stream_by_format(int fd, int type, uint32_t v4l2
     }
 
     for (int i = 0; i < BUFFER_COUNT; i++) {
-        struct v4l2_buffer buf;
         memset(&buf, 0, sizeof(buf));
         buf.type = type;
         buf.memory = MEMORY_TYPE;
@@ -139,6 +139,11 @@ static esp_err_t camera_capture_stream_by_format(int fd, int type, uint32_t v4l2
             jpeg_enc_cfg.subsampling = JPEG_SUBSAMPLE_422;
             input_src_size = format.fmt.pix.width * format.fmt.pix.height * 2;
             break;
+        case V4L2_PIX_FMT_RGB565:
+            jpeg_enc_cfg.src_type = JPEG_PIXEL_FORMAT_RGB565_LE;
+            jpeg_enc_cfg.subsampling = JPEG_SUBSAMPLE_420;
+            input_src_size = format.fmt.pix.width * format.fmt.pix.height * 2;
+            break;
         default:
             ESP_LOGE(TAG, "Unsupported format");
             return ESP_ERR_NOT_SUPPORTED;
@@ -151,7 +156,8 @@ static esp_err_t camera_capture_stream_by_format(int fd, int type, uint32_t v4l2
         return ESP_FAIL;
     }
 
-    int outbuf_size = 100 * 1024;
+    int calc_size = jpeg_enc_cfg.width * jpeg_enc_cfg.height * 3 / 8;
+    int outbuf_size = (calc_size > (50 * 1024)) ? calc_size : (50 * 1024);
     int out_len = 0;
     uint8_t *outbuf = NULL;
     outbuf = (uint8_t *)calloc(1, outbuf_size);
@@ -173,10 +179,11 @@ static esp_err_t camera_capture_stream_by_format(int fd, int type, uint32_t v4l2
     }
     fwrite(outbuf, 1, out_len, out);
     fclose(out);
+    ESP_LOGI(TAG, "JPEG file saved to /sdcard/esp_jpeg_encode_one_picture.jpg");
 
 jpeg_enc_exit:
     jpeg_enc_close(jpeg_enc);
-    if (outbuf) {
+    if (outbuf != NULL) {
         free(outbuf);
     }
 #endif  // CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
@@ -238,7 +245,7 @@ static void camera_capability_print(const struct v4l2_capability *cap)
 static esp_err_t camera_capture_stream(const char *cam_dev_path)
 {
     int fd;
-    esp_err_t ret;
+    esp_err_t ret = ESP_FAIL;
     struct v4l2_capability capability;
     const int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
@@ -266,40 +273,28 @@ static esp_err_t camera_capture_stream(const char *cam_dev_path)
         if (ioctl(fd, VIDIOC_ENUM_FMT, &fmtdesc) != 0) {
             break;
         }
-
         struct v4l2_format format = {
             .type = type,
         };
-        struct v4l2_streamparm sparm = {
-            .type = type,
-            .parm.capture.capability = V4L2_CAP_TIMEPERFRAME,
-        };
-        struct v4l2_captureparm *cparam = &sparm.parm.capture;
-
-        if (ioctl(fd, VIDIOC_G_PARM, &sparm) != 0) {
-            ESP_LOGE(TAG, "failed to get stream parameter");
-            ret = ESP_FAIL;
-            goto exit_0;
-        }
-
         if (ioctl(fd, VIDIOC_G_FMT, &format) != 0) {
             ESP_LOGE(TAG, "failed to get format");
             ret = ESP_FAIL;
             goto exit_0;
         }
 
-        ESP_LOGI(TAG, "Capture format: %s, frame size: %" PRIu32 "x%" PRIu32 ", FPS: %0.1f, for %d seconds:",
+        ESP_LOGI(TAG, "Capture format: %s, frame size: %" PRIu32 "x%" PRIu32 ", for %d seconds:",
                  (char *)fmtdesc.description, format.fmt.pix.width, format.fmt.pix.height,
-                 (double)cparam->timeperframe.denominator / (double)cparam->timeperframe.numerator,
                  CAPTURE_SECONDS);
-
-        if (camera_capture_stream_by_format(fd, type, fmtdesc.pixelformat, format.fmt.pix.width,
-                                            format.fmt.pix.height) != ESP_OK) {
-            break;
+        // Test for only the first format
+        ret = camera_capture_stream_by_format(fd, type, fmtdesc.pixelformat, format.fmt.pix.width, format.fmt.pix.height);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to capture stream by format %s", (char *)fmtdesc.description);
+            goto exit_0;
+        } else {
+            ESP_LOGI(TAG, "Captured stream by format %s succeed", (char *)fmtdesc.description);
+            goto exit_0;
         }
     }
-
-    ret = ESP_OK;
 
 exit_0:
     close(fd);
@@ -309,7 +304,7 @@ exit_0:
 esp_err_t test_dev_camera()
 {
     dev_camera_handle_t *camera_handle = NULL;
-    esp_err_t ret = esp_board_device_get_handle("camera_sensor", (void **)&camera_handle);
+    esp_err_t ret = esp_board_device_get_handle(ESP_BOARD_DEVICE_NAME_CAMERA, (void **)&camera_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get camera device");
         return ret;

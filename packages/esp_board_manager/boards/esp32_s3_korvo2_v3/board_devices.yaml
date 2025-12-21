@@ -127,14 +127,13 @@ devices:
           mirror_x: true
           mirror_y: false
 
-  - name: camera_sensor
+  - name: camera
     type: camera
     version: default
+    sub_type: "dvp"        # The bus type: dvp
     dependencies:
       espressif/esp_video: "^1.2.0"
     config:
-      dev_path: "/dev/video2"
-      bus_type: "dvp"        # The bus type: dvp
       dvp_config:
         reset_io: -1
         pwdn_io: -1
@@ -155,4 +154,31 @@ devices:
           data_io_7: 39
     peripherals:
       - name: "i2c_master"
-        frequency: 400000
+        frequency: 100000
+
+  # ADC Button Devices Configuration for multiple buttons
+  - name: adc_button_group
+    type: button
+    sub_type: adc
+    config:
+      long_press_time: 2000
+      short_press_time: 100
+      events:
+        press_down: true
+        press_up: true
+        single_click: true
+        double_click: true
+        multi_click: false
+        long_press_start: true
+        long_press_up: true
+        long_press_hold: false
+        press_repeat: false
+        press_repeat_done: false
+        press_end: false
+      button_num: 6
+      max_voltage: 3000
+      voltage_range: [380, 820, 1110, 1650, 1980, 2410]
+      button_labels: ["VOLUME_UP", "VOLUME_DOWN", "SET", "PLAY", "MUTE", "REC"]
+    peripherals:
+    - name: adc_button
+

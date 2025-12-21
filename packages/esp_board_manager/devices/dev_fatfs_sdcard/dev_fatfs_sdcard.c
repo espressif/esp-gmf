@@ -5,17 +5,13 @@
  * See LICENSE file for details.
  */
 
-#include <string.h>
-#include <stdlib.h>
 #include "esp_log.h"
-#include "esp_check.h"
 #include "esp_vfs.h"
 #include "esp_vfs_fat.h"
 #include "driver/sdmmc_host.h"
-#include "driver/gpio.h"
 #include "sdmmc_cmd.h"
-#include "dev_fatfs_sdcard.h"
 #include "esp_board_periph.h"
+#include "dev_fatfs_sdcard.h"
 #ifdef SOC_GP_LDO_SUPPORTED
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
 #endif  // SOC_GP_LDO_SUPPORTED
@@ -32,6 +28,13 @@ int dev_fatfs_sdcard_init(void *cfg, int cfg_size, void **device_handle)
         ESP_LOGE(TAG, "Invalid config size");
         return -1;
     }
+
+    const dev_fatfs_sdcard_config_t *config = (const dev_fatfs_sdcard_config_t *)cfg;
+    if (config->mount_point == NULL) {
+        ESP_LOGE(TAG, "Invalid mount point");
+        return -1;
+    }
+
     esp_err_t ret = ESP_FAIL;
     dev_fatfs_sdcard_handle_t *handle = calloc(1, sizeof(dev_fatfs_sdcard_handle_t));
     if (handle == NULL) {
@@ -39,7 +42,6 @@ int dev_fatfs_sdcard_init(void *cfg, int cfg_size, void **device_handle)
         return -1;
     }
 
-    const dev_fatfs_sdcard_config_t *config = (const dev_fatfs_sdcard_config_t *)cfg;
     // Use SDMMC host
     handle->host = (sdmmc_host_t)SDMMC_HOST_DEFAULT();
     handle->host.max_freq_khz = config->frequency;
@@ -102,16 +104,10 @@ int dev_fatfs_sdcard_init(void *cfg, int cfg_size, void **device_handle)
     }
 
     // Save mount point
-    handle->mount_point = strdup(config->mount_point);
-    if (handle->mount_point == NULL) {
-        ESP_LOGE(TAG, "Failed to allocate mount point");
-        esp_vfs_fat_sdcard_unmount(config->mount_point, handle->card);
-        goto cleanup;
-    }
-
+    handle->mount_point = (char *)config->mount_point;
+    sdmmc_card_print_info(stdout, handle->card);
     ESP_LOGI(TAG, "Filesystem mounted, base path: %s", config->mount_point);
     *device_handle = handle;
-    sdmmc_card_print_info(stdout, handle->card);
     return 0;
 cleanup:
     free(handle);
@@ -131,7 +127,6 @@ int dev_fatfs_sdcard_deinit(void *device_handle)
     } else {
         ESP_LOGW(TAG, "Mount point or card handle is NULL, skipping unmount");
     }
-    free((char *)handle->mount_point);
     free(handle);
     return 0;
 }

@@ -1,13 +1,27 @@
-[sections:custom_devices_desc]
+[sections:esp_board_entries_desc]
 entries:
-    .custom_devices_desc
+    .esp_board_entries_desc
 
-[scheme:custom_devices_desc_default]
+[scheme:esp_board_entries_desc_default]
 entries:
-    custom_devices_desc -> flash_rodata
+    esp_board_entries_desc -> flash_rodata
 
-[mapping:custom_devices_desc]
+[mapping:esp_board_entries_desc]
 archive: *
 entries:
-    * (custom_devices_desc_default);
-        custom_devices_desc -> flash_rodata KEEP() SORT(name) SURROUND(custom_devices_array)
+    * (esp_board_entries_desc_default);
+        esp_board_entries_desc -> flash_rodata KEEP() SORT(name) SURROUND(esp_board_entries_array)
+
+[sections:esp_board_extra_func]
+entries:
+    .esp_board_extra_func
+
+[scheme:esp_board_extra_func_default]
+entries:
+    esp_board_extra_func -> flash_rodata
+
+[mapping:esp_board_extra_func]
+archive: *
+entries:
+    * (esp_board_extra_func_default);
+        esp_board_extra_func -> flash_rodata KEEP() SORT(name) SURROUND(esp_board_extra_func_array)

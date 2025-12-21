@@ -19,11 +19,11 @@ extern "C" {
  * @brief  Board information structure
  */
 typedef struct esp_board_info {
-    const char *name;          /*!< Board name */
-    const char *chip;          /*!< Chip type */
-    const char *version;       /*!< Board version */
-    const char *description;   /*!< Board description */
-    const char *manufacturer;  /*!< Board manufacturer */
+    const char  *name;          /*!< Board name */
+    const char  *chip;          /*!< Chip type */
+    const char  *version;       /*!< Board version */
+    const char  *description;   /*!< Board description */
+    const char  *manufacturer;  /*!< Board manufacturer */
 } esp_board_info_t;
 
 /* Global board information */
@@ -36,7 +36,7 @@ extern const esp_board_info_t g_esp_board_info;
  *         fails, peripherals are deinitialized to maintain consistency. The manager
  *         can only be initialized once
  *
- *   NOTE: Device initialization strictly follows the order defined in board_devices.yaml
+ * @note  Device initialization strictly follows the order defined in board_devices.yaml
  *         Peripheral initialization strictly follows the order defined in board_peripherals.yaml
  *         If a device depends on a peripheral for power-on, it must be initialized after that peripheral
  *         For example, the LCD power control device should be listed before the Display LCD device
@@ -176,7 +176,7 @@ esp_err_t esp_board_manager_deinit_device_by_name(const char *dev_name);
  *         devices, and their associations. The board manager must be initialized
  *
  * @return
- *       - ESP_OK                          On success
+ *       - ESP_OK  On success
  */
 esp_err_t esp_board_manager_print(void);
 

@@ -1,0 +1,11 @@
+board: test_board_c
+chip: esp32p4
+version: 1.0.0
+# Devices Configuration
+devices:
+  - name: lcd_backlight
+    type: ledc_ctrl
+    config:
+      default_percent: 80
+    peripherals:
+      - name: ledc_backlight

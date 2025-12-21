@@ -1,0 +1,116 @@
+# ADC Peripheral Default Configuration
+# This file provides commented default configurations used by the ADC peripheral parser.
+# Based on periph_adc.py parsing script
+
+# -----------------------------------------------------------------------------
+# CONTINUOUS MODE (role: continuous)
+# -----------------------------------------------------------------------------
+adc-continuous:
+  # Peripheral role must be either 'continuous' or 'oneshot'.
+  role: continuous
+
+  config:
+    # ADC unit, optional values are ADC_UNIT_1 and ADC_UNIT_2, should be less than 'SOC_ADC_PERIPH_NUM'
+    # please check the 'SOC_ADC_PERIPH_NUM' in 'soc/soc_caps.h' for the valid values
+    unit_id: ADC_UNIT_1
+
+    # ADC attenuation. Different parameters determine the range of the ADC. (default: ADC_ATTEN_DB_0)
+    atten: ADC_ATTEN_DB_0
+    # Valid values:
+    # - ADC_ATTEN_DB_0
+    # - ADC_ATTEN_DB_2_5
+    # - ADC_ATTEN_DB_6
+    # - ADC_ATTEN_DB_12
+    # - ADC_ATTEN_DB_11 (deprecated)
+
+    # ADC raw output bitwidth. (default: ADC_BITWIDTH_DEFAULT)
+    bit_width: ADC_BITWIDTH_DEFAULT
+    # Valid values:
+    # - ADC_BITWIDTH_9
+    # - ADC_BITWIDTH_10
+    # - ADC_BITWIDTH_11
+    # - ADC_BITWIDTH_12
+    # - ADC_BITWIDTH_13
+    # - ADC_BITWIDTH_DEFAULT (Default ADC output bits, max supported width will be selected)
+
+    # Max length of the conversion results that driver can store, in bytes. Default: 1024
+    max_store_buf_size: 1024
+
+    # Conversion frame size in bytes. Should be a multiple of 'SOC_ADC_DIGI_DATA_BYTES_PER_CONV' for your target. Default: 256
+    conv_frame_size: 256
+
+    # Flush internal pool when full. Default: 1
+    flush_pool: 1
+
+    # The expected ADC sampling frequency in Hz.
+    # Please check the 'soc/soc_caps.h' for the valid values
+    sample_freq_hz: 20000
+
+    # ADC DMA output format. (default: ADC_DIGI_OUTPUT_FORMAT_TYPE2)
+    format: ADC_DIGI_OUTPUT_FORMAT_TYPE2
+    # Valid values:
+    # - ADC_DIGI_OUTPUT_FORMAT_TYPE1
+    # - ADC_DIGI_OUTPUT_FORMAT_TYPE2
+
+    # Conversion mode for DMA operation. (default: ADC_CONV_SINGLE_UNIT_1)
+    conv_mode: ADC_CONV_SINGLE_UNIT_1
+    # Valid values:
+    # - ADC_CONV_SINGLE_UNIT_1
+    # - ADC_CONV_SINGLE_UNIT_2
+    # - ADC_CONV_BOTH_UNIT
+    # - ADC_CONV_ALTER_UNIT
+
+    # Number of ADC channels that will be used, should less than 'SOC_ADC_PATT_LEN_MAX'
+    # Please check the 'soc/soc_caps.h' for the valid values
+    pattern_num: 1
+
+    # List of configs for each ADC channel that will be used
+    # Use adc_continuous_io_to_channel() and adc_continuous_channel_to_io() to get the corresponding relationship between ADC channels and ADC IO.
+    channel_id: [4]
+
+
+# -----------------------------------------------------------------------------
+# ONE-SHOT MODE (role: oneshot)
+# -----------------------------------------------------------------------------
+adc-oneshot:
+  role: oneshot
+
+  config:
+    # ADC unit, optional values are ADC_UNIT_1 and ADC_UNIT_2, should be less than 'SOC_ADC_PERIPH_NUM'
+    # please check the 'SOC_ADC_PERIPH_NUM' in 'soc/soc_caps.h' for the valid values
+    unit_id: ADC_UNIT_1
+
+    # ADC attenuation. Different parameters determine the range of the ADC. (default: ADC_ATTEN_DB_0)
+    atten: ADC_ATTEN_DB_0
+    # Valid values:
+    # - ADC_ATTEN_DB_0
+    # - ADC_ATTEN_DB_2_5
+    # - ADC_ATTEN_DB_6
+    # - ADC_ATTEN_DB_12
+    # - ADC_ATTEN_DB_11 (deprecated)
+
+    # ADC raw output bitwidth. (default: ADC_BITWIDTH_DEFAULT)
+    bit_width: ADC_BITWIDTH_DEFAULT
+    # Valid values:
+    # - ADC_BITWIDTH_9
+    # - ADC_BITWIDTH_10
+    # - ADC_BITWIDTH_11
+    # - ADC_BITWIDTH_12
+    # - ADC_BITWIDTH_13
+    # - ADC_BITWIDTH_DEFAULT (Default ADC output bits, max supported width will be selected)
+
+    # ADC channel to be used.
+    # Use adc_oneshot_io_to_channel() and adc_oneshot_channel_to_io() to get the corresponding relationship between ADC channels and ADC IO.
+    channel_id: 4
+
+    # Clock source for ADC module.
+    # Please refer to soc/clk_tree_defs.h, see 'soc_periph_adc_digi_clk_src_t' for valid values
+    clk_src: ADC_RTC_CLK_SRC_DEFAULT
+
+    # ULP mode selection. (default: ADC_ULP_MODE_DISABLE)
+    ulp_mode: ADC_ULP_MODE_DISABLE
+    # Valid values:
+    # - ADC_ULP_MODE_DISABLE
+    # - ADC_ULP_MODE_FSM
+    # - ADC_ULP_MODE_RISCV
+    # - ADC_ULP_MODE_LP_CORE

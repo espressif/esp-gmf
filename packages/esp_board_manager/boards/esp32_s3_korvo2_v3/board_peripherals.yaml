@@ -41,10 +41,11 @@ peripherals:
 
   - name: i2s_audio_in
     type: i2s
-    role: slave
+    role: master
     format: tdm-in
     config:
       <<: *i2s_config                   # Inherit base I2S configuration
+      mclk_multiple: 384                # Set MCLK multiple for 3 slots
       slot_mask: I2S_TDM_SLOT0 | I2S_TDM_SLOT1 | I2S_TDM_SLOT2  # Override specific slot mask
       slot_mode: I2S_SLOT_MODE_STEREO
 
@@ -68,3 +69,13 @@ peripherals:
         mosi_io_num: 0                   # MOSI_IO_NUM
         sclk_io_num: 1                   # SPI Clock signal
         max_transfer_sz: 32000           # Maximum transfer size in bytes
+
+  # ADC for Button
+  - name: adc_button
+    type: adc
+    role: oneshot
+    config:
+      unit_id: ADC_UNIT_1
+      channel_id: 4
+      atten: ADC_ATTEN_DB_12
+      bit_width: ADC_BITWIDTH_12

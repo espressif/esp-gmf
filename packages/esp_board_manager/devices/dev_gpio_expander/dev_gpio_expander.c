@@ -90,17 +90,13 @@ int dev_gpio_expander_deinit(void *device_handle)
     if (*io_expander_dev) {
         esp_io_expander_del(*io_expander_dev);
     }
-    const char *name = NULL;
-    const esp_board_device_handle_t *device_handle_struct = esp_board_device_find_by_handle(device_handle);
-    if (device_handle_struct) {
-        name = device_handle_struct->name;
-    }
+
     dev_io_expander_config_t *cfg = NULL;
-    esp_board_device_get_config(name, (void **)&cfg);
+    esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
     if (cfg) {
         esp_board_periph_unref_handle(cfg->i2c_name);
     }
-    ESP_LOGD(TAG, "Successfully deinitialized: %s, dev: %p", name, io_expander_dev);
+    ESP_LOGD(TAG, "Successfully deinitialized: %s, dev: %p", cfg->name, io_expander_dev);
     free(io_expander_dev);
     return 0;
 }
