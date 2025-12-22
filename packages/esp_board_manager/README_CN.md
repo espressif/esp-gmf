@@ -168,7 +168,27 @@ idf.py gen-bmgr-config -b OTHER_BOARD
 
 > **注意:** 遇到问题可以查看 [故障排除](#故障排除) 部分
 
-### 3. 在您的应用程序中使用
+### 3. 使用预编译脚本
+
+建议用户阅读上述步骤了解 `esp_board_manager` 的使用方法。对于希望简化使用过程的用户，在 [`tools`](tools) 路径下提供了使用 `esp_board_manager` 编译工程的预编译脚本。
+
+第一次编译工程时，将 [`tools`](tools) 下的脚本拷贝到 `YOUR_PROJECT_ROOT_PATH`。执行脚本，脚本会首先检查 ESP-IDF 版本是否支持，然后列出可选择的芯片，用户输入序号选择目标芯片后，会将依赖的组件进行下载。下载组件后，脚本会扫描组件的路径，自动设置 `IDF_EXTRA_ACTIONS_PATH` 环境变量以包含 ESP Board Manager 目录。然后脚本会列出所有可选板子，用户输入序号或名称选择板子。
+
+在 Linux / macOS 中运行以下命令：
+```bash/zsh
+source prebuild.sh
+```
+
+在 Windows 中运行以下命令：
+```powershell
+.\prebuild.ps1
+```
+
+后续更换板子时，仅需清除当前板子配置并重新选择板子。
+
+> **注意:** 预编译脚本接管了上述的[添加并激活组件](#1-添加并激活组件)和[扫描并选择板子](#2-扫描并选择板子)中的步骤。
+
+### 4. 在您的应用程序中使用
 
 ```c
 #include <stdio.h>

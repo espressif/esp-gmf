@@ -168,7 +168,27 @@ At this point, the board configuration files will be automatically generated to 
 
 > **Note:** If you encounter problems, refer to the [Troubleshooting](#troubleshooting) section.
 
-### 3. Use in Your Application
+### 3. Use Prebuild Script
+
+It is recommended that users read the above steps to understand the usage of `esp_board_manager`. For users wish to simplify the usage process, prebuild script for building the project with `esp_board_manager` is provided in [`tools`](tools).
+
+The first time you compile the project, copy script from [`tools`](tools) to `YOUR_PROJECT_ROOT_PATH`. Execute script，the script will first check if the ESP-IDF version is supported. Then, it will list the available chips, and user select the target chip by entering the corresponding number. After downloading the required components, the script will scan the component paths and automatically set the IDF_EXTRA_ACTIONS_PATH environment variable to include the ESP Board Manager directory. The script will then list all available boards, user select the target board by entering thr corresponding number or board name.
+
+On Linux / macOS, run following command:
+```bash/zsh
+source prebuild.sh
+```
+
+On Windows, run following command:
+```powershell
+.\prebuild.ps1
+```
+
+For later board changes, you only need to clear the current board configuration and reselect the board.
+
+> **Note:** The prebuild script takes over steps related to [Add and Activate Component](#1-add-and-activate-component) and [Scan Boards and Select Board](#2-scan-boards-and-select-board).
+
+### 4. Use in Your Application
 
 ```c
 #include <stdio.h>

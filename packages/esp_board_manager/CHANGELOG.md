@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+### Features
+
+- Added prebuild script for convenient compilation
+
 ## 0.5.0
 
 ### ⚠️ Important Changes
