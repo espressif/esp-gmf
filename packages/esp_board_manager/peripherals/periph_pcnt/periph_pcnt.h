@@ -8,6 +8,11 @@
 #pragma once
 #include "driver/pulse_cnt.h"
 #include "soc/soc_caps.h"
+#include "esp_idf_version.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    #warning "periph_pcnt is not supported in ESP-IDF v6.0.0 and above yet."
+#endif
 
 #ifdef __cplusplus
 extern "C" {

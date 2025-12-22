@@ -9,7 +9,7 @@ devices:
     type: display_lcd_spi
     version: default
     dependencies:
-      - espressif/esp_lcd_gc9a01: 1.2.0
+      - espressif/esp_lcd_gc9a01: "*"
     config:
       x_max: 240
       y_max: 240
@@ -31,8 +31,6 @@ devices:
     chip: gc9a01
     type: display_lcd_spi
     version: default
-    dependencies:
-      - espressif/esp_lcd_gc9a01: 1.2.0
     config:
       x_max: 240
       y_max: 240

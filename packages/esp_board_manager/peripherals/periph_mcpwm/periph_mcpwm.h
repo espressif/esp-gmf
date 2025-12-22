@@ -7,7 +7,12 @@
 
 #pragma once
 
+#include "esp_idf_version.h"
 #include "driver/mcpwm_prelude.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    #warning "periph_mcpwm is not supported in ESP-IDF v6.0.0 and above yet."
+#endif
 
 #ifdef __cplusplus
 extern "C" {

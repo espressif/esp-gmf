@@ -1,10 +1,12 @@
 #include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_board_periph.h"
+#include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
 #include "driver/i2c_master.h"
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
-#include "driver/i2c_master.h"
 
 void test_periph_i2c(void)
 {
@@ -17,7 +19,7 @@ void test_periph_i2c(void)
 
     /* Get I2C handle */
     void *i2c_handle = NULL;
-    ret = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_I2C_MASTER, &i2c_handle);
+    ret = esp_board_manager_get_periph_handle(ESP_BOARD_PERIPH_NAME_I2C_MASTER, &i2c_handle);
     if (ret != ESP_OK || !i2c_handle) {
         printf("Failed to get I2C master handle\n");
         goto cleanup;

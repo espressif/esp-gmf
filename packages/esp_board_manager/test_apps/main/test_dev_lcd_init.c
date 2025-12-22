@@ -68,10 +68,10 @@ static esp_err_t lcd_backlight_set(int brightness_percent)
 
     ESP_LOGI(TAG, "Setting LCD backlight: %d%%,", brightness_percent);
     if (ledc_handle == NULL) {
-        ESP_BOARD_RETURN_ON_ERROR(esp_board_manager_get_device_handle("lcd_brightness", (void **)&ledc_handle), TAG, "Get LEDC control device handle failed");
+        ESP_BOARD_RETURN_ON_ERROR(esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_LCD_BRIGHTNESS, (void **)&ledc_handle), TAG, "Get LEDC control device handle failed");
     }
     dev_ledc_ctrl_config_t *dev_ledc_cfg = NULL;
-    esp_err_t config_ret = esp_board_manager_get_device_config("lcd_brightness", (void *)&dev_ledc_cfg);
+    esp_err_t config_ret = esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_LCD_BRIGHTNESS, (void *)&dev_ledc_cfg);
     if (config_ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LEDC peripheral config '%s': %s", "lcd_brightness", esp_err_to_name(config_ret));
         return ESP_FAIL;
@@ -102,7 +102,7 @@ esp_err_t test_dev_lcd_lvgl_init(void)
     lcd_backlight_set(100);
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
     // Get LCD device handle from board manager
-    esp_err_t ret = esp_board_manager_get_device_handle("display_lcd", &lcd_handle);
+    esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, &lcd_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LCD device handle: %s", esp_err_to_name(ret));
         return ESP_FAIL;
@@ -226,7 +226,7 @@ esp_err_t test_dev_lcd_touch_init(void)
     ESP_LOGI(TAG, "Initializing touch input using Board Manager...");
 
     // Get touch device handle from board manager
-    esp_err_t ret = esp_board_manager_get_device_handle("lcd_touch", &touch_handle);
+    esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_LCD_TOUCH, &touch_handle);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Failed to get touch device handle: %s (continuing without touch)", esp_err_to_name(ret));
         return ESP_FAIL;

@@ -14,6 +14,8 @@
 #include "freertos/queue.h"
 #include "esp_board_device.h"
 #include "esp_board_periph.h"
+#include "esp_board_manager.h"
+#include "esp_board_manager_defs.h"
 #include "test_dev_audio_codec.h"
 
 static const char *TAG = "TEST_CODEC_CFG";
@@ -54,7 +56,7 @@ esp_err_t initialize_devices(const device_config_t *dev_config)
 
 esp_err_t configure_codec(const char *codec_name, const audio_config_t *config, bool is_dac, dev_audio_codec_handles_t **codec_handles)
 {
-    esp_err_t ret = esp_board_device_get_handle(codec_name, (void **)codec_handles);
+    esp_err_t ret = esp_board_manager_get_device_handle(codec_name, (void **)codec_handles);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get %s handle", codec_name);
         return ret;

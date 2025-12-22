@@ -14,7 +14,7 @@
  */
 
 #include "esp_log.h"
-#include "esp_board_periph.h"
+#include "esp_board_manager.h"
 #include "periph_uart.h"
 
 static const char *TAG = "TEST_UART";
@@ -50,7 +50,7 @@ static void uart_test_rx(uart_port_t uart_num)
 void test_periph_uart()
 {
     void *uart_handle;
-    esp_err_t ret = esp_board_periph_get_handle("uart_1", &uart_handle);
+    esp_err_t ret = esp_board_manager_get_periph_handle("uart_1", &uart_handle);
     if (ret != ESP_OK || uart_handle == NULL) {
         ESP_LOGE(TAG, "Failed to get uart handle");
         return;

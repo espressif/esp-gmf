@@ -7,6 +7,10 @@ tags:
 - gmf
 - board_manager
 
+examples:
+  - path: examples/play_sdcard_music
+  - path: examples/record_to_sdcard
+
 dependencies:
   espressif/esp_codec_dev:
     require: public
@@ -29,11 +33,11 @@ dependencies:
   espressif/esp_video:
     require: public
     version: "^1.2.0"
-    rules:
+    matches:
       - if: "$CONFIG{ESP_BOARD_DEV_CAMERA_SUPPORT} == True"
 
   espressif/button:
     require: public
     version: "^4.1.4"
-    rules:
+    matches:
       - if: "$CONFIG{ESP_BOARD_DEV_BUTTON_SUPPORT} == True"

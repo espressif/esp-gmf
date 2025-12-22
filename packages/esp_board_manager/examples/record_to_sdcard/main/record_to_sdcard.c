@@ -5,6 +5,7 @@
  */
 
 #include <string.h>
+#include "freertos/FreeRTOS.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -13,7 +14,7 @@
 
 static const char *TAG = "BMGR_RECORD_TO_SDCARD";
 
-#define DEFAULT_REC_URL          "/sdcard/record.wav"
+#define DEFAULT_REC_URL          "/sdcard/test.wav"
 #define DEFAULT_SAMPLE_RATE      16000
 #define DEFAULT_CHANNELS         2
 #define DEFAULT_BITS_PER_SAMPLE  16
@@ -99,6 +100,7 @@ void app_main(void)
              fs.sample_rate, fs.channel, fs.bits_per_sample);
 
     // Start recording
+    vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGI(TAG, "Starting I2S recording...");
     uint32_t total_bytes = 0;
     uint32_t record_duration_ms = DEFAULT_DURATION_SECONDS * 1000;
@@ -116,6 +118,7 @@ void app_main(void)
             ESP_LOGE(TAG, "Failed to read audio data from ADC");
             break;
         }
+        ESP_LOGI(TAG, "Recording... duration: %" PRIu64 " ms", (esp_timer_get_time() / 1000) - start_time);
     }
     ESP_LOGI(TAG, "I2S recording completed. Total bytes recorded: %" PRIu32, total_bytes);
     ESP_LOGI(TAG, "Record example finished.");

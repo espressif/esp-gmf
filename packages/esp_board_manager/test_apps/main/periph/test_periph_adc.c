@@ -19,7 +19,7 @@
 #include "esp_log.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
-#include "esp_board_periph.h"
+#include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
 #include "periph_adc.h"
 
@@ -41,16 +41,16 @@ static esp_err_t oneshot_test(adc_oneshot_unit_handle_t adc_handle, periph_adc_c
 void test_periph_adc(void)
 {
     periph_adc_handle_t *handle = NULL;
-    esp_err_t ret = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_ADC, (void **)&handle);
+    esp_err_t ret = esp_board_manager_get_periph_handle(ESP_BOARD_PERIPH_NAME_ADC, (void **)&handle);
     if (ret != ESP_OK || handle == NULL) {
         ESP_LOGE(TAG, "Failed to get ADC handle");
         return;
     }
 
     periph_adc_config_t *adc_cfg = {0};
-    ret = esp_board_periph_get_config(ESP_BOARD_PERIPH_NAME_ADC, (void *)&adc_cfg);
+    ret = esp_board_manager_get_periph_config(ESP_BOARD_PERIPH_NAME_ADC, (void *)&adc_cfg);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get ADC config %s", "lcd_brightness", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Failed to get ADC config %s", esp_err_to_name(ret));
         return;
     }
 
@@ -108,7 +108,7 @@ esp_err_t continuous_test(adc_continuous_handle_t adc_handle, periph_adc_config_
                     ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_cali_handle, data, &voltage));
                     ESP_LOGI(TAG, "Unit: ADC_UNIT_%d, Channel: %" PRIu32 ", Value: %" PRIx32 ", Cali Voltage: %d mV", unit, chan_num, data, voltage);
                 } else {
-                    ESP_LOGW(TAG, "Invalid data [%s_%" PRIu32 "_%" PRIx32 "]", unit, chan_num, data);
+                    ESP_LOGW(TAG, "Invalid data [%d_%" PRIu32 "_%" PRIx32 "]", unit, chan_num, data);
                 }
             }
         } else {
@@ -149,7 +149,7 @@ esp_err_t oneshot_test(adc_oneshot_unit_handle_t adc_handle, periph_adc_config_t
         if (ret == ESP_OK) {
             int voltage = 0;
             ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_cali_handle, result, &voltage));
-            ESP_LOGI(TAG, "Unit: ADC_UNIT_%d, Channel: %" PRIu32 ", Value: %" PRIx32 ", Cali Voltage: %d mV",
+            ESP_LOGI(TAG, "Unit: ADC_UNIT_%d, Channel: %d, Value: %d, Cali Voltage: %d mV",
                      adc_cfg->cfg.oneshot.unit_cfg.unit_id,
                      adc_cfg->cfg.oneshot.channel_id,
                      result,

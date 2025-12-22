@@ -41,7 +41,7 @@ int periph_dac_init(void *cfg, int cfg_size, void **periph_handle)
     } else if (dac_cfg->role == ESP_BOARD_PERIPH_ROLE_COSINE) {
         err = dac_cosine_new_channel(&dac_cfg->cosine_cfg, &handle->cosine);
         if (err == ESP_OK) {
-            ESP_LOGI(TAG, "DAC cosine channel %d initialized successfully, freq: %d Hz",
+            ESP_LOGI(TAG, "DAC cosine channel %d initialized successfully, freq: %" PRIu32 " Hz",
                      dac_cfg->cosine_cfg.chan_id, dac_cfg->cosine_cfg.freq_hz);
         }
     } else {

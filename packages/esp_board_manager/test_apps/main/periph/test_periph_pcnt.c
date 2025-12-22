@@ -17,7 +17,7 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "esp_log.h"
-#include "esp_board_periph.h"
+#include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
 #include "periph_pcnt.h"
 
@@ -38,7 +38,7 @@ static bool example_pcnt_on_reach(pcnt_unit_handle_t unit, const pcnt_watch_even
 void test_periph_pcnt()
 {
     periph_pcnt_handle_t *handle = NULL;
-    esp_err_t ret = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_PCNT_UNIT, (void **)&handle);
+    esp_err_t ret = esp_board_manager_get_periph_handle(ESP_BOARD_PERIPH_NAME_PCNT_UNIT, (void **)&handle);
     if (ret != ESP_OK || handle == NULL) {
         ESP_LOGE(TAG, "Failed to get PCNT handle");
         return;

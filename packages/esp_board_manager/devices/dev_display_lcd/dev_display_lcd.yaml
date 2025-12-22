@@ -10,6 +10,7 @@
   dependencies:
     espressif/esp_lcd_ek79007: "^1.0.0"  # Component dependency for the EK79007 driver
   config:
+    invert_color: false  # Invert color flag (default: false)
     need_reset: true                          # Whether to reset the LCD panel during initialization (default: true)
     reset_gpio_num: 27                         # GPIO pin for reset signal
     rgb_ele_order: LCD_RGB_ELEMENT_ORDER_RGB  # RGB element order (default: RGB)
@@ -82,6 +83,7 @@
     mirror_x: false
     x_max: 320
     y_max: 240
+    invert_color: false  # Invert color flag (default: false)
     need_reset: true                    # Whether to reset the LCD panel during initialization (default: true)
     # esp_lcd_panel_io_spi_config_t fields for SPI communication
     io_spi_config:

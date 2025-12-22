@@ -28,14 +28,21 @@ idf_component_register(
         ${DEVICE_INCLUDES}  # Add device includes
     REQUIRES
         driver
-        esp_driver_i2s
         esp_common
         fatfs
         esp_lcd
         spiffs
         esp_adc
+        esp_driver_i2s
+        esp_driver_i2c
         esp_driver_uart
         esp_driver_rmt
+        esp_driver_ledc
+        esp_driver_dac
+        esp_driver_ana_cmpr
+        esp_driver_mcpwm
+        esp_driver_pcnt
+        esp_driver_sdm
     LDFRAGMENTS
         "linker.lf"
     WHOLE_ARCHIVE

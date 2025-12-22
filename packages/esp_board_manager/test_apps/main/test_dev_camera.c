@@ -14,6 +14,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_board_device.h"
+#include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
 #include "dev_camera.h"
 #include "test_dev_camera.h"
@@ -304,7 +305,7 @@ exit_0:
 esp_err_t test_dev_camera()
 {
     dev_camera_handle_t *camera_handle = NULL;
-    esp_err_t ret = esp_board_device_get_handle(ESP_BOARD_DEVICE_NAME_CAMERA, (void **)&camera_handle);
+    esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_CAMERA, (void **)&camera_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get camera device");
         return ret;

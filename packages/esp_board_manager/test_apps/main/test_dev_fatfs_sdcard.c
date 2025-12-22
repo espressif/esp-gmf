@@ -5,6 +5,8 @@
 #include <errno.h>
 #include "esp_log.h"
 #include "esp_board_device.h"
+#include "esp_board_manager.h"
+#include "esp_board_manager_defs.h"
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
 #ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
@@ -71,7 +73,7 @@ void test_sdcard(void)
 #ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT
     dev_fatfs_sdcard_spi_handle_t *fs_sdcard_handle = NULL;
 #endif
-    ret = esp_board_device_get_handle("fs_sdcard", (void **)&fs_sdcard_handle);
+    ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_FS_SDCARD, (void **)&fs_sdcard_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get SD card handle");
         return;

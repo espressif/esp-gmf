@@ -68,7 +68,7 @@ devices:
   # ADC Button Devices Configuration for multiple buttons
   - name: adc_button_group
     type: button
-    sub_type: adc
+    sub_type: adc_multi
     config:
       long_press_time: 2000
       short_press_time: 100

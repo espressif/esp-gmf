@@ -36,7 +36,7 @@ idf_component_register(
         # Utility files (conditionally included)
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>:wav_header.c>
     INCLUDE_DIRS "." "./periph"
-    REQUIRES esp_board_manager esp_lcd esp_timer esp_partition spiffs
+    REQUIRES esp_board_manager esp_lcd esp_timer esp_partition spiffs gen_bmgr_codes
     EMBED_TXTFILES audio_files/test.wav
 )
 

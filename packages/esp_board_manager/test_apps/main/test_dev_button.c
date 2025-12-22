@@ -13,6 +13,7 @@
 #include "dev_button.h"
 #include "test_dev_button.h"
 #include "esp_board_device.h"
+#include "esp_board_manager_defs.h"
 
 static const char *TAG = "TEST_BUTTON";
 
@@ -39,13 +40,13 @@ static void simple_button_event_handler(void *arg, void *data)
             ESP_LOGI(TAG, "Multiple click event: %d times (%s)", iot_button_get_repeat(btn_handle), (char *)data);
             break;
         case BUTTON_LONG_PRESS_START:
-            ESP_LOGI(TAG, "Long press start (duration: %dms) (%s)", iot_button_get_pressed_time(btn_handle), (char *)data);
+            ESP_LOGI(TAG, "Long press start (duration: %" PRIu32 "ms) (%s)", iot_button_get_pressed_time(btn_handle), (char *)data);
             break;
         case BUTTON_LONG_PRESS_HOLD:
             ESP_LOGI(TAG, "Long press hold (hold count: %d) (%s)", iot_button_get_long_press_hold_cnt(btn_handle), (char *)data);
             break;
         case BUTTON_LONG_PRESS_UP:
-            ESP_LOGI(TAG, "Long press release (total duration: %dms) (%s)", iot_button_get_pressed_time(btn_handle), (char *)data);
+            ESP_LOGI(TAG, "Long press release (total duration: %" PRIu32 "ms) (%s)", iot_button_get_pressed_time(btn_handle), (char *)data);
             break;
         case BUTTON_PRESS_REPEAT:
             ESP_LOGI(TAG, "Press repeat (count: %d) (%s)", iot_button_get_repeat(btn_handle), (char *)data);
@@ -84,7 +85,7 @@ static int test_gpio_button(void)
 }
 #endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUB_GPIO_SUPPORT */
 
-#ifdef CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SUPPORT
+#if defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SINGLE_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_MULTI_SUPPORT)
 static int test_adc_button(void)
 {
     ESP_LOGI(TAG, "=== Testing ADC Button ===");
@@ -93,18 +94,18 @@ static int test_adc_button(void)
     const char *button_name = NULL;
 
     // Try to get button handle, support both single button and button group
-    esp_err_t ret = esp_board_manager_get_device_handle("adc_button_group", (void **)&btn_handles);
+    esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_ADC_BUTTON_GROUP, (void **)&btn_handles);
     if (ret != ESP_OK || btn_handles == NULL) {
-        ret = esp_board_manager_get_device_handle("adc_button_0", (void **)&btn_handles);
+        ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_ADC_BUTTON_0, (void **)&btn_handles);
         if (ret != ESP_OK || btn_handles == NULL) {
             ESP_LOGE(TAG, "Failed to get ADC button handle");
             return -1;
         } else {
-            button_name = "adc_button_0";
+            button_name = ESP_BOARD_DEVICE_NAME_ADC_BUTTON_0;
             ESP_LOGI(TAG, "Successfully obtained ADC button handle for single button: %s", button_name);
         }
     } else {
-        button_name = "adc_button_group";
+        button_name = ESP_BOARD_DEVICE_NAME_ADC_BUTTON_GROUP;
         ESP_LOGI(TAG, "Successfully obtained ADC button handle for multi-button: %s", button_name);
     }
 
@@ -115,16 +116,16 @@ static int test_adc_button(void)
     }
     return 0;
 }
-#endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SUPPORT */
+#endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SINGLE_SUPPORT || CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_MULTI_SUPPORT */
 
 void test_dev_button(void)
 {
     int ret = -1;
 #if CONFIG_ESP_BOARD_DEV_BUTTON_SUB_GPIO_SUPPORT
     ret = test_gpio_button();
-#elif CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SUPPORT
+#elif defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_SINGLE_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_BUTTON_SUB_ADC_MULTI_SUPPORT)
     ret = test_adc_button();
-#endif  /* CONFIG_ESP_BOARD_DEV_BUTTON_SUB_GPIO_SUPPORT */
+#endif
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed to test dev button");
         return;

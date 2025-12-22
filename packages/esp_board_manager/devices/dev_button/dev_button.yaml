@@ -8,7 +8,7 @@
 # https://components.espressif.com/components/espressif/button/versions/4.1.4/readme
 - name: gpio_button_0      # The name of the device, must be unique
   type: button            # The type of the device
-  sub_type: gpio                 # Button sub type: "gpio" or "adc"
+  sub_type: gpio                 # Button sub type: "gpio", "adc_single", or "adc_multi"
   config:
     # GPIO Configuration
     active_level: 0              # Active level (0-low, 1-high) when button is pressed
@@ -42,7 +42,7 @@
 # Example ADC  Button device configuration (Single button)
 - name: adc_button_0      # The name of the device, must be unique
   type: button            # The type of the device
-  sub_type: adc                  # Button sub type: "gpio" or "adc"
+  sub_type: adc_single    # Button sub type: "gpio", "adc_single", or "adc_multi"
   config:
     # ADC Configuration
     button_index: 0              # Button index on the channel
@@ -76,7 +76,7 @@
 # Example ADC  Button device configuration (Multi buttons)
 - name: adc_button_group         # The name of the device, must be unique
   type: button                   # The type of the device
-  sub_type: adc                  # Button sub type: "gpio" or "adc"
+  sub_type: adc_multi            # Button sub type: "gpio", "adc_single", or "adc_multi"
   config:
     # ADC Configuration
     button_num: 6                                                              # Number of buttons in the group, must not be greater than CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL (default: 8)

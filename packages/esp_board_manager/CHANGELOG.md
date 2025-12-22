@@ -1,10 +1,17 @@
 # Changelog
 
-## 0.5.1
+## Unreleased
 
 ### Features
-
 - Added prebuild script for convenient compilation
+
+### Modifications
+
+- Added support for IDF v6.x (trial version)
+  - Added adapter for periph_i2s
+  - Added warning for periph_rmt, periph_pcnt, periph_mcpwm, dev_display_lcd_sub_dsi (not supported by IDF v6.x yet)
+- Refine sub device support for dev_button, splitting the sub_type adc into adc_single and adc_multi
+- Modify CMakeLists.txt to fix the driver/xxx.h header file undecleared issue in IDF v6.x
 
 ## 0.5.0
 
