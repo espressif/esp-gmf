@@ -18,6 +18,7 @@ ESP GMF Examples is a component that collects GMF-related examples, mainly desig
 | [pipeline_record_http](./basic_examples/pipeline_record_http) | Record from mic, encode and upload to HTTP server | Voice upload, online recording, stream to server | Microphone, Audio ADC, Wi-Fi |
 | [pipeline_audio_effects](./basic_examples/pipeline_audio_effects) | Play audio with various effects and mixing | Effect simulation, EQ/DRC, multi-channel mixing | Audio DAC, speaker |
 | [pipeline_loop_play_no_gap](./basic_examples/pipeline_loop_play_no_gap) | Seamless loop playback of multiple files | Background music loop, continuous playback | SD card, Audio DAC, speaker |
+| [pipeline_play_multi_source_music](./basic_examples/pipeline_play_multi_source_music) | Multi-source audio player; playback from HTTP, SD card, and Flash | Tone insert playback, multi-source switching | SD card, Wi-Fi, Audio DAC, speaker |
 | [play_embed_music](../packages/esp_board_manager/examples/play_embed_music) | Play Flash-embedded WAV with `esp_board_manager` (no GMF) | Board-level playback, quick board verification | Audio DAC, speaker |
 | [play_sdcard_music](../packages/esp_board_manager/examples/play_sdcard_music) | Play SD card music with `esp_board_manager` (no GMF) | Board-level SD card music playback | SD card, Audio DAC, speaker |
 | [record_to_sdcard](../packages/esp_board_manager/examples/record_to_sdcard) | Record and save WAV to SD card with `esp_board_manager` (no GMF) | Board-level recording and WAV save | Microphone, Audio ADC, SD card |

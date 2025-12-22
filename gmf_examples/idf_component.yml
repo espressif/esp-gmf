@@ -18,3 +18,4 @@ examples:
    - path: "./basic_examples/pipeline_record_http"
    - path: "./basic_examples/pipeline_audio_effects"
    - path: "./basic_examples/pipeline_loop_play_no_gap"
+   - path: "./basic_examples/pipeline_play_multi_source_music"

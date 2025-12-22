@@ -10,6 +10,7 @@
 - Added power manage support for recording example `pipeline_record_sdcard`
 - Added `pipeline_audio_effects` example demonstrating audio effects (ALC, EQ, FADE, SONIC, DRC, MBC) usage in GMF pipeline
 - Added `pipeline_loop_play_no_gap` example for seamless playback of music file
+- Added `pipeline_play_multi_source_music` example - multi-source music player supporting HTTP, SD card, and Flash audio sources
 
 ## v0.7.2~1
 
