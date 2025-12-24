@@ -13,6 +13,10 @@
 - Refine sub device support for dev_button, splitting the sub_type adc into adc_single and adc_multi
 - Modify CMakeLists.txt to fix the driver/xxx.h header file undecleared issue in IDF v6.x
 
+### Bug Fixes
+
+- Fixed an issue that find_project_root finding unrelated projects
+
 ## 0.5.0
 
 ### ⚠️ Important Changes

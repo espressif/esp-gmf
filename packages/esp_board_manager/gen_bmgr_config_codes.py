@@ -28,6 +28,7 @@ from typing import Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).parent))
 
 from generators.utils.logger import setup_logger, get_logger, LoggerMixin
+from generators.utils.file_utils import find_project_root as find_project_root_util
 from generators import get_config_generator, get_sdkconfig_manager, get_dependency_manager, get_source_scanner
 from generators.parser_loader import load_parsers
 from generators.peripheral_parser import PeripheralParser
@@ -324,32 +325,6 @@ help
         self.logger.info(f'✅ Generated Kconfig for {len(device_names)} devices: {device_names}')
         return kconfig_content
 
-    def find_project_root(self, start_dir):
-        """Find project root by looking for CMakeLists.txt containing 'project()' keyword"""
-        current_dir = start_dir
-        while current_dir != '/' and current_dir != '':
-            cmake_file = os.path.join(current_dir, 'CMakeLists.txt')
-            if os.path.exists(cmake_file):
-                try:
-                    with open(cmake_file, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                        if 'project(' in content and ')' in content:
-                            # Check if it's a complete project() declaration
-                            lines = content.split('\n')
-                            for line in lines:
-                                line = line.strip()
-                                if line.startswith('project(') and line.endswith(')'):
-                                    return current_dir
-                except (IOError, UnicodeDecodeError) as e:
-                    self.logger.debug(f'Failed to read {cmake_file}: {e}')
-                    pass
-
-            parent_dir = os.path.dirname(current_dir)
-            if parent_dir == current_dir:  # Avoid infinite loop
-                break
-            current_dir = parent_dir
-
-        return None
 
     def generate_kconfig(self, all_boards, board_customer_path=None, peripheral_types=None, device_types=None, device_subtypes=None, selected_board=None):
         """Generate unified Kconfig content"""
@@ -1187,7 +1162,8 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         project_root = os.environ.get('PROJECT_DIR')
         if not project_root:
             # Start searching from current working directory, not script directory
-            project_root = self.find_project_root(os.getcwd())
+            project_root_path = find_project_root_util(Path(os.getcwd()))
+            project_root = str(project_root_path) if project_root_path else None
 
         # Store project_root for use in other methods
         self.project_root = project_root
@@ -1761,7 +1737,8 @@ Examples:
             # Find project root
             project_root = os.environ.get('PROJECT_DIR')
             if not project_root:
-                project_root = generator.find_project_root(os.getcwd())
+                project_root_path = find_project_root_util(Path(os.getcwd()))
+                project_root = str(project_root_path) if project_root_path else None
 
             if not project_root:
                 generator.logger.error('❌ Project root not found! Please run this command from a project directory.')

@@ -28,6 +28,7 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
 from gen_bmgr_config_codes import BoardConfigGenerator, resolve_board_name_or_index
+from generators.utils.file_utils import find_project_root as find_project_root_util
 
 
 def action_extensions(base_actions: Dict, project_path: str) -> Dict:
@@ -108,7 +109,8 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
                 # Find project root
                 project_root = project_dir
                 if not project_root:
-                    project_root = generator.find_project_root(os.getcwd())
+                    project_root_path = find_project_root_util(Path(os.getcwd()))
+                    project_root = str(project_root_path) if project_root_path else None
 
                 if not project_root:
                     print('❌ Project root not found! Please run this command from a project directory.')

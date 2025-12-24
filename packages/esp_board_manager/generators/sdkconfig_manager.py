@@ -176,7 +176,8 @@ class SDKConfigManager(LoggerMixin):
         project_root = os.environ.get('PROJECT_DIR')
         if not project_root:
             # Start searching from current working directory, not script directory
-            project_root = find_project_root(Path.cwd())
+            project_root_path = find_project_root(Path.cwd())
+            project_root = str(project_root_path) if project_root_path is not None else None
 
         if project_root:
             sdkconfig_path = os.path.join(project_root, 'sdkconfig')

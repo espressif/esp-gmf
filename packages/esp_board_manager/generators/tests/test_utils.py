@@ -56,7 +56,8 @@ class TestFileUtils(unittest.TestCase):
             cmake_file = temp_path / 'CMakeLists.txt'
             components_dir = temp_path / 'components'
 
-            cmake_file.touch()
+            # Write valid CMakeLists.txt with project() declaration
+            cmake_file.write_text('cmake_minimum_required(VERSION 3.16)\nproject(my_project)\n')
             components_dir.mkdir()
 
             # Should find the project root
@@ -71,6 +72,156 @@ class TestFileUtils(unittest.TestCase):
             # No CMakeLists.txt or components directory
             found_root = find_project_root(temp_path)
             self.assertIsNone(found_root)
+
+    def test_find_project_root_max_depth(self):
+        """Test that max_depth prevents finding unrelated projects"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create a project structure deep in the directory tree
+            # /temp_dir/level1/level2/level3/level4/level5/project/
+            deep_project = temp_path / 'level1' / 'level2' / 'level3' / 'level4' / 'level5' / 'project'
+            deep_project.mkdir(parents=True)
+
+            # Create project files in deep directory
+            (deep_project / 'CMakeLists.txt').write_text('cmake_minimum_required(VERSION 3.16)\nproject(deep_project)\n')
+            (deep_project / 'components').mkdir()
+
+            # Create another project closer to root (should not be found if max_depth is too small)
+            close_project = temp_path / 'level1' / 'project2'
+            close_project.mkdir(parents=True)
+            (close_project / 'CMakeLists.txt').write_text('cmake_minimum_required(VERSION 3.16)\nproject(close_project)\n')
+            (close_project / 'components').mkdir()
+
+            # Start from a subdirectory of the deep project
+            start_dir = deep_project / 'main'
+            start_dir.mkdir()
+
+            # Should find the deep project with default max_depth (10)
+            found_root = find_project_root(start_dir)
+            self.assertEqual(found_root, deep_project)
+
+            # With max_depth=2, should not find the deep project (needs 5 levels up)
+            found_root = find_project_root(start_dir, max_depth=2)
+            self.assertIsNone(found_root)
+
+            # With max_depth=6, should find the deep project (needs 1 level up)
+            found_root = find_project_root(start_dir, max_depth=6)
+            self.assertEqual(found_root, deep_project)
+
+    def test_find_project_root_without_components(self):
+        """Test project root finding without components directory"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create a mock project structure without components directory
+            cmake_file = temp_path / 'CMakeLists.txt'
+            cmake_file.write_text('cmake_minimum_required(VERSION 3.16)\nproject(my_project)\n')
+
+            # Should find the project root (components directory is not required)
+            found_root = find_project_root(temp_path)
+            self.assertEqual(found_root, temp_path)
+
+            # Verify components directory check is done by caller
+            components_dir = temp_path / 'components'
+            self.assertFalse(components_dir.exists())  # Components directory doesn't exist
+            # But project root is still found, caller can check components separately
+
+    def test_find_project_root_multiline_project_declaration(self):
+        """Test project root finding with multi-line project() declaration"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create CMakeLists.txt with multi-line project() declaration
+            cmake_file = temp_path / 'CMakeLists.txt'
+            cmake_content = '''cmake_minimum_required(VERSION 3.16)
+project(
+    my_project
+    VERSION 1.0.0
+)
+'''
+            cmake_file.write_text(cmake_content)
+
+            # Should find the project root
+            found_root = find_project_root(temp_path)
+            self.assertEqual(found_root, temp_path)
+
+    def test_find_project_root_with_comments(self):
+        """Test project root finding with commented project() declaration"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create CMakeLists.txt with commented project() and valid one
+            cmake_file = temp_path / 'CMakeLists.txt'
+            cmake_content = '''cmake_minimum_required(VERSION 3.16)
+# This is a comment
+# project(commented_project)
+project(my_project)
+'''
+            cmake_file.write_text(cmake_content)
+
+            # Should find the project root (comments should be skipped)
+            found_root = find_project_root(temp_path)
+            self.assertEqual(found_root, temp_path)
+
+    def test_find_project_root_invalid_project_declaration(self):
+        """Test project root finding with invalid project() declaration"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create CMakeLists.txt with invalid project() (no closing parenthesis)
+            cmake_file = temp_path / 'CMakeLists.txt'
+            cmake_file.write_text('cmake_minimum_required(VERSION 3.16)\nproject(my_project\n')
+
+            # Should not find the project root (invalid declaration)
+            found_root = find_project_root(temp_path)
+            self.assertIsNone(found_root)
+
+    def test_find_project_root_no_project_declaration(self):
+        """Test project root finding when CMakeLists.txt exists but has no project()"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create CMakeLists.txt without project() declaration
+            cmake_file = temp_path / 'CMakeLists.txt'
+            cmake_file.write_text('cmake_minimum_required(VERSION 3.16)\n# No project() here\n')
+
+            # Should not find the project root
+            found_root = find_project_root(temp_path)
+            self.assertIsNone(found_root)
+
+    def test_find_project_root_from_subdirectory(self):
+        """Test finding project root from a subdirectory"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create project structure
+            cmake_file = temp_path / 'CMakeLists.txt'
+            cmake_file.write_text('cmake_minimum_required(VERSION 3.16)\nproject(my_project)\n')
+
+            # Create subdirectory
+            subdir = temp_path / 'main' / 'src'
+            subdir.mkdir(parents=True)
+
+            # Should find the project root when starting from subdirectory
+            found_root = find_project_root(subdir)
+            self.assertEqual(found_root, temp_path)
+
+    def test_find_project_root_nested_parentheses(self):
+        """Test project root finding with nested parentheses in project() declaration"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create CMakeLists.txt with nested parentheses
+            cmake_file = temp_path / 'CMakeLists.txt'
+            cmake_content = '''cmake_minimum_required(VERSION 3.16)
+project(my_project VERSION 1.0.0 LANGUAGES C CXX)
+'''
+            cmake_file.write_text(cmake_content)
+
+            # Should find the project root
+            found_root = find_project_root(temp_path)
+            self.assertEqual(found_root, temp_path)
 
 
 class TestYamlUtils(unittest.TestCase):
