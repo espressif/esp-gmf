@@ -17,3 +17,6 @@ dependencies:
   espressif/gmf_core:
     require: public
     version: "^0.8"
+  espressif/esp_muxer:
+    require: public
+    version: "~1.2"

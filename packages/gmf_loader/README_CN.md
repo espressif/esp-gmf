@@ -44,6 +44,11 @@ GMF Loader 是一个辅助组件，允许用户通过 menuconfig 轻松自定义
   - 语音唤醒 (WN)
   - 音频前端 (AFE)
 
+- 音频 Muxer 配置：
+  - 支持多种容器格式：TS、MP4、FLV、WAV、CAF、OGG
+  - 支持多种音频编解码器：AAC、PCM、MP3、ADPCM、G711A、G711U、AMR-NB、AMR-WB、ALAC、OPUS
+  - 支持流式模式（TS、FLV）和文件模式
+
 - 视频编解码器初始化支持：
   - 解码器：H264（软件）、MJPEG（软件/硬件）
   - 编码器：H264（软件/硬件）、MJPEG（软件/硬件）
@@ -65,7 +70,7 @@ GMF Loader 是一个辅助组件，允许用户通过 menuconfig 轻松自定义
 配置选项分为以下几个部分：
 
 - GMF IO 配置：配置 IO 读取器和写入器
-- GMF 音频配置：配置音频编解码器、效果和 AI 功能
+- GMF 音频配置：配置音频编解码器、效果、AI 功能和 Muxer
 - GMF 视频配置：配置视频编解码器和效果
 - GMF 其他配置：配置其他元素，如复制器
 
@@ -132,10 +137,27 @@ ESP GMF Loader
 │   │   ├── Dynamic Range Control [N]
 │   │   └── Multi-Band Compressor [N]
 │   │
-│   └── GMF AI Audio
-│       ├── Audio Echo Cancellation (AEC) [Y]
-|       ├── Audio Wake Net (WN) [N]
-│       └── Audio Front End (AFE) [N]
+│   ├── GMF AI Audio
+│   │   ├── Audio Echo Cancellation (AEC) [Y]
+|   │   ├── Audio Wake Net (WN) [N]
+│   │   └── Audio Front End (AFE) [N]
+│   │
+│   └── GMF Audio Muxer [N]
+│       ├── Enable TS Muxer [Y]
+│       ├── Enable MP4 Muxer [N]
+│       ├── Enable FLV Muxer [N]
+│       ├── Enable WAV Muxer [N]
+│       ├── Enable CAF Muxer [N]
+│       ├── Enable OGG Muxer [N]
+│       ├── Select Default Muxer Type
+│       │   └── TS Muxer [Y]
+│       ├── Select Default Audio Codec
+│       │   └── AAC [Y]
+│       ├── Audio Sample Rate (16000)
+│       ├── Audio Channel (1)
+│       ├── Audio Bits Per Sample (16)
+│       ├── Audio Min Packet Duration (10 ms)
+│       └── Enable Streaming Mode [Y]
 │
 │── GMF Video Configurations
 │   ├── GMF Video Codec

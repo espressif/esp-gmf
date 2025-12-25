@@ -142,6 +142,22 @@ esp_gmf_err_t gmf_loader_teardown_audio_effects_default(esp_gmf_pool_handle_t po
 esp_gmf_err_t gmf_loader_setup_ai_audio_default(esp_gmf_pool_handle_t pool);
 
 /**
+ * @brief  Register the audio muxer element selected in sdkconfig into the GMF pool
+ *
+ * @note  This function will register the muxer for the selected container type (TS, MP4, FLV, WAV, CAF, OGG)
+ *        and initialize the GMF audio muxer element with the configured audio stream information.
+ *        The muxer can operate in streaming mode (using databus callback) or file mode (using file writer).
+ *
+ * @param[in]  pool  Handle to the GMF pool
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Success
+ *       - ESP_GMF_ERR_MEMORY_LACK  Memory allocation failed
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t gmf_loader_setup_audio_muxer_default(esp_gmf_pool_handle_t pool);
+
+/**
  * @brief  Cleans up and releases resources used by AI audio elements
  *
  * @note  This function maintains an internal counter to track the number of times
@@ -157,6 +173,19 @@ esp_gmf_err_t gmf_loader_setup_ai_audio_default(esp_gmf_pool_handle_t pool);
  *       - ESP_GMF_ERR_INVALID_STATE  AI audio context is NULL
  */
 esp_gmf_err_t gmf_loader_teardown_ai_audio_default(esp_gmf_pool_handle_t pool);
+
+/**
+ * @brief  Cleans up and releases resources used by audio muxer elements
+ *
+ * @note  Currently does nothing. Actual cleanup is handled by `esp_gmf_pool_deinit()`
+ *
+ * @param[in]  pool  Handle to the GMF pool
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t gmf_loader_teardown_audio_muxer_default(esp_gmf_pool_handle_t pool);
 
 /**
  * @brief  Register the video encoder and decoder elements selected in sdkconfig into the GMF pool

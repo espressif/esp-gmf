@@ -65,13 +65,12 @@ static inline void gmf_fourcc_to_str(uint32_t fourcc, char out[5]) {
 #define ESP_FOURCC_WAV              ESP_FOURCC_TO_INT('W', 'A', 'V', ' ') /* WAV container */
 #define ESP_FOURCC_MP4              ESP_FOURCC_TO_INT('M', 'P', '4', ' ') /* MPEG-4 container */
 #define ESP_FOURCC_M2TS             ESP_FOURCC_TO_INT('M', '2', 'T', 'S') /* MPEG-2 Transport Stream */
-#define ESP_FOURCC_FLV              ESP_FOURCC_TO_INT('F', 'L', 'V', '1') /* Flash Video */
+#define ESP_FOURCC_FLV              ESP_FOURCC_TO_INT('F', 'L', 'V', ' ') /* Flash Video container*/
 #define ESP_FOURCC_AVI              ESP_FOURCC_TO_INT('A', 'V', 'I', ' ') /* Audio Video Interleave */
 #define ESP_FOURCC_OGG              ESP_FOURCC_TO_INT('O', 'G', 'G', ' ') /* Ogg container */
 #define ESP_FOURCC_WEBM             ESP_FOURCC_TO_INT('W', 'E', 'B', 'M') /* WebM container */
 #define ESP_FOURCC_CAF              ESP_FOURCC_TO_INT('C', 'A', 'F', ' ') /* Core Audio Format */
-#define ESP_FOURCC_TS               ESP_FOURCC_TO_INT('T', 'S', ' ', ' ') /* MPEG-2 Transport Stream */
-
+#define ESP_FOURCC_TS               ESP_FOURCC_TO_INT('T', 'S', ' ', ' ') /* Transport Stream */
 
 /***************************************************************/
 /*                          Image codec                        */

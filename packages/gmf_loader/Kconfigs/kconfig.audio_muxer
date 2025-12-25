@@ -1,0 +1,131 @@
+menu "GMF Audio Muxer"
+
+    config GMF_AUDIO_MUXER_INIT
+        bool "Initialize GMF Audio Muxer"
+        default n
+        help
+            Initialize GMF audio muxer element
+
+    choice
+        prompt "Select Default GMF Audio Muxer Type for Element"
+        default GMF_AUDIO_MUXER_DEFAULT_TYPE_TS
+        depends on GMF_AUDIO_MUXER_INIT
+        help
+            Select the default muxer type for the initialized element.
+            This is used when creating the default muxer element instance.
+            Multiple muxers can be registered, but only one element instance is created by default.
+
+        config GMF_AUDIO_MUXER_DEFAULT_TYPE_TS
+            bool "TS Muxer"
+            depends on ESP_MUXER_TS_SUPPORT
+        config GMF_AUDIO_MUXER_DEFAULT_TYPE_MP4
+            bool "MP4 Muxer"
+            depends on ESP_MUXER_MP4_SUPPORT
+        config GMF_AUDIO_MUXER_DEFAULT_TYPE_FLV
+            bool "FLV Muxer"
+            depends on ESP_MUXER_FLV_SUPPORT
+        config GMF_AUDIO_MUXER_DEFAULT_TYPE_WAV
+            bool "WAV Muxer"
+            depends on ESP_MUXER_WAV_SUPPORT
+        config GMF_AUDIO_MUXER_DEFAULT_TYPE_CAF
+            bool "CAF Muxer"
+            depends on ESP_MUXER_CAF_SUPPORT
+        config GMF_AUDIO_MUXER_DEFAULT_TYPE_AVI
+            bool "AVI Muxer"
+            depends on ESP_MUXER_AVI_SUPPORT
+        config GMF_AUDIO_MUXER_DEFAULT_TYPE_OGG
+            bool "OGG Muxer"
+            depends on ESP_MUXER_OGG_SUPPORT
+    endchoice
+
+    choice
+        prompt "Select Default Audio Codec for Muxer"
+        default GMF_AUDIO_MUXER_AUDIO_CODEC_AAC
+        depends on GMF_AUDIO_MUXER_INIT
+        help
+            Select the default audio codec type for muxer
+
+        config GMF_AUDIO_MUXER_AUDIO_CODEC_AAC
+            bool "AAC"
+            depends on GMF_AUDIO_MUXER_DEFAULT_TYPE_MP4 || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_TS || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_FLV || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_WAV || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_CAF || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_AVI
+        config GMF_AUDIO_MUXER_AUDIO_CODEC_PCM
+            bool "PCM"
+            depends on GMF_AUDIO_MUXER_DEFAULT_TYPE_MP4 || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_FLV || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_WAV || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_CAF || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_AVI
+        config GMF_AUDIO_MUXER_AUDIO_CODEC_MP3
+            bool "MP3"
+            depends on GMF_AUDIO_MUXER_DEFAULT_TYPE_MP4 || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_TS || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_FLV || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_WAV || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_AVI
+        config GMF_AUDIO_MUXER_AUDIO_CODEC_ADPCM
+            bool "ADPCM"
+            depends on GMF_AUDIO_MUXER_DEFAULT_TYPE_WAV || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_CAF
+        config GMF_AUDIO_MUXER_AUDIO_CODEC_G711A
+            bool "G711A"
+            depends on GMF_AUDIO_MUXER_DEFAULT_TYPE_WAV || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_CAF
+        config GMF_AUDIO_MUXER_AUDIO_CODEC_G711U
+            bool "G711U"
+            depends on GMF_AUDIO_MUXER_DEFAULT_TYPE_WAV || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_CAF
+        config GMF_AUDIO_MUXER_AUDIO_CODEC_AMR_NB
+            bool "AMR-NB"
+            depends on GMF_AUDIO_MUXER_DEFAULT_TYPE_WAV
+        config GMF_AUDIO_MUXER_AUDIO_CODEC_AMR_WB
+            bool "AMR-WB"
+            depends on GMF_AUDIO_MUXER_DEFAULT_TYPE_WAV
+        config GMF_AUDIO_MUXER_AUDIO_CODEC_ALAC
+            bool "ALAC"
+            depends on GMF_AUDIO_MUXER_DEFAULT_TYPE_MP4 || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_CAF
+        config GMF_AUDIO_MUXER_AUDIO_CODEC_OPUS
+            bool "OPUS"
+            depends on GMF_AUDIO_MUXER_DEFAULT_TYPE_OGG || \
+                       GMF_AUDIO_MUXER_DEFAULT_TYPE_AVI
+    endchoice
+
+    choice
+        prompt "Select Muxer Output Type"
+        default GMF_AUDIO_MUXER_OUTPUT_TYPE_STREAMING
+        depends on GMF_AUDIO_MUXER_INIT
+        help
+            Select the output type for muxer:
+            - Streaming: data is output through databus (suitable for TS, FLV and WAV muxers)
+            - File: data is written to file using file writer
+
+        config GMF_AUDIO_MUXER_OUTPUT_TYPE_STREAMING
+            bool "Streaming"
+            help
+                Streaming output mode, data is output through databus
+                Only valid for TS, FLV and WAV muxers
+
+        config GMF_AUDIO_MUXER_OUTPUT_TYPE_FILE
+            bool "File"
+            help
+                File output mode, data is written to file using file writer
+
+    endchoice
+
+    config GMF_AUDIO_MUXER_SLICE_DURATION
+        int "Muxer File Segment Duration (ms)"
+        default 60000
+        range 0 4294967295
+        depends on GMF_AUDIO_MUXER_INIT
+        help
+            Set the muxer file segment duration in milliseconds.
+            When set to 0, the default value will be used.
+            This determines how long each file segment will be before creating a new segment.
+            Valid range: 0-4294967295
+
+endmenu

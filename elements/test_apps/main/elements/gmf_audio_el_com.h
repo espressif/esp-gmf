@@ -99,6 +99,8 @@ void drc_config_callback(esp_gmf_element_handle_t self, void *ctx);
 
 void mbc_config_callback(esp_gmf_element_handle_t self, void *ctx);
 
+void muxer_config_callback(esp_gmf_element_handle_t self, void *ctx);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

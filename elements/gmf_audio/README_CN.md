@@ -10,6 +10,7 @@ ESP GMF Audio 是 GMF 音频处理相关元素的集合，包括音频编码，�
 |:----:| :-----: | :----: | :----: |:----: |:----: |:----: |:----: |:---- |
 |  AUDIO_DEC | aud_dec | 音频解码：MP3,AAC,AMRNB,<br>AMRWB,FLAC,WAV,M4A,<br>TS,OPUS,SBC,LC3,<br>ADPCM,ALAC,G711,VORBIS  | `recfg`<br>`recfg_by_sndinfo` |  单个 |  单个  | 可用户配置，默认是最大延迟 |可用户配置，默认是最大延迟 |否 |
 |  AUDIO_ENC | aud_enc | 音频编码：AAC,AMRNB,AMRWB,<br>ADPCM,OPUS,PCM,ALAC,<br>SBC,LC3,G711  | `get_frame_sz`<br>`set_bitrate`<br>`get_bitrate`<br>`recfg`<br>`recfg_by_sndinfo` |  单个 |  单个  | 可用户配置，默认是最大延迟 |可用户配置，默认是最大延迟 |是 |
+|  AUDIO_MUXER | aud_muxer | 音频复用器：TS,MP4,FLV,<br>WAV,CAF,OGG  | 无 |  单个 |  单个  | 可用户配置，默认是最大延迟 |最大延迟 |是 |
 |  RATE_CVT| aud_rate_cvt | 音频采样率调节  | `set_dest_rate` |  单个 |  单个  |最大延迟 |最大延迟| 是 |
 |  BIT_CVT | aud_bit_cvt | 音频比特位转换  | `set_dest_bits`| 单个 |  单个  |最大延迟 |最大延迟| 是 |
 |  CH_CVT  | aud_ch_cvt | 音频声道数转换   | `set_dest_ch`|  单个 |  单个  |最大延迟 |最大延迟| 是 |

@@ -44,6 +44,11 @@ The GMF Loader is a helper component that allows users to easily customize their
   - Audio Wake Net (WN) element
   - Audio Front End (AFE) element
 
+- Audio Muxer configuration:
+  - Support multiple container formats: TS, MP4, FLV, WAV, CAF, OGG
+  - Support multiple audio codecs: AAC, PCM, MP3, ADPCM, G711A, G711U, AMR-NB, AMR-WB, ALAC, OPUS
+  - Support streaming mode (TS, FLV) and file mode
+
 - Video codec initialization support:
   - Decoders: H264 (SW), MJPEG (SW/HW)
   - Encoders: H264 (SW/HW), MJPEG (SW/HW)
@@ -65,7 +70,7 @@ The GMF Loader is a helper component that allows users to easily customize their
 The configuration options are organized into the following sections:
 
 - GMF IO Configurations: Configure IO readers and writers
-- GMF Audio Configurations: Configure audio codecs, effects, and AI features
+- GMF Audio Configurations: Configure audio codecs, effects, AI features, and Muxer
 - GMF Video Configurations: Configure video codecs and effects
 - GMF Miscellaneous Configurations: Configure misc elements
 
@@ -132,10 +137,27 @@ ESP GMF Loader
 │   │   ├── Dynamic Range Control [N]
 │   │   └── Multi-Band Compressor [N]
 │   │
-│   └── GMF AI Audio
-│       ├── Audio Echo Cancellation (AEC) [Y]
-|       ├── Audio Wake Net (WN) [N]
-│       └── Audio Front End (AFE) [N]
+│   ├── GMF AI Audio
+│   │   ├── Audio Echo Cancellation (AEC) [Y]
+|   │   ├── Audio Wake Net (WN) [N]
+│   │   └── Audio Front End (AFE) [N]
+│   │
+│   └── GMF Audio Muxer [N]
+│       ├── Enable TS Muxer [Y]
+│       ├── Enable MP4 Muxer [N]
+│       ├── Enable FLV Muxer [N]
+│       ├── Enable WAV Muxer [N]
+│       ├── Enable CAF Muxer [N]
+│       ├── Enable OGG Muxer [N]
+│       ├── Select Default Muxer Type
+│       │   └── TS Muxer [Y]
+│       ├── Select Default Audio Codec
+│       │   └── AAC [Y]
+│       ├── Audio Sample Rate (16000)
+│       ├── Audio Channel (1)
+│       ├── Audio Bits Per Sample (16)
+│       ├── Audio Min Packet Duration (10 ms)
+│       └── Enable Streaming Mode [Y]
 │
 │── GMF Video Configurations
 │   ├── GMF Video Codec

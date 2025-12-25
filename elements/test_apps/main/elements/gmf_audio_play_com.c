@@ -103,6 +103,7 @@ void gmf_register_audio_all(esp_gmf_pool_handle_t pool)
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, gmf_loader_setup_io_default(pool));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, gmf_loader_setup_audio_codec_default(pool));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, gmf_loader_setup_audio_effects_default(pool));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, gmf_loader_setup_audio_muxer_default(pool));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, gmf_loader_setup_misc_default(pool));
 }
 
@@ -110,6 +111,7 @@ void gmf_unregister_audio_all(esp_gmf_pool_handle_t pool)
 {
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, gmf_loader_teardown_audio_effects_default(pool));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, gmf_loader_teardown_audio_codec_default(pool));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, gmf_loader_teardown_audio_muxer_default(pool));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, gmf_loader_teardown_io_default(pool));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, gmf_loader_teardown_misc_default(pool));
 }

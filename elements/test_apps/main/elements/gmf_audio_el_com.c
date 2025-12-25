@@ -14,6 +14,7 @@
 #include "esp_gmf_mbc.h"
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_audio_dec.h"
+#include "esp_gmf_audio_muxer.h"
 #include "esp_gmf_audio_param.h"
 #include "esp_gmf_args_desc.h"
 #include "gmf_audio_el_com.h"
@@ -1076,5 +1077,14 @@ void rate_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx)
         } else if (res->is_first_open == false) {
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_rate(self, set_rate));
         }
+    }
+}
+
+void muxer_config_callback(esp_gmf_element_handle_t self, void *ctx)
+{
+    esp_gmf_audio_muxer_cfg_t *cfg = OBJ_GET_CFG(self);
+    if (cfg) {
+        TEST_ASSERT_NOT_EQUAL(ESP_MUXER_TYPE_MAX, cfg->muxer_type);
+        TEST_ASSERT_TRUE(cfg->output_type == ESP_GMF_AUDIO_MUXER_OUTPUT_STREAMING || cfg->output_type == ESP_GMF_AUDIO_MUXER_OUTPUT_FILE);
     }
 }

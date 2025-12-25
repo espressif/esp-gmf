@@ -21,6 +21,7 @@
 #include "esp_gmf_deinterleave.h"
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_audio_dec.h"
+#include "esp_gmf_audio_muxer.h"
 
 #include "esp_gmf_io_embed_flash.h"
 #include "esp_gmf_io_http.h"
@@ -536,6 +537,32 @@ void test_esp_gmf_copier_if()
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
+void test_esp_gmf_audio_muxer_if()
+{
+    esp_gmf_audio_muxer_cfg_t config = {
+        .muxer_type = ESP_MUXER_TYPE_TS,
+        .output_type = ESP_GMF_AUDIO_MUXER_OUTPUT_STREAMING,
+        .url_pattern = NULL,
+        .url_ctx = NULL,
+        .slice_duration = 600000,
+        .codec = ESP_MUXER_ADEC_AAC,
+    };
+    esp_gmf_obj_handle_t handle;
+    // Initialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_audio_muxer_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_audio_muxer_init(NULL, &handle), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_audio_muxer_init(&config, &handle), ESP_GMF_ERR_OK);
+    // Verify configuration after init
+    esp_gmf_audio_muxer_cfg_t *cfg = OBJ_GET_CFG(handle);
+    TEST_ASSERT_NOT_EQUAL(NULL, cfg);
+    TEST_ASSERT_EQUAL(cfg->muxer_type, ESP_MUXER_TYPE_TS);
+    TEST_ASSERT_EQUAL(cfg->output_type, ESP_GMF_AUDIO_MUXER_OUTPUT_STREAMING);
+    TEST_ASSERT_EQUAL(cfg->codec, ESP_MUXER_ADEC_AAC);
+    TEST_ASSERT_EQUAL(cfg->slice_duration, 600000);
+    // Deinitialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+}
+
 TEST_CASE("Test element if check", "[ESP_GMF_IF_CHECK]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
@@ -558,4 +585,5 @@ TEST_CASE("Test element if check", "[ESP_GMF_IF_CHECK]")
     test_esp_gmf_io_http_if();
     test_esp_gmf_io_i2s_if();
     test_esp_gmf_copier_if();
+    test_esp_gmf_audio_muxer_if();
 }

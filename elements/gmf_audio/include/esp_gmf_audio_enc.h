@@ -9,6 +9,7 @@
 
 #include "esp_gmf_err.h"
 #include "esp_gmf_element.h"
+#include "esp_gmf_audio_helper.h"
 #include "encoder/esp_audio_enc.h"
 
 #ifdef __cplusplus
@@ -111,6 +112,22 @@ esp_gmf_err_t esp_gmf_audio_enc_reconfig(esp_gmf_element_handle_t handle, esp_au
  *       - ESP_GMF_ERR_MEMORY_LACK  Failed to allocate memory
  */
 esp_gmf_err_t esp_gmf_audio_enc_reconfig_by_sound_info(esp_gmf_element_handle_t handle, esp_gmf_info_sound_t *info);
+
+/**
+ * @brief  Get the codec specific information of the GMF audio encoder
+ *
+ * @note  This function is typically used to get codec-specific codec specific information (e.g., ALAC magic cookie)
+ *        The codec specific information is available after the encoder is opened
+ *        The returned codec specific information pointer to the internal buffer, which remains valid until the encoder is closed
+ *
+ * @param[in]   handle     Audio encoder handle
+ * @param[out]  spec_info  Pointer to store the codec specific information
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid handle or specific information pointer
+ */
+esp_gmf_err_t esp_gmf_audio_enc_get_spec_info(esp_gmf_element_handle_t handle, esp_gmf_audio_helper_spec_info_t *spec_info);
 
 #ifdef __cplusplus
 }

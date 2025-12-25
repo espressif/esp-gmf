@@ -62,6 +62,7 @@
 #include "esp_gmf_deinterleave.h"
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_audio_dec.h"
+#include "esp_gmf_audio_muxer.h"
 #include "esp_gmf_audio_methods_def.h"
 #include "gmf_audio_el_com.h"
 #include "gmf_audio_play_com.h"
@@ -1305,5 +1306,57 @@ TEST_CASE("Audio DEINTERLEAVE Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, NULL);
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Audio MUXER Element Test", "[ESP_GMF_AUDIO]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+    audio_el_res_cfg_t cfg = DEFAULT_SINGLE_IN_SINGLE_OUT_CONFIG();
+    cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_MUXER};
+    audio_el_res_t *res = NULL;
+    audio_el_res_init(&cfg, &res);
+    res->config_func = muxer_config_callback;
+    // Test different muxer types
+    esp_muxer_type_t muxer_types[] = {ESP_MUXER_TYPE_TS, ESP_MUXER_TYPE_MP4, ESP_MUXER_TYPE_FLV, ESP_MUXER_TYPE_WAV};
+    // Test different output types
+    esp_gmf_audio_muxer_output_type_t output_types[] = {ESP_GMF_AUDIO_MUXER_OUTPUT_STREAMING, ESP_GMF_AUDIO_MUXER_OUTPUT_FILE};
+    // Test for run and stop
+    for (int i = 0; i < sizeof(muxer_types) / sizeof(muxer_types[0]); i++) {
+        for (int j = 0; j < sizeof(output_types) / sizeof(output_types[0]); j++) {
+            audio_el_set_audio_info(res);
+            esp_gmf_audio_muxer_cfg_t *muxer_cfg = OBJ_GET_CFG(res->current_hd[0]);
+            if (muxer_cfg) {
+                muxer_cfg->muxer_type = muxer_types[i];
+                muxer_cfg->output_type = output_types[j];
+                // For file output, we need url_pattern, but for test we skip it
+                if (output_types[j] == ESP_GMF_AUDIO_MUXER_OUTPUT_FILE) {
+                    continue;  // Skip file output test as it requires url_pattern
+                }
+            }
+            test_element_run_stop(res);
+        }
+    }
+    // Test for run and finish
+    audio_el_set_audio_info(res);
+    esp_gmf_audio_muxer_cfg_t *muxer_cfg = OBJ_GET_CFG(res->current_hd[0]);
+    if (muxer_cfg) {
+        muxer_cfg->muxer_type = ESP_MUXER_TYPE_TS;
+        muxer_cfg->output_type = ESP_GMF_AUDIO_MUXER_OUTPUT_STREAMING;
+    }
+    test_element_run_finish(res);
+    // Test for run on process error
+    test_element_run_error_process(res);
+    // Test for run on open error
+    res->config_func = NULL;
+    if (muxer_cfg) {
+        muxer_cfg->muxer_type = ESP_MUXER_TYPE_MAX;  // Invalid muxer type
+    }
+    test_element_run_error_open(res);
+    audio_el_res_deinit(res);
+    // Test for run with multi task
+    cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_MUXER};
+    test_element_run_with_multi_task(&cfg, muxer_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }

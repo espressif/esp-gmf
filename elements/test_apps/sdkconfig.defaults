@@ -229,6 +229,12 @@ CONFIG_GMF_AUDIO_EFFECT_INIT_MBC=y
 # end of GMF Audio Effects
 
 #
+# GMF Audio Muxer
+#
+CONFIG_GMF_AUDIO_MUXER_INIT=y
+# end of GMF Audio Muxer
+
+#
 # GMF AI Audio
 #
 CONFIG_GMF_AI_AUDIO_INIT_AEC=y

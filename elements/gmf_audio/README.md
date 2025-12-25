@@ -10,6 +10,7 @@ ESP GMF Audio is a collection of GMF elements related to audio processing, inclu
 |:----:|:----:|:-----:|:----:|:----:|:----:|:----:|:----:|:----|
 |  AUDIO_DEC |aud_dec |Audio decoder: MP3,AAC,AMRNB,<br>AMRWB,FLAC,WAV,M4A,<br>TS,OPUS,SBC,LC3,<br>ADPCM,ALAC,G711,VORBIS|`recfg`<br>`recfg_by_sndinfo`|Single|Single|User configurable, default value is maximum delay|User configurable, default value is maximum delay|No|
 |  AUDIO_ENC |aud_enc |Audio encoder: AAC,AMRNB,AMRWB,<br>ADPCM,OPUS,PCM,ALAC,<br>SBC,LC3,G711|`get_frame_sz`<br>`set_bitrate`<br>`get_bitrate`<br>`recfg`<br>`recfg_by_sndinfo`|Single|Single|User configurable, default value is maximum delay|User configurable, default value is maximum delay|Yes|
+|  AUDIO_MUXER |aud_muxer |Audio muxer: TS,MP4,FLV,<br>WAV,CAF,OGG|Nil|Single|Single|User configurable, default value is maximum delay|Maximum delay|Yes|
 |  RATE_CVT|aud_rate_cvt |Audio sampling rate adjustment|`set_dest_rate`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  BIT_CVT |aud_bit_cvt |Audio bit-depth conversion|`set_dest_bits`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  CH_CVT  |aud_ch_cvt |Audio channel conversion|`set_dest_ch`|Single|Single|Maximum delay|Maximum delay|Yes|
