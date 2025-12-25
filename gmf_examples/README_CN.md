@@ -14,6 +14,7 @@ ESP GMF Examples 是一个汇集了 GMF 相关 example 的组件，其主要目�
 | [pipeline_play_sdcard_music](./basic_examples/pipeline_play_sdcard_music) | 播放 SD 卡音乐 | 本地音乐播放、从存储卡选曲 | SD 卡、Audio DAC、扬声器 |
 | [pipeline_play_http_music](./basic_examples/pipeline_play_http_music) | 播放 HTTP/网络音乐（在线流式，不支持 m3u8） | 网络音乐播放、在线流媒体 | Wi-Fi、Audio DAC、扬声器 |
 | [pipeline_record_sdcard](./basic_examples/pipeline_record_sdcard) | 音频录制编码后保存到 SD 卡 | 低功耗录音笔、离线语音记录 | 麦克风、Audio ADC、SD 卡 |
+| [pipeline_record_audio_muxer](./basic_examples/pipeline_record_audio_muxer) | 编码后由 muxer 封装为多种容器格式并保存到 SD 卡 | 带封装本地录音、会议记录、MP4/TS 等 | 麦克风、Audio ADC、SD 卡 |
 | [pipeline_http_download_to_sdcard](./basic_examples/pipeline_http_download_to_sdcard) | 下载 HTTP 文件并写入 SD 卡（整体速度优化） | 固件/音频下载、离线缓存、下载测速 | Wi-Fi、SD 卡 |
 | [pipeline_record_http](./basic_examples/pipeline_record_http) | 麦克风录制并编码上传 HTTP 服务器 | 语音上传、在线录音、推流到服务端 | 麦克风、Audio ADC、Wi-Fi |
 | [pipeline_audio_effects](./basic_examples/pipeline_audio_effects) | 播放音频并施加多种特效与混音 | 音效模拟、EQ/DRC、多路混音 | Audio DAC、扬声器 |

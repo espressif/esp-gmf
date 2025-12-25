@@ -14,6 +14,7 @@ ESP GMF Examples is a component that collects GMF-related examples, mainly desig
 | [pipeline_play_sdcard_music](./basic_examples/pipeline_play_sdcard_music) | Play SD card music | Local music playback, play from storage card | SD card, Audio DAC, speaker |
 | [pipeline_play_http_music](./basic_examples/pipeline_play_http_music) | Play HTTP/network music (online streaming, no m3u8) | Network music playback, online streaming | Wi-Fi, Audio DAC, speaker |
 | [pipeline_record_sdcard](./basic_examples/pipeline_record_sdcard) | Record and encode audio to SD card | Low-power voice recorder, offline voice recording | Microphone, Audio ADC, SD card |
+| [pipeline_record_audio_muxer](./basic_examples/pipeline_record_audio_muxer) | Encode audio and mux into container formats, save to SD card | Local recording with container packaging, meeting notes, MP4/TS, etc. | Microphone, Audio ADC, SD card |
 | [pipeline_http_download_to_sdcard](./basic_examples/pipeline_http_download_to_sdcard) | Download HTTP file and write to SD card (with overall speed optimization) | Firmware/audio download, offline cache, download speed test | Wi-Fi, SD card |
 | [pipeline_record_http](./basic_examples/pipeline_record_http) | Record from mic, encode and upload to HTTP server | Voice upload, online recording, stream to server | Microphone, Audio ADC, Wi-Fi |
 | [pipeline_audio_effects](./basic_examples/pipeline_audio_effects) | Play audio with various effects and mixing | Effect simulation, EQ/DRC, multi-channel mixing | Audio DAC, speaker |

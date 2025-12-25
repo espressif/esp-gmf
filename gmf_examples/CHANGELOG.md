@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added `pipeline_record_audio_muxer` example for recording encoded audio with muxer container output to microSD card
+
 ## v0.8.0
 
 ### Features
