@@ -2,7 +2,8 @@
 # This file shows the default values used by the I2C peripheral parser
 # Based on periph_i2c.py parsing script
 
-i2c-0:
+- name: i2c_master
+  type: i2c
   config:
     # I2C port number (default: -1 for auto selection)
     port: -1
@@ -13,9 +14,9 @@ i2c-0:
     # I2C pins configuration
     pins:
       # SDA pin (default: -1, not set)
-      sda: -1
+      sda: -1                     # [IO] SDA pin
       # SCL pin (default: -1, not set)
-      scl: -1
+      scl: -1                     # [IO] SCL pin
 
     # Enable internal pullup resistors (default: true)
     enable_internal_pullup: true

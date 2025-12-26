@@ -17,7 +17,7 @@
     debug_mode: false            # Enable debug mode
   peripherals:                   # Optional: List of used peripherals
     - name: i2c_master           # I2C peripheral for communication
-    - name: gpio_pa_control      # GPIO peripheral for control
+    - name: gpio                 # GPIO peripheral for control
   dependencies:                  # Optional: Component dependencies
     esp_driver_i2c:
       require: public
@@ -42,7 +42,7 @@
     enable_feedback: true        # Enable position feedback
   peripherals:                   # Optional: List of used peripherals
     - name: i2s_audio_out        # I2S peripheral for control
-    - name: gpio_pa_control      # GPIO peripheral for feedback
+    - name: gpio                 # GPIO peripheral for feedback
   dependencies:                  # Optional: Component dependencies
     esp_driver_ledc:
       require: public
@@ -77,5 +77,5 @@
     # Peripheral configuration
     peripherals:
       - name: i2c_master               # I2C peripheral for communication
-      - name: gpio-2                   # GPIO for interrupt
+      - name: gpio                     # GPIO for interrupt
 

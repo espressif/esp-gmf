@@ -3,24 +3,23 @@
 # Based on periph_dac.py parsing script
 
 # DAC oneshot mode example
-dac-oneshot-0:
+- name: dac_oneshot
+  type: dac
+  role: oneshot
   config:
-    # DAC role type, must be oneshot, continuous or cosine
-    role: oneshot
-
     # DAC channel number (default: 0)
-    channel: 0
+    channel: 0                       # [TO_BE_CONFIRMED] DAC channel number
     # Valid values: 0, 1
     # Channel 0: GPIO25 on ESP32, GPIO17 on ESP32S2
     # Channel 1: GPIO26 on ESP32, GPIO18 on ESP32S2
 
 # DAC continuous mode example
-dac-continuous-0:
+- name: dac_continuous
+  type: dac
+  role: continuous
   config:
-    role: continuous
-
     # DAC channels' mask (default: DAC_CHANNEL_MASK_CH0)
-    chan_mask: DAC_CHANNEL_MASK_CH0
+    chan_mask: DAC_CHANNEL_MASK_CH0  # [TO_BE_CONFIRMED] DAC channels' mask
     # Valid values:
     # - DAC_CHANNEL_MASK_CH0
     # - DAC_CHANNEL_MASK_CH1
@@ -35,7 +34,7 @@ dac-continuous-0:
     # Should be within 32~4092 bytes, typically multiple of 4
 
     # DAC conversion frequency (default: 1000000 Hz)
-    freq_hz: 1000000
+    freq_hz: 1000000                 # [TO_BE_CONFIRMED] DAC conversion frequency
     # Range depends on target and clock source
 
     # Data offset (default: 0)
@@ -61,18 +60,18 @@ dac-continuous-0:
     # - DAC_CHANNEL_MODE_ALTER
 
 # DAC cosine mode example
-dac-cosine-0:
+- name: dac_cosine
+  type: dac
+  role: cosine
   config:
-    role: cosine
-
     # DAC channel number (default: 0)
-    channel: 0
+    channel: 0                       # [TO_BE_CONFIRMED] DAC channel number
     # Valid values: 0, 1
     # On ESP32: Channel 0: GPIO25, Channel 1: GPIO26
     # On ESP32S2: Channel 0: GPIO17, Channel 1: GPIO18
 
     # Cosine wave frequency (default: 1000 Hz)
-    freq_hz: 1000
+    freq_hz: 1000                    # [TO_BE_CONFIRMED] Cosine wave frequency
 
     # Clock source (default: DAC_COSINE_CLK_SRC_DEFAULT)
     # Valid values depend on the selected chip,

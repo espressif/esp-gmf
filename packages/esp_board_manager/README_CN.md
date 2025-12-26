@@ -343,6 +343,11 @@ idf.py gen-bmgr-config -b my_board -c /path/to/custom/boards
 # 清理生成的文件
 idf.py gen-bmgr-config -x
 
+# 在默认路径创建板子(默认路径为 {PROJECT_ROOT}/components/<board_name>):
+idf.py gen-bmgr-config -n <board_name>
+
+# 在自定义路径创建板子:
+idf.py gen-bmgr-config -n path/to/board/<board_name>
 ...
 ```
 

@@ -2,11 +2,12 @@
 # This file shows the default values used by the PCNT peripheral parser
 # Based on periph_pcnt.py parsing script
 
-- pcnt_unit:
+- name: pcnt_unit
+  type: pcnt
   config:
     unit_config:
-      low_limit: -100  # Low count limit (should be lower than 0 and should not less than 'PCNT_LL_MIN_LIM')
-      high_limit: 100  # High count limit (should be higher than 0 and should not exceed 'PCNT_LL_MAX_LIM')
+      low_limit: -100  # [TO_BE_CONFIRMED] Low count limit (should be lower than 0 and should not less than 'PCNT_LL_MIN_LIM')
+      high_limit: 100  # [TO_BE_CONFIRMED] High count limit (should be higher than 0 and should not exceed 'PCNT_LL_MAX_LIM')
       intr_priority: 0  # PCNT interrupt priority,
                         # if set to 0, the driver will try to allocate an interrupt with a relative low priority (1,2,3)
 
@@ -22,23 +23,23 @@
     filter_config:
       max_glitch_ns: 1000  # Pulse width smaller than this threshold will be treated as glitch and ignored, in the unit of ns
 
-    channel_count: 2  # Number of PCNT channels to configure, should be less than SOC_PCNT_CHANNELS_PER_UNIT
+    channel_count: 2  # [TO_BE_CONFIRMED] Number of PCNT channels to configure, should be less than SOC_PCNT_CHANNELS_PER_UNIT
     # Configuration for each PCNT channel
     channel_list:
       # Channel 0 configuration
       - channel: 0
         channel_config:
-          edge_gpio_num: -1  # GPIO number used by the edge signal, input mode with pull up enabled. Set to -1 if unused
-          level_gpio_num: -1  # GPIO number used by the level signal, input mode with pull up enabled. Set to -1 if unused
+          edge_gpio_num: -1   # [IO] GPIO number used by the edge signal, input mode with pull up enabled. Set to -1 if unused
+          level_gpio_num: -1  # [IO] GPIO number used by the level signal, input mode with pull up enabled. Set to -1 if unused
           flags:
             invert_edge_input: false  # Invert the input edge signal
             invert_level_input: false  # Invert the input level signal
             virt_edge_io_level: 0  # Virtual edge IO level, 0: low, 1: high. Only valid when edge_gpio_num is set to -1
             virt_level_io_level: 0  # Virtual level IO level, 0: low, 1: high. Only valid when level_gpio_num is set to -1
             io_loop_back: false  # For debug/test, the signal output from the GPIO will be fed to the input path as well.
-                                              # Note that this flag is deprecated, will be removed in IDF v6.0.
-                                              # Instead, you can configure the output mode by calling gpio_config() first, and then do PCNT channel configuration.
-                                              # Necessary configurations for the IO to be used as the PCNT input will be appended.
+                                 # Note that this flag is deprecated, will be removed in IDF v6.0.
+                                 # Instead, you can configure the output mode by calling gpio_config() first, and then do PCNT channel configuration.
+                                 # Necessary configurations for the IO to be used as the PCNT input will be appended.
 
         # Edge actions for pcnt channel
         pos_act: PCNT_CHANNEL_EDGE_ACTION_DECREASE
@@ -59,8 +60,8 @@
       # Channel 1 configuration
       - channel: 1
         channel_config:
-          edge_gpio_num: 38
-          level_gpio_num: 37
+          edge_gpio_num: 38          # [IO] GPIO number used by the edge signal
+          level_gpio_num: 37         # [IO] GPIO number used by the level signal
           flags:
             invert_edge_input: false
             invert_level_input: false

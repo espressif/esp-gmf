@@ -24,7 +24,7 @@
       dc_gpio_num: -1                   # GPIO pin for Data/Command (default: -1)
       spi_mode: 0                       # Traditional SPI mode (0~3) (default: 0)
       pclk_hz: 40000000                 # Frequency of pixel clock (default: 40MHz)
-      trans_queue_depth: 2              # Size of internal transaction queue (default: 2)
+      trans_queue_depth: 1              # Size of internal transaction queue (default: 1)
       lcd_cmd_bits: 8                   # Bit-width of LCD command (default: 8)
       lcd_param_bits: 8                 # Bit-width of LCD parameter (default: 8)
       cs_ena_pretrans: 0                # CS pre-transmission cycles (default: 0)
@@ -74,7 +74,7 @@
       dc_gpio_num: -1
       spi_mode: 0
       pclk_hz: 40000000
-      trans_queue_depth: 2
+      trans_queue_depth: 1
       lcd_cmd_bits: 8
       lcd_param_bits: 8
       cs_ena_pretrans: 0

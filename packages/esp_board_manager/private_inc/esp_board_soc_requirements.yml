@@ -1,0 +1,34 @@
+# This file contains macro definitions for chip capabilities corresponding to devices and peripherals.
+devices:
+  - audio_codec: SOC_I2C_SUPPORTED, SOC_I2S_SUPPORTED
+  - button_adc_single: SOC_ADC_SUPPORTED
+  - button_adc_multi: SOC_ADC_SUPPORTED
+  - camera_csi: SOC_MIPI_CSI_SUPPORTED, SOC_I2C_SUPPORTED
+  - camera_dvp: SOC_LCDCAM_CAM_SUPPORTED, SOC_I2C_SUPPORTED
+  - display_lcd_dsi: SOC_MIPI_DSI_SUPPORTED
+  - fs_fat_sdmmc: SOC_SDMMC_HOST_SUPPORTED
+  - gpio_expander: SOC_I2C_SUPPORTED
+  - lcd_touch_i2c: SOC_I2C_SUPPORTED
+  - ledc_ctrl: SOC_LEDC_SUPPORTED
+
+peripherals:
+  - adc_continuous: SOC_ADC_SUPPORTED
+  - adc_oneshot: SOC_ADC_SUPPORTED
+  - anacmpr: SOC_ANA_CMPR_SUPPORTED
+  - dac_continuous: SOC_DAC_SUPPORTED
+  - dac_cosine: SOC_DAC_SUPPORTED
+  - dac_oneshot: SOC_DAC_SUPPORTED
+  - dsi: SOC_MIPI_DSI_SUPPORTED
+  - i2c: SOC_I2C_SUPPORTED
+  - i2s_master_pdm-in: SOC_I2S_SUPPORTS_PDM_RX
+  - i2s_master_pdm-out: SOC_I2S_SUPPORTS_PDM_TX
+  - i2s_master_std: SOC_I2S_SUPPORTED
+  - i2s_master_tdm: SOC_I2S_SUPPORTS_TDM
+  - ldo: SOC_GP_LDO_SUPPORTED
+  - ledc: SOC_LEDC_SUPPORTED
+  - mcpwm: SOC_MCPWM_SUPPORTED
+  - pcnt: SOC_PCNT_SUPPORTED
+  - rmt_rx: SOC_RMT_SUPPORTED
+  - rmt_tx: SOC_RMT_SUPPORTED
+  - sdm: SOC_SDM_SUPPORTED
+  - uart: SOC_UART_SUPPORTED

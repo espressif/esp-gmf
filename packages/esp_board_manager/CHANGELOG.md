@@ -7,6 +7,20 @@
 - Changed board defaults to use `board_manager.defaults` file instead of appending to `sdkconfig.defaults`. Board-specific configurations are now automatically applied via `SDKCONFIG_DEFAULTS` environment variable during build/menuconfig/reconfigure.
 - Changed backup file from `sdkconfig.bmgr_board.backup` to `sdkconfig.bmgr_board.old`
 
+## New Script
+
+- Add a new script `create_board.py` to simplify the process of creating a new board.
+  This script simplifies the process of copying configurations from different peripheral and device directories when users add new boards, provides an interactive new board creation process, allowing sequential selection of chip, device, and peripherals. After passing the peripheral dependency check, the script automatically creates four configuration files required for the board.
+  - Usage:
+    ```python
+    # Create a new board in default path: components/<board_name>
+    idf.py gen-bmgr-config -n <board_name>
+
+    # Create a new board in specific path:
+    idf.py gen-bmgr-config -n path/to/board/<board_name>
+    ```
+  - Note: It is recommended not to run create_board.py directly as there may be path issues.
+
 ### Features
 - Added prebuild script for convenient compilation
 - Added global callback to auto-inject board defaults via SDKCONFIG_DEFAULTS mechanism
@@ -17,7 +31,7 @@
 - Added support for IDF v6.x (trial version)
   - Added adapter for periph_i2s
   - Added warning for periph_rmt, periph_pcnt, periph_mcpwm, dev_display_lcd_sub_dsi (not supported by IDF v6.x yet)
-- Refine sub device support for dev_button, splitting the sub_type adc into adc_single and adc_multi
+- Refine sub device support for dev_button, splitting the sub_type `adc` into `adc_single` and `adc_multi`, splitting the `multi_click` configuration into `multi_click` and `click_counts`. Keep the enabling of `multi_click` and the specific number of clicks as two separate configuration items, consistent with the configuration approach used for `long_press_start` and `long_press_up`
 - Modify CMakeLists.txt to fix the driver/xxx.h header file undecleared issue in IDF v6.x
 - Renamed `apply_board_sdkconfig_defaults` to `generate_board_manager_defaults` for clarity
 - Removed legacy methods for sdkconfig.defaults manipulation

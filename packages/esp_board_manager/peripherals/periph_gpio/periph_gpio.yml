@@ -2,13 +2,14 @@
 # This file shows the default values used by the GPIO peripheral parser
 # Based on periph_gpio.py parsing script
 
-gpio-0:
+- name: gpio
+  type: gpio
   config:
     # GPIO pin number (required, no default - must be >= 0)
-    pin: 0
+    pin: 0                   # [IO] GPIO pin number
 
     # GPIO mode (default: GPIO_MODE_INPUT)
-    mode: "GPIO_MODE_INPUT"
+    mode: "GPIO_MODE_INPUT"  # [TO_BE_CONFIRMED] GPIO mode
     # Valid modes:
     # - GPIO_MODE_INPUT
     # - GPIO_MODE_OUTPUT

@@ -42,7 +42,9 @@ def parse(name, config, peripherals_dict=None):
         # Get peripherals from device_config
         peripherals = device_config.get('peripherals', [])
         if not peripherals:
-            raise ValueError(f"GPIO power control device '{name}' missing required field 'peripherals'")
+            peripherals = config.get('peripherals', [])
+            if not peripherals:
+                raise ValueError(f"GPIO power control device '{name}' missing required field 'peripherals'")
 
         # Find the GPIO peripheral
         gpio_peripheral = None

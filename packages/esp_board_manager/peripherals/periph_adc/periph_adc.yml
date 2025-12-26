@@ -5,14 +5,13 @@
 # -----------------------------------------------------------------------------
 # CONTINUOUS MODE (role: continuous)
 # -----------------------------------------------------------------------------
-adc-continuous:
-  # Peripheral role must be either 'continuous' or 'oneshot'.
+- name: adc_continuous
+  type: adc
   role: continuous
-
   config:
     # ADC unit, optional values are ADC_UNIT_1 and ADC_UNIT_2, should be less than 'SOC_ADC_PERIPH_NUM'
     # please check the 'SOC_ADC_PERIPH_NUM' in 'soc/soc_caps.h' for the valid values
-    unit_id: ADC_UNIT_1
+    unit_id: ADC_UNIT_1  # [TO_BE_CONFIRMED] ADC unit ID
 
     # ADC attenuation. Different parameters determine the range of the ADC. (default: ADC_ATTEN_DB_0)
     atten: ADC_ATTEN_DB_0
@@ -66,19 +65,19 @@ adc-continuous:
 
     # List of configs for each ADC channel that will be used
     # Use adc_continuous_io_to_channel() and adc_continuous_channel_to_io() to get the corresponding relationship between ADC channels and ADC IO.
-    channel_id: [4]
+    channel_id: [4]  # [TO_BE_CONFIRMED] ADC channel ID(s)
 
 
 # -----------------------------------------------------------------------------
 # ONE-SHOT MODE (role: oneshot)
 # -----------------------------------------------------------------------------
-adc-oneshot:
+- name: adc_oneshot
+  type: adc
   role: oneshot
-
   config:
     # ADC unit, optional values are ADC_UNIT_1 and ADC_UNIT_2, should be less than 'SOC_ADC_PERIPH_NUM'
     # please check the 'SOC_ADC_PERIPH_NUM' in 'soc/soc_caps.h' for the valid values
-    unit_id: ADC_UNIT_1
+    unit_id: ADC_UNIT_1  # [TO_BE_CONFIRMED] ADC unit ID
 
     # ADC attenuation. Different parameters determine the range of the ADC. (default: ADC_ATTEN_DB_0)
     atten: ADC_ATTEN_DB_0
@@ -101,7 +100,7 @@ adc-oneshot:
 
     # ADC channel to be used.
     # Use adc_oneshot_io_to_channel() and adc_oneshot_channel_to_io() to get the corresponding relationship between ADC channels and ADC IO.
-    channel_id: 4
+    channel_id: 4                      # [TO_BE_CONFIRMED] ADC channel ID
 
     # Clock source for ADC module.
     # Please refer to soc/clk_tree_defs.h, see 'soc_periph_adc_digi_clk_src_t' for valid values

@@ -48,7 +48,7 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
         'press_up': int(events_config.get('press_up', True)),
         'single_click': int(events_config.get('single_click', True)),
         'double_click': int(events_config.get('double_click', True)),
-        'multi_click': int(True if events_config.get('multi_click') else False),  # tentative enable if present
+        'multi_click': int(events_config.get('multi_click', False)),
         'long_press_start': int(events_config.get('long_press_start', True)),
         'long_press_hold': int(events_config.get('long_press_hold', False)),
         'long_press_up': int(events_config.get('long_press_up', True)),
@@ -65,7 +65,7 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
     extra_configs = []
     if enabled_events['multi_click'] == 1:
         # Handle multi_click array
-        multi_click_value = events_config.get('multi_click')
+        multi_click_value = events_config.get('click_counts')
         if multi_click_value is not None and isinstance(multi_click_value, list):
             multi_click_counts = []
             multi_click_counts = [int(x) for x in multi_click_value]

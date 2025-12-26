@@ -340,6 +340,11 @@ idf.py gen-bmgr-config -b my_board -c /path/to/custom/boards
 # Clean generated files
 idf.py gen-bmgr-config -x
 
+# Create the board configuration files at the default path (default path is {PROJECT_ROOT}/components/<board_name>):
+idf.py gen-bmgr-config -n <board_name>
+
+# Create the board configuration files at a custom path:
+idf.py gen-bmgr-config -n path/to/board/<board_name>
 ...
 ```
 

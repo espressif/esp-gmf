@@ -8,17 +8,17 @@
   config:
     # LDO (Low-Dropout Regulator) configuration for power management
     ldo_cfg:
-      # This is an hardware-specific configuration, please your SoC's datasheet for valid LDO channel IDs
+      # This is an hardware-specific configuration, please refer your SoC's datasheet for valid LDO channel IDs
       # You must specify a LDO channel ID manually, based on your board schematic.
       # e.g. For ESP32_P4, the valid values for chan_id are 1-4,
       # where channel 1 and channel 2 are respectively used for powering the internal Flash and PSRAM,
       # channels 3 and 4 can be used to power external devices
       # In P4 Function-EV Board, channel 3 is used for powering the MIPI phy
-      chan_id: 3
+      chan_id: 3                     # [TO_BE_CONFIRMED] LDO channel ID
 
       # Output voltage in millivolts (default: 2500 for 2.5V)
       # Common values: equal to 3300 or between 500 to 2700, depending on device requirements
-      voltage_mv: 2500
+      voltage_mv: 2500                # [TO_BE_CONFIRMED] Output voltage in millivolts
 
       # Whether voltage is adjustable (default: 1 for true)
       # Valid values: 0 (fixed), 1 (adjustable)

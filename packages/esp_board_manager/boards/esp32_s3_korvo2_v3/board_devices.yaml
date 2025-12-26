@@ -181,5 +181,5 @@ devices:
       voltage_range: [380, 820, 1110, 1650, 1980, 2410]
       button_labels: ["VOLUME_UP", "VOLUME_DOWN", "SET", "PLAY", "MUTE", "REC"]
     peripherals:
-    - name: adc_button
+    - name: adc_oneshot
 
