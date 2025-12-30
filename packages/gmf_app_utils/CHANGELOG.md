@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.7.8
+
+### Features
+
+- Updated `esp_board_manager` to version v0.5.0
+- Removed obsolete config `Target Board` (breaking change)
+
 ## v0.7.7
 
 ### Bug Fixes

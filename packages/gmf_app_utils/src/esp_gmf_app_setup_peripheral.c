@@ -15,6 +15,8 @@
 #include "esp_gmf_app_setup_peripheral.h"
 #include "esp_codec_dev.h"
 
+static const char *TAG = "GMF_APP_UTILS_SETUP_PERIPH";
+
 #define SETUP_AUDIO_FORCED_CHANNELS 2
 #define DEFAULT_VOLUME              60.0
 #define DEFAULT_IN_GAIN             30.0
@@ -39,12 +41,13 @@ static void setup_create_codec_dev(esp_gmf_app_codec_info_t *codec_info)
             .channel = codec_info->record_info.channel,
             .bits_per_sample = codec_info->record_info.bits_per_sample,
         };
-#ifdef CONFIG_ESP32_LYRAT_MINI_V1_BOARD
+#ifdef CONFIG_BOARD_LYRAT_MINI_V1_1
         if (fs.channel == 1) {
             fs.channel = SETUP_AUDIO_FORCED_CHANNELS;
             fs.channel_mask = SETUP_AUDIO_FORCED_CHANNELS;
         }
-#endif  /* CONFIG_ESP32_LYRAT_MINI_V1_BOARD */
+        ESP_LOGW(TAG, "Forcing channel and channel mask for LyraT-Mini hardware compatibility");
+#endif  /* CONFIG_BOARD_LYRAT_MINI_V1_1 */
         esp_codec_dev_open(record_handle, &fs);
     }
 }
