@@ -136,8 +136,8 @@ ESP Board Manager 能够模块化自定义板子，支持将自定义板子文�
 `sdkconfig.defaults.board` 文件用于定义板子的默认 SDK 配置。
 
    - 在板子目录中创建 `sdkconfig.defaults.board` 文件来定义板子特定的 SDK 配置默认值
-   - 切换到此板子时，脚本会自动将这些设置**追加**到项目的 `sdkconfig.defaults` 文件中
-   - 这样可以确保板子特定的配置在 ESP-IDF 构建系统的各种操作（menuconfig、reconfigure 等）中都不会丢失
+   - 切换到此板子时，脚本会自动将这些设置**写入**到项目根目录的 `board_manager.defaults` 文件中
+   - 这样可以确保板子特定的配置在 ESP-IDF 构建系统的各种操作（menuconfig、reconfigure 等）中通过 `SDKCONFIG_DEFAULTS` 环境变量自动应用
 
    示例：
    ```bash
@@ -150,12 +150,13 @@ ESP Board Manager 能够模块化自定义板子，支持将自定义板子文�
      - `CONFIG_XXX=y` 启用
      - `CONFIG_XXX=n` 或 `# CONFIG_XXX is not set` 禁用
      - `CONFIG_XXX="value"` 字符串值
-   - 切换板子时，`sdkconfig.defaults` 中之前的板子特定设置会自动被替换
+   - 切换板子时，`board_manager.defaults` 文件会被重新生成，包含新板子的配置
 
    配置优先级：
 1. `sdkconfig`（用户当前配置）
-2. `sdkconfig.defaults`（项目默认值 + 追加的板子配置）
-3. 组件默认值
+2. `sdkconfig.defaults`（项目默认值）
+3. `board_manager.defaults`（板子特定配置，优先级高于 sdkconfig.defaults）
+4. 组件自己的默认值
 
 ### 5. `board` 目录中自定义代码的说明
 

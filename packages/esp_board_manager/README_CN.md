@@ -391,7 +391,7 @@ ESP Board Manager 使用 `gen_bmgr_config_codes.py` 进行代码生成，它在�
 7. **项目 sdkconfig 配置**: 根据板子设备和外设类型更新项目 sdkconfig
 8. **文件生成**: 在工程文件夹的 `components/gen_bmgr_codes/` 中创建所有必要的 C 配置和句柄文件
 
-**⚠️ 重要提示：** 切换板子时，脚本会在第 1 步中自动备份并删除现有的 `sdkconfig` 文件以防止配置污染（`--kconfig-only` 时跳过）。
+**⚠️ 重要提示：** 切换板子时，脚本会在第 1 步中自动备份并删除现有的 `sdkconfig` 文件。这是为了防止旧板子的配置残留影响新板子的配置（例如不同芯片的 CONFIG_IDF_TARGET、不同板子的设备配置等）。备份文件为 `sdkconfig.bmgr_board.old`，如需恢复可重命名回 `sdkconfig`（`--kconfig-only` 时跳过此操作）。
 
 ## 自定义板子
 
@@ -432,8 +432,9 @@ ESP Board Manager 的未来开发计划（优先级从高到低）：
 
 **重要提示**：切换板子时，脚本会自动：
 
-1. 将 `sdkconfig` 备份到 `sdkconfig.bmgr_board.backup` 并删除原文件，以防止配置污染
-2. 将板子特定配置从 `boards/<board_name>/sdkconfig.defaults.board` 追加到您项目的 `sdkconfig.defaults`
+1. 将 `sdkconfig` 备份到 `sdkconfig.bmgr_board.old` 并删除原文件，以防止旧板子的配置残留（例如不同芯片的 CONFIG_IDF_TARGET、不同板子的设备使能配置等）影响新板子
+2. 根据 `boards/<board_name>/sdkconfig.defaults.board` 生成 `board_manager.defaults` 文件，包含板子特定配置
+3. 配置会在 build/menuconfig/reconfigure 时通过 `SDKCONFIG_DEFAULTS` 环境变量自动应用
 
 切换板子时请始终使用 `idf.py gen-bmgr-config -b`（或 `python gen_bmgr_config_codes.py`）。使用 `idf.py menuconfig` 可能导致依赖错误。
 

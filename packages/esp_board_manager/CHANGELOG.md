@@ -2,8 +2,15 @@
 
 ## Unreleased
 
+### ⚠️ Important Changes
+
+- Changed board defaults to use `board_manager.defaults` file instead of appending to `sdkconfig.defaults`. Board-specific configurations are now automatically applied via `SDKCONFIG_DEFAULTS` environment variable during build/menuconfig/reconfigure.
+- Changed backup file from `sdkconfig.bmgr_board.backup` to `sdkconfig.bmgr_board.old`
+
 ### Features
 - Added prebuild script for convenient compilation
+- Added global callback to auto-inject board defaults via SDKCONFIG_DEFAULTS mechanism
+- Supported `-D SDKCONFIG_DEFAULTS=xxx` parameter with automatic merging
 
 ### Modifications
 
@@ -12,6 +19,8 @@
   - Added warning for periph_rmt, periph_pcnt, periph_mcpwm, dev_display_lcd_sub_dsi (not supported by IDF v6.x yet)
 - Refine sub device support for dev_button, splitting the sub_type adc into adc_single and adc_multi
 - Modify CMakeLists.txt to fix the driver/xxx.h header file undecleared issue in IDF v6.x
+- Renamed `apply_board_sdkconfig_defaults` to `generate_board_manager_defaults` for clarity
+- Removed legacy methods for sdkconfig.defaults manipulation
 
 ### Bug Fixes
 

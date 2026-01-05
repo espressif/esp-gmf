@@ -46,7 +46,7 @@ class SDKConfigManager(LoggerMixin):
 
         This function only manages device/peripheral support configurations.
         Board selection (CONFIG_BOARD_XXX) and chip target (CONFIG_IDF_TARGET)
-        are managed by apply_board_sdkconfig_defaults() in sdkconfig.defaults file.
+        are managed by generate_board_manager_defaults() in board_manager.defaults file.
 
         Args:
             device_types: Set of device types from board YAML
@@ -432,23 +432,30 @@ class SDKConfigManager(LoggerMixin):
             # Log warning but don't fail the operation
             self.logger.warning(f'⚠️  Failed to delete build/config/sdkconfig.json: {e}')
 
-    def apply_board_sdkconfig_defaults(self, board_path: str, project_path: Optional[str] = None,
-                                       board_name: Optional[str] = None, chip_name: Optional[str] = None) -> Dict[str, List[str]]:
+    def generate_board_manager_defaults(self, board_path: str, project_path: Optional[str] = None,
+                                        board_name: Optional[str] = None, chip_name: Optional[str] = None,
+                                        output_file: Optional[str] = None) -> Dict[str, List[str]]:
         """
-        Apply board-specific sdkconfig defaults by appending to project's sdkconfig.defaults file.
+        Generate board_manager.defaults file with board-specific configurations.
 
-        This ensures board-specific configs persist across ESP-IDF build system regenerations,
-        as sdkconfig.defaults is always read by the build system, while direct sdkconfig modifications
-        can be overwritten during menuconfig or reconfigure operations.
+        This file will be automatically applied via SDKCONFIG_DEFAULTS environment variable
+        during build/menuconfig/reconfigure by the global callback in idf_ext.py.
+
+        The generated file includes:
+        - CONFIG_IDF_TARGET: chip name
+        - CONFIG_BOARD_XXX: board selection macro
+        - CONFIG_BOARD_NAME: board name string
+        - Content from board's sdkconfig.defaults.board file (if exists)
 
         Args:
             board_path: Path to the board directory
             project_path: Path to the project directory (auto-detect if None)
             board_name: Board name for CONFIG_BOARD_XXX selection (optional)
             chip_name: Chip name for CONFIG_IDF_TARGET (optional)
+            output_file: Path to output file (board_manager.defaults)
 
         Returns:
-            Dict with 'updated' and 'added' lists of config items
+            Dict with 'added' list of config items count
         """
         result = {'updated': [], 'added': []}
 
@@ -456,37 +463,23 @@ class SDKConfigManager(LoggerMixin):
         if board_name is None:
             board_name = Path(board_path).name
 
-        project_path = self._get_project_path(project_path)
-        existing_content, sdkconfig_defaults_path = self._read_sdkconfig_defaults(project_path)
-        if existing_content is None:
-            return result
-        if not sdkconfig_defaults_path.exists():
-            self.logger.info(f'   sdkconfig.defaults not found, will create it')
-
-        # Remove old board-specific section if exists
-        existing_content = self._remove_board_section(existing_content)
-
-        # Build new board-specific section
+        # Build board-specific section content
         marker_start = '# --- Board-specific configuration (managed by esp_board_manager) ---'
         marker_end = '# --- End of board-specific configuration ---'
 
-        new_content = existing_content.rstrip()
-        if new_content:
-            new_content += '\n\n'
-
-        new_content += f'{marker_start}\n'
-        new_content += f'# Board: {board_name}\n'
+        board_section_content = f'{marker_start}\n'
+        board_section_content += f'# Board: {board_name}\n'
 
         # Add chip target config if provided
         config_count = 0
         if chip_name:
-            new_content += f'CONFIG_IDF_TARGET="{chip_name}"\n'
+            board_section_content += f'CONFIG_IDF_TARGET="{chip_name}"\n'
             config_count += 1
 
         # Add board selection configs
         board_config_macro = f'CONFIG_BOARD_{board_name.upper().replace("-", "_")}'
-        new_content += f'{board_config_macro}=y\n'
-        new_content += f'CONFIG_BOARD_NAME="{board_name}"\n'
+        board_section_content += f'{board_config_macro}=y\n'
+        board_section_content += f'CONFIG_BOARD_NAME="{board_name}"\n'
         config_count += 2  # Board selection + board name
 
         # Check if sdkconfig.defaults.board file exists and add its content
@@ -497,7 +490,7 @@ class SDKConfigManager(LoggerMixin):
                 with open(board_defaults_path, 'r', encoding='utf-8') as f:
                     board_defaults_content = f.read().strip()
                 if board_defaults_content:
-                    new_content += f'\n{board_defaults_content}\n'
+                    board_section_content += f'\n{board_defaults_content}\n'
                     config_count += len([line for line in board_defaults_content.splitlines()
                                        if line.strip() and not line.strip().startswith('#')])
             except Exception as e:
@@ -505,96 +498,57 @@ class SDKConfigManager(LoggerMixin):
         else:
             self.logger.debug(f'   No sdkconfig.defaults.board found at {board_defaults_path}')
 
-        new_content += f'{marker_end}\n'
+        board_section_content += f'{marker_end}\n'
 
-        # Write updated sdkconfig.defaults
-        try:
-            with open(sdkconfig_defaults_path, 'w', encoding='utf-8') as f:
-                f.write(new_content)
-
-            result['added'] = [f'{config_count} board-specific defaults']
-            self.logger.info(f'   Applied {config_count} board defaults to sdkconfig.defaults')
-
-            # Delete build cache files to ensure fresh configuration
-            self._delete_sdkconfig_json(Path(project_path) / 'sdkconfig')
-
-        except Exception as e:
-            self.logger.error(f'   Error writing sdkconfig.defaults: {e}')
+        # Write board_manager.defaults file
+        if output_file is None:
+            self.logger.error('   output_file parameter is required')
             return result
 
-        return result
+        try:
+            output_path = Path(output_file)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(board_section_content)
+            result['added'] = [f'{config_count} board-specific defaults']
+            self.logger.info(f'   Generated {config_count} board defaults to {output_file}')
 
-    def clear_board_sdkconfig_defaults(self, project_path: Optional[str] = None) -> bool:
+            # Delete build cache files to ensure fresh configuration
+            project_path = self._get_project_path(project_path)
+            self._delete_sdkconfig_json(Path(project_path) / 'sdkconfig')
+
+            return result
+        except Exception as e:
+            self.logger.error(f'   Error writing to output file {output_file}: {e}')
+            return result
+
+    def clear_board_manager_defaults(self, project_path: Optional[str] = None) -> bool:
         """
-        Clear board-specific section from sdkconfig.defaults file.
+        Delete board_manager.defaults file.
 
         Args:
             project_path: Path to the project directory (auto-detect if None)
 
         Returns:
-            True if successful, False otherwise
+            True if successful or file doesn't exist, False on error
         """
         project_path = self._get_project_path(project_path)
-        existing_content, sdkconfig_defaults_path = self._read_sdkconfig_defaults(project_path)
+        board_manager_defaults_path = Path(project_path) / 'board_manager.defaults'
 
-        if existing_content is None:
-            return False
-        if not existing_content:
-            self.logger.debug('   sdkconfig.defaults not found, nothing to clean')
+        if not board_manager_defaults_path.exists():
+            self.logger.debug('   board_manager.defaults not found')
             return True
-
-        cleaned_content = self._remove_board_section(existing_content)
-        if cleaned_content == existing_content:
-            self.logger.debug('   No board-specific section found in sdkconfig.defaults')
-            return True
-
-        # Ensure trailing newline
-        cleaned_content = cleaned_content.rstrip()
-        if cleaned_content:
-            cleaned_content += '\n'
 
         try:
-            with open(sdkconfig_defaults_path, 'w', encoding='utf-8') as f:
-                f.write(cleaned_content)
-            self.logger.info('   Cleared board-specific section from sdkconfig.defaults')
+            board_manager_defaults_path.unlink()
+            self.logger.info('   Deleted board_manager.defaults')
             return True
         except Exception as e:
-            self.logger.error(f'   Error writing sdkconfig.defaults: {e}')
+            self.logger.warning(f'   ⚠️  Failed to delete board_manager.defaults: {e}')
             return False
-
-    def _remove_board_section(self, content: str) -> str:
-        """Remove board-specific section from content string."""
-        marker_start = '# --- Board-specific configuration (managed by esp_board_manager) ---'
-        marker_end = '# --- End of board-specific configuration ---'
-
-        if marker_start not in content:
-            return content
-
-        start_idx = content.find(marker_start)
-        end_idx = content.find(marker_end)
-        if end_idx != -1:
-            end_idx = content.find('\n', end_idx) + 1
-            if end_idx == 0:
-                end_idx = len(content)
-            content = content[:start_idx] + content[end_idx:]
-            content = content.rstrip()
-
-        return content
 
     def _get_project_path(self, project_path: Optional[str]) -> str:
         """Get project path, auto-detect if None."""
         if project_path is None:
             return self.project_path if hasattr(self, 'project_path') else os.getcwd()
         return project_path
-
-    def _read_sdkconfig_defaults(self, project_path: str) -> Tuple[Optional[str], Path]:
-        """Read sdkconfig.defaults file content. Returns (content, path) or (None, path) on error."""
-        sdkconfig_defaults_path = Path(project_path) / 'sdkconfig.defaults'
-        if not sdkconfig_defaults_path.exists():
-            return '', sdkconfig_defaults_path
-        try:
-            with open(sdkconfig_defaults_path, 'r', encoding='utf-8') as f:
-                return f.read(), sdkconfig_defaults_path
-        except Exception as e:
-            self.logger.error(f'   Error reading sdkconfig.defaults: {e}')
-            return None, sdkconfig_defaults_path

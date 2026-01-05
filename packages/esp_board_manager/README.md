@@ -388,7 +388,7 @@ ESP Board Manager uses `gen_bmgr_config_codes.py` for code generation, which han
 7. **Project sdkconfig Configuration**: Update project sdkconfig based on board device and peripheral types
 8. **File Generation**: Create all necessary C configuration and handle files in the project folder's `components/gen_bmgr_codes/`
 
-**⚠️ Important**: When switching boards, the script automatically backs up and deletes the existing `sdkconfig` file in step 1 to prevent configuration pollution (skipped when using `--kconfig-only`).
+**⚠️ Important**: When switching boards, the script automatically backs up and deletes the existing `sdkconfig` file in step 1. This prevents residual configurations from the old board (e.g., different chip's CONFIG_IDF_TARGET, different board's device configurations) from affecting the new board. The backup file is `sdkconfig.bmgr_board.old`, which can be renamed back to `sdkconfig` if needed (skipped when using `--kconfig-only`).
 
 ## Custom Board
 
@@ -429,8 +429,9 @@ If `idf.py gen-bmgr-config` is not recognized:
 
 **Important:** When switching boards, the script automatically:
 
-1. Backs up `sdkconfig` to `sdkconfig.bmgr_board.backup` and removes the original to prevent configuration pollution
-2. Appends board-specific configurations from `boards/<board_name>/sdkconfig.defaults.board` to your project's `sdkconfig.defaults`
+1. Backs up `sdkconfig` to `sdkconfig.bmgr_board.old` and removes the original to prevent residual configurations from the old board (e.g., different chip's CONFIG_IDF_TARGET, different board's device settings) from affecting the new board
+2. Generates `board_manager.defaults` file with board-specific configurations from `boards/<board_name>/sdkconfig.defaults.board`
+3. The configurations will be automatically applied via `SDKCONFIG_DEFAULTS` environment variable during build/menuconfig/reconfigure
 
 Always use `idf.py gen-bmgr-config -b` (or `python gen_bmgr_config_codes.py`) for board switching. Using `idf.py menuconfig` may cause dependency errors.
 

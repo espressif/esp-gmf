@@ -1044,8 +1044,8 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             # 3. Reset idf_component.yml using shared method
             self._reset_idf_component_yml(gen_bmgr_codes_dir)
 
-            # 4. Clear board-specific section from sdkconfig.defaults
-            self.sdkconfig_manager.clear_board_sdkconfig_defaults(project_root)
+            # 4. Delete board_manager.defaults file
+            self.sdkconfig_manager.clear_board_manager_defaults(project_root)
 
             self.logger.info('✅ Generated files cleared successfully')
             return True
@@ -1197,7 +1197,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
                     sdkconfig_path = os.path.join(project_root, 'sdkconfig')
                     if os.path.exists(sdkconfig_path):
                         # Create backup (fixed name, will be overwritten each time)
-                        backup_path = os.path.join(project_root, 'sdkconfig.bmgr_board.backup')
+                        backup_path = os.path.join(project_root, 'sdkconfig.bmgr_board.old')
                         import shutil
                         shutil.copy2(sdkconfig_path, backup_path)
                         self.logger.info(f'   Backed up sdkconfig to: {backup_path}')
@@ -1401,8 +1401,8 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         #     )
         # else:
         #     # Default behavior: update sdkconfig based on board device/peripheral types
-        #     # Note: Board selection and chip target are managed by apply_board_sdkconfig_defaults()
-        #     # which writes to sdkconfig.defaults. ESP-IDF will use those during build.
+        #     # Note: Board selection and chip target are managed by generate_board_manager_defaults()
+        #     # which writes to board_manager.defaults. ESP-IDF will use those during build.
         #     self.logger.debug('   Updating sdkconfig based on board types...')
 
         #     result = self.sdkconfig_manager.update_sdkconfig_from_board_types(
@@ -1415,17 +1415,21 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         #         self.logger.info(f"✅ Updated {len(result['enabled'])} sdkconfig features")
 
         # Apply board-specific sdkconfig defaults from sdkconfig.defaults.board
-        # This appends board configs to sdkconfig.defaults, ensuring they persist
-        # across ESP-IDF build system operations (menuconfig, reconfigure, etc.)
+        # Write to board_manager.defaults in project root instead of modifying sdkconfig.defaults
+        # This avoids conflicts with user's sdkconfig.defaults file
         # Also adds CONFIG_IDF_TARGET, CONFIG_BOARD_XXX and CONFIG_BOARD_NAME
-        board_defaults_result = self.sdkconfig_manager.apply_board_sdkconfig_defaults(
+        board_manager_defaults_file = str(Path.cwd() / 'board_manager.defaults')
+
+        board_defaults_result = self.sdkconfig_manager.generate_board_manager_defaults(
             board_path=board_path,
             project_path=str(Path.cwd()),
             board_name=selected_board,
-            chip_name=chip_name  # chip_name from board_info.yaml
+            chip_name=chip_name,  # chip_name from board_info.yaml
+            output_file=board_manager_defaults_file  # Write to project_root/board_manager.defaults
         )
         if board_defaults_result['added']:
-            self.logger.info(f'✅ Applied board-specific sdkconfig defaults to sdkconfig.defaults')
+            self.logger.info(f'✅ Generated board-specific defaults to {board_manager_defaults_file}')
+            self.logger.info(f'   File will be auto-applied during build/menuconfig/reconfigure')
 
         # 8. Write board information and setup components/gen_bmgr_codes
         self.logger.info('⚙️  Step 8/8: Writing board information and setting up components...')
@@ -1682,7 +1686,7 @@ Examples:
     parser.add_argument(
         '--kconfig-only',
         action='store_true',
-        help='Generate Kconfig menu system for board and component selection (default enabled)'
+        help='Only generate Kconfig menu without board switching (skips sdkconfig deletion and board code generation)'
     )
 
     parser.add_argument(

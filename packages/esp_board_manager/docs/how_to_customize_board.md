@@ -137,8 +137,8 @@ There are two ways to create a new board:
 `sdkconfig.defaults.board` file is used to define board-specific default SDK configuration.
 
    - Create a `sdkconfig.defaults.board` file in the board directory to define board-specific SDK configuration defaults
-   - When switching to this board, the script will automatically **append** these settings to the project's `sdkconfig.defaults` file
-   - This ensures that board-specific configurations are not lost during various ESP-IDF build system operations (menuconfig, reconfigure, etc.)
+   - When switching to this board, the script will automatically **write** these settings to the project's `board_manager.defaults` file
+   - This ensures that board-specific configurations are automatically applied via `SDKCONFIG_DEFAULTS` environment variable during ESP-IDF build system operations (menuconfig, reconfigure, etc.)
 
    Example:
    ```bash
@@ -151,12 +151,13 @@ There are two ways to create a new board:
      - `CONFIG_XXX=y` enable
      - `CONFIG_XXX=n` or `# CONFIG_XXX is not set` disable
      - `CONFIG_XXX="value"` string value
-   - When switching boards, previous board-specific settings in `sdkconfig.defaults` are automatically replaced
+   - When switching boards, the `board_manager.defaults` file is regenerated with new board configurations
 
    Configuration Priority:
 1. `sdkconfig` (user's current configuration)
-2. `sdkconfig.defaults` (project defaults + appended board configurations)
-3. Component defaults
+2. `sdkconfig.defaults` (project defaults)
+3. `board_manager.defaults` (board-specific configurations, higher priority than sdkconfig.defaults)
+4. Component's own defaults
 
 ### 5. **Custom Code in the `board` Directory**
 
