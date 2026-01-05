@@ -12,10 +12,6 @@ The `gmf_app_utils` component also provides configuration options via **menuconf
 
   Navigate to: `GMF APP Configuration` → `Example Connection Configuration` → `WiFi SSID` and `WiFi Password`
 
-* **Select the target development board**
-
-  Navigate to: `GMF APP Configuration` → `Target Board`
-
 * **Adjust the unit test task priority**
 
   Navigate to: `GMF APP Configuration` → `Unit Test`

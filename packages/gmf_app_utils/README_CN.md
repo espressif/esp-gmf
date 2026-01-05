@@ -12,10 +12,6 @@ GMF 应用工具包（gmf_app_utils）是一个为方便 ESP GMF 开发应用程
 
   选择路径是：`GMF APP Configuration` -> `Example Connection Configuration` -> `WiFi SSID` 和 `WiFi Password`
 
-- 选择开发板
-
-  选择路径是：`GMF APP Configuration` -> `Target Board`
-
 - 调整 Unit test 任务优先级
 
   选择路径是：`GMF APP Configuration` -> `Unit Test`
