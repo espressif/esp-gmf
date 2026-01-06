@@ -1,9 +1,16 @@
+# Changelog
+
+## v0.7.2~1
+
+### Bug Fixes
+
+- Removed CONFIG_AUDIO_BOARD and CODEC_I2C_BACKWARD_COMPATIBLE in sdkconfig.defaults
+
 ## v0.7.2
 
 ### Features
 
 - Added API `esp_audio_render_set_solo_stream` for solo stream playback
-
 
 ## v0.7.1
 
