@@ -3,8 +3,6 @@
 #
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 
-CONFIG_AUDIO_BOARD="LYRAT_MINI_V1"
-
 #
 # IO File Configuration
 #
