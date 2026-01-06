@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.8~1
+
+### Bug Fixes
+
+- Removed CONFIG_AUDIO_BOARD and CODEC_I2C_BACKWARD_COMPATIBLE in sdkconfig.defaults
+
 ## v0.7.8
 
 ### Features

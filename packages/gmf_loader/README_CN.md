@@ -157,7 +157,7 @@ ESP GMF Loader
 1. 在 "ESP GMF Loader" 下通过 menuconfig 启用所需的 GMF 功能
 2. 配置已启用功能的参数
 3. 调用 `gmf_loader_setup_all_defaults` 始化选定的 GMF 元素并将它们注册到 GMF Pool 中
-4. 调用 `gmf_loader_teardown_all_defaults` 释放由 `gmf_loader_setup_all_defaults` 分配的资源，确保在调用此 API 之前销毁 pool
+4. 调用 `gmf_loader_teardown_all_defaults` 释放由 `gmf_loader_setup_all_defaults` 分配的资源，确保在调用此 API 之后销毁 pool
 
 ### 设置示例
 

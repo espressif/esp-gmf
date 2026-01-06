@@ -157,7 +157,7 @@ ESP GMF Loader
 1. Enable desired GMF features through menuconfig under "ESP GMF Loader"
 2. Configure parameters for enabled features
 3. Call `gmf_loader_setup_all_defaults` to initialize the selected GMF elements and register them to the GMF pool
-4. Call `gmf_loader_teardown_all_defaults` to release allocated resources by `gmf_loader_setup_all_defaults`, make sure pool destroyed before call this API
+4. Call `gmf_loader_teardown_all_defaults` to release allocated resources by `gmf_loader_setup_all_defaults`, make sure pool destroyed after call this API
 
 ### Setup Example
 

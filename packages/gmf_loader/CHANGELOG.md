@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.7.3~1
+
+### Bug Fixes
+
+- Removed CODEC_I2C_BACKWARD_COMPATIBLE in sdkconfig.defaults
+- Fixed API call order description in README
+
 ## v0.7.3
 
 ### Features
