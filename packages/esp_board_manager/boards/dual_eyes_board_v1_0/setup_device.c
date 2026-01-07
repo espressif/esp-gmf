@@ -5,7 +5,6 @@
  * See LICENSE file for details.
  */
 
-#include "dev_display_lcd_spi.h"
 #include "esp_board_device.h"
 #include "esp_lcd_gc9a01.h"
 #include "esp_log.h"

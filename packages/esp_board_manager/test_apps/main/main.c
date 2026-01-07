@@ -19,10 +19,10 @@
 #include "test_board_mgr.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT */
 
-#if defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT)
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
 #include "esp_lvgl_port.h"
 #include "test_dev_lcd_lvgl.h"
-#endif  /* defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT) */
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
 
 #ifdef CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT
 #include "test_dev_pwr_ctrl.h"
@@ -35,10 +35,6 @@
 #if defined(CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT)
 #include "test_dev_fs_fat.h"
 #endif  /* defined(CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT) */
-
-#if defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT)
-#include "test_dev_fatfs_sdcard.h"
-#endif  /* defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT) */
 
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 #include "test_dev_ledc.h"
@@ -67,11 +63,11 @@ static void test_audio(void)
 {
     ESP_LOGI(TAG, "Starting audio tests...");
 
-#if defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT)
+#ifdef CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT
     ESP_LOGI(TAG, "Using SD card audio implementation...");
 #else
     ESP_LOGI(TAG, "Using embedded audio implementation...");
-#endif  /* defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT)*/
+#endif  /* CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT */
 
 #ifdef CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT
     test_dev_pwr_audio_ctrl(true);
@@ -93,25 +89,11 @@ static void test_spiffs_filesystem(void)
 static void test_fs_fat_filesystem(void)
 {
     ESP_LOGI(TAG, "Starting FS_FAT filesystem tests...");
-#ifdef CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT
-    test_dev_pwr_lcd_ctrl(true);
-#endif  /* CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT */
 
     // Test FS_FAT device
     test_fs_fat_device();
 }
 #endif  /* defined(CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT) */
-
-#if defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT)
-static void test_sdcard_filesystem(void)
-{
-    ESP_LOGI(TAG, "Starting SD card filesystem tests...");
-#ifdef CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT
-    test_dev_pwr_lcd_ctrl(true);
-#endif  /* CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT */
-    test_sdcard();
-}
-#endif  /* defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT) */
 
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 static void test_ledc_device(void)
@@ -129,14 +111,10 @@ static void test_custom_device(void)
 }
 #endif  /* CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT */
 
-#if defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT)
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
 static void test_lcd_lvgl(void)
 {
     ESP_LOGI(TAG, "Starting LCD LVGL tests...");
-
-#ifdef CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT
-    test_dev_pwr_lcd_ctrl(true);
-#endif  /* CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT */
 
     esp_err_t err = test_dev_lcd_lvgl_init();
     if (err != ESP_OK) {
@@ -146,15 +124,14 @@ static void test_lcd_lvgl(void)
 
     err = test_dev_lcd_touch_init();
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "LCD Touch initialization failed");
-        return;
+        ESP_LOGW(TAG, "LCD Touch initialization failed, test continued");
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
     ESP_LOGI(TAG, "Starting LCD LVGL test...");
     test_dev_lcd_lvgl_show_menu();
 }
-#endif  /* defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT) */
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
 
 #ifdef CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT
 static void test_gpio_expander(void)
@@ -198,9 +175,9 @@ void app_main(void)
     test_gpio_expander();
 #endif  /* CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT */
 
-#if defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT)
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
     test_lcd_lvgl();
-#endif  /* defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT) */
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
 
 #ifdef CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT
     test_audio();
@@ -214,19 +191,15 @@ void app_main(void)
     test_fs_fat_filesystem();
 #endif  /* defined(CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT) */
 
-#if defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT)
-    test_sdcard_filesystem();
-#endif  /* defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT) */
-
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
     test_ledc_device();
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
 
-#if defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT)
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
     lvgl_port_stop();
     test_dev_lcd_touch_deinit();
     test_dev_lcd_lvgl_deinit();
-#endif  /* defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT) */
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
 
 #ifdef CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT
     test_camera();

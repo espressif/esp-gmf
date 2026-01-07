@@ -1493,6 +1493,8 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             if board_path and os.path.exists(board_path):
                 # Calculate relative path from gen_bmgr_codes to board directory
                 board_relative_path = os.path.relpath(board_path, gen_bmgr_codes_dir)
+                board_relative_path = Path(board_relative_path).as_posix()
+                board_path = Path(board_path).as_posix()
                 board_src_dirs.append(f'"{board_relative_path}"')
                 self.logger.info(f'   Added board source directory: {board_relative_path}')
 

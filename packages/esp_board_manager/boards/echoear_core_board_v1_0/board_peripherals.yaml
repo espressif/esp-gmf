@@ -69,7 +69,7 @@ peripherals:
       duty_resolution: LEDC_TIMER_10_BIT               # 10-bit duty resolution
 
   # CHIP POWER_ON_OFF LCD and SD card power control
-  - name: gpio_lcd_reset
+  - name: gpio_power_lcd_sdcard
     type: gpio
     config:
       pin: 9                           # GPIO9 - LCD_RST (CHIP POWER_ON_OFF)

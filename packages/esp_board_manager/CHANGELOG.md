@@ -6,6 +6,10 @@
 
 - Changed board defaults to use `board_manager.defaults` file instead of appending to `sdkconfig.defaults`. Board-specific configurations are now automatically applied via `SDKCONFIG_DEFAULTS` environment variable during build/menuconfig/reconfigure.
 - Changed backup file from `sdkconfig.bmgr_board.backup` to `sdkconfig.bmgr_board.old`
+- Use `dev_display_lcd` to replace `dev_display_lcd_spi` in echoear_core_board_v1_1/v1_2, esp32_s3_korvo2_v3, esp_box_3, m5stack_cores3, dual_eyes_board_v1_0
+- Use `dev_fs_fat` to replace `dev_fatfs_sdcard` and `dev_fatfs_sdcard_spi` in echoear_core_board_v1_1/v1_2, esp32_s3_korvo2_v3, esp_box_3, m5stack_cores3, esp32_p4_function_ev, lyrat_mini_v1_1
+- Add `dev_power_ctrl` device support for echoear_core_board_v1_1/v1_2, replace `dev_gpio_ctrl` used to apply power
+- Removed support for `dev_display_lcd`, `dev_fatfs_sdcard`, `dev_fatfs_sdcard_spi` and related test code
 
 ## New Script
 
@@ -39,6 +43,7 @@
 ### Bug Fixes
 
 - Fixed an issue that find_project_root finding unrelated projects
+- Fixed an issue where `CMakeLists.txt` generated on the Windows platform would cause compilation errors due to the `\` in paths
 
 ## 0.5.0
 

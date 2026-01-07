@@ -57,7 +57,7 @@ peripherals:
         data2_io_num: 11                  # QUADWP_IO_NUM
         data3_io_num: 12                  # QUADHD_IO_NUM
         sclk_io_num: 18                   # SPI Clock signal
-        max_transfer_sz: 7200             # Maximum transfer size in bytes : width * 2 * 10
+        max_transfer_sz: 7200             # Maximum transfer size in bytes : width * 2 * 20
 
   - name: ledc_backlight
     type: ledc
@@ -69,7 +69,7 @@ peripherals:
       duty_resolution: LEDC_TIMER_10_BIT    # 10-bit duty resolution
 
   ## CHIP POWER_ON_OFF LCD and SD card power control
-  - name: gpio_power_lcd
+  - name: gpio_power_lcd_sdcard
     type: gpio
     config:
       pin: 9                           # GPIO9 - LCD_RST (CHIP POWER_ON_OFF)

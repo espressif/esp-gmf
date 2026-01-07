@@ -208,7 +208,7 @@ void app_main(void)
         return;
     }
     // Get device handle, according to the device naming in esp_board_manager/boards/YOUR_TARGET_BOARD/board_devices.yaml
-    dev_display_lcd_spi_handles_t *lcd_handle;
+    dev_display_lcd_handles_t *lcd_handle;
     ret = esp_board_manager_get_device_handle("display_lcd", &lcd_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LCD device");
@@ -256,11 +256,8 @@ Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicate
 | Device Name | Description | Type | Subtype | Peripheral | Reference YAML | Examples |
 |---|---|---|---|---|---|---|
 | `audio_dac`<br/>`audio_adc` | Audio codec | audio_codec | - | i2s<br/>i2c | [`dev_audio_codec`](devices/dev_audio_codec/dev_audio_codec.yaml) | **[`test_dev_audio_codec.c`](test_apps/main/test_dev_audio_codec.c)** <br/>Audio codec with DAC/ADC, SD card playback, recording, and loopback testing |
-| `display_lcd` | SPI LCD (deprecated) | display_lcd_spi | - | spi | [`dev_display_lcd_spi`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) | **[`test_dev_lcd_init.c`](test_apps/main/test_dev_lcd_init.c)** <br/>LCD display initialization and basic control |
 | `display_lcd` | LCD | display_lcd | spi<br/>dsi | spi<br/>dsi | [`dev_display_lcd`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>LCD display with LVGL, touch screen, and backlight control |
-| `fs_sdcard` | SDMMC SD card (deprecated) | fatfs_sdcard | - | sdmmc | [`dev_fatfs_sdcard`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD card operations and FATFS file system testing |
-| `fs_sdcard` | SPI SD card (deprecated) | fatfs_sdcard_spi | - | spi | [`dev_fatfs_sdcard_spi`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD card operations and FATFS file system testing |
-| `fs_fat` | FAT filesystem device | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD card operations and FATFS file system testing |
+| `fs_fat` | FAT filesystem device | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fs_fat.c`](test_apps/main/test_dev_fs_fat.c)** <br/>SD card operations and FATFS file system testing |
 | `fs_spiffs` | SPIFFS filesystem device | fs_spiffs | - | - | [`dev_fs_spiffs`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) | **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** <br/>SPIFFS file system testing |
 | `lcd_touch` | Touch screen | lcd_touch_i2c | - | i2c | [`dev_lcd_touch_i2c`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>LCD display with LVGL, touch screen, and backlight control |
 | `sdcard_power_ctrl` | Power control device | power_ctrl | gpio | gpio | [`dev_power_ctrl`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
@@ -270,7 +267,6 @@ Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicate
 | `button` | Button | button | gpio<br/>adc | gpio<br/>adc | [`dev_button`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>Button testing |
 
 > For the same device, we will no longer distinguish types by interface. For example, `dev_fatfs_sdcard` and `dev_fatfs_sdcard_spi` will be unified under `fs_fat` for management, and `dev_display_lcd_spi` will also be changed to use `dev_display_lcd` for management.
-> These three device types will be deprecated in future versions. Users can refer to [`dev_fatfs_sdcard.yaml`](./devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml), [`dev_fatfs_sdcard_spi.yaml`](./devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml), and [`dev_display_lcd_spi.yaml`](./devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) to learn how to migrate their original configurations to the new device types.
 
 ### Supported Peripheral Types
 

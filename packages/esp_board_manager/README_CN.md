@@ -208,7 +208,7 @@ void app_main(void)
         return;
     }
     // 获取设备句柄，根据 esp_board_manager/boards/YOUR_TARGET_BOARD/board_devices.yaml 中的设备命名获取句柄
-    dev_display_lcd_spi_handles_t *lcd_handle;
+    dev_display_lcd_handles_t *lcd_handle;
     ret = esp_board_manager_get_device_handle("display_lcd", &lcd_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LCD device");
@@ -255,11 +255,8 @@ void app_main(void)
 | 设备名称 | 描述 | 类型 | 子类型 | 外设 | 参考 YAML | 示例 |
 |---|---|---|---|---|---|---|
 | `audio_dac`<br/>`audio_adc` | 音频编解码器 | audio_codec | - | i2s<br/>i2c | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) | **[`test_dev_audio_codec.c`](test_apps/main/test_dev_audio_codec.c)** <br/>带有 DAC/ADC、SD 卡播放、录音和回环测试的音频编解码器 |
-| `display_lcd` | SPI LCD 显示屏(将被弃用) | display_lcd_spi | - | spi | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) | **[`test_dev_lcd_init.c`](test_apps/main/test_dev_lcd_init.c)** <br/>LCD 显示初始化和基本控制 |
 | `display_lcd` | LCD 显示设备 | display_lcd | spi<br/>dsi | spi<br/>dsi | [`dev_display_lcd.yaml`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>带有 LVGL、触摸屏和背光控制的 LCD 显示屏 |
-| `fs_sdcard` | SDMMC SD 卡(将被弃用) | fatfs_sdcard | - | sdmmc | [`dev_fatfs_sdcard.yaml`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD 卡操作和 FATFS 文件系统测试 |
-| `fs_sdcard` | SPI SD 卡(将被弃用) | fatfs_sdcard_spi | - | spi | [`dev_fatfs_sdcard_spi.yaml`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD 卡操作和 FATFS 文件系统测试 |
-| `fs_fat` | FAT 文件系统设备 | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat.yaml`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD 卡操作和 FATFS 文件系统测试 |
+| `fs_fat` | FAT 文件系统设备 | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat.yaml`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fs_fat.c`](test_apps/main/test_dev_fs_fat.c)** <br/>SD 卡操作和 FATFS 文件系统测试 |
 | `fs_spiffs` | SPIFFS 文件系统设备 | fs_spiffs | - | - | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) | **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** <br/>SPIFFS 文件系统测试 |
 | `lcd_touch` | 触摸屏 | lcd_touch_i2c | - | i2c | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>带有 LVGL、触摸屏和背光控制的 LCD 显示屏 |
 | `sdcard_power_ctrl` | 电源控制设备 | power_ctrl | gpio | gpio | [`dev_power_ctrl.yaml`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
@@ -269,7 +266,6 @@ void app_main(void)
 | `button` | 按键 | button | gpio<br/>adc | gpio<br/>adc | [`dev_button.yaml`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>按钮测试 |
 
 > 对于同一种设备，我们将不再使用接口类型来区分类型。例如，`dev_fatfs_sdcard` 和 `dev_fatfs_sdcard_spi` 将统一使用 `fs_fat` 进行管理，`dev_display_lcd_spi` 也将改为使用 `dev_display_lcd` 进行管理。
-> 这三种设备类型将在未来版本中被弃用。用户可以参照 [`dev_fatfs_sdcard.yaml`](./devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml)、[`dev_fatfs_sdcard_spi.yaml`](./devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) 和 [`dev_display_lcd_spi.yaml`](./devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) 文件，了解如何将原有配置迁移到新的设备类型。
 
 ### 支持的外设类型
 

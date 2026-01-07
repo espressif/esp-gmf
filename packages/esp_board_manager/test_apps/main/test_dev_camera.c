@@ -122,7 +122,7 @@ static esp_err_t camera_capture_stream_by_format(int fd, int type, uint32_t v4l2
         ESP_LOGW(TAG, "No frame captured");
     }
 
-#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
+#ifdef CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT
     ESP_LOGI(TAG, "Save JPEG file to sd card...");
     jpeg_enc_config_t jpeg_enc_cfg = DEFAULT_JPEG_ENC_CONFIG();
     jpeg_enc_cfg.width = format.fmt.pix.width;
@@ -187,7 +187,7 @@ jpeg_enc_exit:
     if (outbuf != NULL) {
         free(outbuf);
     }
-#endif  // CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
+#endif  // CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT
 
     return ESP_OK;
 }

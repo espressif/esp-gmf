@@ -86,8 +86,8 @@ I (823) ES7210: Enable TDM mode
 I (826) DEV_AUDIO_CODEC: Successfully initialized codec: audio_adc
 I (828) DEV_AUDIO_CODEC: Create esp_codec_dev success, dev:0x3fcee514, chip:es7210
 I (835) BOARD_MANAGER: Device audio_adc initialized
-I (840) DEV_FATFS_SDCARD: slot_config: cd=-1, wp=-1, clk=15, cmd=7, d0=4, d1=-1, d2=-1, d3=-1, d4=-1, d5=-1, d6=-1, d7=-1, width=1, flags=0x0
-I (922) DEV_FATFS_SDCARD: Filesystem mounted, base path: /sdcard
+I (840) DEV_FS_FAT: slot_config: cd=-1, wp=-1, clk=15, cmd=7, d0=4, d1=-1, d2=-1, d3=-1, d4=-1, d5=-1, d6=-1, d7=-1, width=1, flags=0x0
+I (922) DEV_FS_FAT: Filesystem mounted, base path: /sdcard
 Name: SD64G
 Type: SDHC
 Speed: 40.00 MHz (limit: 40.00 MHz)

@@ -3,6 +3,14 @@ chip: esp32s3
 version: 1.0.0
 # Devices Configuration
 devices:
+  # SD Card Power
+  - name: sdcard_power
+    type: power_ctrl
+    sub_type: gpio
+    peripherals:
+    - name: gpio_sd_power
+      active_level: 0
+
   - name: audio_dac
     chip: es8311
     type: audio_codec
@@ -51,21 +59,25 @@ devices:
         frequency: 400000          # Hz
 
   - name: fs_sdcard
-    type: fatfs_sdcard
+    type: fs_fat
+    sub_type: sdmmc
+    power_ctrl_device: sdcard_power
     version: default
     config:
-      bus_width: 4                 # 1, 4, 8, not used on SPI type
-      pins:
-        clk: 11   # GPIO_NUM_15
-        cmd: 14   # GPIO_NUM_7
-        d0: 9     # GPIO_NUM_4
-        d1: 13    # Not used
-        d2: 42    # Not used
-        d3: 12    # Not used
+      sub_config:
+        bus_width: 4
+        pins:
+          clk: 11
+          cmd: 14
+          d0: 9
+          d1: 13
+          d2: 42
+          d3: 12
 
   - name: display_lcd
     chip: ili9341
-    type: display_lcd_spi
+    type: display_lcd
+    sub_type: spi
     version: default
     dependencies:
       espressif/esp_lcd_ili9341: "*"
@@ -76,14 +88,12 @@ devices:
       y_max: 240
       # esp_lcd_panel_io_spi_config_t fields
       io_spi_config:
-        cs_gpio_num: 5                   # GPIO14 - LCD_CS (BSP_LCD_CS)
-        dc_gpio_num: 4                   # GPIO45 - LCD_DC (BSP_LCD_DC)
-        spi_mode: 0                      # Traditional SPI mode (0~3)
-        pclk_hz: 20000000                # Frequency of pixel clock
+        cs_gpio_num: 5
+        dc_gpio_num: 4
+        spi_mode: 0
+        pclk_hz: 20000000
         flags:
           sio_mode: true                 # Single line mode
-        peripherals:
-          - name: spi_display            # SPI peripheral for LCD communication
 
       lcd_panel_config:
         reset_gpio_num: 48
@@ -92,6 +102,9 @@ devices:
           reset_active_high: true
         # ST77916 specific configuration
         vendor_config: NULL
+
+    peripherals:
+    - name: spi_display            # SPI peripheral for LCD communication
 
   # Touch Panel Configuration
   - name: lcd_touch

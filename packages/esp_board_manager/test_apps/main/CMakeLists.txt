@@ -17,11 +17,10 @@ idf_component_register(
 
         # Device tests (conditionally included based on Kconfig)
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>:test_dev_audio_codec.c>
-        $<$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT}>>:test_dev_fatfs_sdcard.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_SPIFFS_SUPPORT}>:test_dev_fs_spiffs.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT}>:test_dev_fs_fat.c>
-        $<$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT}>>:test_dev_lcd_lvgl.c>
-        $<$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT}>>:test_dev_lcd_init.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT}>:test_dev_lcd_lvgl.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT}>:test_dev_lcd_init.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT}>:test_dev_pwr_ctrl.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT}>:test_dev_ledc.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT}>:test_dev_custom.c>
@@ -30,8 +29,8 @@ idf_component_register(
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT}>:test_dev_button.c>
 
         # Audio board manager test (conditionally included based on SD card support)
-        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT}>>>:test_board_mgr_audio_sdcard.c>
-        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<NOT:$<OR:$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT}>>>>:test_board_mgr_audio_embed.c>
+        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT}>>:test_board_mgr_audio_sdcard.c>
+        $<$<AND:$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>,$<NOT:$<BOOL:${CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT}>>>:test_board_mgr_audio_embed.c>
 
         # Utility files (conditionally included)
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_AUDIO_CODEC_SUPPORT}>:wav_header.c>

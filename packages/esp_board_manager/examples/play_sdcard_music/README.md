@@ -82,8 +82,8 @@ I (775) ES8311: Work in Slave mode
 I (778) DEV_AUDIO_CODEC: Successfully initialized codec: audio_dac
 I (779) DEV_AUDIO_CODEC: Create esp_codec_dev success, dev:0x3fceaa68, chip:es8311
 I (787) BOARD_MANAGER: Device audio_dac initialized
-I (791) DEV_FATFS_SDCARD: slot_config: cd=-1, wp=-1, clk=15, cmd=7, d0=4, d1=-1, d2=-1, d3=-1, d4=-1, d5=-1, d6=-1, d7=-1, width=1, flags=0x0
-I (873) DEV_FATFS_SDCARD: Filesystem mounted, base path: /sdcard
+I (791) DEV_FS_FAT: slot_config: cd=-1, wp=-1, clk=15, cmd=7, d0=4, d1=-1, d2=-1, d3=-1, d4=-1, d5=-1, d6=-1, d7=-1, width=1, flags=0x0
+I (873) DEV_FS_FAT: Filesystem mounted, base path: /sdcard
 Name: SD64G
 Type: SDHC
 Speed: 40.00 MHz (limit: 40.00 MHz)
