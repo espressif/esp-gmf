@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.1
 
 ### ⚠️ Important Changes
 
@@ -11,7 +11,7 @@
 - Add `dev_power_ctrl` device support for echoear_core_board_v1_1/v1_2, replace `dev_gpio_ctrl` used to apply power
 - Removed support for `dev_display_lcd`, `dev_fatfs_sdcard`, `dev_fatfs_sdcard_spi` and related test code
 
-## New Script
+### New Script
 
 - Add a new script `create_board.py` to simplify the process of creating a new board.
   This script simplifies the process of copying configurations from different peripheral and device directories when users add new boards, provides an interactive new board creation process, allowing sequential selection of chip, device, and peripherals. After passing the peripheral dependency check, the script automatically creates four configuration files required for the board.
