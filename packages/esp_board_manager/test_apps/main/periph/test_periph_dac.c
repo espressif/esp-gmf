@@ -22,6 +22,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_board_periph.h"
+#include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
 #include "periph_dac.h"
 
@@ -115,7 +116,7 @@ void test_periph_dac(void)
     periph_dac_handle_t *dac_handle = NULL;
 
     // Get DAC handles
-    esp_err_t err = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_DAC, (void **)&dac_handle);
+    esp_err_t err = esp_board_manager_get_periph_handle(ESP_BOARD_PERIPH_NAME_DAC, (void **)&dac_handle);
     if (err != ESP_OK || !dac_handle) {
         ESP_LOGE(TAG, "Failed to get DAC peripheral handle");
         return;
@@ -129,7 +130,7 @@ void test_periph_dac(void)
     }
 
     periph_dac_config_t *cfg = NULL;
-    err = esp_board_periph_get_config(periph_name, (void **)&cfg);
+    err = esp_board_manager_get_periph_config(periph_name, (void **)&cfg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get config: %s", esp_err_to_name(err));
         return;

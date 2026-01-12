@@ -17,7 +17,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
-#include "esp_board_periph.h"
+#include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
 #include "periph_mcpwm.h"
 
@@ -58,7 +58,7 @@ static void test_mcpwm_duty_cycle(periph_mcpwm_handle_t *mcpwm_handle)
 {
     ESP_LOGI(TAG, "Testing MCPWM duty cycle control...");
     if (mcpwm_handle->num_comparators >= 1) {
-        ESP_LOGI(TAG, "Timer period: %d ticks", period_ticks);
+        ESP_LOGI(TAG, "Timer period: %" PRIu32 " ticks", period_ticks);
         // Calculate duty cycles based on timer period
         int test_duties[] = {
             period_ticks / 4,     // 25%
@@ -67,7 +67,6 @@ static void test_mcpwm_duty_cycle(periph_mcpwm_handle_t *mcpwm_handle)
         };
         for (int i = 0; i < 3; i++) {
             int duty = test_duties[i];
-            // 计算对应的百分比
             float duty_percent = (float)duty / period_ticks * 100.0f;
             esp_err_t ret = mcpwm_comparator_set_compare_value(mcpwm_handle->comparators[0], duty);
             if (ret == ESP_OK) {
@@ -113,14 +112,14 @@ void test_periph_mcpwm(void)
     ESP_LOGI(TAG, "=== Starting MCPWM Peripheral Test ===");
     periph_mcpwm_handle_t *mcpwm_handle = NULL;
     periph_mcpwm_config_t *mcpwm_cfg = NULL;
-    esp_err_t ret = esp_board_periph_get_config(ESP_BOARD_PERIPH_NAME_MCPWM, (void **)&mcpwm_cfg);
+    esp_err_t ret = esp_board_manager_get_periph_config(ESP_BOARD_PERIPH_NAME_MCPWM, (void **)&mcpwm_cfg);
     if (ret != ESP_OK || !mcpwm_cfg) {
         ESP_LOGE(TAG, "Failed to get MCPWM peripheral configuration");
         return;
     }
 
     // Get MCPWM handle
-    ret = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_MCPWM, (void **)&mcpwm_handle);
+    ret = esp_board_manager_get_periph_handle(ESP_BOARD_PERIPH_NAME_MCPWM, (void **)&mcpwm_handle);
     if (ret != ESP_OK || !mcpwm_handle) {
         ESP_LOGE(TAG, "Failed to get MCPWM peripheral handle");
         return;

@@ -3,7 +3,8 @@
 # Based on periph_mcpwm.py parsing script
 # Version: 1.1.0 - Added support for multiple comparators
 
-mcpwm-0:
+- name: mcpwm_group_0
+  type: mcpwm
   config:
     # Timer configuration
     timer_config:
@@ -14,11 +15,11 @@ mcpwm-0:
       # Clock source (default: MCPWM_TIMER_CLK_SRC_DEFAULT)
       # Valid values depend on the selected chip,
       # please refer to the enum 'soc_periph_mcpwm_timer_clk_src_t' in 'soc/clk_tree_defs.h'
-      clk_src: "MCPWM_TIMER_CLK_SRC_DEFAULT"
+      clk_src: MCPWM_TIMER_CLK_SRC_DEFAULT
 
       # Timer resolution in Hz (default: 1000000, 1MHz = 1us per tick)
       # The step size of each count tick equals to (1 / resolution_hz) seconds
-      resolution_hz: 1000000
+      resolution_hz: 1000000          # [TO_BE_CONFIRMED] Timer resolution in Hz
 
       # Count mode (default: MCPWM_TIMER_COUNT_MODE_UP)
       count_mode: MCPWM_TIMER_COUNT_MODE_UP
@@ -29,7 +30,7 @@ mcpwm-0:
       # - MCPWM_TIMER_COUNT_MODE_UP_DOWN
 
       # Number of count ticks within a period (default: 20000, 20ms for 50Hz PWM)
-      period_ticks: 20000
+      period_ticks: 20000             # [TO_BE_CONFIRMED] Number of count ticks within a period
 
       # MCPWM timer interrupt priority
       # If set to 0, the driver will try to allocate an interrupt with a relative low priority (1,2,3)
@@ -118,7 +119,7 @@ mcpwm-0:
     # Generator configuration
     generator_config:
       # GPIO pin number for PWM output (required, no default - must be >= 0)
-      gpio_num: 0
+      gpio_num: 0                     # [IO] GPIO pin number for PWM output
 
       # Generator flags
       flags:

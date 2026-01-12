@@ -6,43 +6,43 @@
 # Example camera device configuration
 - name: camera         # The name of the device, must be unique
   type: camera         # The type of the camera, must be equal to "camera"
-  sub_type: "dvp"      # The bus type: dvp
+  sub_type: dvp        # The bus type: dvp
   config:
     # DVP interface configuration (used when bus_type is "dvp")
     dvp_config:
-      reset_io: -1        # GPIO pin for reset signal (default: -1, not connected)
-      pwdn_io: -1         # GPIO pin for power down signal (default: -1, not connected)
-      vsync_io: 21        # GPIO pin for vertical sync signal (default: depends on implementation)
-      data_width: "CAM_CTLR_DATA_WIDTH_8"  # Data width configuration:
+      reset_io: -1        # [IO] GPIO pin for reset signal (default: -1, not connected)
+      pwdn_io: -1         # [IO] GPIO pin for power down signal (default: -1, not connected)
+      vsync_io: 21        # [IO] GPIO pin for vertical sync signal (default: depends on implementation)
+      data_width: "CAM_CTLR_DATA_WIDTH_8"  # [TO_BE_CONFIRMED] Data width configuration:
                                            # CAM_CTLR_DATA_WIDTH_8
                                            # CAM_CTLR_DATA_WIDTH_10
                                            # CAM_CTLR_DATA_WIDTH_12
                                            # CAM_CTLR_DATA_WIDTH_16
-      de_io: 38            # GPIO pin for data enable signal (default: depends on implementation)
-      pclk_io: 11          # GPIO pin for pixel clock signal (default: depends on implementation)
-      xclk_io: 40          # GPIO pin for external clock output (default: depends on implementation)
-      xclk_freq: 10000000  # External clock frequency in Hz (default: 10MHz)
+      de_io: 38            # [TO_BE_CONFIRMED] GPIO pin for data enable signal (default: depends on implementation)
+      pclk_io: 11          # [TO_BE_CONFIRMED] GPIO pin for pixel clock signal (default: depends on implementation)
+      xclk_io: 40          # [TO_BE_CONFIRMED] GPIO pin for external clock output (default: depends on implementation)
+      xclk_freq: 10000000  # [TO_BE_CONFIRMED] External clock frequency in Hz (default: 10MHz)
       data_io:
-        data_io_0: 13      # GPIO pin for data bit 0 (default: depends on implementation)
-        data_io_1: 47      # GPIO pin for data bit 1 (default: depends on implementation)
-        data_io_2: 14      # GPIO pin for data bit 2 (default: depends on implementation)
-        data_io_3: 3       # GPIO pin for data bit 3 (default: depends on implementation)
-        data_io_4: 12      # GPIO pin for data bit 4 (default: depends on implementation)
-        data_io_5: 42      # GPIO pin for data bit 5 (default: depends on implementation)
-        data_io_6: 41      # GPIO pin for data bit 6 (default: depends on implementation)
-        data_io_7: 39      # GPIO pin for data bit 7 (default: depends on implementation)
-        data_io_8: -1      # GPIO pin for data bit 8 (default: -1, not used in 8-bit mode)
-        data_io_9: -1      # GPIO pin for data bit 9 (default: -1, not used in 8-bit mode)
-        data_io_10: -1     # GPIO pin for data bit 10 (default: -1, not used in 8-bit mode)
-        data_io_11: -1     # GPIO pin for data bit 11 (default: -1, not used in 8-bit mode)
-        data_io_12: -1     # GPIO pin for data bit 12 (default: -1, not used in 8-bit mode)
-        data_io_13: -1     # GPIO pin for data bit 13 (default: -1, not used in 8-bit mode)
-        data_io_14: -1     # GPIO pin for data bit 14 (default: -1, not used in 8-bit mode)
-        data_io_15: -1     # GPIO pin for data bit 15 (default: -1, not used in 8-bit mode)
+        data_io_0: 13      # [IO] GPIO pin for data bit 0 (default: depends on implementation)
+        data_io_1: 47      # [IO] GPIO pin for data bit 1 (default: depends on implementation)
+        data_io_2: 14      # [IO] GPIO pin for data bit 2 (default: depends on implementation)
+        data_io_3: 3       # [IO] GPIO pin for data bit 3 (default: depends on implementation)
+        data_io_4: 12      # [IO] GPIO pin for data bit 4 (default: depends on implementation)
+        data_io_5: 42      # [IO] GPIO pin for data bit 5 (default: depends on implementation)
+        data_io_6: 41      # [IO] GPIO pin for data bit 6 (default: depends on implementation)
+        data_io_7: 39      # [IO] GPIO pin for data bit 7 (default: depends on implementation)
+        data_io_8: -1      # [IO] GPIO pin for data bit 8 (default: -1, not used in 8-bit mode)
+        data_io_9: -1      # [IO] GPIO pin for data bit 9 (default: -1, not used in 8-bit mode)
+        data_io_10: -1     # [IO] GPIO pin for data bit 10 (default: -1, not used in 8-bit mode)
+        data_io_11: -1     # [IO] GPIO pin for data bit 11 (default: -1, not used in 8-bit mode)
+        data_io_12: -1     # [IO] GPIO pin for data bit 12 (default: -1, not used in 8-bit mode)
+        data_io_13: -1     # [IO] GPIO pin for data bit 13 (default: -1, not used in 8-bit mode)
+        data_io_14: -1     # [IO] GPIO pin for data bit 14 (default: -1, not used in 8-bit mode)
+        data_io_15: -1     # [IO] GPIO pin for data bit 15 (default: -1, not used in 8-bit mode)
 
   # I2C configuration for camera control (For the USB-UVC camera, this configuration is not required)
   peripherals:
-    - name: "i2c_master"   # I2C bus name for camera control (default: depends on implementation)
+    - name: i2c_master     # [TO_BE_CONFIRMED] I2C bus name for camera control (default: depends on implementation)
       frequency: 400000    # I2C frequency in Hz (default: 400kHz)
 
 # Example CSI camera configuration
@@ -52,12 +52,12 @@
   config:
     # CSI interface configuration (used when bus_type is "csi")
     csi_config:
-      reset_io: 1           # GPIO pin for reset signal (example value)
-      pwdn_io: 2            # GPIO pin for power down signal (example value)
-      dont_init_ldo: true   # If true, MIPI-CSI video device will not initialize the LDO (default: true)
+      reset_io: 1           # [IO] GPIO pin for reset signal (example value)
+      pwdn_io: 2            # [IO] GPIO pin for power down signal (example value)
+      dont_init_ldo: true   # [TO_BE_CONFIRMED] If true, MIPI-CSI video device will not initialize the LDO (default: true)
                             # If using the periph_ldo in esp_board_manager to manage the ldo peripheral, it needs to be set to true
 
   # I2C configuration for camera control
   peripherals:
-    - name: "i2c_master"    # I2C bus name for camera control
+    - name: i2c_master      # [TO_BE_CONFIRMED] I2C bus name for camera control
       frequency: 400000     # I2C frequency in Hz

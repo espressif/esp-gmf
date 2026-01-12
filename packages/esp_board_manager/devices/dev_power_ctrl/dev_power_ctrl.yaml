@@ -7,8 +7,8 @@
   type: power_ctrl                # The type of the device, must be unique
   sub_type: gpio                  # The sub type of the device, must be 'gpio' or 'ldo'
   peripherals:
-    - name: gpio_power_audio      # GPIO peripheral name (must reference a GPIO peripheral)
-      active_level: 1             # Active level (0-low, 1-high) when power is on
+    - name: gpio                  # [TO_BE_CONFIRMED] GPIO peripheral name (must reference a GPIO peripheral)
+      active_level: 1             # [TO_BE_CONFIRMED] Active level (0-low, 1-high) when power is on
 
 # Example usage in devices, add the power_ctrl_device attribute to the device configuration
 # - name: audio_dac

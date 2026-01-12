@@ -7,6 +7,6 @@
   version: 1.0.0
   config:
     base_path: "/spiffs"            # The base path for mounting the SPIFFS filesystem
-    partition_label: NULL           # The partition label for the SPIFFS filesystem
+    partition_label: NULL           # [TO_BE_CONFIRMED] The partition label for the SPIFFS filesystem
     max_files: 5                    # The maximum number of files that can be open simultaneously
     format_if_mount_failed: false   # Format the card if mount fails

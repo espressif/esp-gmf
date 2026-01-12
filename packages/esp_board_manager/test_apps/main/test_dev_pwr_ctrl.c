@@ -10,6 +10,7 @@
 #include "esp_err.h"
 #include "driver/gpio.h"
 #include "esp_board_manager.h"
+#include "esp_board_manager_defs.h"
 #include "dev_gpio_ctrl.h"
 #include "test_dev_pwr_ctrl.h"
 
@@ -18,7 +19,7 @@ static const char *TAG = "TEST_PWR_CTRL";
 esp_err_t test_dev_pwr_lcd_ctrl(bool enable)
 {
     void *handle;
-    esp_err_t ret = esp_board_manager_get_device_handle("lcd_power", (void **)&handle);
+    esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_LCD_POWER, (void **)&handle);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "NO LCD power GPIO, skip");
         return ESP_OK;

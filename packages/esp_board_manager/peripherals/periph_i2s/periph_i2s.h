@@ -11,6 +11,12 @@
 #include "driver/i2s_pdm.h"
 #include "driver/i2s_tdm.h"
 #include "driver/i2s_types.h"
+#include "esp_idf_version.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include "hal/i2s_ll.h"
+#define SOC_I2S_NUM I2S_LL_GET(INST_NUM)
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,7 +30,7 @@ extern "C" {
  *         and specific configuration for different I2S modes (standard, PDM, TDM).
  */
 typedef struct {
-    i2s_port_t       port;       /*!< I2S controller port number */
+    int              port;       /*!< I2S controller port number */
     i2s_role_t       role;       /*!< I2S role (master/slave) */
     i2s_comm_mode_t  mode;       /*!< I2S communication mode (I2S_COMM_MODE_STD, I2S_COMM_MODE_PDM, I2S_COMM_MODE_TDM) */
     i2s_dir_t        direction;  /*!< I2S direction (I2S_DIR_RX: input BIT(0), I2S_DIR_TX: output BIT(1)) */

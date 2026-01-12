@@ -1,7 +1,8 @@
 # UART Peripheral Configuration
 # This section configures UART peripheral settings
 
-uart_1:
+- name: uart_1
+  type: uart
   config:
     # UART port number, valid values depend on SOC
     # Can be configured as UART_NUM_0, UART_NUM_1, UART_NUM_2, ... or 0,1,2,... directly
@@ -15,16 +16,16 @@ uart_1:
     tx_buffer_size: 256
 
     # GPIO number for TX pin (default: -1 for not used)
-    tx_io_num: -1
+    tx_io_num: -1                     # [IO] GPIO number for TX pin
 
     # GPIO number for RX pin (default: -1 for not used)
-    rx_io_num: -1
+    rx_io_num: -1                     # [IO] GPIO number for RX pin
 
     # GPIO number for RTS pin (default: -1 for not used)
-    rts_io_num: -1
+    rts_io_num: -1                    # [IO] GPIO number for RTS pin
 
     # GPIO number for CTS pin (default: -1 for not used)
-    cts_io_num: -1
+    cts_io_num: -1                    # [IO] GPIO number for CTS pin
 
     # UART operating mode (default: UART_MODE_UART)
     uart_mode: UART_MODE_UART
@@ -44,7 +45,7 @@ uart_1:
     # UART configuration parameters
     uart_config:
       # Baud rate in bits per second (default: 115200)
-      baud_rate: 115200
+      baud_rate: 115200               # [TO_BE_CONFIRMED] Baud rate in bits per second
 
       # Number of data bits (default: UART_DATA_8_BITS)
       data_bits: UART_DATA_8_BITS

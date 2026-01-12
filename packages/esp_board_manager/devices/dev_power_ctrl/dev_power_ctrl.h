@@ -52,7 +52,7 @@ typedef struct {
  * @brief  Initialize power control device
  *
  *         This function initializes a power control device using the provided configuration structure.
- *         It sets up the necessary hardware interface (GPIO or LDO) based on the sub-type configuration.
+ *         It sets up the necessary hardware interface based on the sub-type configuration.
  *         The resulting device handle can be used for power control operations.
  *
  * @param[in]   cfg            Pointer to the power control configuration structure

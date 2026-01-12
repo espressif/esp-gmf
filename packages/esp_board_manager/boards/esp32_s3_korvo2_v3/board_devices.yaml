@@ -46,14 +46,16 @@ devices:
         frequency: 400000          # Hz
 
   - name: fs_sdcard
-    type: fatfs_sdcard
+    type: fs_fat
+    sub_type: sdmmc
     version: default
     config:
-      bus_width: 1            # 1, 4, 8, not used on SPI type
-      pins:
-        clk: 15  # GPIO_NUM_15
-        cmd: 7   # GPIO_NUM_7
-        d0: 4    # GPIO_NUM_4
+      sub_config:
+        bus_width: 1            # 1, 4, 8, not used on SPI type
+        pins:
+          clk: 15  # GPIO_NUM_15
+          cmd: 7   # GPIO_NUM_7
+          d0: 4    # GPIO_NUM_4
 
   - name: gpio_expander
     chip: tca9554
@@ -72,10 +74,11 @@ devices:
 
   - name: display_lcd
     chip: ili9341
-    type: display_lcd_spi
+    type: display_lcd
     version: default
+    sub_type: spi
     dependencies:
-      espressif/esp_lcd_ili9341: "^1"
+      espressif/esp_lcd_ili9341: "*"
     config:
       mirror_x: true
       mirror_y: true
@@ -88,10 +91,9 @@ devices:
         dc_gpio_num: 2                    # GPIO45 - LCD_DC (BSP_LCD_DC)
         spi_mode: 0                       # Traditional SPI mode (0~3)
         pclk_hz: 60000000                 # Frequency of pixel clock
+        trans_queue_depth: 1
         flags:
           sio_mode: false                 # Single line mode
-        peripherals:
-          - name: spi_display             # SPI peripheral for LCD communication
 
       lcd_panel_config:
         reset_gpio_num: -1
@@ -99,6 +101,9 @@ devices:
         data_endian: "LCD_RGB_DATA_ENDIAN_BIG" # LCD_RGB_DATA_ENDIAN_LITTLE
         # ST77916 specific configuration
         vendor_config: NULL
+
+    peripherals:
+      - name: spi_display             # SPI peripheral for LCD communication
 
   # Touch Panel Configuration
   - name: lcd_touch
@@ -159,7 +164,7 @@ devices:
   # ADC Button Devices Configuration for multiple buttons
   - name: adc_button_group
     type: button
-    sub_type: adc
+    sub_type: adc_multi
     config:
       long_press_time: 2000
       short_press_time: 100
@@ -180,5 +185,5 @@ devices:
       voltage_range: [380, 820, 1110, 1650, 1980, 2410]
       button_labels: ["VOLUME_UP", "VOLUME_DOWN", "SET", "PLAY", "MUTE", "REC"]
     peripherals:
-    - name: adc_button
+    - name: adc_oneshot
 

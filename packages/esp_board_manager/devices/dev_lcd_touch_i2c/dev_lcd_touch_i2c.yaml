@@ -4,15 +4,15 @@
 
 # Example LCD Touch I2C device configuration
 - name: lcd_touch          # The name of the device, must be unique
-  chip: generic_touch      # Touch chip type (e.g., cst816s, ft5x06, gt911, st1633)
+  chip: generic_touch      # [TO_BE_CONFIRMED] Touch chip type (e.g., cst816s, ft5x06, gt911, st1633)
   type: lcd_touch_i2c      # The type of the device, must be unique
   version: default
   dependencies:
-    espressif/esp_lcd_touch_generic: "*"  # Component dependency for the touch chip
+    espressif/esp_lcd_touch_generic: "*"  # [TO_BE_CONFIRMED] Component dependency for the touch chip
   config:
     # esp_lcd_panel_io_i2c_config_t fields for I2C communication
     io_i2c_config:
-      dev_addr: 0x5a                    # I2C device address (default: 0x5a)
+      dev_addr: 0x5a                    # [TO_BE_CONFIRMED] I2C device address (default: 0x5a)
       control_phase_bytes: 1            # Control phase bytes (default: 1)
       dc_bit_offset: 0                  # DC bit offset in control phase (default: 0)
       lcd_cmd_bits: 8                   # Bit-width of LCD command (default: 8)
@@ -22,14 +22,14 @@
         dc_low_on_data: false           # DC level for data transfer (default: false)
         disable_control_phase: true     # Disable control phase for touch (default: true)
       peripherals:
-        - name: i2c-0                   # I2C peripheral for touch communication
+        - name: i2c_master              # I2C peripheral for touch communication
 
     # esp_lcd_touch_config_t fields for touch configuration
     touch_config:
-      x_max: 320                        # Maximum X coordinate (default: 320)
-      y_max: 240                        # Maximum Y coordinate (default: 240)
-      rst_gpio_num: -1                  # Reset GPIO (default: -1, GPIO_NUM_NC)
-      int_gpio_num: -1                  # Interrupt GPIO (default: -1, GPIO_NUM_NC)
+      x_max: 320                        # [TO_BE_CONFIRMED] Maximum X coordinate (default: 320)
+      y_max: 240                        # [TO_BE_CONFIRMED] Maximum Y coordinate (default: 240)
+      rst_gpio_num: -1                  # [IO] Reset GPIO (default: -1, GPIO_NUM_NC)
+      int_gpio_num: -1                  # [IO] Interrupt GPIO (default: -1, GPIO_NUM_NC)
       levels:
         reset: 0                        # Reset pin active level (default: 0)
         interrupt: 0                    # Interrupt pin active level (default: 0)

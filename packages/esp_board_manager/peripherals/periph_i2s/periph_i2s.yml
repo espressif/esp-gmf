@@ -6,21 +6,16 @@
 # STANDARD I2S MODE CONFIGURATION (std-out, std-in)
 # =============================================================================
 
-i2s-0-0:
-  # Format string for Standard I2S mode
-  format: "std-out"
-  # Valid formats:
-  # - "std-out" (standard output)
-  # - "std-in" (standard input)
-
-  # Role (default: "master")
-  role: "master"
-  # Valid values: "master", "slave"
-
+- name: i2s_audio_out
+  type: i2s
+  # Valid role values: master, slave
+  role: master
+  # Valid format values: std-out, std-in, default direction is output
+  format: std
   config:
     # ===== CLOCK CONFIGURATION =====
     # Sample rate in Hz (default: 48000)
-    sample_rate_hz: 48000
+    sample_rate_hz: 48000           # [TO_BE_CONFIRMED] Sample rate in Hz
 
     # Clock source (default: I2S_CLK_SRC_DEFAULT)
     clk_src: "I2S_CLK_SRC_DEFAULT"
@@ -37,7 +32,7 @@ i2s-0-0:
 
     # ===== SLOT CONFIGURATION =====
     # Data bit width (default: 16)
-    data_bit_width: 16
+    data_bit_width: 16             # [TO_BE_CONFIRMED] Data bit width
     # Valid values: 8, 16, 24, 32
 
     # Slot bit width (default: I2S_SLOT_BIT_WIDTH_AUTO)
@@ -50,7 +45,7 @@ i2s-0-0:
     # - I2S_SLOT_BIT_WIDTH_32BIT
 
     # Slot mode (default: I2S_SLOT_MODE_STEREO)
-    slot_mode: "I2S_SLOT_MODE_STEREO"
+    slot_mode: "I2S_SLOT_MODE_STEREO"  # [TO_BE_CONFIRMED] Slot mode
     # Valid values:
     # - I2S_SLOT_MODE_MONO
     # - I2S_SLOT_MODE_STEREO
@@ -83,11 +78,11 @@ i2s-0-0:
     # ===== GPIO CONFIGURATION =====
     pins:
       # Standard mode pins
-      mclk: -1
-      bclk: -1
-      ws: -1
-      dout: -1
-      din: -1
+      mclk: -1                     # [IO] MCLK pin
+      bclk: -1                     # [IO] BCLK pin
+      ws: -1                       # [IO] WS pin
+      dout: -1                     # [IO] Data output pin
+      din: -1                      # [IO] Data input pin
 
     # Invert flags
     invert_flags:
@@ -99,21 +94,16 @@ i2s-0-0:
 # TDM I2S MODE CONFIGURATION (tdm-out, tdm-in)
 # =============================================================================
 
-i2s-0-1:
-  # Format string for TDM I2S mode
-  format: "tdm-out"
-  # Valid formats:
-  # - "tdm-out" (TDM output)
-  # - "tdm-in" (TDM input)
-
-  # Role (default: "master")
-  role: "master"
-  # Valid values: "master", "slave"
-
+- name: i2s_audio_out
+  type: i2s
+  # Valid role values: master, slave
+  role: master
+  # Valid format values: tdm-out, tdm-in, default direction is output
+  format: tdm
   config:
     # ===== CLOCK CONFIGURATION =====
     # Sample rate in Hz (default: 48000)
-    sample_rate_hz: 48000
+    sample_rate_hz: 48000           # [TO_BE_CONFIRMED] Sample rate in Hz
 
     # Clock source (default: I2S_CLK_SRC_DEFAULT)
     clk_src: "I2S_CLK_SRC_DEFAULT"
@@ -126,13 +116,13 @@ i2s-0-1:
 
     # ===== SLOT CONFIGURATION =====
     # Data bit width (default: 16)
-    data_bit_width: 16
+    data_bit_width: 16             # [TO_BE_CONFIRMED] Data bit width
 
     # Slot bit width (default: I2S_SLOT_BIT_WIDTH_AUTO)
     slot_bit_width: "I2S_SLOT_BIT_WIDTH_AUTO"
 
     # Slot mode (default: I2S_SLOT_MODE_STEREO)
-    slot_mode: "I2S_SLOT_MODE_STEREO"
+    slot_mode: "I2S_SLOT_MODE_STEREO"  # [TO_BE_CONFIRMED] Slot mode
 
     # TDM slot mask (auto-generated based on slot_mode)
     # For STEREO: I2S_TDM_SLOT0 | I2S_TDM_SLOT1
@@ -165,11 +155,11 @@ i2s-0-1:
     # ===== GPIO CONFIGURATION =====
     pins:
       # TDM mode pins (same as Standard mode)
-      mclk: -1
-      bclk: -1
-      ws: -1
-      dout: -1
-      din: -1
+      mclk: -1                     # [IO] MCLK pin
+      bclk: -1                     # [IO] BCLK pin
+      ws: -1                       # [IO] WS pin
+      dout: -1                     # [IO] Data output pin
+      din: -1                      # [IO] Data input pin
 
     # Invert flags
     invert_flags:
@@ -181,20 +171,14 @@ i2s-0-1:
 # PDM TX MODE CONFIGURATION (pdm-out)
 # =============================================================================
 
-i2s-1-0:
-  # Format string for PDM TX mode
-  format: "pdm-out"
-  # Valid formats:
-  # - "pdm-out" (PDM output)
-
-  # Role (default: "master")
-  role: "master"
-  # Valid values: "master", "slave"
-
+- name: i2s_audio_out
+  type: i2s
+  role: master
+  format: pdm-out
   config:
     # ===== CLOCK CONFIGURATION =====
     # Sample rate in Hz (default: 48000)
-    sample_rate_hz: 48000
+    sample_rate_hz: 48000           # [TO_BE_CONFIRMED] Sample rate in Hz
 
     # Clock source (default: I2S_CLK_SRC_DEFAULT)
     clk_src: "I2S_CLK_SRC_DEFAULT"
@@ -211,13 +195,13 @@ i2s-1-0:
 
     # ===== SLOT CONFIGURATION =====
     # Data bit width (default: 16, fixed for PDM)
-    data_bit_width: 16
+    data_bit_width: 16              # [TO_BE_CONFIRMED] Data bit width
 
     # Slot bit width (default: I2S_SLOT_BIT_WIDTH_AUTO)
     slot_bit_width: "I2S_SLOT_BIT_WIDTH_AUTO"
 
     # Slot mode (default: I2S_SLOT_MODE_STEREO)
-    slot_mode: "I2S_SLOT_MODE_STEREO"
+    slot_mode: "I2S_SLOT_MODE_STEREO"  # [TO_BE_CONFIRMED] Slot mode
 
     # PDM slot mask (default: I2S_PDM_SLOT_BOTH)
     slot_mask: "I2S_PDM_SLOT_BOTH"
@@ -264,9 +248,9 @@ i2s-1-0:
     # ===== GPIO CONFIGURATION =====
     pins:
       # PDM TX mode pins
-      clk: -1
-      dout: -1
-      dout2: -1  # Second data pin for dual-line DAC mode
+      clk: -1                     # [IO] Clock pin
+      dout: -1                    # [IO] Data output pin
+      dout2: -1                   # [IO] Second data pin for dual-line DAC mode
 
     # Invert flags
     invert_flags:
@@ -276,20 +260,14 @@ i2s-1-0:
 # PDM RX MODE CONFIGURATION (pdm-in)
 # =============================================================================
 
-i2s-1-1:
-  # Format string for PDM RX mode
-  format: "pdm-in"
-  # Valid formats:
-  # - "pdm-in" (PDM input)
-
-  # Role (default: "master")
-  role: "master"
-  # Valid values: "master", "slave"
-
+- name: i2s_audio_in
+  type: i2s
+  role: master
+  format: pdm-in
   config:
     # ===== CLOCK CONFIGURATION =====
     # Sample rate in Hz (default: 48000)
-    sample_rate_hz: 48000
+    sample_rate_hz: 48000           # [TO_BE_CONFIRMED] Sample rate in Hz
 
     # Clock source (default: I2S_CLK_SRC_DEFAULT)
     clk_src: "I2S_CLK_SRC_DEFAULT"
@@ -308,13 +286,13 @@ i2s-1-1:
 
     # ===== SLOT CONFIGURATION =====
     # Data bit width (default: 16, fixed for PDM)
-    data_bit_width: 16
+    data_bit_width: 16              # [TO_BE_CONFIRMED] Data bit width
 
     # Slot bit width (default: I2S_SLOT_BIT_WIDTH_AUTO)
     slot_bit_width: "I2S_SLOT_BIT_WIDTH_AUTO"
 
     # Slot mode (default: I2S_SLOT_MODE_STEREO)
-    slot_mode: "I2S_SLOT_MODE_STEREO"
+    slot_mode: "I2S_SLOT_MODE_STEREO"  # [TO_BE_CONFIRMED] Slot mode
 
     # PDM slot mask (default: I2S_PDM_SLOT_BOTH)
     slot_mask: "I2S_PDM_SLOT_BOTH"
@@ -349,15 +327,15 @@ i2s-1-1:
     # ===== GPIO CONFIGURATION =====
     pins:
       # PDM RX mode pins - Single line mode
-      clk: -1
-      din: -1
+      clk: -1                     # [IO] Clock pin
+      din: -1                     # [IO] Data input pin
 
       # PDM RX mode pins - Multi-line mode (ESP32S3/ESP32P4)
       # Uncomment and configure for multi-line mode:
-      # din0: -1  # Line 0 data pin
-      # din1: -1  # Line 1 data pin
-      # din2: -1  # Line 2 data pin
-      # din3: -1  # Line 3 data pin
+      # din0: -1  # [IO] Line 0 data pin
+      # din1: -1  # [IO] Line 1 data pin
+      # din2: -1  # [IO] Line 2 data pin
+      # din3: -1  # [IO] Line 3 data pin
 
     # Invert flags
     invert_flags:

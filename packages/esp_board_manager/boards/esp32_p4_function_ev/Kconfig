@@ -1,2 +1,2 @@
-config BOARD_ESP32_P4_Function_EV_Board
+config BOARD_ESP32_P4_FUNCTION_EV
     bool

@@ -71,7 +71,7 @@ static void embedded_wav_playback_task(void *pvParameters)
     uint16_t channels = *(uint16_t *)(current_pos + 22);
     uint16_t bits_per_sample = *(uint16_t *)(current_pos + 34);
 
-    ESP_LOGI(TAG, "WAV file info: %d Hz, %d channels, %d bits", sample_rate, channels, bits_per_sample);
+    ESP_LOGI(TAG, "WAV file info: %" PRIu32 " Hz, %d channels, %d bits", sample_rate, channels, bits_per_sample);
 
     // Configure DAC
     audio_config_t dac_config = {
@@ -137,7 +137,7 @@ static void partition_recording_task(void *pvParameters)
         goto cleanup_partition_recording;
     }
 
-    ESP_LOGI(TAG, "Found record partition: size=%d bytes", record_partition->size);
+    ESP_LOGI(TAG, "Found record partition: size=%" PRIu32 " bytes", record_partition->size);
 
     // Erase the partition before recording
     esp_err_t ret = esp_partition_erase_range(record_partition, 0, record_partition->size);
@@ -183,7 +183,7 @@ static void partition_recording_task(void *pvParameters)
     // Save configuration for playback
     recorded_audio_config = adc_config;
 
-    ESP_LOGI(TAG, "Recording config: %d Hz, %d channels, %d bits",
+    ESP_LOGI(TAG, "Recording config: %" PRIu32 " Hz, %d channels, %d bits",
              adc_config.sample_rate, adc_config.channels, adc_config.bits_per_sample);
 
     dev_audio_codec_handles_t *adc_handles = NULL;

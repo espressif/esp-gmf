@@ -44,17 +44,7 @@ devices:
       # override i2s_audio_in
       - name: i2s_audio_in
 
-  # - name: fs_sdcard
-  #   type: fatfs_sdcard
-  #   version: default
-  #   config:
-  #     bus_width: 1            # 1, 4, 8, not used on SPI type
-  #     pins:
-  #       clk: 6    #
-  #       cmd: 7    #
-  #       d0: 4     #
-
-  - name: fatfs          # The name of the device, must be unique
+  - name: fs_sdcard       # The name of the device, must be unique
     type: fs_fat          # The type of the device, must be unique
     version: default
     sub_type: sdmmc

@@ -3,14 +3,15 @@
 # Based on periph_anacmpr.py parsing script
 
 # Analog Comparator example with internal reference
-anacmpr-internal-0:
+- name: anacmpr_unit_0
+  type: anacmpr
   config:
     # Analog Comparator unit number, must be not less than 0 and less than 'SOC_ANA_CMPR_NUM'  (default: 0)
     # Please check the 'SOC_ANA_CMPR_NUM' in 'soc/soc_caps.h' for valid values
-    unit: 0
+    unit: 0  # [TO_BE_CONFIRMED] Analog Comparator unit
 
     # Reference source type (default: ANA_CMPR_REF_SRC_INTERNAL)
-    ref_src: ANA_CMPR_REF_SRC_INTERNAL
+    ref_src: ANA_CMPR_REF_SRC_INTERNAL  # [TO_BE_CONFIRMED] Reference source type
     # Valid values:
     # - ANA_CMPR_REF_SRC_INTERNAL: Use internal reference voltage (divided from VDD)
     # - ANA_CMPR_REF_SRC_EXTERNAL: Use external reference from GPIO pin

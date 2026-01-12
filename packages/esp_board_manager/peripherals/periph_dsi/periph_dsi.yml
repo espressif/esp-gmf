@@ -24,4 +24,4 @@
 
     # Bit rate per data lane in Mbps (default: 1000 for 1Gbps per lane)
     # Common values between 80 to 1500 Mbps depending on display capabilities
-    lane_bit_rate_mbps: 1000
+    lane_bit_rate_mbps: 1000          # [TO_BE_CONFIRMED] Bit rate per data lane in Mbps

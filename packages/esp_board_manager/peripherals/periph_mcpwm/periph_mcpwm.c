@@ -79,8 +79,8 @@ int periph_mcpwm_init(void *cfg, int cfg_size, void **periph_handle)
 
     ESP_LOGI(TAG, "MCPWM peripheral initialized successfully");
     ESP_LOGD(TAG, "  GPIO: %d", mcpwm_cfg->generator_config.gen_gpio_num);
-    ESP_LOGD(TAG, "  Resolution: %d Hz", mcpwm_cfg->timer_config.resolution_hz);
-    ESP_LOGD(TAG, "  Period: %d ticks", mcpwm_cfg->timer_config.period_ticks);
+    ESP_LOGD(TAG, "  Resolution: %" PRIu32 " Hz", mcpwm_cfg->timer_config.resolution_hz);
+    ESP_LOGD(TAG, "  Period: %" PRIu32 " ticks", mcpwm_cfg->timer_config.period_ticks);
     ESP_LOGD(TAG, "  Count mode: %d", mcpwm_cfg->timer_config.count_mode);
     ESP_LOGD(TAG, "  Comparators: %d", handle->num_comparators);
 

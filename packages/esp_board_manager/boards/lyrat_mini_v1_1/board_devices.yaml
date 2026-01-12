@@ -52,23 +52,25 @@ devices:
 
   # SD Card (FATFS)
   - name: fs_sdcard
-    type: fatfs_sdcard
+    type: fs_fat
+    sub_type: sdmmc
+    power_ctrl_device: sdcard_power_ctrl
     version: default
     config:
-      mount_point: "/sdcard"
-      vfs_config:
-        max_files: 5
-      bus_width: 1                 # 1-line mode only
-      pins:
-        clk: 14
-        cmd: 15
-        d0: 2
-    power_ctrl_device: sdcard_power_ctrl
+      sub_config:
+        mount_point: "/sdcard"
+        vfs_config:
+          max_files: 5
+        bus_width: 1                 # 1-line mode only
+        pins:
+            clk: 14
+            cmd: 15
+            d0: 2
 
   # ADC Button Devices Configuration for multiple buttons
   - name: adc_button_group
     type: button
-    sub_type: adc
+    sub_type: adc_multi
     config:
       long_press_time: 2000
       short_press_time: 100

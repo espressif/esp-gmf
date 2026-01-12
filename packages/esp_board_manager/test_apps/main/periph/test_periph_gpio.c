@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "esp_board_periph.h"
+#include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
 #include "driver/gpio.h"
 
@@ -13,7 +14,7 @@ void test_periph_gpio(void)
     }
     /* Get GPIO handles */
     void *gpio_power_amp_handle = NULL;
-    ret = esp_board_periph_get_handle(ESP_BOARD_PERIPH_NAME_GPIO_PA_CONTROL, &gpio_power_amp_handle);
+    ret = esp_board_manager_get_periph_handle(ESP_BOARD_PERIPH_NAME_GPIO_PA_CONTROL, &gpio_power_amp_handle);
     if (ret != ESP_OK || !gpio_power_amp_handle) {
         printf("Failed to get GPIO power amp handle\n");
         goto cleanup_power_amp;

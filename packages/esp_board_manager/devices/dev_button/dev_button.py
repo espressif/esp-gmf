@@ -28,8 +28,8 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
 
     # Get button type
     button_type = config.get('sub_type')
-    if button_type not in ['gpio', 'adc']:
-        raise ValueError(f"YAML validation error in  button device: Invalid button type '{button_type}'. Valid types: ['gpio', 'adc']")
+    if button_type not in ['gpio', 'adc_single', 'adc_multi']:
+        raise ValueError(f"YAML validation error in  button device: Invalid button type '{button_type}'. Valid types: ['gpio', 'adc_single', 'adc_multi']")
 
     # Parse timing configuration
     long_press_time = int(device_config.get('long_press_time', 2000))
@@ -48,7 +48,7 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
         'press_up': int(events_config.get('press_up', True)),
         'single_click': int(events_config.get('single_click', True)),
         'double_click': int(events_config.get('double_click', True)),
-        'multi_click': int(True if events_config.get('multi_click') else False),  # tentative enable if present
+        'multi_click': int(events_config.get('multi_click', False)),
         'long_press_start': int(events_config.get('long_press_start', True)),
         'long_press_hold': int(events_config.get('long_press_hold', False)),
         'long_press_up': int(events_config.get('long_press_up', True)),
@@ -65,7 +65,7 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
     extra_configs = []
     if enabled_events['multi_click'] == 1:
         # Handle multi_click array
-        multi_click_value = events_config.get('multi_click')
+        multi_click_value = events_config.get('click_counts')
         if multi_click_value is not None and isinstance(multi_click_value, list):
             multi_click_counts = []
             multi_click_counts = [int(x) for x in multi_click_value]
@@ -176,7 +176,7 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
         button_config['sub_cfg']['gpio'] = gpio_cfg
 
     # Parse ADC button configuration
-    elif button_type == 'adc':
+    elif button_type == 'adc_multi' or button_type == 'adc_single':
         # Get ADC peripheral name from device config or peripherals list
         adc_name = device_config.get('adc_name')
 
@@ -199,13 +199,18 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
         if peripherals_dict is not None and adc_name not in peripherals_dict:
             raise ValueError(f" button device {name} references undefined peripheral '{adc_name}'")
 
-        # Determine if multi-button configuration
-        button_num = device_config.get('button_num')
-        voltage_range = device_config.get('voltage_range')
-        button_labels = device_config.get('button_labels')
-
-        if button_labels is not None and voltage_range is not None:
+        # Determine configuration based on sub_type
+        if button_type == 'adc_multi':
             # Multi-button configuration
+            button_num = device_config.get('button_num')
+            voltage_range = device_config.get('voltage_range')
+            button_labels = device_config.get('button_labels')
+
+            if button_num is None:
+                raise ValueError(f'YAML validation error in  button device: Missing button_num field for ADC multi-button configuration')
+            if voltage_range is None:
+                raise ValueError(f'YAML validation error in  button device: Missing voltage_range field for ADC multi-button configuration')
+
             button_num = int(button_num)
             if button_num <= 1:
                 raise ValueError(f'YAML validation error in  button device: button_num must be > 1 for multi-button configuration')
@@ -230,14 +235,14 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
             # Build ADC button configuration with multi union
             adc_cfg = {
                 'adc_name': adc_name,
-                'button_num': button_num,
                 'multi': {
+                    'button_num': button_num,
                     'voltage_range': voltage_range,
                     'button_labels': button_labels,
                     'max_voltage': max_voltage
                 }
             }
-        else:
+        else:  # button_type == 'adc_single'
             # Single-button configuration
             button_index = int(device_config.get('button_index', 0))
             min_voltage = int(device_config.get('min_voltage', 0))
@@ -248,7 +253,6 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
             # Build ADC button configuration with single union
             adc_cfg = {
                 'adc_name': adc_name,
-                'button_num': 1,
                 'single': {
                     'button_index': button_index,
                     'min_voltage': min_voltage,

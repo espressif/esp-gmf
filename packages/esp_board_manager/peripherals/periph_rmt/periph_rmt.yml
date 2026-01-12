@@ -6,16 +6,15 @@
 # -----------------------------------------------------------------------------
 # RMT TX example - Using rmt_tx_channel_config_t structure
 # -----------------------------------------------------------------------------
-rmt-tx-0:
-  role: "tx"  # Valid values: "tx", "rx", default is "tx"
-
-  # TX channel configuration using rmt_tx_channel_config_t
+- name: rmt_tx
+  type: rmt
+  role: tx
   config:
     # Basic channel configuration
-    gpio_num: 18                     # GPIO number used by RMT channel. Set to -1 if unused
+    gpio_num: 18                     # [IO] GPIO number used by RMT channel. Set to -1 if unused
     clk_src: RMT_CLK_SRC_DEFAULT     # Clock source of RMT channel, channels in same group must use same clock source
                                       # Please check the 'rmt_clock_source_t' in 'driver/rmt_types.h' for valid values
-    resolution_hz: 10000000          # Channel clock resolution, in Hz (10MHz = 0.1us precision)
+    resolution_hz: 10000000          # [TO_BE_CONFIRMED] Channel clock resolution, in Hz (10MHz = 0.1us precision)
     mem_block_symbols: 64            # Size of memory block in number of rmt_symbol_word_t (even number required)
                                       # In DMA mode: controls DMA buffer size
                                       # In normal mode: controls number of RMT memory blocks
@@ -37,16 +36,15 @@ rmt-tx-0:
 # -----------------------------------------------------------------------------
 # RMT RX example - Using rmt_rx_channel_config_t structure
 # -----------------------------------------------------------------------------
-rmt-rx-0:
+- name: rmt_rx
+  type: rmt
   role: rx
-
-  # RX channel configuration using rmt_rx_channel_config_t
   config:
     # Basic channel configuration
-    gpio_num: 19                     # GPIO number used by RMT channel. Set to -1 if unused
+    gpio_num: 19                     # [IO] GPIO number used by RMT channel. Set to -1 if unused
     clk_src: RMT_CLK_SRC_DEFAULT     # Clock source of RMT channel, channels in same group must use same clock source
                                       # Please check the 'rmt_clock_source_t' in 'driver/rmt_types.h' for valid values
-    resolution_hz: 1000000           # Channel clock resolution, in Hz (1MHz = 1us precision, good for 38kHz IR)
+    resolution_hz: 1000000           # [TO_BE_CONFIRMED] Channel clock resolution, in Hz (1MHz = 1us precision, good for 38kHz IR)
     mem_block_symbols: 64            # Size of memory block in number of rmt_symbol_word_t (even number required)
                                       # In DMA mode: controls DMA buffer size
                                       # In normal mode: controls number of RMT memory blocks

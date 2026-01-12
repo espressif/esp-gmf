@@ -25,23 +25,23 @@
                                         #   SDMMC_FREQ_26M          (26000 Hz)
                                         #   SDMMC_FREQ_DDR50        (50000 Hz)
                                         #   SDMMC_FREQ_SDR50        (100000 Hz)
-      bus_width: 1                      # Bus width: 1, 4, or 8 bits
+      bus_width: 1                      # [TO_BE_CONFIRMED] Bus width: 1, 4, or 8 bits
       slot_flags: SDMMC_SLOT_FLAG_INTERNAL_PULLUP # Slot flags (SDMMC_SLOT_FLAG_INTERNAL_PULLUP, SDMMC_SLOT_FLAG_WP_ACTIVE_HIGH, SDMMC_SLOT_FLAG_UHS1)
 
       # GPIO pin configuration
       pins:
-        clk: -1                         # Clock pin (-1 for not used)
-        cmd: -1                         # Command pin (-1 for not used)
-        d0: -1                          # Data line 0 pin (-1 for not used)
-        d1: -1                          # Data line 1 pin (-1 for not used)
-        d2: -1                          # Data line 2 pin (-1 for not used)
-        d3: -1                          # Data line 3 pin (-1 for not used)
-        d4: -1                          # Data line 4 pin (-1 for not used, 8-bit mode only)
-        d5: -1                          # Data line 5 pin (-1 for not used, 8-bit mode only)
-        d6: -1                          # Data line 6 pin (-1 for not used, 8-bit mode only)
-        d7: -1                          # Data line 7 pin (-1 for not used, 8-bit mode only)
-        cd: -1                          # Card detect pin (-1 for not used)
-        wp: -1                          # Write protect pin (-1 for not used)
+        clk: -1                         # [IO] Clock pin (-1 for not used)
+        cmd: -1                         # [IO] Command pin (-1 for not used)
+        d0: -1                          # [IO] Data line 0 pin (-1 for not used)
+        d1: -1                          # [IO] Data line 1 pin (-1 for not used)
+        d2: -1                          # [IO] Data line 2 pin (-1 for not used)
+        d3: -1                          # [IO] Data line 3 pin (-1 for not used)
+        d4: -1                          # [IO] Data line 4 pin (-1 for not used, 8-bit mode only)
+        d5: -1                          # [IO] Data line 5 pin (-1 for not used, 8-bit mode only)
+        d6: -1                          # [IO] Data line 6 pin (-1 for not used, 8-bit mode only)
+        d7: -1                          # [IO] Data line 7 pin (-1 for not used, 8-bit mode only)
+        cd: -1                          # [IO] Card detect pin (-1 for not used)
+        wp: -1                          # [IO] Write protect pin (-1 for not used)
 
       # For SoCs where the SD power can be supplied both via an internal or external (e.g. on-board LDO) power supply.
       # When using specific IO pins (which can be used for ultra high-speed SDMMC) to connect to the SD card
@@ -67,8 +67,8 @@
       allocation_unit_size: 16384     # Allocation unit size in bytes (0 for default)
 
     sub_config:
-      cs_gpio_num: 15         # Chip select GPIO number
+      cs_gpio_num: 15   # [IO] Chip select GPIO number
   # Peripherals must be defined at device level (consistent with other devices)
   # The SPI peripheral must have: type: spi and role: master
   peripherals:
-    - name: "spi_master"  # SPI bus name (can be any name, e.g., spi_0, spi_sdcard, etc.)
+    - name: spi_master  # [TO_BE_CONFIRMED] SPI bus name (can be any name, e.g., spi_0, spi_sdcard, etc.)

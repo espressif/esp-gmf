@@ -59,9 +59,12 @@ def parse_dsi_sub_config(full_config: dict = None, peripherals_dict=None) -> dic
     # Get DSI bus name from peripherals
     dsi_bus_name = None
     ldo_name = None
+    peripherals_list = None
 
     # First try to get peripherals from config (for backward compatibility)
-    peripherals_list = sub_config.get('peripherals')
+    peripherals_list = full_config.get('peripherals')
+    if peripherals_list is None or len(peripherals_list) == 0:
+        peripherals_list = sub_config.get('peripherals')
 
     # Look for dsi peripheral in the peripherals list
     if peripherals_list:
@@ -176,10 +179,11 @@ def parse_spi_sub_config(full_config: dict = None, peripherals_dict=None) -> dic
 
     # Get SPI bus name from peripherals
     spi_bus_name = None
-
-    # Get peripherals from device level or nested io_spi_config
-    peripherals_list = sub_config.get('peripherals')
-    if not peripherals_list and 'peripherals' in io_spi_config:
+    peripherals_list = None
+    peripherals_list = full_config.get('peripherals')
+    if peripherals_list is None or len(peripherals_list) == 0:
+        peripherals_list = sub_config.get('peripherals')
+    if peripherals_list is None or len(peripherals_list) == 0:
         # Try to get peripherals from nested io_spi_config
         peripherals_list = io_spi_config.get('peripherals')
 

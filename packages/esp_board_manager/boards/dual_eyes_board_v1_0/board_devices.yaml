@@ -6,48 +6,52 @@ devices:
   # Dual LCD Display Configuration (GC9A01)
   - name: display_lcd_left
     chip: gc9a01
-    type: display_lcd_spi
+    type: display_lcd
+    sub_type: spi
     version: default
     dependencies:
-      - espressif/esp_lcd_gc9a01: 1.2.0
+      - espressif/esp_lcd_gc9a01: "*"
     config:
       x_max: 240
       y_max: 240
-      # esp_lcd_panel_io_spi_config_t fields
+      mirror_x: true
+      invert_color: true
       io_spi_config:
         cs_gpio_num: 41                   # GPIO41 - LCD_CS_0 (BSP_LCD_CS_0)
         dc_gpio_num: 47                   # GPIO47 - LCD_DC (BSP_LCD_DC)
         spi_mode: 0                       # Traditional SPI mode (0~3)
         pclk_hz: 80000000                 # Frequency of pixel clock (80MHz)
         trans_queue_depth: 1              # Size of internal transaction queue
-        peripherals:
-          - name: spi_display                  # SPI peripheral for LCD communication
 
       lcd_panel_config:
         reset_gpio_num: 21               # GPIO21 - LCD_RST (BSP_LCD_RST)
         rgb_ele_order: "LCD_RGB_ELEMENT_ORDER_BGR"  # BGR color order for GC9A01
 
-  - name: display_lcd_right
+    peripherals:
+      - name: spi_display                  # SPI peripheral for LCD communication
+
+  - name: display_lcd
     chip: gc9a01
-    type: display_lcd_spi
+    type: display_lcd
+    sub_type: spi
     version: default
-    dependencies:
-      - espressif/esp_lcd_gc9a01: 1.2.0
     config:
       x_max: 240
       y_max: 240
-      # esp_lcd_panel_io_spi_config_t fields
+      mirror_x: true
+      invert_color: true
       io_spi_config:
         cs_gpio_num: 48                   # GPIO48 - LCD_CS_1 (BSP_LCD_CS_1)
         dc_gpio_num: 47                   # GPIO47 - LCD_DC (BSP_LCD_DC) - shared
         spi_mode: 0                       # Traditional SPI mode (0~3)
         pclk_hz: 80000000                 # Frequency of pixel clock (80MHz)
         trans_queue_depth: 1              # Size of internal transaction queue
-        peripherals:
-          - name: spi_display                  # SPI peripheral for LCD communication
 
       lcd_panel_config:
         rgb_ele_order: "LCD_RGB_ELEMENT_ORDER_BGR"  # BGR color order for GC9A01
+
+    peripherals:
+      - name: spi_display                  # SPI peripheral for LCD communication
 
   - name: lcd_brightness
     type: ledc_ctrl

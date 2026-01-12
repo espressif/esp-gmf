@@ -2,7 +2,8 @@
 # This file shows the default values used by the SPI peripheral parser
 # Based on periph_spi.py parsing script
 
-spi-0:
+- name: spi_master
+  type: spi
   config:
     # SPI port (default: 0, maps to SPI1_HOST)
     spi_port: 0
@@ -13,34 +14,34 @@ spi-0:
     spi_bus_config:
       # Standard SPI pins (union fields - use either dataX_io_num or traditional names)
       # MOSI pin (default: -1, not set)
-      mosi_io_num: -1
+      mosi_io_num: -1                     # [IO] MOSI pin
       # Alternative: data0_io_num: -1
 
       # MISO pin (default: -1, not set)
-      miso_io_num: -1
+      miso_io_num: -1                     # [IO] MISO pin
       # Alternative: data1_io_num: -1
 
       # SCLK pin (default: -1, not set)
-      sclk_io_num: -1
+      sclk_io_num: -1                     # [IO] SCLK pin
 
       # Quad SPI pins (union fields)
       # Quad Write Protect pin (default: -1, not set)
-      quadwp_io_num: -1
+      quadwp_io_num: -1                   # [IO] Quad Write Protect pin
       # Alternative: data2_io_num: -1
 
       # Quad Hold pin (default: -1, not set)
-      quadhd_io_num: -1
+      quadhd_io_num: -1                   # [IO] Quad Hold pin
       # Alternative: data3_io_num: -1
 
       # Octal mode pins (optional)
       # Data pin 4 (default: -1, not set)
-      data4_io_num: -1
+      data4_io_num: -1                    # [IO] Data pin 4
       # Data pin 5 (default: -1, not set)
-      data5_io_num: -1
+      data5_io_num: -1                    # [IO] Data pin 5
       # Data pin 6 (default: -1, not set)
-      data6_io_num: -1
+      data6_io_num: -1                    # [IO] Data pin 6
       # Data pin 7 (default: -1, not set)
-      data7_io_num: -1
+      data7_io_num: -1                    # [IO] Data pin 7
 
       # Data IO default level (default: false)
       data_io_default_level: false

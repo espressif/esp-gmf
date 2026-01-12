@@ -35,7 +35,7 @@
 cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_record_sdcard
 ```
 
-- 执行预编译脚本，根据提示选择编译芯片，自动设置 IDF Action 扩展
+- 执行预编译脚本，根据提示选择编译芯片，自动设置 IDF Action 扩展，通过 `esp_board_manager` 选择支持的开发板或自定义开发板
 
 在 Linux / macOS 中运行以下命令：
 ```bash/zsh
@@ -45,12 +45,6 @@ source prebuild.sh
 在 Windows 中运行以下命令：
 ```powershell
 .\prebuild.ps1
-```
-
-- 通过 `esp_board_manager` 选择支持的开发板或自定义开发板，请务必参阅 [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager)，以 ESP32-S3-Korvo2 V3.1 为例：
-
-```
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
 
 - 编译例子程序

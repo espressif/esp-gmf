@@ -4,12 +4,12 @@
 
 # Example Audio Codec device configuration (Generic - ADC + DAC)
 - name: audio_codec          # The name of the device, must be unique
-  chip: generic_codec        # Codec chip type (es8311, es7210, etc.)
-  type: audio_codec         # The type of the device, must be unique
+  chip: generic_codec        # [TO_BE_CONFIRMED] Codec chip type (es8311, es7210, etc.)
+  type: audio_codec          # The type of the device, must be unique
   version: default
   config:
     # ADC Configuration
-    adc_enabled: false                   # Enable ADC functionality (default: false)
+    adc_enabled: false                   # [TO_BE_CONFIRMED] Enable ADC functionality (default: false)
     adc_max_channel: 0                   # Maximum number of ADC channels (default: 0)
     # ADC channel mask: 1-enable, 0-disable, MSB to LSB: mic3,mic2,mic1,mic0
     # Example: "0111" means Mic0=1(enable), Mic1=1(enable), Mic2=1(enable), Mic3=0(disable)
@@ -26,7 +26,7 @@
     adc_init_gain: 0                     # ADC initial gain in dB (default: 0)
 
     # DAC Configuration
-    dac_enabled: false                   # Enable DAC functionality (default: false)
+    dac_enabled: false                   # [TO_BE_CONFIRMED] Enable DAC functionality (default: false)
     dac_max_channel: 0                   # Maximum number of DAC channels (default: 0)
     # DAC channel mask: 1-enable, 0-disable, layout: left, right
     # Example: "11" means both left and right channels enabled
@@ -41,16 +41,16 @@
 
   # Peripheral configuration
   peripherals:
-    # Power amplifier configuration
-    - name: gpio-0                       # GPIO peripheral for power amplifier control
+    # Power amplifier configuration, if using GPIO to control PA, this peripheral needs to be configured
+    - name: gpio                         # GPIO peripheral for power amplifier control
       gain: 0.0                          # Amplifier gain in dB (default: 0.0)
       active_level: 0                    # Active level (0-low, 1-high) (default: 0)
 
     # I2S interface configuration
-    - name: i2s-0                        # I2S peripheral for audio data interface
+    - name: i2s_audio_out                # [TO_BE_CONFIRMED] I2S peripheral for audio data interface
       clk_src: 0                         # I2S clock source, need converted from `i2s_clock_src_t`. If set to 0 will use default clock source (default: 0)
 
     # I2C interface configuration
-    - name: i2c-0                        # I2C peripheral for codec control
-      address: 0x30                      # I2C device address, include the read/write bit (hex format) (default: 0x30)
+    - name: i2c_master                   # [TO_BE_CONFIRMED] I2C peripheral for codec control
+      address: 0x30                      # [TO_BE_CONFIRMED] I2C device address, include the read/write bit (hex format) (default: 0x30)
       frequency: 400000                  # I2C clock frequency in Hz (default: 400000)

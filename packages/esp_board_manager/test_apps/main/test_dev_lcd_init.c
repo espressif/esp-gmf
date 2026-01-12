@@ -11,18 +11,20 @@
 #include "esp_board_manager_err.h"
 #include "esp_lvgl_port.h"
 #include "esp_lcd_panel_io.h"
+#ifdef CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT
 #include "esp_lcd_touch.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT */
 #include "esp_lcd_types.h"
 #include "esp_board_manager_includes.h"
 
-#define TAG "LCD_INIT"
+#define TAG  "LCD_INIT"
 
 // LVGL configuration
-#define LVGL_TICK_PERIOD_MS    5
-#define LVGL_TASK_MAX_SLEEP_MS 500
-#define LVGL_TASK_MIN_SLEEP_MS 5
-#define LVGL_TASK_STACK_SIZE   (10 * 1024)
-#define LVGL_TASK_PRIORITY     5
+#define LVGL_TICK_PERIOD_MS     5
+#define LVGL_TASK_MAX_SLEEP_MS  500
+#define LVGL_TASK_MIN_SLEEP_MS  5
+#define LVGL_TASK_STACK_SIZE    (10 * 1024)
+#define LVGL_TASK_PRIORITY      5
 
 // Global handles
 static void                     *lcd_handle   = NULL;
@@ -30,10 +32,10 @@ static void                     *touch_handle = NULL;
 static esp_lcd_panel_handle_t    panel_handle = NULL;
 static esp_lcd_panel_io_handle_t io_handle    = NULL;
 #ifdef CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT
-static esp_lcd_touch_handle_t    tp           = NULL;
+static esp_lcd_touch_handle_t tp = NULL;
 #endif  /* CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT */
-static lv_display_t             *disp         = NULL;
-static lv_indev_t               *touch_indev  = NULL;
+static lv_display_t *disp        = NULL;
+static lv_indev_t   *touch_indev = NULL;
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 static periph_ledc_handle_t *ledc_handle = NULL;
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
@@ -68,10 +70,10 @@ static esp_err_t lcd_backlight_set(int brightness_percent)
 
     ESP_LOGI(TAG, "Setting LCD backlight: %d%%,", brightness_percent);
     if (ledc_handle == NULL) {
-        ESP_BOARD_RETURN_ON_ERROR(esp_board_manager_get_device_handle("lcd_brightness", (void **)&ledc_handle), TAG, "Get LEDC control device handle failed");
+        ESP_BOARD_RETURN_ON_ERROR(esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_LCD_BRIGHTNESS, (void **)&ledc_handle), TAG, "Get LEDC control device handle failed");
     }
     dev_ledc_ctrl_config_t *dev_ledc_cfg = NULL;
-    esp_err_t config_ret = esp_board_manager_get_device_config("lcd_brightness", (void *)&dev_ledc_cfg);
+    esp_err_t config_ret = esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_LCD_BRIGHTNESS, (void *)&dev_ledc_cfg);
     if (config_ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LEDC peripheral config '%s': %s", "lcd_brightness", esp_err_to_name(config_ret));
         return ESP_FAIL;
@@ -102,7 +104,7 @@ esp_err_t test_dev_lcd_lvgl_init(void)
     lcd_backlight_set(100);
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
     // Get LCD device handle from board manager
-    esp_err_t ret = esp_board_manager_get_device_handle("display_lcd", &lcd_handle);
+    esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, &lcd_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LCD device handle: %s", esp_err_to_name(ret));
         return ESP_FAIL;
@@ -110,7 +112,6 @@ esp_err_t test_dev_lcd_lvgl_init(void)
 
     if (lcd_handle) {
         // Cast to the device structure based on configuration
-#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
         dev_display_lcd_handles_t *lcd_handles = (dev_display_lcd_handles_t *)lcd_handle;
         panel_handle = lcd_handles->panel_handle;
         io_handle = lcd_handles->io_handle;
@@ -174,44 +175,6 @@ esp_err_t test_dev_lcd_lvgl_init(void)
             ESP_LOGE(TAG, "Unknown LCD sub_type: %s", lcd_cfg->sub_type);
             return ESP_FAIL;
         }
-#elif CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
-        dev_display_lcd_spi_handles_t *lcd_handles = (dev_display_lcd_spi_handles_t *)lcd_handle;
-        dev_display_lcd_spi_config_t *lcd_cfg = NULL;
-
-        panel_handle = lcd_handles->panel_handle;
-        io_handle = lcd_handles->io_handle;
-        esp_board_manager_get_device_config("display_lcd", (void **)&lcd_cfg);
-
-        // Add LCD screen to LVGL
-        ESP_LOGI(TAG, "Legacy SPI LCD - Panel handle: %p, IO handle: %p, x_max: %d, y_max: %d, swap_xy: %d, mirror_x: %d, mirror_y: %d",
-                 panel_handle, io_handle, lcd_cfg->x_max, lcd_cfg->y_max, lcd_cfg->swap_xy, lcd_cfg->mirror_x, lcd_cfg->mirror_y);
-
-        const lvgl_port_display_cfg_t disp_cfg = {
-            .io_handle = io_handle,
-            .panel_handle = panel_handle,
-            .buffer_size = lcd_cfg->x_max * lcd_cfg->y_max,
-            .double_buffer = true,
-            .hres = lcd_cfg->x_max,
-            .vres = lcd_cfg->y_max,
-            .monochrome = false,
-            .rotation = {
-                .swap_xy = lcd_cfg->swap_xy,
-                .mirror_x = lcd_cfg->mirror_x,
-                .mirror_y = lcd_cfg->mirror_y,
-            },
-            .flags = {
-                .buff_spiram = true,
-#if LVGL_VERSION_MAJOR >= 9
-                .swap_bytes = true,
-#endif  /* LVGL_VERSION_MAJOR >= 9 */
-            }};
-
-        disp = lvgl_port_add_disp(&disp_cfg);
-        if (disp == NULL) {
-            ESP_LOGE(TAG, "Failed to add legacy SPI LCD display");
-            return ESP_FAIL;
-        }
-#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
         ESP_LOGI(TAG, "LCD display initialized successfully");
         return ESP_OK;
     } else {
@@ -226,7 +189,7 @@ esp_err_t test_dev_lcd_touch_init(void)
     ESP_LOGI(TAG, "Initializing touch input using Board Manager...");
 
     // Get touch device handle from board manager
-    esp_err_t ret = esp_board_manager_get_device_handle("lcd_touch", &touch_handle);
+    esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_LCD_TOUCH, &touch_handle);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Failed to get touch device handle: %s (continuing without touch)", esp_err_to_name(ret));
         return ESP_FAIL;

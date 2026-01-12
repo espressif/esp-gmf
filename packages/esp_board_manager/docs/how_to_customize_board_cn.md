@@ -23,9 +23,53 @@ ESP Board Manager 能够模块化自定义板子，支持将自定义板子文�
 
 ### 2. **创建必需文件**
 
-创建新板子有两种方式：
+创建新板子目前支持三种方式：
 
-- 从主板级目录复制相似的板子文件到您在项目中创建的板子目录，然后**根据实际使用的板子进行修改**（推荐），可以参考以下内容来验证 [验证和使用新板子](#验证和使用新板子)
+#### 2.1 **基于已有配置修改**
+
+- 用户可以从主板级目录复制相似的板子文件到项目目录，然后**根据实际使用的板子进行修改**（推荐），可以参考以下内容来验证 [验证和使用新板子](#验证和使用新板子)
+
+#### 2.2 **使用脚本创建**
+
+- 使用 ESP Board Manager 提供的脚本自动创建板子，执行脚本可以根据所选择的外设和设备，**自动查找并复制** 所需配置，省去手动从对应文件夹复制配置信息的步骤，使用方法如下：
+
+```bash
+# 在默认路径创建板子(默认路径为 {PROJECT_ROOT}/components/<board_name>):
+idf.py gen-bmgr-config -n <board_name>
+
+# 在自定义路径创建板子:
+idf.py gen-bmgr-config -n path/to/board/<board_name>
+```
+
+执行脚本后需要根据提示依次选择 **芯片、设备及外设**，脚本会自动检查设备对外设的依赖关系，如果缺少外设，脚本会提示您进行补充，直到所有依赖都得到满足
+
+> **注意：**
+> - 进行后续操作前，需要手动 **检查并修改 `board_devices.yaml` 和 `board_peripherals.yaml` 配置文件以满足实际板子的需求**，重点关注有 `[IO]` 和 `[TO_BE_CONFIRMED]` 关键字的配置项
+> - 请检查设备及外设的名称，确保没有同名的设备或外设
+> - 只有芯片能够支持的设备和外设才会出现在脚本的选项中
+> - **重要：设备通过命名来查找依赖的外设**，请确保设备依赖的外设均被添加到 `board_peripherals.yaml` 中，并且在 `board_devices.yaml` 的设备配置里所填写的外设 `name` 与 `board_peripherals.yaml` 中对应的 `name` 完全一致，并且外设命名**必须以类型作为开头**
+>
+> 例如
+> ```yaml
+> # board_devices.yaml
+>  - name: led_green
+>    type: gpio_ctrl
+>    config:
+>      ...
+>    peripherals:
+>      - name: gpio_led_g
+>
+> # board_peripherals.yaml
+>  - name: gpio_led_g
+>    type: gpio
+>    config:
+>      ...
+> ```
+
+**使用方法演示**
+![alt text](how_to_customize_board.gif)
+
+#### 2.3 **手动创建文件**
 
 - 运行以下脚本，手动创建板子所需文件。
 
@@ -38,7 +82,7 @@ ESP Board Manager 能够模块化自定义板子，支持将自定义板子文�
    ```
 
 > **注意：**
-> 两种方法都依赖于设备和外设 YAML 文件中的配置，这些 YAML 文件；尽量使用了原始驱动参数，包括：
+> 每种方法都依赖于设备和外设 YAML 文件中的配置，这些 YAML 文件；尽量使用了原始驱动参数，包括：
 >
 > - 支持哪些配置字段
 > - 有效的枚举值
@@ -136,8 +180,8 @@ ESP Board Manager 能够模块化自定义板子，支持将自定义板子文�
 `sdkconfig.defaults.board` 文件用于定义板子的默认 SDK 配置。
 
    - 在板子目录中创建 `sdkconfig.defaults.board` 文件来定义板子特定的 SDK 配置默认值
-   - 切换到此板子时，脚本会自动将这些设置**追加**到项目的 `sdkconfig.defaults` 文件中
-   - 这样可以确保板子特定的配置在 ESP-IDF 构建系统的各种操作（menuconfig、reconfigure 等）中都不会丢失
+   - 切换到此板子时，脚本会自动将这些设置**写入**到项目根目录的 `board_manager.defaults` 文件中
+   - 这样可以确保板子特定的配置在 ESP-IDF 构建系统的各种操作（menuconfig、reconfigure 等）中通过 `SDKCONFIG_DEFAULTS` 环境变量自动应用
 
    示例：
    ```bash
@@ -150,12 +194,13 @@ ESP Board Manager 能够模块化自定义板子，支持将自定义板子文�
      - `CONFIG_XXX=y` 启用
      - `CONFIG_XXX=n` 或 `# CONFIG_XXX is not set` 禁用
      - `CONFIG_XXX="value"` 字符串值
-   - 切换板子时，`sdkconfig.defaults` 中之前的板子特定设置会自动被替换
+   - 切换板子时，`board_manager.defaults` 文件会被重新生成，包含新板子的配置
 
    配置优先级：
 1. `sdkconfig`（用户当前配置）
-2. `sdkconfig.defaults`（项目默认值 + 追加的板子配置）
-3. 组件默认值
+2. `sdkconfig.defaults`（项目默认值）
+3. `board_manager.defaults`（板子特定配置，优先级高于 sdkconfig.defaults）
+4. 组件自己的默认值
 
 ### 5. `board` 目录中自定义代码的说明
 

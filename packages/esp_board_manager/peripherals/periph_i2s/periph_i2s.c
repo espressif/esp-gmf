@@ -5,10 +5,10 @@
  * See LICENSE file for details.
  */
 
-#include "periph_i2s.h"
 #include <stdlib.h>
 #include <string.h>
 #include "esp_log.h"
+#include "periph_i2s.h"
 
 static const char *TAG = "PERIPH_I2S";
 

@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "esp_idf_version.h"
 #include "esp_lcd_types.h"
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
 #include "esp_lcd_mipi_dsi.h"
@@ -22,6 +23,11 @@ extern "C" {
 #define ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI "spi"  /*!< LCD display over SPI */
 
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    #warning "dev_display_lcd_sub_dsi is not supported in ESP-IDF v6.0.0 and above yet."
+#endif
+
 /**
  * @brief  DSI LCD display sub configuration structure
  *

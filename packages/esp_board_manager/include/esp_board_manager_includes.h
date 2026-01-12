@@ -110,24 +110,9 @@
 #include "dev_custom.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT */
 
-/* Display LCD SPI Device */
-#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT
-#include "dev_display_lcd_spi.h"
-#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SPI_SUPPORT */
-
 #ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
 #include "dev_display_lcd.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
-
-/* FATFS SD Card Device */
-#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
-#include "dev_fatfs_sdcard.h"
-#endif  /* CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT */
-
-/* FATFS SD Card SPI Device */
-#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT
-#include "dev_fatfs_sdcard_spi.h"
-#endif  /* CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SPI_SUPPORT */
 
 /* SPIFFS Filesystem Device */
 #ifdef CONFIG_ESP_BOARD_DEV_FS_SPIFFS_SUPPORT

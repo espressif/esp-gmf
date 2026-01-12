@@ -5,17 +5,11 @@
  * See LICENSE file for details.
  */
 
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
 #include "esp_log.h"
-
-#include "esp_check.h"
-#include "driver/gpio.h"
+#include "esp_idf_version.h"
 #include "driver/i2c_master.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_touch.h"
-
 #include "dev_lcd_touch_i2c.h"
 #include "esp_board_periph.h"
 #include "esp_board_device.h"
@@ -66,7 +60,11 @@ int dev_lcd_touch_i2c_init(void *cfg, int cfg_size, void **device_handle)
             }
         }
     }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    ret = esp_lcd_new_panel_io_i2c((i2c_master_bus_handle_t)i2c_bus_handle, &io_i2c_config, &touch_handles->io_handle);
+#else
     ret = esp_lcd_new_panel_io_i2c_v2((i2c_master_bus_handle_t)i2c_bus_handle, &io_i2c_config, &touch_handles->io_handle);
+#endif
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create LCD panel IO for touch, i2c addr: %" PRIx32, io_i2c_config.dev_addr);
         free(touch_handles);

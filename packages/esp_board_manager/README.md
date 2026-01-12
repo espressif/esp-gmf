@@ -168,7 +168,27 @@ At this point, the board configuration files will be automatically generated to 
 
 > **Note:** If you encounter problems, refer to the [Troubleshooting](#troubleshooting) section.
 
-### 3. Use in Your Application
+### 3. Use Prebuild Script
+
+It is recommended that users read the above steps to understand the usage of `esp_board_manager`. For users wish to simplify the usage process, prebuild script for building the project with `esp_board_manager` is provided in [`tools`](tools).
+
+The first time you compile the project, copy script from [`tools`](tools) to `YOUR_PROJECT_ROOT_PATH`. Execute script，the script will first check if the ESP-IDF version is supported. Then, it will list the available chips, and user select the target chip by entering the corresponding number. After downloading the required components, the script will scan the component paths and automatically set the IDF_EXTRA_ACTIONS_PATH environment variable to include the ESP Board Manager directory. The script will then list all available boards, user select the target board by entering thr corresponding number or board name.
+
+On Linux / macOS, run following command:
+```bash/zsh
+source prebuild.sh
+```
+
+On Windows, run following command:
+```powershell
+.\prebuild.ps1
+```
+
+For later board changes, you only need to clear the current board configuration and reselect the board.
+
+> **Note:** The prebuild script takes over steps related to [Add and Activate Component](#1-add-and-activate-component) and [Scan Boards and Select Board](#2-scan-boards-and-select-board).
+
+### 4. Use in Your Application
 
 ```c
 #include <stdio.h>
@@ -188,7 +208,7 @@ void app_main(void)
         return;
     }
     // Get device handle, according to the device naming in esp_board_manager/boards/YOUR_TARGET_BOARD/board_devices.yaml
-    dev_display_lcd_spi_handles_t *lcd_handle;
+    dev_display_lcd_handles_t *lcd_handle;
     ret = esp_board_manager_get_device_handle("display_lcd", &lcd_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LCD device");
@@ -236,11 +256,8 @@ Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicate
 | Device Name | Description | Type | Subtype | Peripheral | Reference YAML | Examples |
 |---|---|---|---|---|---|---|
 | `audio_dac`<br/>`audio_adc` | Audio codec | audio_codec | - | i2s<br/>i2c | [`dev_audio_codec`](devices/dev_audio_codec/dev_audio_codec.yaml) | **[`test_dev_audio_codec.c`](test_apps/main/test_dev_audio_codec.c)** <br/>Audio codec with DAC/ADC, SD card playback, recording, and loopback testing |
-| `display_lcd` | SPI LCD (deprecated) | display_lcd_spi | - | spi | [`dev_display_lcd_spi`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) | **[`test_dev_lcd_init.c`](test_apps/main/test_dev_lcd_init.c)** <br/>LCD display initialization and basic control |
 | `display_lcd` | LCD | display_lcd | spi<br/>dsi | spi<br/>dsi | [`dev_display_lcd`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>LCD display with LVGL, touch screen, and backlight control |
-| `fs_sdcard` | SDMMC SD card (deprecated) | fatfs_sdcard | - | sdmmc | [`dev_fatfs_sdcard`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD card operations and FATFS file system testing |
-| `fs_sdcard` | SPI SD card (deprecated) | fatfs_sdcard_spi | - | spi | [`dev_fatfs_sdcard_spi`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD card operations and FATFS file system testing |
-| `fs_fat` | FAT filesystem device | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD card operations and FATFS file system testing |
+| `fs_fat` | FAT filesystem device | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fs_fat.c`](test_apps/main/test_dev_fs_fat.c)** <br/>SD card operations and FATFS file system testing |
 | `fs_spiffs` | SPIFFS filesystem device | fs_spiffs | - | - | [`dev_fs_spiffs`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) | **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** <br/>SPIFFS file system testing |
 | `lcd_touch` | Touch screen | lcd_touch_i2c | - | i2c | [`dev_lcd_touch_i2c`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>LCD display with LVGL, touch screen, and backlight control |
 | `sdcard_power_ctrl` | Power control device | power_ctrl | gpio | gpio | [`dev_power_ctrl`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
@@ -250,7 +267,6 @@ Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicate
 | `button` | Button | button | gpio<br/>adc | gpio<br/>adc | [`dev_button`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>Button testing |
 
 > For the same device, we will no longer distinguish types by interface. For example, `dev_fatfs_sdcard` and `dev_fatfs_sdcard_spi` will be unified under `fs_fat` for management, and `dev_display_lcd_spi` will also be changed to use `dev_display_lcd` for management.
-> These three device types will be deprecated in future versions. Users can refer to [`dev_fatfs_sdcard.yaml`](./devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml), [`dev_fatfs_sdcard_spi.yaml`](./devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml), and [`dev_display_lcd_spi.yaml`](./devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) to learn how to migrate their original configurations to the new device types.
 
 ### Supported Peripheral Types
 
@@ -320,6 +336,11 @@ idf.py gen-bmgr-config -b my_board -c /path/to/custom/boards
 # Clean generated files
 idf.py gen-bmgr-config -x
 
+# Create the board configuration files at the default path (default path is {PROJECT_ROOT}/components/<board_name>):
+idf.py gen-bmgr-config -n <board_name>
+
+# Create the board configuration files at a custom path:
+idf.py gen-bmgr-config -n path/to/board/<board_name>
 ...
 ```
 
@@ -368,7 +389,7 @@ ESP Board Manager uses `gen_bmgr_config_codes.py` for code generation, which han
 7. **Project sdkconfig Configuration**: Update project sdkconfig based on board device and peripheral types
 8. **File Generation**: Create all necessary C configuration and handle files in the project folder's `components/gen_bmgr_codes/`
 
-**⚠️ Important**: When switching boards, the script automatically backs up and deletes the existing `sdkconfig` file in step 1 to prevent configuration pollution (skipped when using `--kconfig-only`).
+**⚠️ Important**: When switching boards, the script automatically backs up and deletes the existing `sdkconfig` file in step 1. This prevents residual configurations from the old board (e.g., different chip's CONFIG_IDF_TARGET, different board's device configurations) from affecting the new board. The backup file is `sdkconfig.bmgr_board.old`, which can be renamed back to `sdkconfig` if needed (skipped when using `--kconfig-only`).
 
 ## Custom Board
 
@@ -409,8 +430,9 @@ If `idf.py gen-bmgr-config` is not recognized:
 
 **Important:** When switching boards, the script automatically:
 
-1. Backs up `sdkconfig` to `sdkconfig.bmgr_board.backup` and removes the original to prevent configuration pollution
-2. Appends board-specific configurations from `boards/<board_name>/sdkconfig.defaults.board` to your project's `sdkconfig.defaults`
+1. Backs up `sdkconfig` to `sdkconfig.bmgr_board.old` and removes the original to prevent residual configurations from the old board (e.g., different chip's CONFIG_IDF_TARGET, different board's device settings) from affecting the new board
+2. Generates `board_manager.defaults` file with board-specific configurations from `boards/<board_name>/sdkconfig.defaults.board`
+3. The configurations will be automatically applied via `SDKCONFIG_DEFAULTS` environment variable during build/menuconfig/reconfigure
 
 Always use `idf.py gen-bmgr-config -b` (or `python gen_bmgr_config_codes.py`) for board switching. Using `idf.py menuconfig` may cause dependency errors.
 

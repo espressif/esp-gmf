@@ -3,15 +3,14 @@ chip: esp32s3
 version: 1.0.0
 # Devices Configuration for EchoEar Core Board V1.0
 devices:
-  # LCD Power Control before LCD init and SDcard init
-  - name: lcd_power
-    type: gpio_ctrl
-    version: default
-    config:
-      active_level: 0
-      default_level: 1
+  # Power Control before LCD init and SDcard init
+  - name: lcd_sdcard_power
+    type: power_ctrl
+    sub_type: gpio
     peripherals:
-      - name: gpio_lcd_reset
+    - name: gpio_power_lcd_sdcard
+      active_level: 0
+
   - name: audio_dac
     chip: es8311
     type: audio_codec
@@ -58,22 +57,27 @@ devices:
         frequency: 400000                # Hz
 
   - name: fs_sdcard
-    type: fatfs_sdcard
+    type: fs_fat
+    sub_type: sdmmc
+    power_ctrl_device: lcd_sdcard_power
     version: default
     config:
       vfs_config:
         format_if_mount_failed: true
-      bus_width: 1                      # 1, 4, or 8 for slot 0; 1 or 4 for slot 1
-      slot_flags: "SDMMC_SLOT_FLAG_INTERNAL_PULLUP" # SDMMC_SLOT_FLAG_INTERNAL_PULLUP, SDMMC_SLOT_FLAG_WP_ACTIVE_HIGH, SDMMC_SLOT_FLAG_UHS1
-      pins:
-        clk: 16                         # GPIO_NUM_16
-        cmd: 38                         # GPIO_NUM_38
-        d0: 17                          # GPIO_NUM_17
+      sub_config:
+        bus_width: 1                      # 1, 4, or 8 for slot 0; 1 or 4 for slot 1
+        slot_flags: "SDMMC_SLOT_FLAG_INTERNAL_PULLUP" # SDMMC_SLOT_FLAG_INTERNAL_PULLUP, SDMMC_SLOT_FLAG_WP_ACTIVE_HIGH, SDMMC_SLOT_FLAG_UHS1
+        pins:
+          clk: 16                         # GPIO_NUM_16
+          cmd: 38                         # GPIO_NUM_38
+          d0: 17                          # GPIO_NUM_17
 
   # LCD Display Configuration
   - name: display_lcd
     chip: st77916
-    type: display_lcd_spi
+    type: display_lcd
+    sub_type: spi
+    power_ctrl_device: lcd_sdcard_power
     version: default
     dependencies:
       espressif/esp_lcd_st77916: "*"
@@ -88,13 +92,14 @@ devices:
         lcd_cmd_bits: 32                  # Bit-width of LCD command
         flags:
           quad_mode: true                 # Quad mode (4 data lines) - ST77916 uses quad mode
-        peripherals:
-          - name: spi_display             # SPI peripheral for LCD communication
 
       lcd_panel_config:
         reset_gpio_num: 3
         # ST77916 specific configuration
         vendor_config: NULL
+
+    peripherals:
+    - name: spi_display             # SPI peripheral for LCD communication
 
   # Touch Panel Configuration
   - name: lcd_touch

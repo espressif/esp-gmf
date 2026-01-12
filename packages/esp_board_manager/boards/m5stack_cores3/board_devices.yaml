@@ -73,16 +73,19 @@ devices:
   # SD Card Configuration, it is recommended not to use it with LCD
   # Using them simultaneously may cause SD card mount failure or program crashes due to SPI resource conflicts
   # - name: fs_sdcard
-  #   type: fatfs_sdcard_spi
+  #   type: fs_fat
+  #   sub_type: spi
   #   config:
-  #     cs_gpio_num: 4
-  #     frequency: SDMMC_FREQ_DEFAULT
-  #     peripherals:
-  #       - name: "spi_master"
+  #     sub_config:
+  #       cs_gpio_num: 4
+  #       frequency: SDMMC_FREQ_DEFAULT
+  #   peripherals:
+  #     - name: spi_master
 
   - name: display_lcd
-    chip: ili9342
-    type: display_lcd_spi
+    chip: ili9341
+    type: display_lcd
+    sub_type: spi
     version: default
     dependencies:
       espressif/esp_lcd_ili9341: "*"
@@ -99,8 +102,6 @@ devices:
         pclk_hz: 40000000
         flags:
           sio_mode: true
-        peripherals:
-          - name: spi_master
 
       lcd_panel_config:
         reset_gpio_num: -1
@@ -109,6 +110,9 @@ devices:
         data_endian: LCD_RGB_DATA_ENDIAN_BIG
         flags:
           reset_active_high: true
+
+    peripherals:
+      - name: spi_master
 
   # Touch Panel Configuration
   - name: lcd_touch

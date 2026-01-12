@@ -38,6 +38,32 @@ class ConfigGenerator(LoggerMixin):
             self.boards_dir = Path(idf_extra_actions_path) / 'boards'
         else:
             self.boards_dir = script_dir / 'boards'
+        # Cache project root to avoid repeated lookups
+        self._project_root: Optional[str] = None
+
+    def get_project_root(self) -> Optional[str]:
+        """Get project root directory, with caching
+
+        Returns:
+            Project root path as string, or None if not found
+        """
+        # Return cached value if available
+        if self._project_root is not None:
+            return self._project_root
+
+        # Try environment variable first
+        project_root = os.environ.get('PROJECT_DIR')
+        if project_root:
+            self._project_root = project_root
+            return project_root
+
+        # Search for project root
+        project_root_path = find_project_root(Path(os.getcwd()))
+        if project_root_path:
+            self._project_root = str(project_root_path)
+            return self._project_root
+
+        return None
 
     def is_c_constant(self, value: Any) -> bool:
         """Check if a value is a C constant based on naming patterns and prefixes"""
@@ -139,10 +165,8 @@ class ConfigGenerator(LoggerMixin):
                             )
 
         # 2. Scan components boards directories (recursive scan)
-        project_root = os.environ.get('PROJECT_DIR')
-        if not project_root:
-            # Start searching from current working directory, not script directory
-            project_root = find_project_root(Path(os.getcwd()))
+        # Get project root first, then check if components exists
+        project_root = self.get_project_root()
 
         if project_root:
             components_dir = os.path.join(project_root, 'components')
@@ -302,13 +326,10 @@ class ConfigGenerator(LoggerMixin):
 
     def get_selected_board_from_sdkconfig(self) -> str:
         """Read sdkconfig file to determine which board is selected, fallback to default if not found"""
-        # First try to use PROJECT_DIR environment variable if available
-        project_root = os.environ.get('PROJECT_DIR')
+        # Get project root using cached method
+        project_root = self.get_project_root()
         if project_root:
-            self.logger.info(f'Using PROJECT_DIR from environment: {project_root}')
-        else:
-            # Look for sdkconfig file in project root
-            project_root = find_project_root(Path(os.getcwd()))
+            self.logger.info(f'Using project root: {project_root}')
             if not project_root:
                 self.logger.warning('⚠️  Could not find project root, using default board')
                 return BoardManagerConfig.DEFAULT_BOARD

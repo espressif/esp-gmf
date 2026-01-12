@@ -5,18 +5,18 @@
  * See LICENSE file for details.
  */
 
-#include <stdio.h>
-#include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include "esp_log.h"
 #include "esp_board_device.h"
+#include "esp_board_manager.h"
+#include "esp_board_manager_defs.h"
 #include "dev_fs_fat.h"
 #ifdef CONFIG_ESP_BOARD_DEV_FS_FAT_SUB_SDMMC_SUPPORT
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
-#endif
+#endif  /* CONFIG_ESP_BOARD_DEV_FS_FAT_SUB_SDMMC_SUPPORT */
 
 static const char *TAG = "TEST_FS_FAT";
 
@@ -25,31 +25,36 @@ void test_fs_fat_device(void)
     const char *test_str = "Hello FS_FAT!\n";
     char read_buf[64] = {0};
     const char *test_filename = "/sdcard/test_fs_fat.txt";
-    const char *device_name = "fatfs";  // Use the main device name
-
+    char *device_name = NULL;
     ESP_LOGI(TAG, "=== Starting FS_FAT Device Tests ===");
     ESP_LOGI(TAG, "=== Testing FS_FAT Device ===");
 
     /* Initialize FS_FAT device */
-    esp_err_t ret = esp_board_device_init(device_name);
+    esp_err_t ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_FS_FAT);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize FS_FAT device");
-        return;
+        ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_FS_SDCARD);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize FS_FAT device");
+            return;
+        } else {
+            device_name = ESP_BOARD_DEVICE_NAME_FS_SDCARD;  // Use the main device name
+        }
+    } else {
+        device_name = ESP_BOARD_DEVICE_NAME_FS_FAT;  // Use the main device name
     }
 
     /* Test FS_FAT functionality */
     ESP_LOGI(TAG, "FS_FAT device initialized successfully");
 
-#ifdef CONFIG_ESP_BOARD_DEV_FS_FAT_SUB_SDMMC_SUPPORT
-    /* Print SD card information */
-    sdmmc_card_t *card = NULL;
-    ret = esp_board_device_get_handle(device_name, (void **)&card);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get SD card handle");
-        return;
+    /* Get device handle and show device information */
+    void *device_handle = NULL;
+    ret = esp_board_manager_get_device_handle(device_name, &device_handle);
+    if (ret == ESP_OK && device_handle) {
+        ESP_LOGI(TAG, "Device handle obtained successfully");
+        sdmmc_card_print_info(stdout, ((dev_fs_fat_handle_t *)device_handle)->card);
+    } else {
+        ESP_LOGE(TAG, "Failed to get device handle");
     }
-    sdmmc_card_print_info(stdout, card);
-#endif
 
     /* Show device information */
     esp_board_device_show(device_name);
@@ -83,17 +88,6 @@ void test_fs_fat_device(void)
         }
     } else {
         ESP_LOGE(TAG, "Failed to read test file: %s", strerror(errno));
-    }
-
-    /* Get device handle and show device information */
-    void *device_handle = NULL;
-    ret = esp_board_device_get_handle(device_name, &device_handle);
-    if (ret == ESP_OK && device_handle) {
-        ESP_LOGI(TAG, "Device handle obtained successfully");
-        // Note: The specific device information depends on the actual sub_type
-        // but we don't distinguish between them in this unified test
-    } else {
-        ESP_LOGE(TAG, "Failed to get device handle");
     }
 
     /* List directory contents */

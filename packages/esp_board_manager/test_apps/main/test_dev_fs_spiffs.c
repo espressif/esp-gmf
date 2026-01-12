@@ -12,6 +12,7 @@
 #include <errno.h>
 #include "esp_log.h"
 #include "esp_board_device.h"
+#include "esp_board_manager.h"
 #include "dev_fs_spiffs.h"
 
 static const char *TAG = "TEST_SPIFFS";
@@ -49,7 +50,7 @@ void test_spiffs(void)
     const char *expected_test_content = "This is esp board manager";
 
     dev_fs_spiffs_config_t *cfg = NULL;
-    if (esp_board_device_get_config("fs_spiffs", (void **)&cfg) != ESP_OK) {
+    if (esp_board_manager_get_device_config("fs_spiffs", (void **)&cfg) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get SPIFFS configuration");
         return;
     }

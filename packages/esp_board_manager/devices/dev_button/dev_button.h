@@ -110,8 +110,7 @@ typedef struct {
  *         It defines the ADC peripheral to use and voltage thresholds for button detection.
  */
 typedef struct {
-    const char *adc_name;    /*!< ADC peripheral name */
-    uint8_t     button_num;  /*!< Number of buttons in the group, should less equal than CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL */
+    const char *adc_name;  /*!< ADC peripheral name */
     union {
         struct {
             uint8_t   button_index;  /*!< Button index on the channel */
@@ -119,6 +118,7 @@ typedef struct {
             uint16_t  max_voltage;   /*!< Maximum voltage in mV for button press */
         } single;
         struct {
+            uint8_t      button_num;                                               /*!< Number of buttons in the group, should be less than or equal to CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL */
             uint16_t     max_voltage;                                              /*!< Maximum voltage in mV for this ADC channel */
             uint16_t     voltage_range[CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL];  /*!< Array of voltage thresholds in mV */
             const char  *button_labels[CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL];  /*!< Array of button names */
@@ -135,7 +135,7 @@ typedef struct {
  */
 typedef struct {
     const char                 *name;               /*!< Button device name */
-    const char                 *sub_type;           /*!< Button type: "gpio" or "adc" */
+    const char                 *sub_type;           /*!< Button type: "gpio", "adc_single", or "adc_multi" */
     button_config_t             button_timing_cfg;  /*!< Button timing configuration */
     dev_button_events_config_t  events_cfg;         /*!< Configuration for button events (enabled events and parameters) */
     union {

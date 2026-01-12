@@ -168,7 +168,27 @@ idf.py gen-bmgr-config -b OTHER_BOARD
 
 > **注意:** 遇到问题可以查看 [故障排除](#故障排除) 部分
 
-### 3. 在您的应用程序中使用
+### 3. 使用预编译脚本
+
+建议用户阅读上述步骤了解 `esp_board_manager` 的使用方法。对于希望简化使用过程的用户，在 [`tools`](tools) 路径下提供了使用 `esp_board_manager` 编译工程的预编译脚本。
+
+第一次编译工程时，将 [`tools`](tools) 下的脚本拷贝到 `YOUR_PROJECT_ROOT_PATH`。执行脚本，脚本会首先检查 ESP-IDF 版本是否支持，然后列出可选择的芯片，用户输入序号选择目标芯片后，会将依赖的组件进行下载。下载组件后，脚本会扫描组件的路径，自动设置 `IDF_EXTRA_ACTIONS_PATH` 环境变量以包含 ESP Board Manager 目录。然后脚本会列出所有可选板子，用户输入序号或名称选择板子。
+
+在 Linux / macOS 中运行以下命令：
+```bash/zsh
+source prebuild.sh
+```
+
+在 Windows 中运行以下命令：
+```powershell
+.\prebuild.ps1
+```
+
+后续更换板子时，仅需清除当前板子配置并重新选择板子。
+
+> **注意:** 预编译脚本接管了上述的[添加并激活组件](#1-添加并激活组件)和[扫描并选择板子](#2-扫描并选择板子)中的步骤。
+
+### 4. 在您的应用程序中使用
 
 ```c
 #include <stdio.h>
@@ -188,7 +208,7 @@ void app_main(void)
         return;
     }
     // 获取设备句柄，根据 esp_board_manager/boards/YOUR_TARGET_BOARD/board_devices.yaml 中的设备命名获取句柄
-    dev_display_lcd_spi_handles_t *lcd_handle;
+    dev_display_lcd_handles_t *lcd_handle;
     ret = esp_board_manager_get_device_handle("display_lcd", &lcd_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get LCD device");
@@ -235,11 +255,8 @@ void app_main(void)
 | 设备名称 | 描述 | 类型 | 子类型 | 外设 | 参考 YAML | 示例 |
 |---|---|---|---|---|---|---|
 | `audio_dac`<br/>`audio_adc` | 音频编解码器 | audio_codec | - | i2s<br/>i2c | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) | **[`test_dev_audio_codec.c`](test_apps/main/test_dev_audio_codec.c)** <br/>带有 DAC/ADC、SD 卡播放、录音和回环测试的音频编解码器 |
-| `display_lcd` | SPI LCD 显示屏(将被弃用) | display_lcd_spi | - | spi | [`dev_display_lcd_spi.yaml`](devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) | **[`test_dev_lcd_init.c`](test_apps/main/test_dev_lcd_init.c)** <br/>LCD 显示初始化和基本控制 |
 | `display_lcd` | LCD 显示设备 | display_lcd | spi<br/>dsi | spi<br/>dsi | [`dev_display_lcd.yaml`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>带有 LVGL、触摸屏和背光控制的 LCD 显示屏 |
-| `fs_sdcard` | SDMMC SD 卡(将被弃用) | fatfs_sdcard | - | sdmmc | [`dev_fatfs_sdcard.yaml`](devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD 卡操作和 FATFS 文件系统测试 |
-| `fs_sdcard` | SPI SD 卡(将被弃用) | fatfs_sdcard_spi | - | spi | [`dev_fatfs_sdcard_spi.yaml`](devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD 卡操作和 FATFS 文件系统测试 |
-| `fs_fat` | FAT 文件系统设备 | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat.yaml`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fatfs_sdcard.c`](test_apps/main/test_dev_fatfs_sdcard.c)** <br/>SD 卡操作和 FATFS 文件系统测试 |
+| `fs_fat` | FAT 文件系统设备 | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat.yaml`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fs_fat.c`](test_apps/main/test_dev_fs_fat.c)** <br/>SD 卡操作和 FATFS 文件系统测试 |
 | `fs_spiffs` | SPIFFS 文件系统设备 | fs_spiffs | - | - | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) | **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** <br/>SPIFFS 文件系统测试 |
 | `lcd_touch` | 触摸屏 | lcd_touch_i2c | - | i2c | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>带有 LVGL、触摸屏和背光控制的 LCD 显示屏 |
 | `sdcard_power_ctrl` | 电源控制设备 | power_ctrl | gpio | gpio | [`dev_power_ctrl.yaml`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
@@ -249,7 +266,6 @@ void app_main(void)
 | `button` | 按键 | button | gpio<br/>adc | gpio<br/>adc | [`dev_button.yaml`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>按钮测试 |
 
 > 对于同一种设备，我们将不再使用接口类型来区分类型。例如，`dev_fatfs_sdcard` 和 `dev_fatfs_sdcard_spi` 将统一使用 `fs_fat` 进行管理，`dev_display_lcd_spi` 也将改为使用 `dev_display_lcd` 进行管理。
-> 这三种设备类型将在未来版本中被弃用。用户可以参照 [`dev_fatfs_sdcard.yaml`](./devices/dev_fatfs_sdcard/dev_fatfs_sdcard.yaml)、[`dev_fatfs_sdcard_spi.yaml`](./devices/dev_fatfs_sdcard_spi/dev_fatfs_sdcard_spi.yaml) 和 [`dev_display_lcd_spi.yaml`](./devices/dev_display_lcd_spi/dev_display_lcd_spi.yaml) 文件，了解如何将原有配置迁移到新的设备类型。
 
 ### 支持的外设类型
 
@@ -323,6 +339,11 @@ idf.py gen-bmgr-config -b my_board -c /path/to/custom/boards
 # 清理生成的文件
 idf.py gen-bmgr-config -x
 
+# 在默认路径创建板子(默认路径为 {PROJECT_ROOT}/components/<board_name>):
+idf.py gen-bmgr-config -n <board_name>
+
+# 在自定义路径创建板子:
+idf.py gen-bmgr-config -n path/to/board/<board_name>
 ...
 ```
 
@@ -371,7 +392,7 @@ ESP Board Manager 使用 `gen_bmgr_config_codes.py` 进行代码生成，它在�
 7. **项目 sdkconfig 配置**: 根据板子设备和外设类型更新项目 sdkconfig
 8. **文件生成**: 在工程文件夹的 `components/gen_bmgr_codes/` 中创建所有必要的 C 配置和句柄文件
 
-**⚠️ 重要提示：** 切换板子时，脚本会在第 1 步中自动备份并删除现有的 `sdkconfig` 文件以防止配置污染（`--kconfig-only` 时跳过）。
+**⚠️ 重要提示：** 切换板子时，脚本会在第 1 步中自动备份并删除现有的 `sdkconfig` 文件。这是为了防止旧板子的配置残留影响新板子的配置（例如不同芯片的 CONFIG_IDF_TARGET、不同板子的设备配置等）。备份文件为 `sdkconfig.bmgr_board.old`，如需恢复可重命名回 `sdkconfig`（`--kconfig-only` 时跳过此操作）。
 
 ## 自定义板子
 
@@ -412,8 +433,9 @@ ESP Board Manager 的未来开发计划（优先级从高到低）：
 
 **重要提示**：切换板子时，脚本会自动：
 
-1. 将 `sdkconfig` 备份到 `sdkconfig.bmgr_board.backup` 并删除原文件，以防止配置污染
-2. 将板子特定配置从 `boards/<board_name>/sdkconfig.defaults.board` 追加到您项目的 `sdkconfig.defaults`
+1. 将 `sdkconfig` 备份到 `sdkconfig.bmgr_board.old` 并删除原文件，以防止旧板子的配置残留（例如不同芯片的 CONFIG_IDF_TARGET、不同板子的设备使能配置等）影响新板子
+2. 根据 `boards/<board_name>/sdkconfig.defaults.board` 生成 `board_manager.defaults` 文件，包含板子特定配置
+3. 配置会在 build/menuconfig/reconfigure 时通过 `SDKCONFIG_DEFAULTS` 环境变量自动应用
 
 切换板子时请始终使用 `idf.py gen-bmgr-config -b`（或 `python gen_bmgr_config_codes.py`）。使用 `idf.py menuconfig` 可能导致依赖错误。
 

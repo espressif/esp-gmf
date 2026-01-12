@@ -28,6 +28,9 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
 from gen_bmgr_config_codes import BoardConfigGenerator, resolve_board_name_or_index
+from generators.utils.file_utils import find_project_root as find_project_root_util
+from create_new_board import BoardCreator
+import re
 
 
 def action_extensions(base_actions: Dict, project_path: str) -> Dict:
@@ -41,6 +44,112 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
     Returns:
         Dictionary with action extensions for ESP Board Manager
     """
+
+    def board_manager_global_callback(ctx, global_args, tasks):
+        """
+        Global callback that injects board manager configuration before build actions.
+
+        This function adds board_manager.defaults to SDKCONFIG_DEFAULTS before
+        build/menuconfig/reconfigure actions, ensuring board-specific configurations
+        are automatically applied by ESP-IDF build system.
+
+        Behavior:
+        ---------
+        1. Always includes 'sdkconfig.defaults' as the first entry (ESP-IDF standard)
+        2. Merges configurations from:
+           - Environment variable SDKCONFIG_DEFAULTS
+           - CMake cache entry from -D SDKCONFIG_DEFAULTS=xxx
+        3. Appends board_manager.defaults to the final list
+        4. Updates both:
+           - Environment variable (used when no -D parameter)
+           - CMake cache entry (used when -D parameter specified, takes precedence)
+
+        Priority in ESP-IDF's project.cmake:
+        -------------------------------------
+        CMake variable (-D) > Environment variable > Default file (sdkconfig.defaults)
+
+        Therefore, we must update the CMake cache entry when user specifies -D,
+        otherwise the environment variable will be completely overridden.
+
+        Example scenarios:
+        ------------------
+        Scenario 1 - No -D parameter:
+          idf.py build
+          Result: sdkconfig.defaults;board_manager.defaults
+
+        Scenario 2 - With -D parameter:
+          idf.py -D SDKCONFIG_DEFAULTS=custom.defaults build
+          Result: sdkconfig.defaults;custom.defaults;board_manager.defaults
+
+        Args:
+            ctx: Click context
+            global_args: Dictionary of all available global arguments
+            tasks: List of Task objects to be executed
+        """
+        # Actions that require configuration injection
+        config_actions = {'build', 'reconfigure', 'menuconfig'}
+        # Check if any of the tasks require configuration
+        needs_config = any(
+            task.name in config_actions or
+            (hasattr(task, 'aliases') and task.aliases and
+             any(alias in config_actions for alias in task.aliases))
+            for task in tasks
+        )
+
+        if not needs_config:
+            return
+        # Get project directory from global_args (more reliable than module-level project_path)
+        proj_dir = global_args.get('project_dir', project_path if project_path else os.getcwd())
+
+        # board_manager.defaults file path (project root directory)
+        patch_file = os.path.join(proj_dir, 'board_manager.defaults')
+        if not os.path.exists(patch_file):
+            return
+
+        # Parse existing SDKCONFIG_DEFAULTS from multiple sources
+        # Note: sdkconfig.defaults should always be included as ESP-IDF standard
+        defaults_list = ['sdkconfig.defaults']
+        # 1. Check environment variable
+        env_defaults = os.environ.get('SDKCONFIG_DEFAULTS', '')
+        if env_defaults:
+            for f in env_defaults.split(';'):
+                f = f.strip()
+                if f and f not in defaults_list:
+                    defaults_list.append(f)
+        # 2. Check CMake cache entry from -D SDKCONFIG_DEFAULTS=xxx
+        # Note: CMake variable will override environment variable in ESP-IDF's project.cmake
+        # So we need to modify the define_cache_entry to include board_manager.defaults
+        define_cache_entries = global_args.get('define_cache_entry', [])
+        sdkconfig_defaults_entry_index = None
+        for i, entry in enumerate(define_cache_entries):
+            if entry.startswith('SDKCONFIG_DEFAULTS='):
+                sdkconfig_defaults_entry_index = i
+                cache_defaults = entry.split('=', 1)[1]
+                # Parse semicolon-separated list
+                for f in cache_defaults.split(';'):
+                    f = f.strip()
+                    if f and f not in defaults_list:
+                        defaults_list.append(f)
+                break
+
+        # Add board_manager.defaults if not already in list
+        abs_patch_file = os.path.abspath(patch_file)
+        if abs_patch_file not in defaults_list:
+            defaults_list.append(abs_patch_file)
+
+        # Update both environment variable and CMake cache entry
+        # Environment variable: for when no -D is specified
+        os.environ['SDKCONFIG_DEFAULTS'] = ';'.join(defaults_list)
+
+        # CMake cache entry: for when -D is specified (this takes precedence)
+        if sdkconfig_defaults_entry_index is not None:
+            # Update existing entry
+            define_cache_entries[sdkconfig_defaults_entry_index] = f'SDKCONFIG_DEFAULTS={";".join(defaults_list)}'
+        else:
+            # Add new entry if user didn't specify -D SDKCONFIG_DEFAULTS
+            # (environment variable will be used in this case)
+            pass
+        print(f'[Board Manager] SDKCONFIG_DEFAULTS set to: {";".join(defaults_list)}')
 
     def esp_gen_bmgr_config_callback(target_name: str, ctx, args, **kwargs) -> None:
         """
@@ -60,6 +169,7 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
 
         # Convert Click args to the format expected by BoardConfigGenerator
         board_name = kwargs.get('board', None)
+        new_board = kwargs.get('new_board', None)
 
         mock_args = MockArgs(
             list_boards=kwargs.get('list_boards', False),
@@ -69,7 +179,8 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
             devices_only=kwargs.get('devices_only', False),
             kconfig_only=kwargs.get('kconfig_only', False),
             log_level=kwargs.get('log_level', 'INFO'),
-            clean=kwargs.get('clean', False)
+            clean=kwargs.get('clean', False),
+            new_board=new_board
         )
 
         # Set global log level first
@@ -99,6 +210,93 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
         script_dir = current_dir
         generator = BoardConfigGenerator(script_dir)
 
+        # Handle new-board option
+        if mock_args.new_board:
+            print('ESP Board Manager - Create New Board')
+            print('=' * 60)
+
+            try:
+                # Parse board name and path from the new_board argument
+                # Format can be: "xxx_board" or "xxx_path/xxx_board"
+                new_board_arg = mock_args.new_board
+                # Parse the argument to extract board_name and create_path
+                # Logic from create_board.py main function
+                create_path = None
+                board_name = new_board_arg
+
+                # Check if argument contains path separator
+                # Use Path to handle both Unix and Windows paths
+                input_path = Path(new_board_arg)
+
+                # Check if the input looks like a path (has parent directory)
+                if input_path.parent != Path('.'):
+                    # Input contains path components
+                    potential_board_name = input_path.name
+                    potential_path = input_path.parent
+
+                    # Validate potential board name format
+                    if re.match(r'^[a-z0-9_]+$', potential_board_name):
+                        board_name = potential_board_name
+                        create_path = potential_path.resolve()
+                    else:
+                        # Last part is not a valid board name, use full path as create_path
+                        create_path = input_path.resolve()
+                else:
+                    # No path separator, just board name
+                    # Default to components directory in current directory
+                    create_path = Path.cwd() / 'components'
+
+                    # Create components directory if it doesn't exist
+                    if not create_path.exists():
+                        try:
+                            create_path.mkdir(parents=True, exist_ok=True)
+                            print(f'ℹ️  Created components directory: {create_path}')
+                        except Exception as e:
+                            print(f'❌ Failed to create components directory {create_path}: {e}')
+                            sys.exit(1)
+
+                # Validate board name
+                if not re.match(r'^[a-z0-9_]+$', board_name):
+                    print(f'❌ Invalid board name: {board_name}')
+                    print('Board name must contain only lowercase letters, numbers, and underscores')
+                    sys.exit(1)
+
+                # Validate and create path if needed
+                if create_path:
+                    if not create_path.exists():
+                        # Auto-create the directory if it doesn't exist
+                        try:
+                            create_path.mkdir(parents=True, exist_ok=True)
+                            print(f'ℹ️  Created directory: {create_path}')
+                        except Exception as e:
+                            print(f'❌ Failed to create directory {create_path}: {e}')
+                            sys.exit(1)
+                    elif not create_path.is_dir():
+                        print(f'❌ Create path is not a directory: {create_path}')
+                        sys.exit(1)
+
+                print(f'ℹ️  Creating board "{board_name}"')
+                if create_path:
+                    print(f'ℹ️  Creating in directory: {create_path}')
+                else:
+                    print(f'ℹ️  Creating in current directory: {os.getcwd()}')
+
+                # Create board creator and run
+                creator = BoardCreator(script_dir)
+                success = creator.run(board_name, create_path, new_board_arg)
+
+                if not success:
+                    print('❌ Board creation failed!')
+                    sys.exit(1)
+
+                return
+
+            except Exception as e:
+                print(f'❌ Error creating board: {e}')
+                import traceback
+                traceback.print_exc()
+                sys.exit(1)
+
         # Handle clean option
         if mock_args.clean:
             print('ESP Board Manager - Clean Generated Files')
@@ -108,7 +306,8 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
                 # Find project root
                 project_root = project_dir
                 if not project_root:
-                    project_root = generator.find_project_root(os.getcwd())
+                    project_root_path = find_project_root_util(Path(os.getcwd()))
+                    project_root = str(project_root_path) if project_root_path else None
 
                 if not project_root:
                     print('❌ Project root not found! Please run this command from a project directory.')
@@ -262,6 +461,11 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
             'is_flag': True,
         },
         {
+            'names': ['-n', '--new-board'],
+            'help': 'Create a new board with specified name or path (e.g., "xxx_board" or "xxx_path/xxx_board")',
+            'type': str,
+        },
+        {
             'names': ['--peripherals-only'],
             'help': 'Only process peripherals (skip devices)',
             'is_flag': True,
@@ -273,7 +477,7 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
         },
         {
             'names': ['--kconfig-only'],
-            'help': 'Generate Kconfig menu system for board and component selection (default enabled)',
+            'help': 'Only generate Kconfig menu without board switching (skips sdkconfig deletion and board code generation)',
             'is_flag': True,
         },
         {
@@ -287,6 +491,7 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
     # Define the actions
     esp_actions = {
         'version': '1',
+        'global_action_callbacks': [board_manager_global_callback],
         'actions': {
             'gen-bmgr-config': {
                 'callback': esp_gen_bmgr_config_callback,
@@ -298,15 +503,19 @@ This command generates C configuration files based on YAML configuration files i
 It can process peripherals, devices, generate Kconfig menus, and update SDK configuration automatically.
 
 Usage:
-    idf.py gen-bmgr-config -b <board_name>      # Specify board by name
+    idf.py gen-bmgr-config -b <board_name>        # Specify board by name
 
-    idf.py gen-bmgr-config -b <board_index>     # Specify board by index number
+    idf.py gen-bmgr-config -b <board_index>       # Specify board by index number
 
-    idf.py gen-bmgr-config --list-boards        # List all available boards
+    idf.py gen-bmgr-config --list-boards          # List all available boards
 
-    idf.py gen-bmgr-config -x                   # Clean generated files created by gen-bmgr-config
+    idf.py gen-bmgr-config -x                     # Clean generated files created by gen-bmgr-config
 
-    idf.py gen-bmgr-config --clean              # Clean generated files created by gen-bmgr-config (same as -x)
+    idf.py gen-bmgr-config --clean                # Clean generated files created by gen-bmgr-config (same as -x)
+
+    idf.py gen-bmgr-config -n xxx_board           # Create a new board in components directory
+
+    idf.py gen-bmgr-config -n xxx_path/xxx_board  # Create a new board in specified path
 
 Note: When using idf.py, you must use the -b option to specify the board.
 For positional argument support, run the script directly:

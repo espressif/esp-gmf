@@ -14,6 +14,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_board_device.h"
+#include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
 #include "dev_camera.h"
 #include "test_dev_camera.h"
@@ -121,7 +122,7 @@ static esp_err_t camera_capture_stream_by_format(int fd, int type, uint32_t v4l2
         ESP_LOGW(TAG, "No frame captured");
     }
 
-#ifdef CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
+#ifdef CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT
     ESP_LOGI(TAG, "Save JPEG file to sd card...");
     jpeg_enc_config_t jpeg_enc_cfg = DEFAULT_JPEG_ENC_CONFIG();
     jpeg_enc_cfg.width = format.fmt.pix.width;
@@ -186,7 +187,7 @@ jpeg_enc_exit:
     if (outbuf != NULL) {
         free(outbuf);
     }
-#endif  // CONFIG_ESP_BOARD_DEV_FATFS_SDCARD_SUPPORT
+#endif  // CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT
 
     return ESP_OK;
 }
@@ -304,7 +305,7 @@ exit_0:
 esp_err_t test_dev_camera()
 {
     dev_camera_handle_t *camera_handle = NULL;
-    esp_err_t ret = esp_board_device_get_handle(ESP_BOARD_DEVICE_NAME_CAMERA, (void **)&camera_handle);
+    esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_CAMERA, (void **)&camera_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get camera device");
         return ret;

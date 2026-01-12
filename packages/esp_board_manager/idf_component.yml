@@ -1,4 +1,4 @@
-version: 0.5.0
+version: 0.5.1
 description: Board manager for ESP-GMF
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_board_manager
 documentation: https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md
@@ -6,6 +6,10 @@ issues: https://github.com/espressif/esp-gmf/issues
 tags:
 - gmf
 - board_manager
+
+examples:
+  - path: examples/play_sdcard_music
+  - path: examples/record_to_sdcard
 
 dependencies:
   espressif/esp_codec_dev:
@@ -29,11 +33,11 @@ dependencies:
   espressif/esp_video:
     require: public
     version: "^1.2.0"
-    rules:
+    matches:
       - if: "$CONFIG{ESP_BOARD_DEV_CAMERA_SUPPORT} == True"
 
   espressif/button:
     require: public
     version: "^4.1.4"
-    rules:
+    matches:
       - if: "$CONFIG{ESP_BOARD_DEV_BUTTON_SUPPORT} == True"
