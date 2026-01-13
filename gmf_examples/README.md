@@ -13,6 +13,7 @@ ESP GMF Examples is a component that collects GMF-related examples, mainly desig
 | [pipeline_record_sdcard](./basic_examples/pipeline_record_sdcard) | Record audio to SD card | - aud_enc | Input Device -> Encoder -> SD Card |
 | [pipeline_http_download_to_sdcard](./basic_examples/pipeline_http_download_to_sdcard) | Download files via HTTP protocol and save to SD card | - copier | HTTP download -> File copier -> SD card storage |
 | [pipeline_record_http](./basic_examples/pipeline_record_http) | Record audio then upload to HTTP server | - aud_enc | Input Device -> Encoder -> HTTP Server |
+| [pipeline_audio_effects](./basic_examples/pipeline_audio_effects) | Play audio with various effects (ALC, Sonic, EQ, Fade, DRC, MBC) and mixer functionality | - aud_dec<br>- aud_alc<br>- aud_sonic<br>- aud_eq<br>- aud_fade<br>- aud_drc<br>- aud_mbc<br>- aud_mixer | Flash -> Decoder -> Audio Effects/Mixer -> Output Device |
 
 # Usage
 
