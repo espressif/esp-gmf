@@ -62,6 +62,16 @@ int dev_display_lcd_init(void *cfg, int cfg_size, void **device_handle)
         return -1;
     }
 
+    ret = esp_lcd_panel_mirror(handle->panel_handle, config->mirror_x, config->mirror_y);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to mirror LCD panel: %s", esp_err_to_name(ret));
+    }
+
+    ret = esp_lcd_panel_swap_xy(handle->panel_handle, config->swap_xy);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to swap LCD panel XY: %s", esp_err_to_name(ret));
+    }
+
     // Invert color if needed
     if (config->invert_color) {
         ret = esp_lcd_panel_invert_color(handle->panel_handle, true);
