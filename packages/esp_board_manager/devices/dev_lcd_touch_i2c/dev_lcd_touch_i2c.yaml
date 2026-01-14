@@ -15,7 +15,7 @@
       dev_addr: 0x5a                    # [TO_BE_CONFIRMED] I2C device address (default: 0x5a)
       control_phase_bytes: 1            # Control phase bytes (default: 1)
       dc_bit_offset: 0                  # DC bit offset in control phase (default: 0)
-      lcd_cmd_bits: 8                   # Bit-width of LCD command (default: 8)
+      lcd_cmd_bits: 8                   # [TO_BE_CONFIRMED] Bit-width of LCD command (default: 8)
       lcd_param_bits: 0                 # Bit-width of LCD parameter (default: 0)
       scl_speed_hz: 100000              # I2C SCL frequency (default: 100kHz)
       flags:

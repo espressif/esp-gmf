@@ -84,8 +84,13 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
     # Process output IO mask
     output_io_mask = 0
     output_io_level_mask = 0
-    output_io_mask_list = device_config.get('output_io_mask', [1, 2, 3])  # Default to pins 1, 2, 3
-    level_mask_list = device_config.get('output_io_level_mask', [1, 1, 1])
+    output_io_mode_mask = 0
+    enable_mode_set = False
+    output_io_mask_list = device_config.get('output_io_mask', [])
+    level_mask_list = device_config.get('output_io_level_mask', [])
+    mode_mask_list = device_config.get('output_io_mode_mask', [])
+    if len(mode_mask_list) != 0:
+        enable_mode_set = True
     if len(output_io_mask_list) != len(level_mask_list):
         print(f'⚠️  WARNING: Output IO mask and level mask lists are not the same length')
     # Convert pin numbers to enum names
@@ -96,11 +101,35 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
                 if (int(level_mask_list[i]) == 0 or int(level_mask_list[i]) == 1):
                     output_io_level_mask |= (level_mask_list[i] << pin)
                 else:
-                    print(f'⚠️  WARNING: Invalid level mask value {level_mask_list[i]} for pin {pin}, ignoring.')
+                    print(f'⚠️  Level set warning: Invalid level mask value {level_mask_list[i]} for pin {pin}, ignoring.')
             else:
-                print(f'⚠️  WARNING: Pin {pin} out of range (0-{max_pins-1}), ignoring.')
+                print(f'⚠️  Level set warning: Pin {pin} out of range (0-{max_pins-1}), ignoring.')
+            if enable_mode_set:
+                if len(mode_mask_list) != 0 and i < len(mode_mask_list):
+                    if (int(mode_mask_list[i]) == 0 or int(mode_mask_list[i]) == 1):
+                        output_io_mode_mask |= (mode_mask_list[i] << pin)
+                    else:
+                        print(f'⚠️  Mode set warning: Invalid mode mask value {mode_mask_list[i]} for pin {pin}, ignoring.')
+                else:
+                    print(f'⚠️  Mode set warning: Pin {pin} out of range (0-{max_pins-1}), ignoring.')
         else:
             print(f'⚠️  WARNING: Invalid output pin specification {pin}, ignoring.')
+
+    # Process pull-up and pull-down lists
+    io_pullup_list = device_config.get('io_pullup_list', [])
+    io_pulldown_list = device_config.get('io_pulldown_list', [])
+    io_pullup_mask = 0
+    io_pulldown_mask = 0
+    for pin in io_pullup_list:
+        if isinstance(pin, int) and 0 <= pin < max_pins:
+            io_pullup_mask |= (1 << pin)
+        else:
+            print(f'⚠️  WARNING: Invalid pull-up pin specification {pin}, ignoring.')
+    for pin in io_pulldown_list:
+        if isinstance(pin, int) and 0 <= pin < max_pins:
+            io_pulldown_mask |= (1 << pin)
+        else:
+            print(f'⚠️  WARNING: Invalid pull-down pin specification {pin}, ignoring.')
 
     # Process input IO mask
     input_io_mask = 0
@@ -126,6 +155,10 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
             'max_pins': max_pins,
             'output_io_mask': output_io_mask,
             'output_io_level_mask': output_io_level_mask,
+            'enable_mode_set': enable_mode_set,
+            'output_io_mode_mask': output_io_mode_mask,
+            'io_pullup_mask': io_pullup_mask,
+            'io_pulldown_mask': io_pulldown_mask,
             'input_io_mask': input_io_mask
         }
     }

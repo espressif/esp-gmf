@@ -11,6 +11,12 @@
     max_pins: 8                       # Maximum number of IO pins supported
     output_io_mask: [1, 2, 3]         # List of pins configured as output, maximum number is 32
     output_io_level_mask : [1, 1, 0]  # List of output levels for output pins (eg. set io 1,2 to high level, 3 to low level)
+    output_io_mode_mask: [0, 1, 1]    # Optional configuration, need to determine if the IO expansion chip is supported
+                                      # List of output modes for output pins (0: push-pull, 1: open-drain),
+    io_pullup_list: [1, 2]            # Optional configuration, need to determine if the IO expansion chip is supported
+                                      # List of pins configured with pull-up resistors
+    io_pulldown_list: [3, 4]          # Optional configuration, need to determine if the IO expansion chip is supported
+                                      # List of pins configured with pull-down resistors
     input_io_mask: NULL               # List of pins configured as input (NULL if unused), maximum number is 32
   peripherals:
     - name: i2c_master                # I2C peripheral used by the IO expander

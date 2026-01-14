@@ -26,6 +26,10 @@ typedef struct {
     const int8_t    max_pins;
     uint32_t        output_io_mask;
     uint32_t        output_io_level_mask;
+    uint8_t         enable_mode_set;
+    uint32_t        output_io_mode_mask;
+    uint32_t        io_pullup_mask;
+    uint32_t        io_pulldown_mask;
     uint32_t        input_io_mask;
 } dev_io_expander_config_t;
 

@@ -13,7 +13,7 @@
     # Valid values: 0-7 or "LEDC_CHANNEL_0" to "LEDC_CHANNEL_7"
 
     # LEDC timer (default: LEDC_TIMER_0)
-    timer: "LEDC_TIMER_0"
+    timer_sel: "LEDC_TIMER_0"
     # Valid values: 0-3 or "LEDC_TIMER_0" to "LEDC_TIMER_3"
 
     # PWM frequency in Hz (default: 4000)
