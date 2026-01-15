@@ -108,7 +108,11 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
 
         # Parse existing SDKCONFIG_DEFAULTS from multiple sources
         # Note: sdkconfig.defaults should always be included as ESP-IDF standard
-        defaults_list = ['sdkconfig.defaults']
+        defaults_list = []
+        # Check if sdkconfig.defaults exists
+        sdkconfig_defaults = os.path.join(proj_dir, 'sdkconfig.defaults')
+        if os.path.exists(sdkconfig_defaults):
+            defaults_list.append(os.path.abspath(sdkconfig_defaults))
         # 1. Check environment variable
         env_defaults = os.environ.get('SDKCONFIG_DEFAULTS', '')
         if env_defaults:

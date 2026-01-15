@@ -5,7 +5,7 @@
 # Example Power Control device with GPIO sub type configuration
 - name: audio_power_ctrl          # The name of the device, must be unique
   type: power_ctrl                # The type of the device, must be unique
-  sub_type: gpio                  # The sub type of the device, must be 'gpio' or 'ldo'
+  sub_type: gpio                  # The sub type of the device, must be 'gpio'
   peripherals:
     - name: gpio                  # [TO_BE_CONFIRMED] GPIO peripheral name (must reference a GPIO peripheral)
       active_level: 1             # [TO_BE_CONFIRMED] Active level (0-low, 1-high) when power is on

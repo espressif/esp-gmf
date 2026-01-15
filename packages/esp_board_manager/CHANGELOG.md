@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.2
+
+### Bug Fixes
+
+- Fixed an issue where the dev_display_lcd mirror_x/y and swap_xy configurations were not taking effect correctly
+- Fixed compilation issue when the `sdkconfig.defaults` file not exists
+
 ## 0.5.1
 
 ### ⚠️ Important Changes
