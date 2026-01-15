@@ -36,7 +36,14 @@ cd $YOUR_GMF_PATH/packages/esp_board_manager/example/dev_audio_codec/play_sdcard
 - Configure the `esp_board_manager` path to activate the environment (only needs to be executed once under the current terminal):
 
 ```shell
+# Ubuntu and Mac:
 export IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
+
+# Windows PowerShell:
+$env:IDF_EXTRA_ACTIONS_PATH = "$YOUR_GMF_PATH/packages/esp_board_manager"
+
+# Windows Command Prompt (CMD):
+set IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
 ```
 
 - Select the development board to use:

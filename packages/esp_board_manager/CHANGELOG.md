@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3
+
+### Features
+
+- Added [`play_embed_music`](example/play_embed_music/README.md) example to show how to use board manager to initialize codec and play flash wav audio file
+
 ## 0.5.2
 
 ### Bug Fixes
