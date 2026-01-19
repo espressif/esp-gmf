@@ -533,7 +533,7 @@ class SDKConfigManager(LoggerMixin):
             True if successful or file doesn't exist, False on error
         """
         project_path = self._get_project_path(project_path)
-        board_manager_defaults_path = Path(project_path) / 'board_manager.defaults'
+        board_manager_defaults_path = Path(project_path) / 'components/gen_bmgr_codes/board_manager.defaults'
 
         if not board_manager_defaults_path.exists():
             self.logger.debug('   board_manager.defaults not found')

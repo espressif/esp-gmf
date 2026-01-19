@@ -47,32 +47,44 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
 
     def board_manager_global_callback(ctx, global_args, tasks):
         """
-        Global callback that injects board manager configuration before build actions.
+        Global callback function that automatically injects board manager configuration
+        before executing build-related operations.
 
-        This function adds board_manager.defaults to SDKCONFIG_DEFAULTS before
-        build/menuconfig/reconfigure actions, ensuring board-specific configurations
-        are automatically applied by ESP-IDF build system.
+        This function adds the board_manager.defaults file to the SDKCONFIG_DEFAULTS
+        configuration list before operations like build/menuconfig/reconfigure, ensuring
+        board-specific configurations are automatically applied by the ESP-IDF build system.
 
-        Behavior:
-        ---------
-        1. Always includes 'sdkconfig.defaults' as the first entry (ESP-IDF standard)
-        2. Merges configurations from:
-           - Environment variable SDKCONFIG_DEFAULTS
-           - CMake cache entry from -D SDKCONFIG_DEFAULTS=xxx
-        3. Appends board_manager.defaults to the final list
-        4. Updates both:
-           - Environment variable (used when no -D parameter)
-           - CMake cache entry (used when -D parameter specified, takes precedence)
+        Core Functionality:
+        -------------------
+        1. Automatically detects whether configuration injection is needed
+           (excludes operations like cleanup, help, etc. that don't require configuration)
+        2. Merges SDKCONFIG_DEFAULTS configurations from multiple sources in priority order:
+           - Mandatory: sdkconfig.defaults (if exists, always as the first item)
+           - Configurations from environment variable SDKCONFIG_DEFAULTS
+           - Configurations from CMake cache parameter (-D SDKCONFIG_DEFAULTS=xxx)
+        3. Appends board_manager.defaults to the end of the final configuration list
+        4. Dual update mechanism ensures configuration takes effect:
+           - Updates environment variable (used when user doesn't specify -D parameter)
+           - Updates CMake cache entry (used when user specifies -D parameter, higher priority)
 
-        Priority in ESP-IDF's project.cmake:
-        -------------------------------------
-        CMake variable (-D) > Environment variable > Default file (sdkconfig.defaults)
+        ESP-IDF Configuration Priority (logic in project.cmake):
+        ---------------------------------------------------------
+        CMake variable (-D parameter) > Environment variable > Default file (sdkconfig.defaults)
 
-        Therefore, we must update the CMake cache entry when user specifies -D,
-        otherwise the environment variable will be completely overridden.
+        Therefore, when the user specifies SDKCONFIG_DEFAULTS via -D parameter,
+        we must update the CMake cache entry; otherwise, environment variable modifications
+        will be completely overridden.
 
-        Example scenarios:
-        ------------------
+        Configuration Injection Conditions:
+        -----------------------------------
+        Configuration injection is performed only when:
+        1. Executing operations that require configuration (e.g., build, menuconfig, reconfigure, etc.)
+        2. board_manager.defaults file exists
+        3. sdkconfig file does NOT exist in the project root directory
+           (to avoid overwriting manual user configurations)
+
+        Typical Usage Scenarios:
+        ------------------------
         Scenario 1 - No -D parameter:
           idf.py build
           Result: sdkconfig.defaults;board_manager.defaults
@@ -82,28 +94,41 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
           Result: sdkconfig.defaults;custom.defaults;board_manager.defaults
 
         Args:
-            ctx: Click context
-            global_args: Dictionary of all available global arguments
+            ctx: Click context object
+            global_args: Dictionary containing all available global arguments
             tasks: List of Task objects to be executed
         """
         # Actions that require configuration injection
-        config_actions = {'build', 'reconfigure', 'menuconfig'}
+        no_config_actions = {
+            'help',
+            'list-targets',
+            'python-clean',
+            'fullclean',
+            'clean',
+            'docs',
+            'erase-flash',
+            'dfu-list',
+            'gen-bmgr-config'
+        }
         # Check if any of the tasks require configuration
         needs_config = any(
-            task.name in config_actions or
-            (hasattr(task, 'aliases') and task.aliases and
-             any(alias in config_actions for alias in task.aliases))
+            task.name not in no_config_actions and
+            not (hasattr(task, 'aliases') and task.aliases and
+                any(alias in no_config_actions for alias in task.aliases))
             for task in tasks
         )
-
         if not needs_config:
             return
         # Get project directory from global_args (more reliable than module-level project_path)
         proj_dir = global_args.get('project_dir', project_path if project_path else os.getcwd())
 
         # board_manager.defaults file path (project root directory)
-        patch_file = os.path.join(proj_dir, 'board_manager.defaults')
+        patch_file = os.path.join(proj_dir, 'components', 'gen_bmgr_codes', 'board_manager.defaults')
         if not os.path.exists(patch_file):
+            return
+
+        sdk_file = os.path.join(proj_dir, 'sdkconfig')
+        if os.path.exists(sdk_file):
             return
 
         # Parse existing SDKCONFIG_DEFAULTS from multiple sources
