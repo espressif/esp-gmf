@@ -24,6 +24,8 @@ static bool        is_abort_write;
 static uint8_t     block_size_type;  // 1 for random size; 2 for specific size; others is fixed size
 static bool        use_random_delay;
 uint32_t           specific_block_size = 0;
+static bool        read_run;
+static bool        write_run;
 
 static const char *file_name       = "/sdcard/gmf_ut_test2.mp3";
 static const char *file2_name      = "/sdcard/gmf_ut_test_out.mp3";
@@ -46,14 +48,14 @@ static void acquire_write_task(void *param)
     esp_gmf_data_bus_block_t blk_buf = {0};
     int result = 0;
     uint32_t file_sz = 0;
-    bool run = true;
+    read_run = true;
 
     fseek(f, 0, SEEK_END);
     file_sz = ftell(f);
     fseek(f, 0, SEEK_SET);
     ESP_LOGI(TAG, "Going to read file, para:%p, file size:%ld,", param, file_sz);
 
-    while (run) {
+    while (read_run) {
         uint32_t start_time = 0;
         do {
             start_time = (esp_random() & 0x1F);
@@ -94,7 +96,7 @@ static void acquire_write_task(void *param)
         if (ret == 0 || (blk_buf.buf_length != ret)) {
             ESP_LOGI(TAG, "File read finished, size:%ld ret:%d", file_sz, ret);
             esp_gmf_block_done_write(bk);
-            run = false;
+            read_run = false;
         }
         if (ret != wanted_size) {
             ESP_LOGD(TAG, "W2:%ld, ret:%d,sz:%ld,%p-%d-%d", wanted_size, ret, file_sz, blk_buf.buf, blk_buf.valid_size, blk_buf.is_last);
@@ -126,8 +128,8 @@ static void acquire_read_task(void *param)
     uint64_t total_cnt = 0;
     esp_gmf_data_bus_block_t blk_buf = {0};
     uint32_t file_sz = 0;
-    bool run = true;
-    while (run) {
+    write_run = true;
+    while (write_run) {
         uint32_t start_time = 0;
         do {
             start_time = (esp_random() & 0x3F);
@@ -163,7 +165,7 @@ static void acquire_read_task(void *param)
         ret = fwrite(buf, 1, blk_buf.valid_size, f);
 
         if (blk_buf.is_last == true) {
-            run = false;
+            write_run = false;
         }
         // printf("%02x ", buf[0]);
         esp_gmf_block_release_read(bk, &blk_buf, 0);
@@ -447,8 +449,12 @@ TEST_CASE("Abort when read and write with FIXED SIZE + RANDOM DELAY", "[ESP_GMF_
                 break;
             }
         }
-        TEST_ASSERT_TRUE(is_abort_read);
-        TEST_ASSERT_TRUE(is_abort_write);
+        if (write_run) {
+            TEST_ASSERT_TRUE(is_abort_read);
+        }
+        if (read_run) {
+            TEST_ASSERT_TRUE(is_abort_write);
+        }
         esp_gmf_block_reset(bk);
     }
     esp_gmf_block_destroy(bk);

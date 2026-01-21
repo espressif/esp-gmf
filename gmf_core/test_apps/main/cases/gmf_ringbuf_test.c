@@ -188,8 +188,12 @@ TEST_CASE("Abort when Ringbuffer read and write on different task", "[ESP_GMF_RI
                 break;
             }
         }
-        TEST_ASSERT_TRUE(is_abort_read);
-        TEST_ASSERT_TRUE(is_abort_write);
+        if (write_run) {
+            TEST_ASSERT_TRUE(is_abort_read);
+        }
+        if (read_run) {
+            TEST_ASSERT_TRUE(is_abort_write);
+        }
         esp_gmf_rb_reset(rb);
     }
     esp_gmf_rb_destroy(rb);

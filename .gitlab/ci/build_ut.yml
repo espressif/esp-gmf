@@ -10,7 +10,7 @@ variables:
     TEST_DIR: ${CI_PROJECT_DIR}/gmf_core
   parallel:
     matrix:
-      - IDF_VERSION_TAG: ['v5.4.3']
+      - IDF_VERSION_TAG: ['v5.5.3']
         parallel: [ 1/1 ]
   extends:
     - .rules:build:protected-merge-requests-pipeline
