@@ -7,6 +7,7 @@
 - Added support to configure frame decoder usage in the audio decoder via `CONFIG_GMF_AUDIO_CODEC_DEC_USE_FRAME_DEC`
 - Added configurable `DRC` (Dynamic Range Control) and `MBC` (Multi-Band Compressor) audio effects support in `gmf_loader_setup_audio_effects`
 - Added `VORBIS` and `ALAC` decoder configuration support in `gmf_loader_setup_audio_codec`
+- Added GMF codec type selection depending on the enabled codec support options
 
 ## v0.7.3~1
 
