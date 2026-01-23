@@ -13,9 +13,11 @@
 
 ### Bug Fixes
 - Modified the effective scope of the `board_manager_global_callback` function to ensure that build-related operations can correctly include `board_manager.defaults`
-- Change the output path of `board_manager.defaults` to `components/gen_bmgr_config/` to exclude it from git diffs
 - Fixed an issue where the `pa_pin` configuration of ES8156 did not take effect correctly
 - Fixed ledc timer parsing script error for `timer_sel`
+
+### Modifications
+- Change the output path of `board_manager.defaults` to `components/gen_bmgr_config/` to exclude it from git diffs
 
 ## 0.5.2
 
