@@ -58,22 +58,22 @@ def parse(name: str, config: dict) -> dict:
         else:
             raise ValueError(f'Invalid LEDC channel type: {type(channel)}. Must be int or str.')
 
-        # Get LEDC timer with validation
-        timer = cfg.get('timer', 'LEDC_TIMER_0')
+        # Get LEDC timer_sel with validation
+        timer_sel = cfg.get('timer_sel', 'LEDC_TIMER_0')
 
         # Handle both numeric and enum string values
-        if isinstance(timer, int):
-            if 0 <= timer <= 3:
-                timer_enum = f'LEDC_TIMER_{timer}'
+        if isinstance(timer_sel, int):
+            if 0 <= timer_sel <= 3:
+                timer_enum = f'LEDC_TIMER_{timer_sel}'
             else:
-                raise ValueError(f'Invalid LEDC timer number: {timer}. Must be 0-3.')
-        elif isinstance(timer, str):
+                raise ValueError(f'Invalid LEDC timer number: {timer_sel}. Must be 0-3.')
+        elif isinstance(timer_sel, str):
             valid_timers = ['LEDC_TIMER_0', 'LEDC_TIMER_1', 'LEDC_TIMER_2', 'LEDC_TIMER_3']
-            if timer not in valid_timers:
-                raise ValueError(f'Invalid LEDC timer: {timer}. Valid timers: {valid_timers}')
-            timer_enum = timer
+            if timer_sel not in valid_timers:
+                raise ValueError(f'Invalid LEDC timer: {timer_sel}. Valid timers: {valid_timers}')
+            timer_enum = timer_sel
         else:
-            raise ValueError(f'Invalid LEDC timer type: {type(timer)}. Must be int or str.')
+            raise ValueError(f'Invalid LEDC timer type: {type(timer_sel)}. Must be int or str.')
 
         # Get frequency with validation
         freq_hz = cfg.get('freq_hz', 4000)

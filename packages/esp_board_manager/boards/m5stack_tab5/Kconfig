@@ -1,0 +1,2 @@
+config BOARD_M5STACK_TAB5
+    bool

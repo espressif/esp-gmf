@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.3
+
+### Features
+
+- Added [`play_embed_music`](examples/play_embed_music/README.md) example to show how to use board manager to initialize codec and play flash wav audio file
+- Added support for M5STACK TAB5, supported devices includes:
+  Codec, LCD, LCD Touch, Camera and SD card
+- Added support for ESP_BOX_LITE, supported devices includes:
+  Codec and LCD
+- Adapt to the new version of `esp_io_expander` component by adding support for configuring IO output modes and enabling pull-up/pull-down resistors
+
+### Bug Fixes
+- Modified the effective scope of the `board_manager_global_callback` function to ensure that build-related operations can correctly include `board_manager.defaults`
+- Fixed an issue where the `pa_pin` configuration of ES8156 did not take effect correctly
+- Fixed ledc timer parsing script error for `timer_sel`
+
+### Modifications
+- Change the output path of `board_manager.defaults` to `components/gen_bmgr_config/` to exclude it from git diffs
+
 ## 0.5.2
 
 ### Bug Fixes

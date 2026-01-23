@@ -1,0 +1,3 @@
+config BOARD_ESP_BOX_LITE
+    bool "ESP-BOX-LITE Development Board"
+    depends on IDF_TARGET_ESP32S3

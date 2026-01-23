@@ -168,7 +168,7 @@ devices:
     config:
       long_press_time: 2000
       short_press_time: 100
-      events:
+      events_cfg:
         press_down: true
         press_up: true
         single_click: true

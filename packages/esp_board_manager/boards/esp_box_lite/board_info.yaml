@@ -1,0 +1,5 @@
+board: esp_box_lite
+chip: esp32s3
+version: 1.0.0
+description: "ESP-BOX-LITE Development Board"
+manufacturer: "ESPRESSIF"

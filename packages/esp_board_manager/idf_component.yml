@@ -1,4 +1,4 @@
-version: 0.5.2
+version: 0.5.3
 description: Board manager for ESP-GMF
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_board_manager
 documentation: https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md
@@ -10,6 +10,7 @@ tags:
 examples:
   - path: examples/play_sdcard_music
   - path: examples/record_to_sdcard
+  - path: examples/play_embed_music
 
 dependencies:
   espressif/esp_codec_dev:

@@ -1418,7 +1418,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         # Write to board_manager.defaults in project root instead of modifying sdkconfig.defaults
         # This avoids conflicts with user's sdkconfig.defaults file
         # Also adds CONFIG_IDF_TARGET, CONFIG_BOARD_XXX and CONFIG_BOARD_NAME
-        board_manager_defaults_file = str(Path.cwd() / 'board_manager.defaults')
+        board_manager_defaults_file = str(Path.cwd() / 'components/gen_bmgr_codes/board_manager.defaults')
 
         board_defaults_result = self.sdkconfig_manager.generate_board_manager_defaults(
             board_path=board_path,
@@ -1429,7 +1429,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         )
         if board_defaults_result['added']:
             self.logger.info(f'✅ Generated board-specific defaults to {board_manager_defaults_file}')
-            self.logger.info(f'   File will be auto-applied during build/menuconfig/reconfigure')
+            self.logger.info(f'   The file will be automatically applied when compilation occurs')
 
         # 8. Write board information and setup components/gen_bmgr_codes
         self.logger.info('⚙️  Step 8/8: Writing board information and setting up components...')

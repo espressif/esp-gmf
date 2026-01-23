@@ -68,11 +68,28 @@ int dev_gpio_expander_init(void *cfg, int cfg_size, void **device_handle)
             uint8_t level = (config->output_io_level_mask >> i) & 1;
             ESP_GOTO_ON_ERROR(esp_io_expander_set_level(*dev, pin_mask, level),
                               io_expander_del, TAG, "Set IO expander pin %" PRIu32 " default level failed", i);
+            if (config->enable_mode_set) {
+                esp_io_expander_output_mode_t mode = (esp_io_expander_output_mode_t )((config->output_io_mode_mask >> i) & 1);
+                ESP_GOTO_ON_ERROR(esp_io_expander_set_output_mode(*dev, pin_mask, mode),
+                                  io_expander_del, TAG, "Set IO expander pin %" PRIu32 " output mode failed", i);
+            }
             ESP_LOGI(TAG, "Set IO expander pin %" PRIu32 " as output, level: %d", i, level);
         } else if (config->input_io_mask & pin_mask) {
             ESP_GOTO_ON_ERROR(esp_io_expander_set_dir(*dev, pin_mask, IO_EXPANDER_INPUT),
                               io_expander_del, TAG, "Set IO expander pin %" PRIu32 " as input failed", i);
             ESP_LOGI(TAG, "Set IO expander pin %" PRIu32 " as input", i);
+        }
+        if (config->io_pullup_mask & pin_mask) {
+            esp_io_expander_pullupdown_t state = IO_EXPANDER_PULL_UP;
+            ESP_GOTO_ON_ERROR(esp_io_expander_set_pullupdown(*dev, pin_mask, state),
+                              io_expander_del, TAG, "Set IO expander pin %" PRIu32 " pull-up failed", i);
+            ESP_LOGI(TAG, "Enable IO expander pin %" PRIu32 " pull-up", i);
+        }
+        if (config->io_pulldown_mask & pin_mask) {
+            esp_io_expander_pullupdown_t state = IO_EXPANDER_PULL_DOWN;
+            ESP_GOTO_ON_ERROR(esp_io_expander_set_pullupdown(*dev, pin_mask, state),
+                              io_expander_del, TAG, "Set IO expander pin %" PRIu32 " pull-down failed", i);
+            ESP_LOGI(TAG, "Enable IO expander pin %" PRIu32 " pull-down", i);
         }
     }
     ESP_LOGD(TAG, "Successfully initialized: %s, dev: %p", config->name, dev);

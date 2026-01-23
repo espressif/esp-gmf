@@ -247,7 +247,8 @@ void app_main(void)
 | [`ESP32-C5 Spot`](https://oshwhub.com/esp-college/esp-spot) | ESP32-C5 | ✅ ES8311 (dual) | - | - | - | - | - |
 | [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ✅ EK79007 | ✅ GT911 | ✅ CSI Camera | - |
 | [`M5STACK CORES3`](https://docs.m5stack.com/en/core/CoreS3) | ESP32-S3 | ✅ AW88298 + ES7210 | ✅ SDSPI | ✅ ILI9342C | ✅ FT5x06 | ❌ | - |
-
+| [`M5STACK TAB5`](https://docs.m5stack.com/en/core/Tab5) | ESP32-P4 | ✅ ES8388 + ES7210 | ✅ SDMMC | ✅ ILI9881C | ✅ GT911 | SC202CS | - |
+| [`ESP-BOX-LITE`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_lite/hardware_overview_for_lite.md) | ESP32-S3 | ✅ ES8156 + ES7243E | - | ✅ ST7789 | - | - | - |
 
 Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicates the hardware does not have the corresponding capability.
 
