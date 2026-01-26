@@ -5,8 +5,6 @@
  */
 
 #include "freertos/FreeRTOS.h"
-#include "codec_board.h"
-#include "esp_gmf_app_setup_peripheral.h"
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "settings.h"
@@ -14,12 +12,17 @@
 #include "esp_capture.h"
 #include "esp_capture_defaults.h"
 #include "esp_capture_sink.h"
+#include "esp_gmf_video_overlay.h"
 #include "video_capture.h"
+#ifdef CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT
+#include "dev_camera.h"
+#endif
+#include "dev_audio_codec.h"
+#include "esp_board_device.h"
+#include "esp_board_manager_defs.h"
 // For advanced usage like customized process pipeline
 #include "esp_capture_advance.h"
-#if CONFIG_IDF_TARGET_ESP32P4
-#include "esp_video_init.h"
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+
 
 #define TAG "VIDEO_CAPTURE"
 
@@ -38,80 +41,21 @@ typedef struct {
 
 static esp_capture_video_src_if_t *create_video_source(void)
 {
-    camera_cfg_t cam_pin_cfg = {};
-    int ret = get_camera_cfg(&cam_pin_cfg);
-    if (ret != 0) {
+#ifdef CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT
+    dev_camera_handle_t *camera_handle = NULL;
+    esp_err_t ret = esp_board_device_get_handle(ESP_BOARD_DEVICE_NAME_CAMERA, (void **)&camera_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get camera device");
         return NULL;
     }
-#if CONFIG_IDF_TARGET_ESP32P4
-    esp_video_init_csi_config_t csi_config = {0};
-    esp_video_init_dvp_config_t dvp_config = {0};
-    esp_video_init_config_t cam_config = {0};
-    if (cam_pin_cfg.type == CAMERA_TYPE_MIPI) {
-        csi_config.sccb_config.i2c_handle = esp_gmf_app_get_i2c_handle();
-        csi_config.sccb_config.freq = 100000;
-        csi_config.reset_pin = cam_pin_cfg.reset;
-        csi_config.pwdn_pin = cam_pin_cfg.pwr;
-        cam_config.csi = &csi_config;
-    } else if (cam_pin_cfg.type == CAMERA_TYPE_DVP) {
-        dvp_config.reset_pin = cam_pin_cfg.reset;
-        dvp_config.pwdn_pin = cam_pin_cfg.pwr;
-        dvp_config.dvp_pin.data_width = CAM_CTLR_DATA_WIDTH_8;
-        dvp_config.dvp_pin.data_io[0] = cam_pin_cfg.data[0];
-        dvp_config.dvp_pin.data_io[1] = cam_pin_cfg.data[1];
-        dvp_config.dvp_pin.data_io[2] = cam_pin_cfg.data[2];
-        dvp_config.dvp_pin.data_io[3] = cam_pin_cfg.data[3];
-        dvp_config.dvp_pin.data_io[4] = cam_pin_cfg.data[4];
-        dvp_config.dvp_pin.data_io[5] = cam_pin_cfg.data[5];
-        dvp_config.dvp_pin.data_io[6] = cam_pin_cfg.data[6];
-        dvp_config.dvp_pin.data_io[7] = cam_pin_cfg.data[7];
-        dvp_config.dvp_pin.vsync_io = cam_pin_cfg.vsync;
-        dvp_config.dvp_pin.pclk_io = cam_pin_cfg.pclk;
-        dvp_config.dvp_pin.xclk_io = cam_pin_cfg.xclk;
-        dvp_config.dvp_pin.de_io = cam_pin_cfg.de;
-        dvp_config.xclk_freq = 20000000;
-        cam_config.dvp = &dvp_config;
-    }
-    static bool v4l2_inited = false;
-    if (v4l2_inited == false) {
-        ret = esp_video_init(&cam_config);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Camera init failed with error 0x%x", ret);
-            v4l2_inited = false;  // Reset on failure
-            return NULL;
-        }
-        v4l2_inited = true;
-    }
     esp_capture_video_v4l2_src_cfg_t v4l2_cfg = {
-        .dev_name = "/dev/video0",
         .buf_count = 2,
     };
+    strncpy(v4l2_cfg.dev_name, camera_handle->dev_path, sizeof(v4l2_cfg.dev_name) - 1);
     return esp_capture_new_video_v4l2_src(&v4l2_cfg);
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
-
-#if CONFIG_IDF_TARGET_ESP32S3
-    if (cam_pin_cfg.type == CAMERA_TYPE_DVP) {
-        esp_capture_video_dvp_src_cfg_t dvp_config = {0};
-        dvp_config.buf_count = 4;
-        dvp_config.reset_pin = cam_pin_cfg.reset;
-        dvp_config.pwr_pin = cam_pin_cfg.pwr;
-        dvp_config.data[0] = cam_pin_cfg.data[0];
-        dvp_config.data[1] = cam_pin_cfg.data[1];
-        dvp_config.data[2] = cam_pin_cfg.data[2];
-        dvp_config.data[3] = cam_pin_cfg.data[3];
-        dvp_config.data[4] = cam_pin_cfg.data[4];
-        dvp_config.data[5] = cam_pin_cfg.data[5];
-        dvp_config.data[6] = cam_pin_cfg.data[6];
-        dvp_config.data[7] = cam_pin_cfg.data[7];
-        dvp_config.vsync_pin = cam_pin_cfg.vsync;
-        dvp_config.href_pin = cam_pin_cfg.href;
-        dvp_config.pclk_pin = cam_pin_cfg.pclk;
-        dvp_config.xclk_pin = cam_pin_cfg.xclk;
-        dvp_config.xclk_freq = 20000000;
-        return esp_capture_new_video_dvp_src(&dvp_config);
-    }
-#endif  /* CONFIG_IDF_TARGET_ESP32S3 */
+#else
     return NULL;
+#endif
 }
 
 static int build_video_capture(video_capture_sys_t *capture_sys)
@@ -122,13 +66,21 @@ static int build_video_capture(video_capture_sys_t *capture_sys)
         ESP_LOGE(TAG, "Fail to create video source");
         return -1;
     }
-    esp_capture_audio_dev_src_cfg_t codec_cfg = {
-        .record_handle = esp_gmf_app_get_record_handle(),
-    };
-    capture_sys->aud_src = esp_capture_new_audio_dev_src(&codec_cfg);
-    if (capture_sys->aud_src == NULL) {
-        ESP_LOGE(TAG, "Fail to create video source");
-        return -1;
+    esp_codec_dev_handle_t record_handle = NULL;
+    dev_audio_codec_handles_t *codec_handle = NULL;
+    esp_err_t ret = esp_board_device_get_handle(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&codec_handle);
+    if (ret == ESP_OK) {
+        record_handle = codec_handle->codec_dev;
+    }
+    if (record_handle) {
+        esp_capture_audio_dev_src_cfg_t codec_cfg = {
+            .record_handle = record_handle
+        };
+        capture_sys->aud_src = esp_capture_new_audio_dev_src(&codec_cfg);
+        if (capture_sys->aud_src == NULL) {
+            ESP_LOGE(TAG, "Fail to create audio source");
+            return -1;
+        }
     }
     esp_capture_cfg_t capture_cfg = {
         .sync_mode = ESP_CAPTURE_SYNC_MODE_AUDIO,
@@ -509,6 +461,7 @@ int video_capture_run_with_overlay(int duration)
         text_overlay->open(text_overlay);
         // Fill background
         esp_capture_text_overlay_draw_start(text_overlay);
+        text_rgn.x = text_rgn.y = 0;
         esp_capture_text_overlay_clear(text_overlay, &text_rgn, COLOR_RGB565_CYAN);
         esp_capture_text_overlay_draw_finished(text_overlay);
 
@@ -588,7 +541,7 @@ int video_capture_run_with_customized_process(int duration)
         }
 
         // We know that only need video encoder and video fps convert
-        const char *vid_elements[] = {"vid_fps_cvt", "vid_enc"};
+        const char *vid_elements[] = {"vid_color_cvt", "vid_fps_cvt", "vid_enc"};
         ret = esp_capture_sink_build_pipeline(sink, ESP_CAPTURE_STREAM_TYPE_VIDEO,
                                               vid_elements, sizeof(vid_elements) / sizeof(vid_elements[0]));
 

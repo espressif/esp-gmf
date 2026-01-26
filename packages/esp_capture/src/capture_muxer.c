@@ -181,6 +181,16 @@ esp_capture_err_t capture_muxer_open(capture_path_handle_t path, esp_capture_mux
     return ESP_CAPTURE_ERR_NO_MEM;
 }
 
+static void muxer_flush_msg(capture_muxer_path_t *muxer_path)
+{
+    esp_capture_stream_frame_t frame = {0};
+    while (msg_q_recv(muxer_path->muxer_q, &frame, sizeof(frame), true) == 0) {
+        if (frame.data != NULL && frame.size > 0) {
+            capture_path_release_share(muxer_path->path, &frame);
+        }
+    }
+}
+
 static void muxer_thread(void *arg)
 {
     capture_muxer_path_t *muxer_path = (capture_muxer_path_t *)arg;
@@ -452,6 +462,8 @@ esp_capture_err_t capture_muxer_stop(capture_muxer_path_handle_t muxer_path)
         msg_q_send(muxer_path->muxer_q, &frame, sizeof(frame));
         capture_event_group_wait_bits(muxer_path->event_grp, EVENT_GROUP_MUXER_EXITED, 1000);
         capture_event_group_clr_bits(muxer_path->event_grp, EVENT_GROUP_MUXER_EXITED);
+        // Receive all pending messages
+        muxer_flush_msg(muxer_path);
         muxer_path->muxing = false;
     }
     // Close muxer

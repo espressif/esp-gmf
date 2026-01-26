@@ -6,7 +6,10 @@
  * See LICENSE file for details.
  */
 #include <sdkconfig.h>
-#if CONFIG_IDF_TARGET_ESP32P4
+
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C5 || \
+    CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32C61
+
 #include "esp_capture_types.h"
 #include "linux/videodev2.h"
 #include "esp_video_init.h"
@@ -16,6 +19,8 @@
 #include <sys/errno.h>
 #include <fcntl.h>
 #include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "esp_capture_video_src_if.h"
 #include "esp_capture_video_v4l2_src.h"
 #include "capture_os.h"
@@ -42,6 +47,10 @@ typedef struct {
     uint8_t                     nego_ok        : 1;
     uint8_t                     started        : 1;
     uint8_t                     use_fixed_caps : 1;
+    uint8_t                     need_convert_420 : 1;
+    SemaphoreHandle_t           yuv420_lock;
+    uint8_t                    *yuv420_cache;
+    uint8_t                    *src_buffer;
 } v4l2_src_t;
 
 static esp_capture_format_id_t get_codec_type(uint32_t fmt)
@@ -196,6 +205,7 @@ static esp_capture_err_t v4l2_negotiate_caps(esp_capture_video_src_if_t *src, es
 {
     v4l2_src_t *v4l2 = (v4l2_src_t *)src;
     v4l2->nego_ok = false;
+    v4l2->need_convert_420 = false;
     do {
         if (v4l2->use_fixed_caps) {
             if (in_cap->format_id != v4l2->nego_result.format_id && (in_cap->format_id != ESP_CAPTURE_FMT_ID_ANY)) {
@@ -203,6 +213,19 @@ static esp_capture_err_t v4l2_negotiate_caps(esp_capture_video_src_if_t *src, es
             }
             v4l2_negotiate_format(v4l2, &v4l2->nego_result);
             break;
+        }
+        if (in_cap->format_id == ESP_CAPTURE_FMT_ID_YUV420) {
+            // Try to use YUV422 mode instead
+            esp_capture_video_info_t prefer_info = *in_cap;
+            prefer_info.format_id = ESP_CAPTURE_FMT_ID_YUV422P;
+            v4l2_negotiate_format(v4l2, &prefer_info);
+            if (v4l2->nego_ok) {
+                // Convert to 420 internally
+                v4l2->need_convert_420 = true;
+                *out_caps = v4l2->nego_result;
+                out_caps->format_id = ESP_CAPTURE_FMT_ID_YUV420;
+                return ESP_CAPTURE_ERR_OK;
+            }
         }
         if (v4l2->format_count && (in_cap->format_id == ESP_CAPTURE_FMT_ID_ANY)) {
             esp_capture_video_info_t prefer_info = *in_cap;
@@ -281,8 +304,42 @@ static esp_capture_err_t v4l2_start(esp_capture_video_src_if_t *src)
     }
     uint32_t type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     ioctl(v4l2->fd, VIDIOC_STREAMON, &type);
+    if (v4l2->need_convert_420) {
+        v4l2->yuv420_cache = malloc(v4l2->nego_result.width * v4l2->nego_result.height * 3 / 2);
+        if (v4l2->yuv420_cache == NULL) {
+            return ESP_CAPTURE_ERR_NO_MEM;
+        }
+        v4l2->yuv420_lock = xSemaphoreCreateCounting(1, 1);
+        if (v4l2->yuv420_lock == NULL) {
+            return ESP_CAPTURE_ERR_NO_MEM;
+        }
+    }
     v4l2->started = true;
     return ESP_CAPTURE_ERR_OK;
+}
+
+static void convert_yuv420(uint32_t w, uint32_t h, uint8_t *src, uint8_t *dst)
+{
+    uint32_t bytes = w * h;
+    uint8_t *y = dst;
+    uint8_t *u = dst + bytes;
+    uint8_t *v = u + (bytes >> 2);
+    w >>= 1;
+    h >>= 1;
+    for (int i = 0; i < h; i++) {
+        for (int i = 0; i < w; i++) {
+            *(y++) = *(src++);
+            *(u++) = *(src++);
+            *(y++) = *(src++);
+            *(v++) = *(src++);
+        }
+        for (int i = 0; i < w; i++) {
+            *(y++) = *(src);
+            src += 2;
+            *(y++) = *(src);
+            src += 2;
+        }
+    }
 }
 
 static esp_capture_err_t v4l2_acquire_frame(esp_capture_video_src_if_t *src, esp_capture_stream_frame_t *frame)
@@ -304,7 +361,14 @@ static esp_capture_err_t v4l2_acquire_frame(esp_capture_video_src_if_t *src, esp
     frame->data = v4l2->fb_buffer[buf.index];
     frame->size = buf.bytesused;
     v4l2->v4l2_buf[buf.index] = buf;
-    esp_cache_msync(frame->data, frame->size, ESP_CACHE_MSYNC_FLAG_DIR_M2C);
+    if (v4l2->need_convert_420) {
+        xSemaphoreTake(v4l2->yuv420_lock, portMAX_DELAY);
+        convert_yuv420(v4l2->nego_result.width, v4l2->nego_result.height,
+                        frame->data, v4l2->yuv420_cache);
+        v4l2->src_buffer = frame->data;
+        frame->data = v4l2->yuv420_cache;
+        frame->size = frame->size * 3 / 4;
+    }
     return ESP_CAPTURE_ERR_OK;
 }
 
@@ -317,9 +381,14 @@ static esp_capture_err_t v4l2_release_frame(esp_capture_video_src_if_t *src, esp
     if (v4l2->started == false) {
         return ESP_CAPTURE_ERR_INVALID_STATE;
     }
+    uint8_t *frame_data = frame->data;
+    if (v4l2->need_convert_420) {
+        frame_data = v4l2->src_buffer;
+        xSemaphoreGive(v4l2->yuv420_lock);
+    }
     for (int i = 0; i < v4l2->buf_count; i++) {
         struct v4l2_buffer *buf = &v4l2->v4l2_buf[i];
-        if (v4l2->fb_used[i] && v4l2->fb_buffer[i] == frame->data) {
+        if (v4l2->fb_used[i] && v4l2->fb_buffer[i] == frame_data) {
             v4l2->fb_used[i] = 0;
             ioctl(v4l2->fd, VIDIOC_QBUF, buf);
             return 0;
@@ -337,6 +406,15 @@ static esp_capture_err_t v4l2_stop(esp_capture_video_src_if_t *src)
     }
     uint32_t type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     ioctl(v4l2->fd, VIDIOC_STREAMOFF, &type);
+    if (v4l2->yuv420_lock) {
+        vSemaphoreDelete(v4l2->yuv420_lock);
+        v4l2->yuv420_lock = NULL;
+    }
+    if (v4l2->yuv420_cache) {
+        free(v4l2->yuv420_cache);
+        v4l2->yuv420_cache = NULL;
+    }
+    v4l2->need_convert_420 = false;
     v4l2->nego_ok = false;
     return ESP_CAPTURE_ERR_OK;
 }

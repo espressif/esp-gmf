@@ -6,8 +6,6 @@
 
 #include "freertos/FreeRTOS.h"
 #include "esp_timer.h"
-#include "esp_gmf_app_setup_peripheral.h"
-#include "codec_board.h"
 #include "esp_heap_trace.h"
 #include "esp_heap_caps.h"
 #include "esp_capture.h"
@@ -18,9 +16,12 @@
 #include "capture_builder.h"
 #include "capture_fake_aud_src.h"
 #include "capture_fake_vid_src.h"
-#if CONFIG_IDF_TARGET_ESP32P4
-#include "esp_video_init.h"
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+#ifdef CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT
+#include "dev_camera.h"
+#endif
+#include "dev_audio_codec.h"
+#include "esp_board_device.h"
+#include "esp_board_manager_defs.h"
 #include "esp_log.h"
 
 #define TAG "CAPTURE_BUILDER"
@@ -37,79 +38,21 @@ esp_capture_video_src_if_t *create_video_source(void)
     if (use_fake_src) {
         return esp_capture_new_video_fake_src(2);
     }
-    camera_cfg_t cam_pin_cfg = {};
-    int ret = get_camera_cfg(&cam_pin_cfg);
-    if (ret != 0) {
+#ifdef CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT
+    dev_camera_handle_t *camera_handle = NULL;
+    int ret = esp_board_device_get_handle(ESP_BOARD_DEVICE_NAME_CAMERA, (void **)&camera_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get camera device");
         return NULL;
     }
-#if CONFIG_IDF_TARGET_ESP32P4
-    esp_video_init_csi_config_t csi_config = {0};
-    esp_video_init_dvp_config_t dvp_config = {0};
-    esp_video_init_config_t cam_config = {0};
-    if (cam_pin_cfg.type == CAMERA_TYPE_MIPI) {
-        csi_config.sccb_config.i2c_handle = esp_gmf_app_get_i2c_handle();
-        csi_config.sccb_config.freq = 100000;
-        csi_config.reset_pin = cam_pin_cfg.reset;
-        csi_config.pwdn_pin = cam_pin_cfg.pwr;
-        cam_config.csi = &csi_config;
-    } else if (cam_pin_cfg.type == CAMERA_TYPE_DVP) {
-        dvp_config.reset_pin = cam_pin_cfg.reset;
-        dvp_config.pwdn_pin = cam_pin_cfg.pwr;
-        dvp_config.dvp_pin.data_width = CAM_CTLR_DATA_WIDTH_8;
-        dvp_config.dvp_pin.data_io[0] = cam_pin_cfg.data[0];
-        dvp_config.dvp_pin.data_io[1] = cam_pin_cfg.data[1];
-        dvp_config.dvp_pin.data_io[2] = cam_pin_cfg.data[2];
-        dvp_config.dvp_pin.data_io[3] = cam_pin_cfg.data[3];
-        dvp_config.dvp_pin.data_io[4] = cam_pin_cfg.data[4];
-        dvp_config.dvp_pin.data_io[5] = cam_pin_cfg.data[5];
-        dvp_config.dvp_pin.data_io[6] = cam_pin_cfg.data[6];
-        dvp_config.dvp_pin.data_io[7] = cam_pin_cfg.data[7];
-        dvp_config.dvp_pin.vsync_io = cam_pin_cfg.vsync;
-        dvp_config.dvp_pin.pclk_io = cam_pin_cfg.pclk;
-        dvp_config.dvp_pin.xclk_io = cam_pin_cfg.xclk;
-        dvp_config.dvp_pin.de_io = cam_pin_cfg.de;
-        dvp_config.xclk_freq = 20000000;
-        cam_config.dvp = &dvp_config;
-    }
-    static bool v4l2_inited = false;
-    if (v4l2_inited == false) {
-        ret = esp_video_init(&cam_config);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Camera init failed with error 0x%x", ret);
-            return NULL;
-        }
-        v4l2_inited = true;
-    }
     esp_capture_video_v4l2_src_cfg_t v4l2_cfg = {
-        .dev_name = "/dev/video0",
         .buf_count = 2,
     };
+    strncpy(v4l2_cfg.dev_name, camera_handle->dev_path, sizeof(v4l2_cfg.dev_name) - 1);
     return esp_capture_new_video_v4l2_src(&v4l2_cfg);
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
-
-#if CONFIG_IDF_TARGET_ESP32S3
-    if (cam_pin_cfg.type == CAMERA_TYPE_DVP) {
-        esp_capture_video_dvp_src_cfg_t dvp_config = {0};
-        dvp_config.buf_count = 4;
-        dvp_config.reset_pin = cam_pin_cfg.reset;
-        dvp_config.pwr_pin = cam_pin_cfg.pwr;
-        dvp_config.data[0] = cam_pin_cfg.data[0];
-        dvp_config.data[1] = cam_pin_cfg.data[1];
-        dvp_config.data[2] = cam_pin_cfg.data[2];
-        dvp_config.data[3] = cam_pin_cfg.data[3];
-        dvp_config.data[4] = cam_pin_cfg.data[4];
-        dvp_config.data[5] = cam_pin_cfg.data[5];
-        dvp_config.data[6] = cam_pin_cfg.data[6];
-        dvp_config.data[7] = cam_pin_cfg.data[7];
-        dvp_config.vsync_pin = cam_pin_cfg.vsync;
-        dvp_config.href_pin = cam_pin_cfg.href;
-        dvp_config.pclk_pin = cam_pin_cfg.pclk;
-        dvp_config.xclk_pin = cam_pin_cfg.xclk;
-        dvp_config.xclk_freq = 20000000;
-        return esp_capture_new_video_dvp_src(&dvp_config);
-    }
-#endif  /* CONFIG_IDF_TARGET_ESP32S3 */
+#else
     return NULL;
+#endif
 }
 
 esp_capture_audio_src_if_t *create_audio_source(bool with_aec)
@@ -117,11 +60,17 @@ esp_capture_audio_src_if_t *create_audio_source(bool with_aec)
     if (use_fake_src) {
         return esp_capture_new_audio_fake_src();
     }
+    dev_audio_codec_handles_t *codec_handle = NULL;
+    esp_err_t ret = esp_board_device_get_handle(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&codec_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to audio_adc device");
+        return NULL;
+    }
     // Test AEC source on esp32s3 and esp32p4
 #if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4
     if (with_aec) {
         esp_capture_audio_aec_src_cfg_t aec_cfg = {
-            .record_handle = esp_gmf_app_get_record_handle(),
+            .record_handle = codec_handle->codec_dev,
 #if CONFIG_IDF_TARGET_ESP32S3
             .channel = 4,
             .channel_mask = 1 | 2,
@@ -131,7 +80,7 @@ esp_capture_audio_src_if_t *create_audio_source(bool with_aec)
     }
 #endif  /* CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4 */
     esp_capture_audio_dev_src_cfg_t codec_cfg = {
-        .record_handle = esp_gmf_app_get_record_handle(),
+        .record_handle = codec_handle->codec_dev,
     };
     return esp_capture_new_audio_dev_src(&codec_cfg);
 }

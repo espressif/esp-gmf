@@ -15,7 +15,6 @@ This example demonstrates various video capture capabilities using the ESP Captu
 ## Hardware Requirements
 
 - Recommend to use [ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) or [esp32-p4-function-ev-board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) development board
-- For other board can check [Other Board Support](#other-board-support) section
 
 ## Software Requirements
 
@@ -24,10 +23,22 @@ This example demonstrates various video capture capabilities using the ESP Captu
 - ESP GMF framework
 
 ## Building and Flash
+List available boards and select the corresponding board, taking `ESP32-S3-Korvo-2` as an example:
+> For detailed usage refer to [Quick Start](https://github.com/espressif/esp-gmf/tree/main/packages/esp_board_manager#quick-start)
 
+```
+idf.py gen-bmgr-config -l
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+```
+- Building and flash
 ```bash
+idf.py build
 idf.py -p /dev/XXXXX flash monitor
 ```
+
+> [!NOTE]
+> For other supported boards (via `esp_board_manager`), follow the same steps above.
+> For customer board refer to the [Custom Board Guide](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board.md) for details.
 
 ## Usage Examples
 
@@ -116,15 +127,12 @@ The example can be configured through the following settings in [settings.h](mai
   - `VIDEO_SINK1_HEIGHT`: Secondary video height
   - `VIDEO_SINK1_FPS`: Secondary video frame rate
 
-## Other Board Support
-
-This example uses `gmf_app_utils` for simplified board initialization to enable rapid verification. You can check board compatibility in the menuconfig under `GMF APP Configuration`. For detailed other board support, see the [gmf_app_utils documentation](https://github.com/espressif/esp-gmf/blob/main/packages/gmf_app_utils/README.md).
-
-Or you can use [esp-bsp](https://github.com/espressif/esp-bsp/tree/master) APIs as alternatives:
- - Use `bsp_audio_codec_microphone_init()` to replace `esp_gmf_app_get_record_handle()`
- - Use `bsp_sdcard_mount()` to replace `esp_gmf_app_setup_sdcard()`
- - Use `BSP_CAMERA_DEFAULT_CONFIG` to replace `get_camera_cfg()`
-
+> [!NOTE]
+> **Current settings are for demonstration only**
+> - Supports multiple sinks, but performance may vary
+> - For best results:
+>   - If the camera supports JPEG, configure it to output JPEG directly (reduces CPU load)
+>   - Verify camera resolution, framerate, and capture pipeline settings
 
 ## Troubleshooting
 

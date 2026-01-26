@@ -11,10 +11,11 @@ dependencies:
   espressif/esp_capture:
     version: "^0.7.0"
     override_path: ../../../esp_capture
-  espressif/gmf_app_utils:
-    version: "^0.7.0"
-    override_path: ../../../gmf_app_utils
   espressif/esp_video_codec:
     version: "^0.5"
-  tempotian/codec_board:
-    version: "^1.0"
+  espressif/gmf_app_utils:
+    version: "^0.7"
+    override_path: "../../../gmf_app_utils"
+  espressif/esp_board_manager:
+    version: "~0.5"
+    override_path: "../../../esp_board_manager"

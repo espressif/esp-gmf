@@ -12,7 +12,6 @@
 ## 硬件要求
 
 - 推荐使用 [ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) 或 [esp32-p4-function-ev-board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) 开发板
-- 对于其他开发板，请参考 [其他开发板支持](#其他开发板支持) 小节
 
 ## 软件要求
 
@@ -22,9 +21,26 @@
 
 ## 构建和烧录
 
+- 选择编译芯片，以 esp32s3 为例：
+
+```
+idf.py set-target esp32s3
+```
+
+- 列举可用板子并选择对应板子，以 `ESP32-S3-Korvo-2` 为例：
+> 详细命令和使用方式参考 [快速开始](https://github.com/espressif/esp-gmf/tree/main/packages/esp_board_manager#quick-start) 文档。
+```
+idf.py gen-bmgr-config -l
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+```
+
+- 编译并下载
 ```bash
 idf.py -p /dev/XXXXX flash monitor
 ```
+> [!NOTE]
+> 如果切换为其他 `esp_board_manager` 支持的开发板重复上述步骤。
+> 如果需要定制板子，请参阅 [自定义开发板指南](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board_cn.md) 获取详细信息。
 
 ## 使用示例
 
@@ -72,11 +88,3 @@ audio_capture_run_with_customized_process(duration_ms);
 - `AUDIO_CAPTURE_FORMAT`：音频格式（如 AAC、OPUS）
 - `AUDIO_CAPTURE_SAMPLE_RATE`：采样率（如 16000 Hz）
 - `AUDIO_CAPTURE_CHANNEL`：音频通道数
-
-## 其他开发板支持
-
-本示例使用 `gmf_app_utils` 进行简化的开发板初始化，以实现快速验证。您可以在菜单配置中的 `GMF APP Configuration` 下检查开发板兼容性。有关其他开发板支持的详细信息，请参阅 [gmf_app_utils 文档](https://github.com/espressif/esp-gmf/blob/main/packages/gmf_app_utils/README.md)。
-
-或者，您也可以使用 [esp-bsp](https://github.com/espressif/esp-bsp/tree/master) 的 API 作为替代方案：
-- 使用 `bsp_audio_codec_microphone_init()` 替代 `esp_gmf_app_get_record_handle()`
-

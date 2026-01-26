@@ -267,7 +267,6 @@ int share_q_release(share_q_t *q, void *item)
     int wp = q->wp;
     void *frame_data = q->cfg.get_frame_data(item);
     bool need_notify = false;
-    share_item_t *head = &q->items[rp];
     while (rp != wp) {
         share_item_t *q_item = &q->items[rp];
         if (q_item->frame_data == frame_data) {

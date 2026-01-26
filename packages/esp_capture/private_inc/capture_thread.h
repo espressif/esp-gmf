@@ -16,6 +16,13 @@ extern "C" {
 #endif  /* __cplusplus */
 
 /**
+ * @brief  Default scheduler for capture
+ */
+#define CAPTURE_DEFAULT_SCHEDULER() {                     \
+    .priority = 5, .stack_size = 4096, .stack_in_ext = 1, \
+}
+
+/**
  * @brief  Thread handle type
  */
 typedef void *capture_thread_handle_t;
@@ -39,9 +46,9 @@ typedef struct {
  */
 #define CAPTURE_RUN_SYNC_IN_RAM(name, body_func, arg_info, ret, _stack_size)                     \
     do {                                                                                         \
-        esp_capture_thread_schedule_cfg_t cur_cfg = {};                                          \
+        esp_capture_thread_schedule_cfg_t cur_cfg = CAPTURE_DEFAULT_SCHEDULER();                 \
         capture_thread_get_scheduler_cfg(NULL, &cur_cfg);                                        \
-        if (cur_cfg.stack_in_ext == false) {                                                     \
+        if (capture_thread_is_stack_in_ram()) {                                                  \
             ret = body_func(arg_info);                                                           \
             break;                                                                               \
         }                                                                                        \
@@ -73,6 +80,15 @@ typedef struct {
  * @param[in]  arg  Pointer to `capture_thread_sync_run_arg_t`
  */
 IRAM_ATTR void capture_thread_run_in_ram(void *arg);
+
+/**
+ * @brief  Check whether thread stack is in ram
+ *
+ * @return
+ *       - true   Thread stack is in internal ram
+ *       - false  Thread stack is in PSRAM
+ */
+bool capture_thread_is_stack_in_ram(void);
 
 /**
  * @brief  Set thread scheduler callback

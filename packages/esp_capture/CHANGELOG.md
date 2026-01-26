@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.7.9
+
+### Features
+
+- Added `esp_board_manager` support for examples
+- Added more target support for `v4l2` video source
+- Fixed muxer stopped instantly after start for stop message received pending
+
+### Bug Fixes
+
+- Fixed build warnings
+
 ## v0.7.8~1
 
 ### Bug Fixes
