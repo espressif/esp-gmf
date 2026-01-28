@@ -6,7 +6,6 @@
 
 #include "esp_timer.h"
 #include "settings.h"
-#include "esp_gmf_app_setup_peripheral.h"
 #include "esp_capture.h"
 #include "esp_capture_defaults.h"
 #include "esp_capture_sink.h"
@@ -14,6 +13,9 @@
 #include "esp_capture_advance.h"
 #include "esp_gmf_alc.h"
 #include "mp4_muxer.h"
+#include "esp_board_device.h"
+#include "esp_board_manager_defs.h"
+#include "dev_audio_codec.h"
 #include "esp_log.h"
 
 #define TAG "AUDIO_CAPTURE"
@@ -26,12 +28,18 @@ typedef struct {
 static int build_audio_capture(audio_capture_sys_t *capture_sys, bool with_aec)
 {
     // Create audio source firstly
+    dev_audio_codec_handles_t *codec_handle = NULL;
+    esp_err_t ret = esp_board_device_get_handle(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&codec_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get audio device");
+        return -1;
+    }
     // record_handle can be either get from esp_bsp by API `bsp_audio_codec_speaker_init` or use simple `codec_board` API
     if (with_aec) {
         // Test AEC source on esp32s3 and esp32p4
 #if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4
         esp_capture_audio_aec_src_cfg_t aec_cfg = {
-            .record_handle = esp_gmf_app_get_record_handle(),
+            .record_handle = codec_handle->codec_dev,
 #if CONFIG_IDF_TARGET_ESP32S3
             .channel = 4,
             .channel_mask = 1 | 2,
@@ -44,7 +52,7 @@ static int build_audio_capture(audio_capture_sys_t *capture_sys, bool with_aec)
     }
     if (with_aec == false) {
         esp_capture_audio_dev_src_cfg_t codec_cfg = {
-            .record_handle = esp_gmf_app_get_record_handle(),
+            .record_handle = codec_handle->codec_dev,
         };
         capture_sys->aud_src = esp_capture_new_audio_dev_src(&codec_cfg);
     }

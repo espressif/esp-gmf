@@ -19,7 +19,8 @@
 #include "esp_log.h"
 #include "unity.h"
 #include "esp_gmf_app_unit_test.h"
-#include "esp_gmf_app_setup_peripheral.h"
+#include "esp_board_device.h"
+#include "esp_board_manager_defs.h"
 
 #define TAG                    "MAIN"
 #define MAX_LEAK_TRACE_RECORDS 1500
@@ -256,28 +257,15 @@ void app_main(void)
     esp_log_level_set("CAPTURE_BUILDER", ESP_LOG_INFO);
 
     // Initialize board
-    esp_gmf_app_codec_info_t codec_info = {
-        .play_info = {
-            .sample_rate = 16000,
-            .channel = 2,
-            .bits_per_sample = 16,
-            .mode = ESP_GMF_APP_I2S_MODE_STD,
-        },
-        .record_info = {
-            .sample_rate = 16000,
-            .channel = 2,
-            .bits_per_sample = 16,
-#if CONFIG_IDF_TARGET_ESP32S3
-            .mode = ESP_GMF_APP_I2S_MODE_TDM,
-#else
-            .mode = ESP_GMF_APP_I2S_MODE_STD,
-#endif  /* CONFIG_IDF_TARGET_ESP32S3 */
-        },
-    };
-    esp_gmf_app_setup_codec_dev(&codec_info);
-    void *sdcard_handle = NULL;
-    esp_gmf_app_setup_sdcard(&sdcard_handle);
-    if (sdcard_handle == NULL) {
+     esp_err_t ret;
+    ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_CAMERA);
+    ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_AUDIO_ADC);
+    bool mount_success = true;
+    ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_FS_SDCARD);
+    if (ret != ESP_OK) {
+        mount_success = false;
+    }
+    if (mount_success == false) {
         ESP_LOGE(TAG, "Failed to mount SDcard, will skip storage test");
         capture_set_skip_storage_test(true);
     }
@@ -365,7 +353,4 @@ void app_main(void)
 
     ESP_LOGI(TAG, "All test finished");
     trace_for_leak(false);
-    if (sdcard_handle) {
-        esp_gmf_app_teardown_sdcard(sdcard_handle);
-    }
 }

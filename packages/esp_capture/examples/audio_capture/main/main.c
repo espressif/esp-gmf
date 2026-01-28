@@ -6,13 +6,13 @@
 
 #include <stdio.h>
 #include <string.h>
-#include "esp_gmf_app_setup_peripheral.h"
 #include "settings.h"
 #include "audio_capture.h"
 #include "esp_audio_enc_default.h"
+#include "esp_board_device.h"
+#include "esp_board_manager_defs.h"
 #include "mp4_muxer.h"
 #include "esp_capture.h"
-
 #include "esp_log.h"
 
 #define TAG "MAIN"
@@ -45,27 +45,13 @@ void app_main(void)
     esp_log_level_set("*", ESP_LOG_ERROR);
     esp_log_level_set("AUDIO_CAPTURE", ESP_LOG_INFO);
     esp_log_level_set(TAG, ESP_LOG_INFO);
-    esp_gmf_app_codec_info_t codec_info = {
-        .play_info = {
-            .sample_rate = AUDIO_CAPTURE_SAMPLE_RATE,
-            .channel = AUDIO_CAPTURE_CHANNEL,
-            .bits_per_sample = 16,
-            .mode = ESP_GMF_APP_I2S_MODE_STD,
-        },
-        .record_info = {
-            .sample_rate = AUDIO_CAPTURE_SAMPLE_RATE,
-            .channel = AUDIO_CAPTURE_CHANNEL,
-            .bits_per_sample = 16,
-#if CONFIG_IDF_TARGET_ESP32S3
-            .mode = ESP_GMF_APP_I2S_MODE_TDM,
-#else
-            .mode = ESP_GMF_APP_I2S_MODE_STD,
-#endif  /* CONFIG_IDF_TARGET_ESP32S3 */
-        },
-    };
-    esp_gmf_app_setup_codec_dev(&codec_info);
-    void *sdcard_handle = NULL;
-    esp_gmf_app_setup_sdcard(&sdcard_handle);
+    esp_err_t ret;
+    ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_AUDIO_ADC);
+    bool mount_success = true;
+    ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_FS_SDCARD);
+    if (ret != ESP_OK) {
+        mount_success = false;
+    }
 
     // Register default audio encoders
     esp_audio_enc_register_default();
@@ -78,12 +64,9 @@ void app_main(void)
     // Run audio capture typical cases
     RUN_CASE(audio_capture_run, 10000);
     RUN_CASE(audio_capture_run_with_aec, 10000);
-    if (sdcard_handle) {
+    if (mount_success) {
         RUN_CASE(audio_capture_run_with_muxer, 10000);
     }
     RUN_CASE(audio_capture_run_with_customized_process, 10000);
-    if (sdcard_handle) {
-        esp_gmf_app_teardown_sdcard(sdcard_handle);
-    }
     ESP_LOGI(TAG, "All case finished");
 }

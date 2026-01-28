@@ -8,10 +8,7 @@
 #include "esp_capture.h"
 #include "esp_gmf_oal_thread.h"
 #include "capture_thread.h"
-
-#define CAPTURE_DEFAULT_SCHEDULER() {   \
-    .priority = 5, .stack_size = 4096,  \
-}
+#include "esp_memory_utils.h"
 
 static esp_capture_thread_scheduler_cb_t capture_scheduler = NULL;
 
@@ -70,6 +67,12 @@ void capture_thread_get_scheduler_cfg(const char *name, esp_capture_thread_sched
     if (capture_scheduler) {
         capture_scheduler(name, cfg);
     }
+}
+
+bool capture_thread_is_stack_in_ram(void)
+{
+    uint8_t *task_stack = pxTaskGetStackStart(NULL);
+    return (task_stack && esp_ptr_internal(task_stack));
 }
 
 void capture_thread_destroy(capture_thread_handle_t thread)
