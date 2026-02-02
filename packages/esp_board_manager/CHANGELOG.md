@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.4
+
+### Bug Fixes
+
+- Fixed a compilation issue caused by default `Kconfig.in`: when re-pulling the component and compiling, the default `Kconfig.in` may cause sdkconfig to be regenerated
+- Simplified the script's `root_dir` selection logic, using the script path directly as `root_dir` to avoid potential issues that may arise from specifying multiple IDF_EXTRA_ACTIONS_PATHs
+
+### Features
+
+- Optimize sdkconfig handling: preserve sdkconfig if the target board matches the current board to avoid unnecessary re-configuration
+- Clarify that the naming of the development board is based on the folder name, and add name detection to ensure that the name in `board_info.yaml` is consistent with the folder name after the board is determined
+- Update csi camera compatibility, support configuring xclk, add ldo periph dependency, automatically initialize ldo when initializing the camera
+- Optimize the custom device parsing script to support parsing nested configurations
+- Add `board_name` validation, only allow letters (a-z, A-Z), numbers (0-9), and underscores (_). If the name does not comply, this board will be unavailable.
+
+### Modifications
+- Reduce unnecessary configurations and files: delete the Kconfig file under the board path, and delete the board and chip fields in `board_devices.yaml` and `board_peripherals.yaml`
+- Optimized the scanning logic of the development board, and instead of using the Kconfig file to determine whether it is the development board path, it scans three files: `board_devices.yaml`, `board_info.yaml`, and `board_peripherals.yaml`
+
 ## 0.5.3
 
 ### Features

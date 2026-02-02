@@ -19,18 +19,9 @@ from .utils.yaml_utils import load_yaml_safe, save_yaml_safe
 class DependencyManager(LoggerMixin):
     """Manages component dependencies, idf_component.yml updates, and extra device configurations"""
 
-    def __init__(self, script_dir: Path):
+    def __init__(self, root_dir: Path):
         super().__init__()
-        self.script_dir = script_dir
-
-        # Determine the root directory for all ESP Board Manager resources
-        # Priority: 1. IDF_EXTRA_ACTIONS_PATH, 2. script_dir
-        import os
-        idf_extra_actions_path = os.environ.get('IDF_EXTRA_ACTIONS_PATH')
-        if idf_extra_actions_path:
-            self.root_dir = Path(idf_extra_actions_path)
-        else:
-            self.root_dir = script_dir
+        self.root_dir = root_dir
 
     def extract_device_dependencies(self, dev_yaml_path: str) -> Dict[str, str]:
         """

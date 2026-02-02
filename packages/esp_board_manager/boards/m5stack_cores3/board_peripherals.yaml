@@ -1,5 +1,3 @@
-board: m5stack_cores3
-chip: esp32s3
 version: 1.0.0
 # Peripherals Configuration
 peripherals:

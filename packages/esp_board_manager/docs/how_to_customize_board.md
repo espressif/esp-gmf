@@ -77,32 +77,31 @@ After running the script, you need to sequentially select **chip, device, and pe
    touch board_peripherals.yaml
    touch board_devices.yaml
    touch board_info.yaml
-   touch Kconfig
    touch sdkconfig.defaults.board  # Optional: board-specific SDK configuration defaults
    ```
 
 > **Note:**
-> All methods rely on proper configuration in the device and peripheral YAML files. These YAML files closely mirror the original driver parameters, including:
 >
-> - Which configuration fields are supported
-> - Valid enum values
-> - Allowed parameter ranges
+> - If you choose to create board files manually or copy configuration files from another board for modification, please note that the development board name is primarily determined by the folder name where the configuration files are stored. Please ensure that the folder name is consistent with the `board` field in `board_info.yaml`.
 >
-> In other words, the YAML configuration is designed to match the underlying driver API as closely as possible, so existing driver knowledge can be reused.
+> - **Important: Board names must follow naming conventions**, only **letters (a-z, A-Z), numbers (0-9), and underscores (_)** are allowed. Hyphens (-) or other special characters are not supported. If the name does not comply, this board will be unavailable.
 >
-> For the exact definitions and supported options, refer to:
+> - Each development board must contain at least three files: `board_info.yaml`, `board_devices.yaml`, and `board_peripherals.yaml`, and the script uses the existence of these three files as the basis for determining whether a development board is available.
 >
-> - `esp_board_manager/devices/xxx/xxx.yaml`
-> - `esp_board_manager/peripherals/xxx/xxx.yaml`.
+> - All methods rely on proper configuration in the device and peripheral YAML files. These YAML files closely mirror the original driver parameters, including:
+>
+>     - Which configuration fields are supported
+>     - Valid enum values
+>     - Allowed parameter ranges
+>
+>     In other words, the YAML configuration is designed to match the underlying driver API as closely as possible, so existing driver knowledge can be reused.
+>
+>     For the exact definitions and supported options, refer to:
+>
+>     - `esp_board_manager/devices/xxx/xxx.yaml`
+>     - `esp_board_manager/peripherals/xxx/xxx.yaml`.
 
 ### 3. **Configuration File Structure**
-
-**Kconfig**
-   ```kconfig
-   config BOARD_<BOARD_NAME>
-       bool "<Board Display Name>"
-       depends on SOC_<CHIP_TYPE>  # optional
-   ```
 
 **Board Information**
    ```yaml
@@ -120,8 +119,6 @@ After running the script, you need to sequentially select **chip, device, and pe
    The basic structure for each peripheral is as follows:
    ```yaml
    # board_peripherals.yaml
-   board: <board_name>
-   chip: <chip_type>
    version: <version>
 
    peripherals:
@@ -138,8 +135,6 @@ After running the script, you need to sequentially select **chip, device, and pe
    The basic structure for each device is as follows:
    ```yaml
    # board_devices.yaml
-   board: <board_name>
-   chip: <chip_type>
    version: <version>
 
    devices:

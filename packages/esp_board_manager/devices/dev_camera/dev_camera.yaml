@@ -56,8 +56,12 @@
       pwdn_io: 2            # [IO] GPIO pin for power down signal (example value)
       dont_init_ldo: true   # [TO_BE_CONFIRMED] If true, MIPI-CSI video device will not initialize the LDO (default: true)
                             # If using the periph_ldo in esp_board_manager to manage the ldo peripheral, it needs to be set to true
+      xclk_config:
+        xclk_pin: -1        # [IO] GPIO pin for camera XCLK signal (default: -1, not connected)
+        xclk_freq_hz: 20000000 # [TO_BE_CONFIRMED] XCLK frequency in Hz (default: 20MHz)
 
   # I2C configuration for camera control
   peripherals:
     - name: i2c_master      # [TO_BE_CONFIRMED] I2C bus name for camera control
       frequency: 400000     # I2C frequency in Hz
+    - name: ldo_mipi        # [TO_BE_CONFIRMED] LDO peripheral for csi power management

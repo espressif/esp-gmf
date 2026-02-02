@@ -1,3 +1,0 @@
-config BOARD_TEST_BOARD1
-    bool "Test Board 1"
-    bool

@@ -26,7 +26,7 @@ esp_board_manager/
 ├── private_inc/     # 私有头文件
 ├── peripherals/     # 外设实现（periph_gpio、periph_i2c 等）
 ├── devices/         # 设备实现（dev_audio_codec、dev_display_lcd 等）
-├── boards/          # 板级特定配置（YAML 文件、Kconfig、setup_device.c）
+├── boards/          # 板级特定配置（YAML 文件、setup_device.c）
 ├── generators/      # 代码生成系统
 ├── gen_codes/                  # 生成的文件（自动创建）
 │   └── Kconfig.in              # 统一 Kconfig 菜单
@@ -264,7 +264,7 @@ void app_main(void)
 | `sdcard_power_ctrl` | 电源控制设备 | power_ctrl | gpio | gpio | [`dev_power_ctrl.yaml`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
 | `lcd_brightness` | LEDC 控制设备 | ledc_ctrl | - | ledc | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) | **[`test_dev_ledc.c`](test_apps/main/test_dev_ledc.c)** <br/>用于 PWM 和背光控制的 LEDC 设备 |
 | `gpio_expander` | GPIO 扩展芯片 | gpio_expander | - | i2c | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) | **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)**<br/>GPIO 扩展芯片测试 |
-| `camera` | 摄像头 | camera | dvp<br/>csi | i2c | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) | **[`test_dev_camera.c`](test_apps/main/test_dev_camera.c)** <br/>测试 Camera sensor 的视频流捕获能力 |
+| `camera` | 摄像头 | camera | dvp<br/>csi | i2c<br/>ldo | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) | **[`test_dev_camera.c`](test_apps/main/test_dev_camera.c)** <br/>测试 Camera sensor 的视频流捕获能力 |
 | `button` | 按键 | button | gpio<br/>adc | gpio<br/>adc | [`dev_button.yaml`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>按钮测试 |
 
 > 对于同一种设备，我们将不再使用接口类型来区分类型。例如，`dev_fatfs_sdcard` 和 `dev_fatfs_sdcard_spi` 将统一使用 `fs_fat` 进行管理，`dev_display_lcd_spi` 也将改为使用 `dev_display_lcd` 进行管理。

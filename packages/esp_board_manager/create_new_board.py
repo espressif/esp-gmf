@@ -471,11 +471,7 @@ class BoardCreator(LoggerMixin):
         self.script_dir = script_dir
 
         # Determine root directory
-        idf_extra_actions_path = os.environ.get('IDF_EXTRA_ACTIONS_PATH')
-        if idf_extra_actions_path:
-            self.root_dir = Path(idf_extra_actions_path)
-        else:
-            self.root_dir = script_dir
+        self.root_dir = script_dir
 
         self.boards_dir = self.root_dir / 'boards'
         self.peripherals_dir = self.root_dir / 'peripherals'
@@ -2224,10 +2220,8 @@ class BoardCreator(LoggerMixin):
         """
         periph_yaml_path = board_dir / 'board_peripherals.yaml'
 
-        # Start with board header
+        # Start with version
         output_lines = [
-            f'board: {board_name}',
-            f'chip: {chip}',
             f'version: 1.0.0',
             'peripherals:'
         ]
@@ -2276,10 +2270,8 @@ class BoardCreator(LoggerMixin):
         """
         dev_yaml_path = board_dir / 'board_devices.yaml'
 
-        # Start with board header
+        # Start with version
         output_lines = [
-            f'board: {board_name}',
-            f'chip: {chip}',
             f'version: 1.0.0',
             'devices:'
         ]
@@ -2384,10 +2376,9 @@ class BoardCreator(LoggerMixin):
                         # Step 2: Input manufacturer information
                         manufacturer = self.interactive_input_manufacturer(chip, selected_devices, selected_peripherals, manufacturer)
 
-                        # Create Kconfig and board_info.yaml after manufacturer input
-                        self.create_kconfig_file(board_dir, board_name, chip)
+                        # Create board_info.yaml after manufacturer input
                         self.create_board_info_yaml(board_dir, board_name, chip, manufacturer)
-                        print(f'✅ Created Kconfig and board_info.yaml')
+                        print(f'✅ Created board_info.yaml')
 
                         current_step = STEP_DEVICES
                         continue
@@ -2490,7 +2481,6 @@ class BoardCreator(LoggerMixin):
             print('\n✅ Board creation completed successfully!')
             print(f'\nBoard path: {board_dir}\n')
             print(f'Files created:')
-            print(f'  - Kconfig')
             print(f'  - board_info.yaml')
             if selected_peripherals:
                 print(f'  - board_peripherals.yaml')

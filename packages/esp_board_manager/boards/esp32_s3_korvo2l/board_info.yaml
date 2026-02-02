@@ -1,4 +1,4 @@
-board: ESP32_S3_Korvo_2L
+board: esp32_s3_korvo2l
 chip: esp32s3
 version: 1.0.0
 description: "ESP32-S3 Korvo 2L"

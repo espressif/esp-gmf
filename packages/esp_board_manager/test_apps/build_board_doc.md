@@ -13,7 +13,7 @@ python build_board.py
 python build_board.py -b echoear_core_board_v1_0
 
 # Build all boards (comprehensive)
-# Scans `boards/` + `components/*/boards/`
+# Scans Main Boards + Component Boards + Custom Boards
 python build_board.py -a
 
 # Use custom boards directory
@@ -32,8 +32,8 @@ python build_board.py --save-logs       # Save logs for successful builds too (f
 
 For each board:
 1. Generate board configuration: `idf.py gen-bmgr-config -b <board>`
-2. Clean build directory: `idf.py fullclean` (automatic, ensures clean build)
-3. Read chip type from `board_info.yaml`
+2. Read chip type from generated `board_manager.defaults`
+3. Clean build directory (using `shutil.rmtree`)
 4. Set target chip: `idf.py set-target <chip>`
 5. Build project: `idf.py build`
 6. Save logs if any step fails
@@ -42,8 +42,8 @@ For each board:
 
 - ESP-IDF environment properly set up
 - `idf.py` available in PATH
+- `IDF_EXTRA_ACTIONS_PATH` environment variable set to `esp_board_manager` directory
 - Python 3.6+
-- PyYAML: `pip install pyyaml`
 
 ## Output Example
 
@@ -119,13 +119,12 @@ The logs directory is automatically created in `test_apps/logs/`.
 
 **Build fails**
 - Check saved log file: `build_<board>.log`
-- Verify `board_info.yaml` has valid `chip` field
+- Verify `board_manager.defaults` was generated and contains `CONFIG_IDF_TARGET`
 - Try building manually: `python build_board.py --board <name>`
 - Build directory is automatically cleaned before each board build
 
 **Import errors**
 - Run from `test_apps` directory
-- Install PyYAML: `pip install pyyaml`
 - Check Python 3.6+ is installed
 
 **Invalid build directory**

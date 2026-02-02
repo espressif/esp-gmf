@@ -1,5 +1,3 @@
-board: test_board_e
-chip: esp32s2
 version: 1.0.0
 # Devices Configuration
 devices:
@@ -16,3 +14,95 @@ devices:
         cs_gpio_num: 10
     peripherals:
       - name: spi_0
+
+  - name: motor_driver
+    chip: mx16161
+    type: custom
+    config:
+      motors:
+        - motor_id: 1
+          gpio_motor_ina: 26
+          gpio_motor_inb: 27
+        - motor_id: 2
+          gpio_motor_ina: 28
+          gpio_motor_inb: 29
+        - motor_id: 3
+          gpio_motor_ina: 23
+          gpio_motor_inb: 22
+
+      # 1. Primitive Types
+      test_bool: true
+      test_int: 123
+      test_float: 3.14
+      test_string: "hello"
+
+      # 2. Lists of Primitives
+      test_int_list: [1, 2, 3, 4, 5]
+      test_str_list: ["one", "two", "three"]
+
+      # 3. Simple Dictionary (Nested Struct)
+      test_dict:
+        sub_val_1: 10
+        sub_val_2: "nested"
+
+      # 4. List of Dictionaries (Array of Structs)
+      test_dict_list:
+        - id: 1
+          name: "A"
+        - id: 2
+          name: "B"
+
+      # 5. Nested Dictionary List (Deep Nesting)
+      test_deep_nest:
+        level_1_val: 100
+        level_2_list:
+          - inner_x: 1
+            inner_y: 2
+          - inner_x: 3
+            inner_y: 4
+
+      test_list_of_list:
+        - [1, 2, 3]
+        - [4, 5, 6]
+
+      test_list_of_dict: [{"a": 1}, {"b": 2}]
+
+      test_list_of_dict_2: [{"a": 1, "b": 2}, {"c": 3, "d": 4}]
+
+      test_list_of_dict_3: [{"a": 1, "b": 2}, {"a": 3, "b": 4}]
+
+      test_dict_of_list: [{"a": [1, 2, 3]}, {"b": [4, 5, 6]}]
+
+      test_dict_of_dict: [{"a": {"b": 1}}, {"c": {"d": 2}}]
+
+      level_3:
+        id: 123
+        name: "level_3"
+        level_4:
+          id: 456
+          name: "level_4"
+          level_4_list:
+            - lv4_id: 1
+              lv4_name: "level_4_1"
+              lv4_val: 1000
+            - lv4_id: 2
+              lv4_name: "level_4_2"
+              lv4_val: 2000
+          lv4_list_of_list:
+            - [1, 2, 3]
+            - [4, 5, 6]
+          lv4_list_of_dict:
+            - lv4_dict_1:
+                lv4_dict_1_key_1: "lv4_dict_1_value_1"
+                lv4_dict_1_key_2: "lv4_dict_1_value_2"
+            - lv4_dict_2:
+                lv4_dict_2_key_1: "lv4_dict_2_value_1"
+                lv4_dict_2_key_2: "lv4_dict_2_value_2"
+          lv4_dict_of_list:
+            lv4_dict_of_list_key_1: [1, 2, 3]
+            lv4_dict_of_list_key_2: [4, 5, 6]
+          lv4_list_of_str: ["a", "b", "c"]
+          lv4_list_of_dict: [{"a": 1}, {"b": 2}]
+          lv4_dict_of_list: [{"a": [1, 2, 3]}, {"b": [4, 5, 6]}]
+          lv4_dict_of_dict: [{"a": {"b": 1}}, {"c": {"d": 2}}]
+

@@ -153,9 +153,10 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
 
     # CSI configuration parsing
     elif sub_type == 'csi':
-        # Process peripherals to find I2C master
+        # Process peripherals to find I2C master and LDO
         i2c_name = ''
         i2c_freq = 0
+        ldo_name = ''
         peripherals = config.get('peripherals', [])
         for periph in peripherals:
             periph_name = periph.get('name', '')
@@ -165,7 +166,11 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
                     raise ValueError(f"Camera device {name} references undefined peripheral '{periph_name}'")
                 i2c_name = periph_name
                 i2c_freq = int(periph.get('frequency', 100000))
-                break
+            elif periph_name.startswith('ldo'):
+                # Check if peripheral exists in peripherals_dict if provided
+                if peripherals_dict is not None and periph_name not in peripherals_dict:
+                    raise ValueError(f"Camera device {name} references undefined peripheral '{periph_name}'")
+                ldo_name = periph_name
 
         csi_config_dict = device_config.get('csi_config', {})
 
@@ -174,13 +179,33 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
         pwdn_io = int(csi_config_dict.get('pwdn_io', -1))
         dont_init_ldo = bool(csi_config_dict.get('dont_init_ldo', True))
 
+        # Parse XCLK configuration
+        xclk_config_dict = csi_config_dict.get('xclk_config', {})
+        xclk_pin = int(xclk_config_dict.get('xclk_pin', -1))
+        xclk_freq_hz = int(xclk_config_dict.get('xclk_freq_hz', 20000000))
+        if xclk_pin == -1 and 'esp_clock_router_cfg' in xclk_config_dict:
+            xclk_config_dict = xclk_config_dict.get('esp_clock_router_cfg', {})
+            xclk_pin = int(xclk_config_dict.get('xclk_pin', -1))
+            xclk_freq_hz = int(xclk_config_dict.get('xclk_freq_hz', 20000000))
+        xclk_config_struct = {}
+        if xclk_pin != -1:
+             # If user defined simple xclk_pin/freq, wrap it in esp_clock_router_cfg for C struct
+             xclk_config_struct = {
+                 'esp_clock_router_cfg': {
+                     'xclk_pin': xclk_pin,
+                     'xclk_freq_hz': xclk_freq_hz
+                 }
+             }
+
         # Build CSI config
         bus_config = {
             'i2c_name': i2c_name,
             'i2c_freq': i2c_freq,
+            'ldo_name': ldo_name,
             'reset_io': reset_io,
             'pwdn_io': pwdn_io,
             'dont_init_ldo': dont_init_ldo,
+            'xclk_config': xclk_config_struct
         }
 
     # Placeholder for other bus types (SPI, USB-UVC)

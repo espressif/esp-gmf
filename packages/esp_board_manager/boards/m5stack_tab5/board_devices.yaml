@@ -1,5 +1,3 @@
-board: m5stack_tab5
-chip: esp32p4
 version: 1.0.0
 # Devices Configuration
 devices:
@@ -194,3 +192,4 @@ devices:
     peripherals:
       - name: "i2c_master"
         frequency: 100000
+      - name: ldo_mipi
