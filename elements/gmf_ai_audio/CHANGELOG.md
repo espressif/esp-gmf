@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.5
+
+### Features
+
+- Added 8k sample rate support for the AEC element.
+
 ## v0.7.4~1
 
 ### Bug Fixes

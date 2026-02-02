@@ -52,8 +52,8 @@ static esp_gmf_err_t gmf_aec_new(void *cfg, esp_gmf_obj_handle_t *handle)
 
 static esp_gmf_err_t gmf_aec_received_event_handler(esp_gmf_event_pkt_t *evt, void *ctx)
 {
-    ESP_GMF_NULL_CHECK(TAG, evt, { return ESP_GMF_ERR_INVALID_ARG;});
-    ESP_GMF_NULL_CHECK(TAG, ctx, { return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, evt, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, ctx, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_element_handle_t self = (esp_gmf_element_handle_t)ctx;
     esp_gmf_element_handle_t el = evt->from;
     esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
@@ -67,7 +67,8 @@ static esp_gmf_err_t gmf_aec_received_event_handler(esp_gmf_event_pkt_t *evt, vo
             ESP_LOGD(TAG, "RECV info, from: %s-%p, next: %p, self: %s-%p, type: %x, state: %s, rate: %d, ch: %d, bits: %d",
                      OBJ_GET_TAG(el), el, esp_gmf_node_for_next((esp_gmf_node_t *)el), OBJ_GET_TAG(self), self, evt->type,
                      esp_gmf_event_get_state_str(state), info.sample_rates, info.channels, info.bits);
-            if (info.sample_rates != 16000 || info.bits != 16) {
+            uint32_t expected_rate = ((esp_gmf_aec_cfg_t *)OBJ_GET_CFG(self))->type == AFE_TYPE_VC_8K ? 8000 : 16000;
+            if (info.sample_rates != expected_rate || info.bits != 16) {
                 ESP_LOGE(TAG, "Unsupported format, rate: %d, bits: %d", info.sample_rates, info.bits);
                 return ESP_GMF_ERR_NOT_SUPPORT;
             }
@@ -117,7 +118,7 @@ static esp_gmf_job_err_t gmf_aec_open(esp_gmf_audio_element_handle_t self, void 
                                      ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, gmf_aec->frame_len);
     ESP_LOGI(TAG, "GMF AEC open, frame_len: %lu, nch %d, chunksize %lu", gmf_aec->frame_len, gmf_aec->aec_handle->pcm_config.total_ch_num, gmf_aec->chunk_size);
     esp_gmf_info_sound_t snd_info = {0};
-    snd_info.sample_rates = 16000;
+    snd_info.sample_rates = cfg->type == AFE_TYPE_VC_8K ? 8000 : 16000;
     snd_info.bits = 16;
     snd_info.channels = 1;
     esp_gmf_element_notify_snd_info(self, &snd_info);
