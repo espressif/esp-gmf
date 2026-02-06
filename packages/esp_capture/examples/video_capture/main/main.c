@@ -11,6 +11,7 @@
 #include "esp_video_enc_default.h"
 #include "esp_audio_enc_default.h"
 #include "esp_board_device.h"
+#include "esp_board_periph.h"
 #include "esp_board_manager_defs.h"
 #include "mp4_muxer.h"
 #include "esp_capture.h"
@@ -58,6 +59,10 @@ void app_main(void)
     esp_log_level_set("VIDEO_CAPTURE", ESP_LOG_INFO);
     esp_log_level_set(TAG, ESP_LOG_INFO);
     esp_err_t ret;
+#if CONFIG_IDF_TARGET_ESP32P4
+    // TMP solution, remove in future
+    esp_board_periph_init(ESP_BOARD_PERIPH_NAME_LDO_MIPI);
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
     ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_CAMERA);
     ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_AUDIO_ADC);
     bool mount_success = true;
