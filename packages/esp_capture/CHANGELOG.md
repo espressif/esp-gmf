@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.7.10
+
+### Features
+
+- Allowed reconfiguration for muxer after stop
+- Added RGB565BE support for v4l2 video source
+
+### Bug Fixes
+
+- Fixed not mux any more after stop
+
 ## v0.7.9
 
 ### Features

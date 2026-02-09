@@ -56,7 +56,7 @@ typedef struct {
 static esp_capture_format_id_t get_codec_type(uint32_t fmt)
 {
     switch (fmt) {
-        // TODO P4 v4le only support O_UYY_E_VYY
+        // TODO P4 v4l2 only support O_UYY_E_VYY
         case V4L2_PIX_FMT_YUV420:
             return ESP_CAPTURE_FMT_ID_O_UYY_E_VYY;
         case V4L2_PIX_FMT_YUV422P:
@@ -66,6 +66,8 @@ static esp_capture_format_id_t get_codec_type(uint32_t fmt)
             return ESP_CAPTURE_FMT_ID_MJPEG;
         case V4L2_PIX_FMT_RGB565:
             return ESP_CAPTURE_FMT_ID_RGB565;
+        case V4L2_PIX_FMT_RGB565X:
+            return ESP_CAPTURE_FMT_ID_RGB565_BE;
         default:
             return ESP_CAPTURE_FMT_ID_NONE;
     }
@@ -83,6 +85,8 @@ static uint32_t get_v4l2_type(esp_capture_format_id_t codec)
             return V4L2_PIX_FMT_MJPEG;
         case ESP_CAPTURE_FMT_ID_RGB565:
             return V4L2_PIX_FMT_RGB565;
+        case ESP_CAPTURE_FMT_ID_RGB565_BE:
+            return V4L2_PIX_FMT_RGB565X;
         default:
             return 0;
     }

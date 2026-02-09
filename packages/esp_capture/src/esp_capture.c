@@ -828,8 +828,8 @@ esp_capture_err_t esp_capture_sink_add_muxer(esp_capture_sink_handle_t h, esp_ca
             CAPTURE_BREAK_SET_RETURN(ret, ESP_CAPTURE_ERR_INVALID_STATE);
         }
         if (path->muxer) {
-            ESP_LOGE(TAG, "Muxer already added");
-            CAPTURE_BREAK_SET_RETURN(ret, ESP_CAPTURE_ERR_INVALID_STATE);
+            // Allower reset muxer type when stopped
+            ESP_LOGW(TAG, "Muxer already added");
         }
         ret = capture_muxer_open(path, muxer_cfg, &path->muxer);
     } while (0);

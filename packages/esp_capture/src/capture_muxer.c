@@ -154,12 +154,18 @@ static bool muxer_support_streaming(esp_muxer_type_t muxer_type)
 esp_capture_err_t capture_muxer_open(capture_path_handle_t path, esp_capture_muxer_cfg_t *muxer_cfg,
                                      capture_muxer_path_handle_t *h)
 {
-    capture_muxer_path_t *muxer_path = (capture_muxer_path_t *)capture_calloc(1, sizeof(capture_muxer_path_t));
+    capture_muxer_path_t *muxer_path = NULL;
+    if (*h) {
+        muxer_path = (capture_muxer_path_t *) *h;
+    } else {
+        muxer_path = (capture_muxer_path_t *)capture_calloc(1, sizeof(capture_muxer_path_t));
+    }
     if (muxer_path == NULL) {
         ESP_LOGE(TAG, "Failed to allocate muxer path");
         return ESP_CAPTURE_ERR_NO_MEM;
     }
     do {
+        CAPTURE_SAFE_FREE(muxer_path->muxer_cfg.base_config);
         muxer_path->muxer_cfg = *muxer_cfg;
         // Copy base configuration
         muxer_path->muxer_cfg.base_config = (esp_muxer_config_t *)capture_calloc(1, muxer_cfg->cfg_size);
@@ -168,7 +174,9 @@ esp_capture_err_t capture_muxer_open(capture_path_handle_t path, esp_capture_mux
         }
         memcpy(muxer_path->muxer_cfg.base_config, muxer_cfg->base_config, muxer_cfg->cfg_size);
         muxer_path->path = path;
-        capture_event_group_create(&muxer_path->event_grp);
+        if (muxer_path->event_grp == NULL) {
+            capture_event_group_create(&muxer_path->event_grp);
+        }
         if (muxer_path->event_grp == NULL) {
             break;
         }
@@ -178,6 +186,7 @@ esp_capture_err_t capture_muxer_open(capture_path_handle_t path, esp_capture_mux
         return ESP_CAPTURE_ERR_OK;
     } while (0);
     capture_muxer_close(muxer_path);
+    ESP_LOGE(TAG, "No memory for muxer resource");
     return ESP_CAPTURE_ERR_NO_MEM;
 }
 
@@ -330,10 +339,12 @@ esp_capture_err_t capture_muxer_prepare(capture_muxer_path_handle_t muxer_path)
         return ret;
     }
     // Allocate queue to receive audio and video data
-    muxer_path->muxer_q = msg_q_create(MUXER_DEFAULT_Q_NUM, sizeof(esp_capture_stream_frame_t));
     if (muxer_path->muxer_q == NULL) {
-        ESP_LOGE(TAG, "Failed to create muxer q");
-        return ESP_CAPTURE_ERR_NO_MEM;
+        muxer_path->muxer_q = msg_q_create(MUXER_DEFAULT_Q_NUM, sizeof(esp_capture_stream_frame_t));
+        if (muxer_path->muxer_q == NULL) {
+            ESP_LOGE(TAG, "Failed to create muxer q");
+            return ESP_CAPTURE_ERR_NO_MEM;
+        }
     }
     // Create muxer output queue if user want to fetch muxer data also
     if (muxer_path->enable_streaming && (muxer_path->muxer_cache_size > 0)) {
@@ -471,6 +482,7 @@ esp_capture_err_t capture_muxer_stop(capture_muxer_path_handle_t muxer_path)
         esp_muxer_close(muxer_path->muxer);
         muxer_path->muxer = NULL;
     }
+    muxer_path->prepared = false;
     muxer_path->started = false;
     return ESP_CAPTURE_ERR_OK;
 }
