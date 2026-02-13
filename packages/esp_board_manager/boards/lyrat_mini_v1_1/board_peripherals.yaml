@@ -1,5 +1,3 @@
-board: esp32_lyrat_mini_v1_1
-chip: esp32
 version: 1.0.0
 # Peripherals Configuration
 peripherals:

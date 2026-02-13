@@ -22,10 +22,10 @@ import re
 class DeviceParser(LoggerMixin):
     """Parser for device configurations"""
 
-    def __init__(self, script_dir: Path):
+    def __init__(self, root_dir: Path):
         super().__init__()
-        self.script_dir = script_dir
-        self.peripheral_parser = PeripheralParser(script_dir)
+        self.root_dir = root_dir
+        self.peripheral_parser = PeripheralParser(root_dir)
         self.parser_loader = None  # Will be initialized when needed
 
     def _get_parser_loader(self):
@@ -34,7 +34,7 @@ class DeviceParser(LoggerMixin):
             # parser_loader.py only contains functions, not a class
             # We'll use the load_parsers function directly
             self.parser_loader = type('ParserLoader', (), {
-                'get_parsers': lambda: load_parsers([], 'dev_', str(self.script_dir / 'devices'))
+                'get_parsers': lambda: load_parsers([], 'dev_', str(self.root_dir / 'devices'))
             })()
         return self.parser_loader
 
@@ -322,7 +322,7 @@ class DeviceParser(LoggerMixin):
                 self.logger.info(f'Device #{i+1}: {dev}. Error: {e}')
                 continue
 
-        self.logger.info(f'   Loaded {len(result_devices)} devices from {yaml_path}')
+        self.logger.debug(f'   Loaded {len(result_devices)} devices from {yaml_path}')
         return result_devices
 
     def _load_yaml_with_includes(self, yaml_path: str) -> dict:

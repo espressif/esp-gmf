@@ -1,5 +1,3 @@
-board: esp_box_3
-chip: esp32s3
 version: 1.0.0
 # Devices Configuration
 devices:

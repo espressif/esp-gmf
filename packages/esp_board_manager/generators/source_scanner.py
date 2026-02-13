@@ -20,18 +20,9 @@ from .settings import BoardManagerConfig
 class SourceScanner(LoggerMixin):
     """Scans board directories for source files and manages CMakeLists.txt updates with filtering"""
 
-    def __init__(self, script_dir: Path):
+    def __init__(self, root_dir: Path):
         super().__init__()
-        self.script_dir = script_dir
-
-        # Determine the root directory for all ESP Board Manager resources
-        # Priority: 1. IDF_EXTRA_ACTIONS_PATH, 2. script_dir
-        import os
-        idf_extra_actions_path = os.environ.get('IDF_EXTRA_ACTIONS_PATH')
-        if idf_extra_actions_path:
-            self.root_dir = Path(idf_extra_actions_path)
-        else:
-            self.root_dir = script_dir
+        self.root_dir = root_dir
 
     def scan_board_source_files(self, board_path: str) -> List[str]:
         """
@@ -51,7 +42,7 @@ class SourceScanner(LoggerMixin):
             self.logger.warning(f'⚠️  Board path does not exist: {board_path}')
             return source_files
 
-        self.logger.info(f'   Scanning for source files in board directory: {board_path}')
+        self.logger.debug(f'   Scanning for source files in board directory: {board_path}')
 
         # Calculate board_manager directory once
         board_manager_dir = os.path.dirname(os.path.dirname(board_path))

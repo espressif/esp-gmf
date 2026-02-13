@@ -66,14 +66,9 @@ class BoardConfigGenerator(LoggerMixin):
         print('')
 
         # Determine the root directory for all GMF Board Manager resources
-        # Priority: 1. IDF_EXTRA_ACTIONS_PATH, 2. script_dir
-        idf_extra_actions_path = os.environ.get('IDF_EXTRA_ACTIONS_PATH')
-        if idf_extra_actions_path:
-            self.root_dir = Path(idf_extra_actions_path)
-            self.logger.info(f'ℹ️  Using IDF_EXTRA_ACTIONS_PATH as root directory: {self.root_dir}')
-        else:
-            self.root_dir = script_dir
-            self.logger.info(f'ℹ️  Using script directory as root directory: {self.root_dir}')
+        # Use script directory as root directory
+        self.root_dir = script_dir
+        self.logger.info(f'ℹ️  Using script directory as root directory: {self.root_dir}')
 
         # All paths are now relative to root_dir
         self.boards_dir = self.root_dir / 'boards'
@@ -84,15 +79,15 @@ class BoardConfigGenerator(LoggerMixin):
         # Ensure gen_codes directory exists
         self.gen_codes_dir.mkdir(exist_ok=True)
 
-        # Initialize components
-        self.config_generator = get_config_generator()(script_dir)
-        self.sdkconfig_manager = get_sdkconfig_manager()(script_dir)
-        self.dependency_manager = get_dependency_manager()(script_dir)
-        self.source_scanner = get_source_scanner()(script_dir)
+        # Initialize components with root_dir
+        self.config_generator = get_config_generator()(self.root_dir)
+        self.sdkconfig_manager = get_sdkconfig_manager()(self.root_dir)
+        self.dependency_manager = get_dependency_manager()(self.root_dir)
+        self.source_scanner = get_source_scanner()(self.root_dir)
 
-        # Initialize parsers
-        self.peripheral_parser = PeripheralParser(script_dir)
-        self.device_parser = DeviceParser(script_dir)
+        # Initialize parsers with root_dir
+        self.peripheral_parser = PeripheralParser(self.root_dir)
+        self.device_parser = DeviceParser(self.root_dir)
 
     def get_component_name(self, file_path):
         """Extract component name from file path."""
@@ -321,8 +316,8 @@ help
 
         kconfig_content += 'endmenu\n'
 
-        self.logger.info(f'✅ Generated Kconfig for {len(periph_names)} peripherals: {periph_names}')
-        self.logger.info(f'✅ Generated Kconfig for {len(device_names)} devices: {device_names}')
+        self.logger.debug(f'✅ Generated Kconfig for {len(periph_names)} peripherals: {periph_names}')
+        self.logger.debug(f'✅ Generated Kconfig for {len(device_names)} devices: {device_names}')
         return kconfig_content
 
 
@@ -795,7 +790,7 @@ help
     def process_devices(self, dev_yaml_path: str, peripherals_dict, periph_name_map,
                        board_path: Optional[str] = None, extra_configs: Dict = {}, extra_includes: set = set()):
         """Process devices from YAML and generate C configuration files, returns device types set"""
-        self.logger.info('   Parsing device YAML file...')
+        self.logger.debug('   Parsing device YAML file...')
         device_parsers = load_parsers([], prefix='dev_', base_dir=str(self.devices_dir))
 
         self.logger.debug(f"   Debug: peripherals_dict keys: {list(peripherals_dict.keys()) if peripherals_dict else 'None'}")
@@ -1074,6 +1069,28 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             self.logger.warning(f'⚠️  No chip field found in {board_info_path}')
             return None
 
+    def get_current_board_name(self, project_root: str) -> Optional[str]:
+        """Get the current board name from gen_board_info.c"""
+        try:
+            gen_bmgr_codes_dir = self._get_gen_bmgr_codes_dir(project_root)
+            board_info_c = os.path.join(gen_bmgr_codes_dir, 'gen_board_info.c')
+
+            if not os.path.exists(board_info_c):
+                return None
+
+            with open(board_info_c, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            # Search for .name = "board_name"
+            import re
+            match = re.search(r'\.name\s*=\s*"([^"]+)"', content)
+            if match:
+                return match.group(1)
+        except Exception as e:
+            self.logger.warning(f'⚠️  Failed to read current board name: {e}')
+
+        return None
+
     def get_version_info(self):
         """Get version information including component version, git commit ID and date, and generation time"""
         import subprocess
@@ -1147,7 +1164,8 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         peripheral_types = set()
 
         # 1. Scan all board directories and clean environment
-        self.logger.info('⚙️  Step 1/8: Scanning board directories and cleaning environment...')
+        # NOTE: Reordered to determine selected board before cleaning environment
+        self.logger.info('⚙️  Step 1/8: Scanning board directories...')
 
         # Show scanning directories
         self.logger.debug('   Scanning directories:')
@@ -1171,43 +1189,6 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         if project_root:
             components_dir = os.path.join(project_root, 'components')
             self.logger.debug(f'      • Components boards: {components_dir}')
-
-            # Clean environment before generating new configuration
-            self.logger.debug('   Cleaning environment...')
-
-            # 1.1 Remove CMakeCache.txt in build directory
-            try:
-                cmake_cache_path = os.path.join(project_root, 'build', 'CMakeCache.txt')
-                if os.path.exists(cmake_cache_path):
-                    os.remove(cmake_cache_path)
-                    self.logger.debug(f'   Removed build cache: {cmake_cache_path}')
-            except Exception as e:
-                self.logger.error(f'❌ Error: Failed to remove CMakeCache.txt: {e}')
-                return False
-
-            # 1.2 Clear gen_bmgr_codes directory before generating new files
-            if not self.clear_gen_bmgr_codes_directory(project_root):
-                self.logger.error('❌ Error: Failed to clear gen_bmgr_codes directory!')
-                return False
-
-            # 1.3 Backup and remove sdkconfig to prevent configuration pollution
-            # Skip for --kconfig-only as it only generates Kconfig menu without board switching
-            if not args.kconfig_only:
-                try:
-                    sdkconfig_path = os.path.join(project_root, 'sdkconfig')
-                    if os.path.exists(sdkconfig_path):
-                        # Create backup (fixed name, will be overwritten each time)
-                        backup_path = os.path.join(project_root, 'sdkconfig.bmgr_board.old')
-                        import shutil
-                        shutil.copy2(sdkconfig_path, backup_path)
-                        self.logger.info(f'   Backed up sdkconfig to: {backup_path}')
-
-                        # Remove original sdkconfig
-                        os.remove(sdkconfig_path)
-                        self.logger.info(f'   Removed sdkconfig to prevent configuration pollution')
-                except Exception as e:
-                    self.logger.error(f'❌ Error: Failed to backup/remove sdkconfig: {e}')
-                    return False
         else:
             self.logger.debug(f'      • Components boards: (project root not found)')
 
@@ -1239,8 +1220,57 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         if selected_board in all_boards:
             board_path = all_boards[selected_board]
             self.logger.info(f'✅ Board path: {board_path}')
+            # Check for board name consistency (moved from scan phase)
+            self.config_generator.check_board_name_consistency(board_path, selected_board)
         else:
             self.logger.warning(f"⚠️  Warning: Selected board '{selected_board}' not found in scanned boards")
+
+        if project_root:
+            # Capture current board name BEFORE clearing the directory
+            current_board = self.get_current_board_name(project_root)
+
+            # Clean environment before generating new configuration
+            self.logger.debug('   Cleaning environment...')
+
+            # 1.1 Remove CMakeCache.txt in build directory
+            try:
+                cmake_cache_path = os.path.join(project_root, 'build', 'CMakeCache.txt')
+                if os.path.exists(cmake_cache_path):
+                    os.remove(cmake_cache_path)
+                    self.logger.debug(f'   Removed build cache: {cmake_cache_path}')
+            except Exception as e:
+                self.logger.error(f'❌ Error: Failed to remove CMakeCache.txt: {e}')
+                return False
+
+            # 1.2 Clear gen_bmgr_codes directory before generating new files
+            if not self.clear_gen_bmgr_codes_directory(project_root):
+                self.logger.error('❌ Error: Failed to clear gen_bmgr_codes directory!')
+                return False
+
+            # 1.3 Backup and remove sdkconfig to prevent configuration pollution
+            # Skip for --kconfig-only as it only generates Kconfig menu without board switching
+            if not args.kconfig_only:
+                try:
+                    # Check if we should preserve sdkconfig (if board hasn't changed)
+                    should_clean_sdkconfig = True
+                    sdkconfig_path = os.path.join(project_root, 'sdkconfig')
+                    if os.path.exists(sdkconfig_path):
+                        if current_board and current_board == selected_board:
+                            self.logger.info(f'ℹ️  Board unchanged ({selected_board}), preserving sdkconfig')
+                            should_clean_sdkconfig = False
+
+                        if should_clean_sdkconfig:
+                            # Create backup (fixed name, will be overwritten each time)
+                            backup_path = os.path.join(project_root, 'sdkconfig.bmgr_board.old')
+                            import shutil
+                            shutil.copy2(sdkconfig_path, backup_path)
+                            self.logger.debug(f'   Backed up sdkconfig to: {backup_path}')
+                            # Remove original sdkconfig
+                            os.remove(sdkconfig_path)
+                            self.logger.info(f'⚠️  Removed sdkconfig by backup to {backup_path} to prevent configuration pollution')
+                except Exception as e:
+                    self.logger.error(f'❌ Error: Failed to backup/remove sdkconfig: {e}')
+                    return False
 
         # 3. Find configuration files for selected board
         self.logger.info('⚙️  Step 3/8: Finding board configuration files...')
@@ -1254,7 +1284,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
                 self.logger.error(f"   Missing: board_devices.yaml for board '{selected_board}'")
             return False
 
-        self.logger.info(f'✅ Configuration files found:')
+        self.logger.debug(f'✅ Configuration files found:')
         self.logger.debug(f'      • Peripherals: {periph_yaml_path}')
         self.logger.debug(f'      • Devices: {dev_yaml_path}')
 
@@ -1275,10 +1305,10 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             self.logger.info('⚙️  Step 4/8: Processing peripherals...')
             try:
                 peripherals_dict, periph_name_map, peripheral_types = self.process_peripherals(periph_yaml_path)
-                self.logger.info(f'✅ Peripheral processing completed: {len(peripheral_types)} types found')
+                self.logger.debug(f'✅ Peripheral processing completed: {len(peripheral_types)} types found')
+                self.logger.info(f'✅ Successfully validated {len(peripherals_dict)} peripherals')
 
             except Exception as e:
-                self.logger.error(f'   Error processing peripherals: {e}')
                 self.logger.error(f'❌ Error processing peripherals: {e}')
                 return False
 
@@ -1338,7 +1368,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             self.logger.debug('   Processing device configurations...')
             try:
                 device_types, device_subtypes = self.process_devices(dev_yaml_path, peripherals_dict, periph_name_map, board_path, extra_configs, extra_includes)
-                self.logger.info(f'✅ Device processing completed: {len(device_types)} types found')
+                self.logger.debug(f'✅ Device processing completed: {len(device_types)} types found')
             except ValueError as e:
                 # Re-raise ValueError to stop the generation process
                 raise
@@ -1356,7 +1386,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             self.logger.error('❌ Error: Kconfig generation failed!')
             return False
 
-        self.logger.info('✅ Kconfig generation completed successfully')
+        self.logger.debug('✅ Kconfig generation completed successfully')
 
         # If only Kconfig generation is requested, exit early
         if args.kconfig_only:
@@ -1429,7 +1459,7 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
         )
         if board_defaults_result['added']:
             self.logger.info(f'✅ Generated board-specific defaults to {board_manager_defaults_file}')
-            self.logger.info(f'   The file will be automatically applied when compilation occurs')
+            self.logger.debug(f'   The file will be automatically applied when compilation occurs')
 
         # 8. Write board information and setup components/gen_bmgr_codes
         self.logger.info('⚙️  Step 8/8: Writing board information and setting up components...')
@@ -1486,6 +1516,15 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             if not os.path.exists(gen_bmgr_codes_dir):
                 os.makedirs(gen_bmgr_codes_dir)
                 self.logger.info(f'      Created gen_bmgr_codes directory: {gen_bmgr_codes_dir}')
+
+            # Create .gitignore file to ignore all generated files
+            gitignore_path = os.path.join(gen_bmgr_codes_dir, '.gitignore')
+            try:
+                with open(gitignore_path, 'w', encoding='utf-8') as f:
+                    f.write('*\n')
+                self.logger.debug(f'      Created .gitignore in: {gen_bmgr_codes_dir}')
+            except Exception as e:
+                self.logger.warning(f'⚠️  Failed to create .gitignore: {e}')
 
             # 2. Create CMakeLists.txt with board source paths
             # Get board source files and create SRC_DIRS list
@@ -1575,7 +1614,7 @@ idf_component_set_property(${{COMPONENT_NAME}} WHOLE_ARCHIVE TRUE)
             self.logger.info(f'   Created idf_component.yml: {idf_component_path}')
             # 4. Board source files are now referenced via SRC_DIRS in CMakeLists.txt
             # No need to copy files - they are referenced directly from board directory
-            self.logger.info(f'✅ Board source files will be compiled from: {board_path}')
+            self.logger.debug(f'✅ Board source files will be compiled from: {board_path}')
             self.logger.info(f'✅ Generated files directly to components/gen_bmgr_codes completed successfully!')
 
             return True
@@ -1643,15 +1682,13 @@ Examples:
     python gen_bmgr_config_codes.py 1                                 # Specify board by index number
     python gen_bmgr_config_codes.py -b echoear_core_board_v1_0        # Specify board using -b parameter (auto-sets CONFIG_IDF_TARGET)
     python gen_bmgr_config_codes.py -b 1                              # Specify board by index number using -b
-    python gen_bmgr_config_codes.py 1 -p /custom/boards               # Specify board with custom boards directory
-    python gen_bmgr_config_codes.py -b my_board -p /custom/boards     # Both -b and -p options
-    python gen_bmgr_config_codes.py -p /path/to/single/board          # Add single board directory
+    python gen_bmgr_config_codes.py -b my_board -c /custom/boards     # Both -b and -c options
     python gen_bmgr_config_codes.py --peripherals-only                # Only process peripherals
     python gen_bmgr_config_codes.py --devices-only                    # Only process devices
     python gen_bmgr_config_codes.py --kconfig-only                    # Generate Kconfig menu system (default enabled)
     python gen_bmgr_config_codes.py --log-level DEBUG                 # Set log level to DEBUG
-    python gen_bmgr_config_codes.py -c                                # Clear generated files and reset configs
-    python gen_bmgr_config_codes.py --clear                           # Clear generated files and reset configs (same as -c)
+    python gen_bmgr_config_codes.py -x                                # Clear generated files and reset configs
+    python gen_bmgr_config_codes.py --clean                           # Clear generated files and reset configs (same as -x)
             """
     )
 

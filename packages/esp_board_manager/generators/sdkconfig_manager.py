@@ -21,17 +21,9 @@ import yaml
 class SDKConfigManager(LoggerMixin):
     """Manages SDKConfig file operations, auto-enabling features, and board-specific configurations"""
 
-    def __init__(self, script_dir: Path):
+    def __init__(self, root_dir: Path):
         super().__init__()
-        self.script_dir = script_dir
-
-        # Determine the root directory for all ESP Board Manager resources
-        # Priority: 1. IDF_EXTRA_ACTIONS_PATH, 2. script_dir
-        idf_extra_actions_path = os.environ.get('IDF_EXTRA_ACTIONS_PATH')
-        if idf_extra_actions_path:
-            self.root_dir = Path(idf_extra_actions_path)
-        else:
-            self.root_dir = script_dir
+        self.root_dir = root_dir
 
         # All paths are now relative to root_dir
         self.gen_codes_dir = self.root_dir / 'gen_codes'
@@ -511,7 +503,7 @@ class SDKConfigManager(LoggerMixin):
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(board_section_content)
             result['added'] = [f'{config_count} board-specific defaults']
-            self.logger.info(f'   Generated {config_count} board defaults to {output_file}')
+            self.logger.debug(f'   Generated {config_count} board defaults to {output_file}')
 
             # Delete build cache files to ensure fresh configuration
             project_path = self._get_project_path(project_path)

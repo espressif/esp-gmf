@@ -77,32 +77,31 @@ idf.py gen-bmgr-config -n path/to/board/<board_name>
    touch board_peripherals.yaml
    touch board_devices.yaml
    touch board_info.yaml
-   touch Kconfig
    touch sdkconfig.defaults.board  # 可选：板子特定的 SDK 配置默认值
    ```
 
 > **注意：**
-> 每种方法都依赖于设备和外设 YAML 文件中的配置，这些 YAML 文件；尽量使用了原始驱动参数，包括：
 >
-> - 支持哪些配置字段
-> - 有效的枚举值
-> - 允许的参数范围
+> - 如果选择手动创建板子文件，或是复制其他板子的配置文件进行修改，需要注意，开发板名称以存放配置文件的文件夹名称为主，请确保文件夹名称与 `board_info.yaml` 中的 `board` 字段一致。
 >
-> 换句话说，YAML 配置的设计旨在尽可能匹配适配底层驱动 API，可以复用现有的驱动知识。
+> - **重要：板子命名必须符合规范**，仅允许包含 **字母（a-z, A-Z）、数字（0-9）和下划线（_）**。不支持中划线（-）或其他特殊字符，如果命名不符合规范，这个板子将不可用。
 >
-> 有关确切的定义和支持的选项，请参考：
+> - 每个开发板都需要至少包含 `board_info.yaml`、`board_devices.yaml` 和 `board_peripherals.yaml` 三个文件，脚本在搜索可用开发板时会以这三个文件是否存在作为判断依据。
 >
-> - `esp_board_manager/devices/xxx/xxx.yaml`
-> - `esp_board_manager/peripherals/xxx/xxx.yaml`
+> - 每种方法都依赖于设备和外设 YAML 文件中的配置，这些 YAML 文件；尽量使用了原始驱动参数，包括：
+>
+>     - 支持哪些配置字段
+>     - 有效的枚举值
+>     - 允许的参数范围
+>
+>     换句话说，YAML 配置的设计旨在尽可能匹配适配底层驱动 API，可以复用现有的驱动知识。
+>
+>     有关确切的定义和支持的选项，请参考：
+>
+>     - `esp_board_manager/devices/xxx/xxx.yaml`
+>     - `esp_board_manager/peripherals/xxx/xxx.yaml`
 
 ### 3. **配置文件结构**
-
-**Kconfig**
-   ```kconfig
-   config BOARD_<BOARD_NAME>
-       bool "<Board Display Name>"
-       depends on SOC_<CHIP_TYPE>  # optional
-   ```
 
 **板子信息**
    ```yaml
@@ -120,8 +119,6 @@ idf.py gen-bmgr-config -n path/to/board/<board_name>
    每个外设的基本结构如下：
    ```yaml
    # board_peripherals.yaml
-   board: <board_name>
-   chip: <chip_type>
    version: <version>
 
    peripherals:
@@ -138,8 +135,6 @@ idf.py gen-bmgr-config -n path/to/board/<board_name>
    每个设备的基本结构如下：
    ```yaml
    # board_devices.yaml
-   board: <board_name>
-   chip: <chip_type>
    version: <version>
 
    devices:

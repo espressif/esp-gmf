@@ -3,10 +3,10 @@
 Script to compile test apps with all available boards in ESP Board Manager.
 
 This script:
-1. Scans all available boards
+1. Scans all available boards using `idf.py gen-bmgr-config -l`
 2. For each board:
    - Generates board configuration
-   - Sets the target chip (if needed)
+   - Sets the target chip (based on generated defaults)
    - Builds the project
 3. Reports build results
 
@@ -20,15 +20,16 @@ Options:
     -p, --customer-path   Include boards from a custom directory
     --save-logs           Save full logs for all builds
      -a, --all-boards     Scan ALL boards
-                          - Default: Only scans esp_board_manager/boards/
-                          - With flag: Scans boards/ + components/*/boards/ + custom boards
+                          - Default: Only scans Main Boards
+                          - With flag: Scans Main + Component + Custom Boards
 """
 
 import sys
 import subprocess
 import argparse
-import yaml
+import re
 import shutil
+import os
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import time
@@ -65,78 +66,81 @@ def get_board_manager_dir() -> Path:
     return script_dir.parent.absolute()
 
 
-def scan_all_boards(board_manager_dir: Path, customer_path: Optional[str] = None, main_boards_only: bool = False) -> Dict[str, str]:
+def run_command_get_output(cmd: List[str], cwd: Path) -> Tuple[bool, str]:
+    """Run command and return success status and output"""
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        return result.returncode == 0, result.stdout + result.stderr
+    except Exception as e:
+        return False, str(e)
+
+
+def scan_all_boards(project_dir: Path, customer_path: Optional[str] = None, main_boards_only: bool = False) -> List[str]:
     """
-    Scan available boards.
+    Scan available boards using `idf.py gen-bmgr-config -l`.
 
     Args:
-        board_manager_dir: Path to ESP Board Manager directory
+        project_dir: Path to project directory (where idf.py runs)
         customer_path: Optional path to customer boards directory
-        main_boards_only: If True, only scan main boards directory
+        main_boards_only: If True, only return main boards
 
     Returns:
-        Dictionary mapping board names to their paths
+        List of board names
     """
-    if main_boards_only:
-        # Only scan main boards directory
-        boards_dir = board_manager_dir / 'boards'
-        all_boards = {}
+    cmd = ['idf.py', 'gen-bmgr-config', '-l']
+    if customer_path:
+        cmd.extend(['-c', customer_path])
 
-        if not boards_dir.exists():
-            print_colored(f'Error: Boards directory not found at {boards_dir}', Colors.FAIL)
-            return all_boards
+    print_colored(f'Running: {" ".join(cmd)}', Colors.OKCYAN)
+    success, output = run_command_get_output(cmd, project_dir)
 
-        print_colored(f'Scanning main boards directory: {boards_dir}', Colors.OKBLUE)
+    if not success:
+        print_colored(f'Error scanning boards: {output}', Colors.FAIL)
+        # Try to show a helpful error if IDF_EXTRA_ACTIONS_PATH is missing
+        if 'No such file or directory' in output or 'command not found' in output:
+             print_colored('Please ensure IDF_EXTRA_ACTIONS_PATH is set correctly.', Colors.WARNING)
+        return []
 
-        for board_dir in boards_dir.iterdir():
-            if board_dir.is_dir():
-                kconfig_path = board_dir / 'Kconfig'
-                if kconfig_path.exists():
-                    all_boards[board_dir.name] = str(board_dir)
-                    print_colored(f'  Found board: {board_dir.name}', Colors.OKGREEN)
+    boards = []
+    current_section = ''
 
-        return all_boards
+    # Parse output
+    # Example output:
+    # Main Boards:
+    #   [1] board_name_1
+    # Component Boards:
+    #   [2] board_name_2
 
-    # Use full scan functionality (includes component and customer boards)
-    gen_script = board_manager_dir / 'gen_bmgr_config_codes.py'
+    for line in output.split('\n'):
+        line = line.strip()
+        if 'Main Boards:' in line:
+            current_section = 'main'
+            continue
+        elif 'Component Boards:' in line:
+            current_section = 'component'
+            continue
+        elif 'Custom Boards:' in line:
+            current_section = 'custom'
+            continue
 
-    if not gen_script.exists():
-        print_colored(f'Error: gen_bmgr_config_codes.py not found at {gen_script}', Colors.FAIL)
-        sys.exit(1)
+        # Match pattern: [number] board_name
+        match = re.search(r'\[\d+\]\s+([a-zA-Z0-9_]+)', line)
+        if match:
+            board_name = match.group(1)
 
-    # Use Python to import and use the board scanner directly
-    sys.path.insert(0, str(board_manager_dir))
+            if main_boards_only:
+                if current_section == 'main':
+                    boards.append(board_name)
+            else:
+                boards.append(board_name)
 
-    try:
-        from gen_bmgr_config_codes import BoardConfigGenerator
-
-        generator = BoardConfigGenerator(board_manager_dir)
-        all_boards = generator.config_generator.scan_board_directories(customer_path)
-
-        return all_boards
-    except Exception as e:
-        print_colored(f'Error scanning boards: {e}', Colors.FAIL)
-        sys.exit(1)
-
-
-def get_chip_from_board(board_path: str) -> Optional[str]:
-    """Get chip type from board_info.yaml"""
-    board_info_path = Path(board_path) / BOARD_INFO_FILENAME
-
-    if not board_info_path.exists():
-        return None
-
-    try:
-        with open(board_info_path, 'r', encoding='utf-8') as f:
-            board_info = yaml.safe_load(f)
-            chip = board_info.get('chip', '').lower()
-            return chip if chip else None
-    except Exception as e:
-        print_colored(
-            f'Warning: Failed to read {BOARD_INFO_FILENAME} from {board_path}: {e}',
-            Colors.WARNING,
-        )
-        return None
+    return boards
 
 
 def save_log(project_dir: Path, log_type: str, board_name: str, content: str) -> Path:
@@ -214,11 +218,34 @@ def run_command(cmd: List[str], cwd: Path, description: str) -> Tuple[bool, str]
         return False, str(e)
 
 
+def get_chip_from_defaults(project_dir: Path) -> Optional[str]:
+    """Get chip type from generated board_manager.defaults"""
+    defaults_file = project_dir / 'components' / 'gen_bmgr_codes' / 'board_manager.defaults'
+
+    if not defaults_file.exists():
+        return None
+
+    try:
+        content = defaults_file.read_text()
+        # Look for CONFIG_IDF_TARGET="esp32s3" or similar
+        match = re.search(r'CONFIG_IDF_TARGET="([^"]+)"', content)
+        if match:
+            return match.group(1)
+
+        # Fallback: look for CONFIG_IDF_TARGET=esp32s3
+        match = re.search(r'CONFIG_IDF_TARGET=([a-z0-9]+)', content)
+        if match:
+            return match.group(1)
+
+        return None
+    except Exception:
+        return None
+
+
 def build_board(
     board_name: str,
-    board_path: str,
     project_dir: Path,
-    board_manager_dir: Path,
+    customer_path: Optional[str] = None,
     skip_build: bool = False,
     save_logs: bool = False
 ) -> Tuple[bool, str]:
@@ -232,28 +259,31 @@ def build_board(
     print_colored(f'Building board: {board_name}', Colors.HEADER)
     print_colored(f"{'='*60}", Colors.BOLD)
 
-    # Get chip type
-    chip = get_chip_from_board(board_path)
-    if not chip:
-        error_msg = f'Could not determine chip type for board {board_name}'
-        print_colored(f'  ✗ {error_msg}', Colors.FAIL)
-        return False, error_msg
-
-    print_colored(f'  Chip type: {chip}', Colors.OKBLUE)
-
     # Step 1: Generate board configuration
     gen_cmd = ['idf.py', 'gen-bmgr-config', '-b', board_name]
+    if customer_path:
+        gen_cmd.extend(['-c', customer_path])
+
     success, output = run_command(gen_cmd, project_dir, f'Generate config for {board_name}')
     if not success:
         log_file = save_log(project_dir, 'config', board_name, output)
         return False, f'Failed to generate config: {output[:200]}\n\nFull log saved to: {log_file.name}'
 
-    # Clean build directory before each board build
+    # Step 2: Get chip type from generated defaults
+    chip = get_chip_from_defaults(project_dir)
+    if not chip:
+        error_msg = f'Could not determine chip type from board_manager.defaults for board {board_name}'
+        print_colored(f'  ✗ {error_msg}', Colors.FAIL)
+        return False, error_msg
+
+    print_colored(f'  Chip type: {chip}', Colors.OKBLUE)
+
+    # Step 3: Clean build directory
     build_dir = project_dir / 'build'
     if build_dir.exists():
         clean_build_dir(build_dir, project_dir)
 
-    # Step 2: Set target chip
+    # Step 4: Set target chip
     set_target_cmd = ['idf.py', 'set-target', chip]
     success, output = run_command(set_target_cmd, project_dir, f'Set target to {chip}')
 
@@ -268,7 +298,7 @@ def build_board(
         log_file = save_log(project_dir, 'set_target', board_name, output)
         return False, f'Failed to set target: {output[:200]}\n\nFull log saved to: {log_file.name}'
 
-    # Step 3: Build (if not skipped)
+    # Step 5: Build (if not skipped)
     if skip_build:
         print_colored(f'  → Skipping build (--skip-build specified)', Colors.WARNING)
     else:
@@ -334,7 +364,7 @@ def main():
         '-a', '--all-boards',
         action='store_true',
         help='Scan ALL board directories: main boards + component boards + customer boards. '
-             'Default only scans esp_board_manager/boards/. '
+             'Default only scans Main Boards. '
              'Use this for complete CI/CD testing before release.'
     )
 
@@ -350,10 +380,10 @@ def main():
         print_colored('Please run this script from the test_apps directory', Colors.WARNING)
         sys.exit(1)
 
-    if not (board_manager_dir / 'gen_bmgr_config_codes.py').exists():
-        print_colored(f'Error: gen_bmgr_config_codes.py not found in {board_manager_dir}', Colors.FAIL)
-        print_colored('Please ensure ESP Board Manager is properly set up', Colors.WARNING)
-        sys.exit(1)
+    # Check for IDF_EXTRA_ACTIONS_PATH
+    if 'IDF_EXTRA_ACTIONS_PATH' not in os.environ:
+        print_colored('Warning: IDF_EXTRA_ACTIONS_PATH environment variable not set.', Colors.WARNING)
+        print_colored('Ensure it points to esp_board_manager for idf.py extensions to work.', Colors.WARNING)
 
     print_colored('ESP Board Manager - Build All Boards', Colors.BOLD)
     print_colored('=' * 60, Colors.BOLD)
@@ -365,25 +395,26 @@ def main():
     # Default: only scan main boards directory unless --all-boards is specified
     main_boards_only = not args.all_boards
     print_colored('Scanning for available boards...', Colors.OKCYAN)
-    all_boards = scan_all_boards(board_manager_dir, args.customer_path, main_boards_only)
+
+    all_boards = scan_all_boards(project_dir, args.customer_path, main_boards_only)
 
     if not all_boards:
         print_colored('Error: No boards found!', Colors.FAIL)
         sys.exit(1)
 
     print_colored(f'Found {len(all_boards)} board(s):', Colors.OKGREEN)
-    for board_name in sorted(all_boards.keys()):
+    for board_name in sorted(all_boards):
         print_colored(f'  • {board_name}', Colors.OKBLUE)
     print()
 
     # Filter boards if specific board requested
-    boards_to_build = {}
+    boards_to_build = []
     if args.board:
         if args.board in all_boards:
-            boards_to_build[args.board] = all_boards[args.board]
+            boards_to_build.append(args.board)
         else:
             print_colored(f"Error: Board '{args.board}' not found!", Colors.FAIL)
-            print_colored(f"Available boards: {', '.join(sorted(all_boards.keys()))}", Colors.WARNING)
+            print_colored(f"Available boards: {', '.join(sorted(all_boards))}", Colors.WARNING)
             sys.exit(1)
     else:
         boards_to_build = all_boards
@@ -396,12 +427,11 @@ def main():
     start_time = time.time()
 
     # Build boards sequentially
-    for board_name, board_path in sorted(boards_to_build.items()):
+    for board_name in sorted(boards_to_build):
         success, error = build_board(
             board_name,
-            board_path,
             project_dir,
-            board_manager_dir,
+            args.customer_path,
             args.skip_build,
             args.save_logs
         )

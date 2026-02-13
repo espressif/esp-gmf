@@ -23,17 +23,9 @@ PERIPH_PREFIX_LEN = len(PERIPH_PREFIX)
 class VersionManager(LoggerMixin):
     """Manages different versions of devices and peripherals with scanning and comparison"""
 
-    def __init__(self, script_dir: Path):
+    def __init__(self, root_dir: Path):
         super().__init__()
-        self.script_dir = script_dir
-
-        # Determine the root directory for all ESP Board Manager resources
-        # Priority: 1. IDF_EXTRA_ACTIONS_PATH, 2. script_dir
-        idf_extra_actions_path = os.environ.get('IDF_EXTRA_ACTIONS_PATH')
-        if idf_extra_actions_path:
-            self.root_dir = Path(idf_extra_actions_path)
-        else:
-            self.root_dir = script_dir
+        self.root_dir = root_dir
 
         # All paths are now relative to root_dir
         self.devices_dir = self.root_dir / 'devices'

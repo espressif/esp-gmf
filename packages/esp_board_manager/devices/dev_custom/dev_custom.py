@@ -63,8 +63,22 @@ def _sanitize_field_name(name: str) -> str:
         name = 'field'
     return name
 
-def _generate_struct_fields(config: Dict[str, Any]) -> Tuple[List[str], List[str]]:
-    """Generate C struct field definitions and initialization values"""
+def _get_struct_name(base_name: str, field_name: str) -> str:
+    """Generate struct name for nested object"""
+    return f'{base_name}_{_sanitize_field_name(field_name)}_t'
+
+def _generate_struct_fields_recursive(name: str, config: Dict[str, Any], defined_structs: List[str]) -> Tuple[List[str], List[str]]:
+    """
+    Generate C struct field definitions and initialization values recursively
+
+    Args:
+        name: Name of the current struct/device (used for naming child structs)
+        config: Configuration dictionary
+        defined_structs: List to append new struct definitions to
+
+    Returns:
+        Tuple of (field_definitions, init_values)
+    """
     field_definitions = []
     init_values = []
 
@@ -73,15 +87,96 @@ def _generate_struct_fields(config: Dict[str, Any]) -> Tuple[List[str], List[str
             continue
 
         field_name = _sanitize_field_name(key)
-        c_type = _get_c_type_from_value(value)
         c_value = _get_c_value_from_python(value)
+
+        # Handle nested dictionary
+        if isinstance(value, dict):
+            child_struct_name = _get_struct_name(name, key)
+
+            # Recursively generate fields for this child struct
+            child_fields, _ = _generate_struct_fields_recursive(child_struct_name.replace('_t', ''), value, defined_structs)
+
+            # Define the child struct
+            struct_def = f'typedef struct {{\n'
+            for f in child_fields:
+                struct_def += f'{f}\n'
+            struct_def += f'}} {child_struct_name};'
+            defined_structs.append(struct_def)
+
+            c_type = child_struct_name
+            # For init, the value is passed as is, generator handles recursive dicts
+
+        # Handle list
+        elif isinstance(value, list) and value:
+            # Check if it's a list of dicts (objects)
+            if isinstance(value[0], dict):
+                child_struct_name = _get_struct_name(name, key)
+
+                # Merge keys from ALL dicts in the list to form a complete struct definition
+                merged_config = {}
+                for item in value:
+                    if isinstance(item, dict):
+                        for k, v in item.items():
+                            if k not in merged_config:
+                                merged_config[k] = v
+                            # Optional: Check for type consistency? For now allow overwrite/first-found.
+
+                # Recursively generate fields using the merged config
+                child_fields, _ = _generate_struct_fields_recursive(child_struct_name.replace('_t', ''), merged_config, defined_structs)
+
+                # Define the child struct
+                struct_def = f'typedef struct {{\n'
+                for f in child_fields:
+                    struct_def += f'{f}\n'
+                struct_def += f'}} {child_struct_name};'
+                defined_structs.append(struct_def)
+
+                # For arrays, we don't name the field in definition again here because c_type already includes it,
+                # but our pattern below is `{type} {name};`.
+                c_type = child_struct_name
+                field_name = f'{field_name}[{len(value)}]'
+
+            # Check for list of lists (2D array)
+            elif isinstance(value[0], list):
+                 # Assume consistent inner type and size based on first element for now
+                 # or try to find max size
+                 if value[0]:
+                    item_type = _get_c_type_from_value(value[0][0])
+                    # Ensure it is a valid type
+                    if item_type == 'void *':
+                         item_type = 'int' # Fallback? Or keep void*?
+                 else:
+                    item_type = 'void *'
+
+                 # Calculate dimensions
+                 dim1 = len(value)
+                 # Find max length of inner lists to be safe, or assume fixed if C array
+                 max_dim2 = 0
+                 for sublist in value:
+                     if isinstance(sublist, list) and len(sublist) > max_dim2:
+                         max_dim2 = len(sublist)
+
+                 c_type = item_type
+                 field_name = f'{field_name}[{dim1}][{max_dim2}]'
+
+            else:
+                # List of primitives
+                item_type = _get_c_type_from_value(value[0])
+                c_type = item_type
+                field_name = f'{field_name}[{len(value)}]'
+
+        # Handle primitives
+        else:
+            c_type = _get_c_type_from_value(value)
 
         # Generate field definition
         field_def = f'    {c_type:<12} {field_name};'
         field_definitions.append(field_def)
 
         # Generate initialization value
-        init_values.append(f'        .{field_name} = {c_value},')
+        # For complex types, _get_c_value_from_python returns NULL/string.
+        # Since this return value seems unused for the final C generation (which uses the dict), roughly correct is fine.
+        init_values.append(f'        .{field_name.split("[")[0]} = {c_value},')
 
     return field_definitions, init_values
 
@@ -147,37 +242,45 @@ def parse(name, config, peripherals_dict=None):
             if periph_name not in peripherals_dict:
                 raise ValueError(f"Custom device {name} references undefined peripheral '{periph_name}'")
 
-    # Generate struct fields for custom config
-    custom_fields, custom_inits = _generate_struct_fields(device_config)
+    # List to hold any nested struct definitions
+    defined_structs = []
+
+    # Base struct name
+    struct_name = f'dev_custom_{_sanitize_field_name(name)}_config_t'
+
+    # Generate struct fields for custom config (recursive)
+    # We pass struct_name as base for naming sub-structs
+    custom_fields, _ = _generate_struct_fields_recursive(struct_name.replace('_config_t', ''), device_config, defined_structs)
 
     # Generate struct fields for peripherals
-    periph_fields, periph_inits = _generate_peripheral_fields(peripherals_list)
+    periph_fields, _ = _generate_peripheral_fields(peripherals_list)
 
     # Combine all fields
     all_fields = custom_fields + periph_fields
-    all_inits = custom_inits + periph_inits
 
-    # Generate struct definition
-    struct_name = f'dev_custom_{_sanitize_field_name(name)}_config_t'
-    struct_definition = f'''typedef struct {{
+    # Generate main struct definition
+    main_struct_def = f'''typedef struct {{
     const char *name;           /*!< Custom device name */
     const char *type;           /*!< Device type: "custom" */
     const char *chip;           /*!< Chip name */
 {chr(10).join(all_fields)}
 }} {struct_name};'''
 
+    # Combine all definitions: nested ones first, then main one
+    full_definition = '\n\n'.join(defined_structs + [main_struct_def])
+
     # Build structure initialization
     struct_init = {
-        'name': name,  # Return raw name, let dict_to_c_initializer handle quoting
+        'name': name,
         'type': config.get('type', 'custom'),
-        'chip': config.get('chip', 'unknown'),  # Return raw chip name, let dict_to_c_initializer handle quoting
+        'chip': config.get('chip', 'unknown'),
     }
 
     # Add custom config fields to struct_init
     for key, value in device_config.items():
         if key != 'peripherals':
             field_name = _sanitize_field_name(key)
-            struct_init[field_name] = value  # Return raw value, let dict_to_c_initializer handle conversion
+            struct_init[field_name] = value  # Return raw value, let dict_to_c_initializer handle conversions
 
     # Add peripheral fields to struct_init
     if peripherals_list:
@@ -188,17 +291,17 @@ def parse(name, config, peripherals_dict=None):
                 periph_name = periph['name']
             else:
                 periph_name = str(periph)
-            struct_init['peripheral_name'] = periph_name  # Return raw name
+            struct_init['peripheral_name'] = periph_name
         else:
             for i, periph in enumerate(peripherals_list):
                 if isinstance(periph, dict) and 'name' in periph:
                     periph_name = periph['name']
                 else:
                     periph_name = str(periph)
-                struct_init[f'peripheral_names[{i}]'] = periph_name  # Return raw name
+                struct_init[f'peripheral_names[{i}]'] = periph_name
 
     return {
         'struct_type': struct_name,
         'struct_init': struct_init,
-        'struct_definition': struct_definition
+        'struct_definition': full_definition
     }

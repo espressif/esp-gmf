@@ -9,6 +9,7 @@
 
 #if CONFIG_SOC_LCDCAM_CAM_SUPPORTED
 #include "esp_cam_ctlr_dvp.h"
+#include "esp_cam_sensor_xclk.h"
 #endif  /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
 
 #ifdef __cplusplus
@@ -22,11 +23,15 @@ extern "C" {
  *         a camera device over CSI interface, including I2C configuration and GPIO pins.
  */
 typedef struct {
-    const char  *i2c_name;       /*!< I2C bus name */
-    uint32_t     i2c_freq;       /*!< I2C frequency */
-    gpio_num_t   reset_io;       /*!< GPIO io for reset signal */
-    gpio_num_t   pwdn_io;        /*!< GPIO io for power down signal */
-    bool         dont_init_ldo;  /*!< If true, MIPI-CSI video device will not initialize the LDO; otherwise, MIPI-CSI video device will initialize the LDO */
+    const char *i2c_name;       /*!< I2C bus name */
+    uint32_t    i2c_freq;       /*!< I2C frequency */
+    const char *ldo_name;       /*!< LDO peripheral name */
+    gpio_num_t  reset_io;       /*!< GPIO io for reset signal */
+    gpio_num_t  pwdn_io;        /*!< GPIO io for power down signal */
+    bool        dont_init_ldo;  /*!< If true, MIPI-CSI video device will not initialize the LDO; otherwise, MIPI-CSI video device will initialize the LDO */
+#if CONFIG_SOC_LCDCAM_CAM_SUPPORTED
+    esp_cam_sensor_xclk_config_t  xclk_config;  /*!< XCLK configuration */
+#endif  /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
 } dev_camera_sub_csi_cfg;
 
 /**
@@ -64,7 +69,7 @@ typedef struct {
     esp_cam_ctlr_dvp_pin_config_t  dvp_io;     /*!< DVP io configuration structure */
     uint32_t                       xclk_freq;  /*!< XCLK frequency in Hz */
 } dev_camera_sub_dvp_cfg;
-#endif  /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
+#endif /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
 
 /**
  * @brief  Camera device configuration structure
@@ -73,9 +78,9 @@ typedef struct {
  *         including device identification, bus type, and union of interface-specific configurations.
  */
 typedef struct {
-    const char  *name;      /*!< Device name */
-    const char  *type;      /*!< Device type */
-    const char  *sub_type;  /*!< Bus type (e.g., "csi", "spi", "dvp", "usb_uvc" etc.) */
+    const char *name;      /*!< Device name */
+    const char *type;      /*!< Device type */
+    const char *sub_type;  /*!< Bus type (e.g., "csi", "spi", "dvp", "usb_uvc" etc.) */
     union {
 #ifdef CONFIG_SOC_LCDCAM_CAM_SUPPORTED
         dev_camera_sub_dvp_cfg  dvp;          /*!< DVP interface configuration */
@@ -97,9 +102,9 @@ typedef struct {
  *         and additional mate info can be obtained from the meta_path `/dev/video11`.
  */
 typedef struct {
-    const char  *dev_path;   /*!< Camera device path or identifier */
-    const char  *meta_path;  /*!< Camera metadata path or identifier (if applicable) */
-                             /*!< For csi camera, meta_path is ISP path */
+    const char *dev_path;     /*!< Camera device path or identifier */
+    const char *meta_path;    /*!< Camera metadata path or identifier (if applicable) */
+                              /*!< For csi camera, meta_path is ISP path */
 } dev_camera_handle_t;
 
 /**

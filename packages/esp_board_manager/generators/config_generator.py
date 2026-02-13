@@ -28,16 +28,11 @@ from .name_validator import parse_component_name
 class ConfigGenerator(LoggerMixin):
     """Main configuration generator class for board scanning and configuration file discovery"""
 
-    def __init__(self, script_dir: Path):
+    def __init__(self, root_dir: Path):
         super().__init__()
-        self.script_dir = script_dir
-        # Use IDF_EXTRA_ACTIONS_PATH environment variable for Default boards path if available
-        # Otherwise fall back to script_dir/boards
-        idf_extra_actions_path = os.environ.get('IDF_EXTRA_ACTIONS_PATH')
-        if idf_extra_actions_path:
-            self.boards_dir = Path(idf_extra_actions_path) / 'boards'
-        else:
-            self.boards_dir = script_dir / 'boards'
+        self.root_dir = root_dir
+        # Use validated root_dir passed from main script
+        self.boards_dir = self.root_dir / 'boards'
         # Cache project root to avoid repeated lookups
         self._project_root: Optional[str] = None
 
@@ -73,58 +68,82 @@ class ConfigGenerator(LoggerMixin):
             return True
         return any(value.startswith(prefix) for prefix in BoardManagerConfig.get_c_constant_prefixes())
 
+    def _format_value_to_c(self, v: Any) -> str:
+        """Helper to format a single value into C syntax recursively"""
+        if isinstance(v, bool):
+            return 'true' if v else 'false'
+        elif v is None:
+            return 'NULL'
+        elif isinstance(v, str):
+            # Don't quote if it's:
+            # 1. A C constant (e.g. GPIO_NUM_1)
+            # 2. A hex number (e.g. 0x12)
+            # 3. Already quoted string (e.g. "value")
+            x_stripped = v.strip()
+            if self.is_c_constant(v) or x_stripped.lower().startswith('0x'):
+                return str(v)
+            elif (x_stripped.startswith('"') and x_stripped.endswith('"')) or \
+                 (x_stripped.startswith("'") and x_stripped.endswith("'")):
+                return v
+            else:
+                return f'"{v}"'
+        elif isinstance(v, int):
+            return str(v)
+        elif isinstance(v, float):
+            return str(v)
+        elif isinstance(v, list):
+            # Recursive formatting for lists -> C arrays { ... }
+            elements = [self._format_value_to_c(item) for item in v]
+            return '{' + ', '.join(elements) + '}'
+        elif isinstance(v, dict):
+            # Recursive formatting for dicts -> C structs { .k = v, ... }
+            # Note: Inline structs usually don't need newlines/indentation for simple cases,
+            # but for complex ones it might be long. Keeping it compact for now.
+            fields = []
+            for sub_k, sub_v in v.items():
+                fields.append(f'.{sub_k} = {self._format_value_to_c(sub_v)}')
+            return '{' + ', '.join(fields) + '}'
+        else:
+            return str(v)
+
     def dict_to_c_initializer(self, d: Dict[str, Any], indent: int = 4) -> List[str]:
         """Convert dictionary to C initializer format with proper type handling and formatting"""
         lines = []
         if isinstance(d, list):
-            arr = ', '.join(str(x) for x in d)
+            # Special case for top-level list (unlikely for struct init, but kept for compatibility)
+            arr = ', '.join(self._format_value_to_c(x) for x in d)
             lines.append(f'{arr}')
             return lines
+
         for k, v in d.items():
-            if isinstance(v, dict):
-                lines.append(f'.{k} = {{')
-                lines += [' ' * (indent + 4) + l for l in self.dict_to_c_initializer(v, indent)]
-                lines.append(' ' * indent + '},')
-            elif isinstance(v, bool):
-                lines.append(f".{k} = {'true' if v else 'false'},")
-            elif v is None:
-                lines.append(f'.{k} = NULL,')
-            elif isinstance(v, str):
-                # Use improved C constant detection
-                if self.is_c_constant(v):
-                    lines.append(f'.{k} = {v},')
-                else:
-                    lines.append(f'.{k} = "{v}",')
-            elif isinstance(v, int):
-                # For large integers (GPIO bit masks), use hexadecimal format with ULL suffix
+            # Special handling for large integers or specific fields that need hex
+            if isinstance(v, int):
                 if k == 'pin_bit_mask' and v > 0xFFFFFFFF:
                     lines.append(f'.{k} = 0x{v:X}ULL,')
-                # For channel mask fields, use hexadecimal format
+                    continue
                 elif k in ['adc_channel_mask', 'dac_channel_mask']:
                     lines.append(f'.{k} = 0x{v:X},')
-                else:
-                    lines.append(f'.{k} = {v},')
-            elif isinstance(v, float):
-                lines.append(f'.{k} = {v},')
-            elif isinstance(v, list):
-                # Handle arrays of structures properly
-                if v and isinstance(v[0], dict):
-                    # This is an array of structures, generate proper C initializer
-                    lines.append(f'.{k} = {{')
-                    for i, item in enumerate(v):
-                        if isinstance(item, dict):
-                            lines.append(' ' * (indent + 4) + '{')
-                            lines += [' ' * (indent + 8) + l for l in self.dict_to_c_initializer(item, indent + 4)]
-                            lines.append(' ' * (indent + 4) + '},')
-                        else:
-                            lines.append(' ' * (indent + 4) + f'{item},')
-                    lines.append(' ' * indent + '},')
-                else:
-                    # Simple array of primitive types
-                    arr = '{' + ', '.join(str(x) for x in v) + '}'
-                    lines.append(f'.{k} = {arr},')
+                    continue
+
+            # Standard handling using the helper
+            # We handle dicts specially here to preserve the nice multiline formatting
+            if isinstance(v, dict):
+                lines.append(f'.{k} = {{')
+                lines += [' ' * (indent + 4) + l for l in self.dict_to_c_initializer(v, indent + 4)]
+                lines.append(' ' * indent + '},')
+            elif isinstance(v, list) and v and isinstance(v[0], dict):
+                # Array of structs - special multiline formatting
+                lines.append(f'.{k} = {{')
+                for item in v:
+                    lines.append(' ' * (indent + 4) + '{')
+                    lines += [' ' * (indent + 8) + l for l in self.dict_to_c_initializer(item, indent + 4)]
+                    lines.append(' ' * (indent + 4) + '},')
+                lines.append(' ' * indent + '},')
             else:
-                lines.append(f'.{k} = 0, // unsupported type')
+                # Everything else (primitives, arrays of primitives, arrays of arrays)
+                val_str = self._format_value_to_c(v)
+                lines.append(f'.{k} = {val_str},')
+
         return lines
 
     def extract_id_from_name(self, name: str) -> int:
@@ -146,23 +165,29 @@ class ConfigGenerator(LoggerMixin):
                 if not board_path.is_dir():
                     continue
 
-                # Check if this is a valid board (has all 4 required files)
+                # Check if this is a valid board (has all 3 required YAML files)
                 if self._is_board_directory(str(board_path)):
-                    all_boards[d] = str(board_path)
-                    self.logger.debug(f'Found valid board in main directory: {d}')
+                    if self.is_valid_board_name(d):
+                        all_boards[d] = str(board_path)
+                        self.logger.debug(f'Found valid board in main directory: {d}')
+                    else:
+                        self.logger.warning(
+                            f'⚠️  Skipping board with invalid name "{d}". Board names must contain only letters, numbers, and underscores.'
+                        )
                 else:
-                    # Check if it has Kconfig but missing other files (invalid board)
-                    kconfig_path = board_path / 'Kconfig'
-                    if kconfig_path.exists():
-                        missing_files = []
-                        for filename in ['board_info.yaml', 'board_peripherals.yaml', 'board_devices.yaml']:
-                            if not (board_path / filename).exists():
-                                missing_files.append(filename)
+                    # Check if it has any of the YAML files but missing others (invalid board)
+                    # We check for ANY of the 3 files to decide if it's an incomplete board
+                    yaml_files = ['board_info.yaml', 'board_peripherals.yaml', 'board_devices.yaml']
+                    found_files = [f for f in yaml_files if (board_path / f).exists()]
 
-                        if missing_files:
-                            self.logger.warning(
-                                f'⚠️  Skipping invalid board "{d}" in main directory - missing required files: {", ".join(missing_files)}'
-                            )
+                    if found_files:
+                        missing_files = [f for f in yaml_files if f not in found_files]
+                        self.logger.warning(
+                            f'⚠️  Skipping invalid board "{d}" in main directory - missing required files: {", ".join(missing_files)}'
+                        )
+                # Check for board name consistency
+                # Moved to post-selection phase
+                # self.check_board_name_consistency(str(board_path), d)
 
         # 2. Scan components boards directories (recursive scan)
         # Get project root first, then check if components exists
@@ -170,16 +195,50 @@ class ConfigGenerator(LoggerMixin):
 
         if project_root:
             components_dir = os.path.join(project_root, 'components')
+            # Get absolute path of Default boards to exclude
+            default_boards_path = str(self.boards_dir.resolve()) if hasattr(self.boards_dir, 'resolve') else str(self.boards_dir)
+
             if os.path.exists(components_dir):
                 self.logger.info(f'   Scanning component boards (recursive): {components_dir}')
-                # Get absolute path of Default boards to exclude
-                default_boards_path = str(self.boards_dir.resolve()) if hasattr(self.boards_dir, 'resolve') else str(self.boards_dir)
                 component_boards = self._scan_all_directories_for_boards(
                     components_dir,
                     'component',
                     exclude_path=default_boards_path
                 )
                 all_boards.update(component_boards)
+
+            # 2.1 Scan managed_components boards directories
+            # Scan directories under managed_components whose name contains 'boards'
+            managed_components_dir = os.path.join(project_root, 'managed_components')
+            if os.path.exists(managed_components_dir):
+                self.logger.info(f'   Scanning managed components boards: {managed_components_dir}')
+                try:
+                    for d in os.listdir(managed_components_dir):
+                        subdir_path = os.path.join(managed_components_dir, d)
+                        if os.path.isdir(subdir_path) and 'boards' in d:
+                            self.logger.info(f'     Found potential board component in managed_components: {d}')
+
+                            # Check if the component itself is a board directory
+                            if self._is_board_directory(subdir_path):
+                                board_name = d
+                                if self.is_valid_board_name(board_name):
+                                    all_boards[board_name] = subdir_path
+                                    self.logger.debug(f'     Found single board in managed_components: {board_name}')
+                                else:
+                                    self.logger.warning(
+                                        f'⚠️  Skipping board with invalid name "{board_name}". Board names must contain only letters, numbers, and underscores.'
+                                    )
+                            else:
+                                # Recursively scan for boards within the component
+                                managed_boards = self._scan_all_directories_for_boards(
+                                    subdir_path,
+                                    f'component (managed: {d})',
+                                    exclude_path=default_boards_path,
+                                    max_depth=3
+                                )
+                                all_boards.update(managed_boards)
+                except Exception as e:
+                    self.logger.debug(f'Error scanning managed_components: {e}')
 
         # 3. Scan customer boards directory if provided
         if board_customer_path and board_customer_path != 'NONE':
@@ -189,8 +248,15 @@ class ConfigGenerator(LoggerMixin):
                 if self._is_board_directory(board_customer_path):
                     # It's a single board directory
                     board_name = os.path.basename(board_customer_path)
-                    all_boards[board_name] = board_customer_path
-                    self.logger.debug(f'Found single board: {board_name}')
+                    if self.is_valid_board_name(board_name):
+                        all_boards[board_name] = board_customer_path
+                        self.logger.debug(f'Found single board: {board_name}')
+                    else:
+                        self.logger.warning(
+                            f'⚠️  Skipping board with invalid name "{board_name}". Board names must contain only letters, numbers, and underscores.'
+                        )
+                    # Moved to post-selection phase
+                    # self.check_board_name_consistency(board_customer_path, board_name)
                 else:
                     # It's a directory containing multiple boards (recursive scan)
                     customer_boards = self._scan_all_directories_for_boards(board_customer_path, 'customer')
@@ -198,7 +264,7 @@ class ConfigGenerator(LoggerMixin):
             else:
                 self.logger.warning(f'⚠️  Warning: Customer boards path does not exist: {board_customer_path}')
         else:
-            self.logger.info(f'   No customer boards path specified')
+            self.logger.debug(f'   No customer boards path specified')
 
         return all_boards
 
@@ -213,8 +279,7 @@ class ConfigGenerator(LoggerMixin):
         """
         Recursively scan all subdirectories for valid boards.
 
-        A valid board must have all 4 required files:
-        - Kconfig
+        A valid board must have all 3 required files:
         - board_info.yaml
         - board_peripherals.yaml
         - board_devices.yaml
@@ -250,7 +315,7 @@ class ConfigGenerator(LoggerMixin):
                 if not os.path.isdir(board_path):
                     continue
 
-                # Check if this is a valid board directory (has all 4 required files)
+                # Check if this is a valid board directory (has all 3 required files)
                 if self._is_board_directory(board_path):
                     # Check if this path should be excluded
                     if exclude_path:
@@ -263,24 +328,29 @@ class ConfigGenerator(LoggerMixin):
                             continue
 
                     # Found a valid board
-                    board_dirs[d] = board_path
-                    self.logger.debug(f'Found valid board in {dir_name}: {d}')
-                else:
-                    # Check if it has Kconfig but missing other files (invalid board)
-                    kconfig_path = os.path.join(board_path, 'Kconfig')
-                    if os.path.isfile(kconfig_path):
-                        # This looks like it was intended to be a board but is incomplete
-                        missing_files = []
-                        for filename in ['board_info.yaml', 'board_peripherals.yaml', 'board_devices.yaml']:
-                            if not os.path.isfile(os.path.join(board_path, filename)):
-                                missing_files.append(filename)
-
-                        if missing_files:
-                            self.logger.warning(
-                                f'⚠️  Skipping invalid board "{d}" - missing required files: {", ".join(missing_files)}'
-                            )
+                    if self.is_valid_board_name(d):
+                        board_dirs[d] = board_path
+                        self.logger.debug(f'Found valid board in {dir_name}: {d}')
                     else:
-                        # Not a board directory, continue scanning subdirectories
+                        self.logger.warning(
+                            f'⚠️  Skipping board with invalid name "{d}". Board names must contain only letters, numbers, and underscores.'
+                        )
+                    # Moved to post-selection phase
+                    # self.check_board_name_consistency(board_path, d)
+                else:
+                    # Check if it has any YAML files but missing others (invalid board)
+                    # We check for ANY of the 3 files to decide if it's an incomplete board
+                    yaml_files = ['board_info.yaml', 'board_peripherals.yaml', 'board_devices.yaml']
+                    found_files = [f for f in yaml_files if os.path.isfile(os.path.join(board_path, f))]
+
+                    if found_files:
+                        # This looks like it was intended to be a board but is incomplete
+                        missing_files = [f for f in yaml_files if f not in found_files]
+                        self.logger.warning(
+                            f'⚠️  Skipping invalid board "{d}" - missing required files: {", ".join(missing_files)}'
+                        )
+                    else:
+                        # Not a board directory (no YAML files), continue scanning subdirectories
                         sub_boards = self._scan_all_directories_for_boards(
                             board_path,
                             f'{dir_name}/{d}',
@@ -302,16 +372,14 @@ class ConfigGenerator(LoggerMixin):
         Check if a directory is a valid board directory by verifying all required files exist.
 
         A valid board must have:
-        1. Kconfig
-        2. board_info.yaml
-        3. board_peripherals.yaml
-        4. board_devices.yaml
+        1. board_info.yaml
+        2. board_peripherals.yaml
+        3. board_devices.yaml
         """
         if not os.path.isdir(path):
             return False
 
         required_files = [
-            'Kconfig',
             'board_info.yaml',
             'board_peripherals.yaml',
             'board_devices.yaml'
@@ -323,6 +391,33 @@ class ConfigGenerator(LoggerMixin):
                 return False
 
         return True
+
+    def is_valid_board_name(self, name: str) -> bool:
+        """
+        Check if board name is valid.
+        Valid names can contain letters (uppercase/lowercase), numbers, and underscores.
+        Must not contain hyphens or other special characters.
+        """
+        return bool(re.match(r'^[a-zA-Z0-9_]+$', name))
+
+    def check_board_name_consistency(self, board_path: str, dir_name: str) -> None:
+        """Check if board name in board_info.yaml matches directory name"""
+        try:
+            board_info_path = os.path.join(board_path, 'board_info.yaml')
+            if os.path.exists(board_info_path):
+                # Use simple parsing to avoid full YAML load overhead if possible,
+                # but load_yaml_safe is safer
+                board_info = load_yaml_safe(board_info_path)
+                if board_info and 'board' in board_info:
+                    board_name_in_yaml = board_info['board']
+                    if board_name_in_yaml != dir_name:
+                        self.logger.warning(
+                            f'⚠️  Board name mismatch in "{dir_name}": '
+                            f'directory name is "{dir_name}", but board_info.yaml says "{board_name_in_yaml}". '
+                            f'The directory name will be used as the board ID.'
+                        )
+        except Exception as e:
+            self.logger.debug(f'Error checking board name consistency for {dir_name}: {e}')
 
     def get_selected_board_from_sdkconfig(self) -> str:
         """Read sdkconfig file to determine which board is selected, fallback to default if not found"""
@@ -379,7 +474,7 @@ class ConfigGenerator(LoggerMixin):
             self.logger.error(f"board_devices.yaml not found for board '{board_name}' at {dev_yaml_path}")
             return None, None
 
-        self.logger.info(f"   Using board configuration files for '{board_name}':")
+        self.logger.debug(f"   Using board configuration files for '{board_name}':")
         self.logger.info(f'   Peripherals: {periph_yaml_path}')
         self.logger.info(f'   Devices: {dev_yaml_path}')
 

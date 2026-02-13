@@ -1,4 +1,4 @@
-board: test_board_a
+board: test_board_a_wrong
 chip: esp32s3
 version: 1.0.0
 description: "Test Board A - Multiple boards in boards/ directory"

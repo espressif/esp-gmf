@@ -1,5 +1,3 @@
-board: test_board_d
-chip: esp32c3
 version: 1.0.0
 # Devices Configuration
 devices:

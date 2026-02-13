@@ -26,7 +26,7 @@ esp_board_manager/
 ├── private_inc/     # Private header files
 ├── peripherals/     # Peripheral implementations (periph_gpio, periph_i2c, etc.)
 ├── devices/         # Device implementations (dev_audio_codec, dev_display_lcd, etc.)
-├── boards/          # Board-specific configurations (YAML files, Kconfig, setup_device.c)
+├── boards/          # Board-specific configurations (YAML files, setup_device.c)
 ├── generators/      # Code generation system
 ├── gen_codes/                  # Generated files (auto-created)
 │   └── Kconfig.in              # Unified Kconfig menu
@@ -264,7 +264,7 @@ Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicate
 | `sdcard_power_ctrl` | Power control device | power_ctrl | gpio | gpio | [`dev_power_ctrl`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
 | `lcd_brightness` | LEDC control device | ledc_ctrl | - | ledc | [`dev_ledc_ctrl`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) | **[`test_dev_ledc.c`](test_apps/main/test_dev_ledc.c)** <br/>LEDC device for PWM and backlight control |
 | `gpio_expander` | GPIO expander chip | gpio_expander | - | i2c | [`dev_gpio_expander`](devices/dev_gpio_expander/dev_gpio_expander.yaml) | **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)**<br/>GPIO expander chip testing |
-| `camera` | Camera | camera | dvp<br/>csi | i2c | [`dev_camera`](devices/dev_camera/dev_camera.yaml) | **[`test_dev_camera.c`](test_apps/main/test_dev_camera.c)** <br/>Testing Camera sensor's video stream capture capability |
+| `camera` | Camera | camera | dvp<br/>csi | i2c<br/>ldo | [`dev_camera`](devices/dev_camera/dev_camera.yaml) | **[`test_dev_camera.c`](test_apps/main/test_dev_camera.c)** <br/>Testing Camera sensor's video stream capture capability |
 | `button` | Button | button | gpio<br/>adc | gpio<br/>adc | [`dev_button`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>Button testing |
 
 > For the same device, we will no longer distinguish types by interface. For example, `dev_fatfs_sdcard` and `dev_fatfs_sdcard_spi` will be unified under `fs_fat` for management, and `dev_display_lcd_spi` will also be changed to use `dev_display_lcd` for management.

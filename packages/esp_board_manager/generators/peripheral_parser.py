@@ -21,9 +21,9 @@ import re
 class PeripheralParser(LoggerMixin):
     """Parser for peripheral configurations with validation and nested list flattening"""
 
-    def __init__(self, script_dir: Path):
+    def __init__(self, root_dir: Path):
         super().__init__()
-        self.script_dir = script_dir
+        self.root_dir = root_dir
 
     def parse_peripherals_yaml(self, yaml_path: str) -> Tuple[Dict[str, Any], Dict[str, str], List[str]]:
         """
@@ -96,7 +96,7 @@ class PeripheralParser(LoggerMixin):
                 self.logger.info(f'Peripheral #{i+1}: {obj}. Error: {e}')
                 continue
 
-        self.logger.info(f'   Successfully parsed {len(out)} peripherals from {yaml_path}')
+        self.logger.debug(f'   Successfully parsed {len(out)} peripherals from {yaml_path}')
         return out, periph_name_map, peripheral_types
 
     def flatten_peripherals(self, periph):

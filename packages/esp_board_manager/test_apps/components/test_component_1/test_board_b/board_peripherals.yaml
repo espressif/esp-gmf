@@ -1,5 +1,3 @@
-board: test_board_b
-chip: esp32s3
 version: 1.0.0
 # Peripherals Configuration
 peripherals:

@@ -3,12 +3,13 @@
 ## 1. General YAML File Structure
 
 ### 1.1 Board Level Configuration
-Each board configuration YAML file must include:
+Board configuration YAML file `board_info.yaml` must include:
 ```yaml
 board: <board_name>
 chip: <chip_type>
 version: <version_number>  # Format: x.y.z, each field 0-99
 ```
+Each configuration YAML file must include same version field.
 
 ### 1.2 File Organization
 - Peripheral configurations are defined in `board_peripherals.yaml`

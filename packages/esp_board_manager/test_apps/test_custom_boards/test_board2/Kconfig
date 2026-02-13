@@ -1,3 +1,0 @@
-config BOARD_TEST_BOARD2
-    bool "Test Board 2"
-    depends on SOC_ESP32S3
