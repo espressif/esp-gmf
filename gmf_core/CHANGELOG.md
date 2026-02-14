@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.9~1
+
+### Features
+
+- Added VUY444 packed pixel format FourCC code
+
 ## v0.7.9
 
 ### Bug Fixes

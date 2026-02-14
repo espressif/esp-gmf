@@ -9,13 +9,15 @@
 
 #include <stdint.h>
 
-#define ESP_FOURCC_VERSION ("v1.0.1")
+#define ESP_FOURCC_VERSION ("v1.0.2")
 
 /**
 # Changelog
+## [v1.0.2]
+    - Added VUY444 packed pixel format
 
 ## [v1.0.1]
-   - Fixed incorrect bit shift in the macro converting FourCC code to a string
+    - Fixed incorrect bit shift in the macro converting FourCC code to a string
 
 ## [v1.0.0]
     - Add audio, video and pixel format with fourcc(four character code)
@@ -362,6 +364,15 @@ static inline void gmf_fourcc_to_str(uint32_t fourcc, char out[5]) {
  *   +--+--+--+ +--+--+--+
  */
 #define ESP_FOURCC_UYV             ESP_FOURCC_TO_INT('I', 'Y', 'U', '2') /* 24 bpp, U-Y-V 4:4:4 */
+
+/**
+ * VUY444
+ * Memory Layout:
+ *   +--+--+--+ +--+--+--+
+ *   |V0|U0|Y0| |V1|U1|Y1|
+ *   +--+--+--+ +--+--+--+
+ */
+#define ESP_FOURCC_VUY             ESP_FOURCC_TO_INT('V', 'U', 'Y', '4') /* 24 bpp, V-U-Y 4:4:4 */
 
 /**
  * Espressif YUV420, U00 V10 shared Y00 Y01 Y10 Y11, U02 V12 shared Y02 Y03 Y12 Y13
