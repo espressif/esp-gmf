@@ -44,6 +44,9 @@
 .if-label-skip_example: &if-label-skip_example
   if: '$BOT_LABEL_SKIP_EXAMPLE_TEST || $CI_MERGE_REQUEST_LABELS =~ /^(?:[^,\n\r]+,)*skip_example(?:,[^,\n\r]+)*$/i'
 
+.if-label-skip-pre-check: &if-label-skip-pre-check
+  if: '$BOT_LABEL_SKIP_PRE_TEST || $CI_MERGE_REQUEST_LABELS =~ /^(?:[^,\n\r]+,)*skip_pre_check(?:,[^,\n\r]+)*$/i'
+
 .idf-version-tag-v5-3: &idf-version-tag-v5-3
   if: '$IDF_VERSION_TAG == "v5.3"'
   variables:
@@ -59,8 +62,10 @@
     - <<: *if-ref-main
     - <<: *if-schedule
 
-.rules:ref:check-label:
+.rules:ref:pre-check:
   rules:
+    - <<: *if-label-skip-pre-check
+      when: never
     - <<: *if-merge_request_event
 
 .rules:build:regular-board-idf-ver-tag:

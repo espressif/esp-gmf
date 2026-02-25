@@ -35,8 +35,8 @@ check_commit_format:
   image: "$CI_DOCKER_IMAGE_REGISTRY/pre_commit:1"
   interruptible: true
   stage: pre_check
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS !~ /^(?:[^,\n\r]+,)*skip_check(?:,[^,\n\r]+)*$/i'
+  extends:
+    - .rules:ref:pre-check
   script:
     - git clone --depth 1 $CHECK_FORMAT_TOOL_REPO
     - cd check-format-tool/bin
@@ -58,7 +58,7 @@ check_commit_format:
 
 check_pre_commit:
   extends:
-    - .rules:build:protected-merge-requests
+    - .rules:ref:pre-check
     - .pre_check_template
   before_script:
     - pip install pre-commit
