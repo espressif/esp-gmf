@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.10
+
+### Features
+
+- Added `esp_gmf_pipeline_iterate_element` to support iteration over elements in the GMF pipeline
+
+### Bug Fixes
+
+- Fixed missing tail reset for pbuf data_bus when fill and empty lists are empty
+
 ## v0.7.9~1
 
 ### Features

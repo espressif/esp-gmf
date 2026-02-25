@@ -266,7 +266,7 @@ TEST_CASE("One task for read write test", "[ESP_GMF_PBUF]")
     esp_gmf_pbuf_destroy(pbuf);
     esp_gmf_ut_teardown_sdmmc(card);
     vTaskDelay(100);
-    ESP_LOGE(TAG, "%s,%d", __func__, __LINE__);
+    ESP_LOGI(TAG, "%s,%d", __func__, __LINE__);
 }
 
 TEST_CASE("One task for multiple read write test", "[ESP_GMF_PBUF]")
@@ -298,7 +298,7 @@ TEST_CASE("One task for multiple read write test", "[ESP_GMF_PBUF]")
     esp_gmf_pbuf_destroy(pbuf);
     esp_gmf_ut_teardown_sdmmc(card);
     vTaskDelay(100);
-    ESP_LOGE(TAG, "%s,%d", __func__, __LINE__);
+    ESP_LOGI(TAG, "%s,%d", __func__, __LINE__);
 }
 
 TEST_CASE("Read task and write task thread safe test", "[ESP_GMF_PBUF]")
@@ -331,7 +331,7 @@ TEST_CASE("Read task and write task thread safe test", "[ESP_GMF_PBUF]")
 
     esp_gmf_pbuf_destroy(pbuf);
     esp_gmf_ut_teardown_sdmmc(card);
-    ESP_LOGE(TAG, "%s,%d", __func__, __LINE__);
+    ESP_LOGI(TAG, "%s,%d", __func__, __LINE__);
 }
 
 TEST_CASE("Abort when read task and write task thread safe test", "[ESP_GMF_PBUF]")
@@ -372,5 +372,5 @@ TEST_CASE("Abort when read task and write task thread safe test", "[ESP_GMF_PBUF
     }
     esp_gmf_pbuf_destroy(pbuf);
     esp_gmf_ut_teardown_sdmmc(card);
-    ESP_LOGE(TAG, "%s,%d", __func__, __LINE__);
+    ESP_LOGI(TAG, "%s,%d", __func__, __LINE__);
 }

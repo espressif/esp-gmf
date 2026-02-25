@@ -670,6 +670,26 @@ esp_gmf_err_t esp_gmf_pipeline_get_el_by_name(esp_gmf_pipeline_handle_t pipeline
     return ESP_GMF_ERR_NOT_FOUND;
 }
 
+esp_gmf_err_t esp_gmf_pipeline_iterate_element(esp_gmf_pipeline_handle_t handle, const void **iterator, esp_gmf_element_handle_t *el)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, iterator, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, el, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_element_handle_t cur = (esp_gmf_element_handle_t)*iterator;
+    if (cur == NULL) {
+        cur = handle->head_el;
+    } else {
+        cur = (esp_gmf_element_handle_t)esp_gmf_node_for_next((esp_gmf_node_t *)cur);
+    }
+    if (cur) {
+        *el = cur;
+        *iterator = cur;
+        return ESP_GMF_ERR_OK;
+    }
+    *el = NULL;
+    return ESP_GMF_ERR_NOT_FOUND;
+}
+
 esp_gmf_err_t esp_gmf_pipeline_reg_el_port(esp_gmf_pipeline_handle_t pipeline,
                                            const char *tag, esp_gmf_io_dir_t io_dir, esp_gmf_io_handle_t port)
 {

@@ -165,7 +165,9 @@ esp_gmf_err_io_t esp_gmf_pbuf_release_read(esp_gmf_pbuf_handle_t handle, esp_gmf
         pbuf_list_t *empty = pbuf->fill_head;
         empty->next = NULL;
         pbuf->fill_head = tmp;
-
+        if (pbuf->fill_head == NULL) {
+            pbuf->fill_tail = NULL;
+        }
         if (pbuf->empty_head == NULL) {
             pbuf->empty_tail = empty;
             pbuf->empty_head = empty;
@@ -263,7 +265,9 @@ esp_gmf_err_io_t esp_gmf_pbuf_release_write(esp_gmf_pbuf_handle_t handle, esp_gm
         pbuf_list_t *filled = pbuf->empty_head;
         filled->next = NULL;
         pbuf->empty_head = tmp;
-
+        if (pbuf->empty_head == NULL) {
+            pbuf->empty_tail = NULL;
+        }
         if (pbuf->fill_head == NULL) {
             pbuf->fill_tail = filled;
             pbuf->fill_head = filled;
