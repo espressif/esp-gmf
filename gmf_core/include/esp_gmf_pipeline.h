@@ -467,6 +467,20 @@ esp_gmf_err_t esp_gmf_pipeline_get_next_el(esp_gmf_pipeline_handle_t pipeline, e
 esp_gmf_err_t esp_gmf_pipeline_get_el_by_name(esp_gmf_pipeline_handle_t pipeline, const char *tag, esp_gmf_element_handle_t *out_handle);
 
 /**
+ * @brief  Iterate pipeline to retrieve element
+ *
+ * @param[in]   handle    GMF pipeline handle
+ * @param[out]  iterator  To retrieve first element set `*iterator = NULL`, after that do not modify `*iterator` any more
+ * @param[out]  el        To store retrieved element handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid arguments
+ *       - ESP_GMF_ERR_NOT_FOUND    Iterate finished, no more elements found
+ */
+esp_gmf_err_t esp_gmf_pipeline_iterate_element(esp_gmf_pipeline_handle_t handle, const void **iterator, esp_gmf_element_handle_t *el);
+
+/**
  * @brief  Register an I/O port for an element within the pipeline
  *
  * @param[in]  pipeline  GMF pipeline handle

@@ -396,3 +396,57 @@ TEST_CASE("A(Y) - B(N) - C(Y) - D(N) (Report in middle)", "[ESP_GMF_PIPELINE]")
     pipeline_dependency_test(cfg, 4, general_dependency_check);
     ESP_GMF_MEM_SHOW(TAG);
 }
+
+TEST_CASE("GMF Pipeline Iterate Element test", "[ESP_GMF_PIPELINE]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+
+    esp_gmf_pool_handle_t pool = NULL;
+    esp_gmf_pool_init(&pool);
+    TEST_ASSERT_NOT_NULL(pool);
+
+    general_el_cfg_t cfg = {};
+    esp_gmf_element_handle_t el1 = NULL, el2 = NULL, el3 = NULL, el4 = NULL;
+    general_el_init(&cfg, &el1);
+    general_el_init(&cfg, &el2);
+    general_el_init(&cfg, &el3);
+    general_el_init(&cfg, &el4);
+    esp_gmf_pool_register_element(pool, el1, "aud_dec");
+    esp_gmf_pool_register_element(pool, el2, "aud_rate_cvt");
+    esp_gmf_pool_register_element(pool, el3, "aud_rate_cvt");
+    esp_gmf_pool_register_element(pool, el4, "aud_bit_cvt");
+
+    esp_gmf_pipeline_handle_t pipe = NULL;
+    const char *names[] = {"aud_dec", "aud_rate_cvt", "aud_rate_cvt", "aud_bit_cvt"};
+    esp_gmf_pool_new_pipeline(pool, NULL, names, 4, NULL, &pipe);
+    TEST_ASSERT_NOT_NULL(pipe);
+
+    // iterate all elements
+    int count_all = 0;
+    const void *iterator = NULL;
+    esp_gmf_element_handle_t cur_el = NULL;
+    while (esp_gmf_pipeline_iterate_element(pipe, &iterator, &cur_el) == ESP_GMF_ERR_OK) {
+        count_all++;
+        TEST_ASSERT_NOT_NULL(cur_el);
+    }
+    TEST_ASSERT_EQUAL(4, count_all);
+
+    // iterate and filter by tag in application layer
+    int count_tag = 0;
+    iterator = NULL;
+    cur_el = NULL;
+    while (esp_gmf_pipeline_iterate_element(pipe, &iterator, &cur_el) == ESP_GMF_ERR_OK) {
+        TEST_ASSERT_NOT_NULL(cur_el);
+        char *el_tag = NULL;
+        esp_gmf_obj_get_tag((esp_gmf_obj_handle_t)cur_el, &el_tag);
+        if (el_tag && strcasecmp(el_tag, "aud_rate_cvt") == 0) {
+            count_tag++;
+        }
+    }
+    TEST_ASSERT_EQUAL(2, count_tag);
+
+    esp_gmf_pipeline_destroy(pipe);
+    esp_gmf_pool_deinit(pool);
+    ESP_GMF_MEM_SHOW(TAG);
+}
