@@ -292,10 +292,11 @@ static int check_file_size(int slice_idx)
     return file_size;
 }
 
-static int storage_slice_hdlr(char *file_path, int len, int slice_idx)
+static int storage_slice_hdlr(esp_muxer_slice_info_t *info, void* ctx)
 {
-    snprintf(file_path, len, FILE_SLICE_STORAGE_PATTERN, slice_idx);
-    ESP_LOGI(TAG, "Start to write to file %s", file_path);
+    snprintf(info->file_path, info->len, FILE_SLICE_STORAGE_PATTERN, info->slice_index);
+    esp_capture_sink_cfg_t *sink_cfg = (esp_capture_sink_cfg_t *)ctx;
+    ESP_LOGI(TAG, "Start to write to file %s %dx%d", info->file_path, sink_cfg->video_info.width, sink_cfg->video_info.height);
     return 0;
 }
 
@@ -334,8 +335,9 @@ int video_capture_run_with_muxer(int duration)
         mp4_muxer_config_t mp4_cfg = {
             .base_config = {
                 .muxer_type = ESP_MUXER_TYPE_MP4,
-                .url_pattern = storage_slice_hdlr,
+                .url_pattern_ex = storage_slice_hdlr,
                 .slice_duration = 60000,
+                .ctx = &sink_cfg,
             },
         };
         esp_capture_muxer_cfg_t muxer_cfg = {
@@ -540,8 +542,10 @@ int video_capture_run_with_customized_process(int duration)
             break;
         }
 
-        // We know that only need video encoder and video fps convert
         const char *vid_elements[] = {"vid_color_cvt", "vid_fps_cvt", "vid_enc"};
+#ifdef CONFIG_IDF_TARGET_ESP32P4
+        vid_elements[0] = "vid_ppa";
+#endif
         ret = esp_capture_sink_build_pipeline(sink, ESP_CAPTURE_STREAM_TYPE_VIDEO,
                                               vid_elements, sizeof(vid_elements) / sizeof(vid_elements[0]));
 

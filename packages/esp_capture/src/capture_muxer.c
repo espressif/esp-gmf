@@ -143,6 +143,12 @@ static int muxer_data_reached(esp_muxer_data_info_t *muxer_data, void *ctx)
     return 0;
 }
 
+static int muxer_url_hdlr(esp_muxer_slice_info_t *info, void* ctx)
+{
+    capture_muxer_path_t *path = (capture_muxer_path_t *)ctx;
+    return path->muxer_cfg.base_config->url_pattern_ex(info, path->muxer_cfg.base_config->ctx);
+}
+
 static bool muxer_support_streaming(esp_muxer_type_t muxer_type)
 {
     if (muxer_type == ESP_MUXER_TYPE_TS || muxer_type == ESP_MUXER_TYPE_FLV) {
@@ -261,21 +267,26 @@ static esp_capture_err_t open_muxer(capture_muxer_path_t *muxer_path)
     esp_muxer_config_t *cfg = muxer_path->muxer_cfg.base_config;
     // Use default slice size if not set
     cfg->slice_duration = cfg->slice_duration ? cfg->slice_duration : SLICE_DURATION;
-    cfg->ctx = muxer_path;
-    // Use default cache size if not set (let user controlled)
-    // cfg->ram_cache_size = cfg->ram_cache_size ? cfg->ram_cache_size : WRITE_CACHE_SIZE;
     // Clear data callback
     cfg->data_cb = NULL;
+    void *ctx = cfg->ctx;
+    muxer_url_pattern_ex pattern_ex = cfg->url_pattern_ex;
+    cfg->ctx = muxer_path;
+    if (pattern_ex) {
+        cfg->url_pattern_ex = muxer_url_hdlr;
+    }
     if (muxer_path->enable_streaming) {
         if (muxer_support_streaming(cfg->muxer_type)) {
             cfg->data_cb = muxer_data_reached;
-            cfg->ctx = muxer_path;
         } else {
             ESP_LOGW(TAG, "Muxer type %d does not support streaming", cfg->muxer_type);
             muxer_path->enable_streaming = false;
         }
     }
     muxer_path->muxer = esp_muxer_open(cfg, muxer_path->muxer_cfg.cfg_size);
+    // Restore user context
+    cfg->url_pattern_ex = pattern_ex;
+    cfg->ctx = ctx;
     if (muxer_path->muxer == NULL) {
         ESP_LOGE(TAG, "Fail to open muxer");
         cfg->muxer_type = INVALID_MUXER_TYPE;
