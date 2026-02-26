@@ -503,10 +503,6 @@ static void audio_el_inst_deinit(audio_el_res_t *res)
         }
         memset(res->out_inst, 0, sizeof(audio_el_out_test_t) * res->out_port_num);
     }
-    if (res->cfg_task_hd) {
-        vTaskDelete(res->cfg_task_hd);
-        res->cfg_task_hd = NULL;
-    }
 }
 
 static void test_element_run_stop(audio_el_res_t *res)
@@ -522,9 +518,12 @@ static void test_element_run_stop(audio_el_res_t *res)
     }
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res->pipe));
     vTaskDelay(2000 / portTICK_RATE_MS);
+    res->is_end = true;
+    while (res->cfg_task_hd != NULL) {
+        vTaskDelay(10 / portTICK_RATE_MS);
+    }
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
     xEventGroupWaitBits(res->pipe_sync_evt, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
-    res->is_end = true;
     // Test in acquire and in release count should be equal
     for (uint32_t i = 0; i < res->in_port_num; i++) {
         ESP_LOGI(TAG, "In port %ld acquire count %ld, release count %ld", i, res->in_inst[i].in_acquire_count, res->in_inst[i].in_release_count);
@@ -551,6 +550,10 @@ static void test_element_run_finish(audio_el_res_t *res)
     }
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res->pipe));
     char *el_name = OBJ_GET_TAG(res->current_hd[0]);
+    res->is_end = true;
+    while (res->cfg_task_hd != NULL) {
+        vTaskDelay(10 / portTICK_RATE_MS);
+    }
     // Mixer need to stop by user
     if (strcmp(el_name, "aud_mixer") == 0) {
         vTaskDelay(6000 / portTICK_RATE_MS);
@@ -559,7 +562,6 @@ static void test_element_run_finish(audio_el_res_t *res)
         xEventGroupWaitBits(res->pipe_sync_evt, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
     }
-    res->is_end = true;
     // Test in acquire and in release count should be equal
     for (uint32_t i = 0; i < res->in_port_num; i++) {
         ESP_LOGI(TAG, "In port %ld acquire count %ld, release count %ld", i, res->in_inst[i].in_acquire_count, res->in_inst[i].in_release_count);
@@ -589,8 +591,11 @@ static void test_element_run_error_open(audio_el_res_t *res)
     }
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res->pipe));
     vTaskDelay(2000 / portTICK_RATE_MS);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
     res->is_end = true;
+    while (res->cfg_task_hd != NULL) {
+        vTaskDelay(10 / portTICK_RATE_MS);
+    }
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
     audio_el_inst_deinit(res);
 }
 
@@ -614,8 +619,11 @@ static void test_element_run_error_process(audio_el_res_t *res)
     }
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res->pipe));
     vTaskDelay(2000 / portTICK_RATE_MS);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
     res->is_end = true;
+    while (res->cfg_task_hd != NULL) {
+        vTaskDelay(10 / portTICK_RATE_MS);
+    }
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
     audio_el_inst_deinit(res);
 }
 
@@ -655,10 +663,13 @@ static void test_element_run_with_multi_task(audio_el_res_cfg_t *cfg, void (*con
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res1->pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res2->pipe));
     vTaskDelay(2000 / portTICK_RATE_MS);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res1->pipe));
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res2->pipe));
     res1->is_end = true;
     res2->is_end = true;
+    while (res1->cfg_task_hd != NULL || res2->cfg_task_hd != NULL) {
+        vTaskDelay(10 / portTICK_RATE_MS);
+    }
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res1->pipe));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res2->pipe));
     audio_el_inst_deinit(res1);
     audio_el_inst_deinit(res2);
     audio_el_res_deinit(res1);

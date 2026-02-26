@@ -421,7 +421,7 @@ TEST_CASE("Audio mixer Play", "[ESP_GMF_Effects]")
     esp_gmf_pipeline_handle_t pipe1 = NULL;
     const char *name1[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt", "aud_bit_cvt"};
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name1, sizeof(name1) / sizeof(char *), NULL, &pipe1));
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe1, "/sdcard/test1.mp3"));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe1, "/sdcard/gmf_ut_test1.mp3"));
     esp_gmf_element_handle_t dec_el = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe1, "aud_dec", &dec_el));
     esp_gmf_info_sound_t info = {
@@ -432,7 +432,7 @@ TEST_CASE("Audio mixer Play", "[ESP_GMF_Effects]")
     esp_gmf_pipeline_handle_t pipe2 = NULL;
     const char *name2[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt", "aud_bit_cvt"};
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_file", name2, sizeof(name2) / sizeof(char *), NULL, &pipe2));
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe2, "/sdcard/test.mp3"));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_in_uri(pipe2, "/sdcard/gmf_ut_test.mp3"));
     dec_el = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_el_by_name(pipe2, "aud_dec", &dec_el));
     esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);
