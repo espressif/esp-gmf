@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.11
+
+### Features
+
+- Updated dependency `esp_muxer` to v1.2
+
+### Bug Fixes
+
+- Fixed user muxer url pattern context is overwrote
+
 ## v0.7.10
 
 ### Features
