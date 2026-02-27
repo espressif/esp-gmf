@@ -84,13 +84,13 @@ static esp_gmf_job_err_t esp_gmf_alc_open(esp_gmf_element_handle_t self, void *p
     alc->bytes_per_sample = (config->bits_per_sample >> 3) * config->channel;
     esp_ae_alc_open(config, &alc->alc_hd);
     ESP_GMF_CHECK(TAG, alc->alc_hd, { return ESP_GMF_JOB_ERR_FAIL;}, "Failed to create alc handle");
-    GMF_AUDIO_UPDATE_SND_INFO(self, config->sample_rate, config->bits_per_sample, config->channel);
     for (size_t i = 0; i < config->channel; i++) {
         esp_ae_err_t ret = esp_ae_alc_set_gain(alc->alc_hd, i, alc->gain[i]);
         if (ret != ESP_AE_ERR_OK) {
             return ESP_GMF_JOB_ERR_FAIL;
         }
     }
+    GMF_AUDIO_UPDATE_SND_INFO(self, config->sample_rate, config->bits_per_sample, config->channel);
     alc->need_reopen = false;
     ESP_LOGD(TAG, "Open, %p", self);
     return ESP_GMF_JOB_ERR_OK;

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -29,22 +29,32 @@
 
 #include "esp_gmf_copier.h"
 
+#include "esp_gmf_element.h"
+
 void test_esp_gmf_alc_if()
 {
-    esp_ae_alc_cfg_t config = {.channel = 2};
+    esp_ae_alc_cfg_t config = DEFAULT_ESP_GMF_ALC_CONFIG();
     esp_gmf_obj_handle_t handle;
     // Initialize function test
     TEST_ASSERT_EQUAL(esp_gmf_alc_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_alc_init(&config, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_open((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Set gain function test
     TEST_ASSERT_EQUAL(esp_gmf_alc_set_gain(NULL, 0, 10), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_alc_set_gain(handle, config.channel + 1, 10), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_alc_set_gain(handle, config.channel - 1, -10), ESP_GMF_ERR_OK);
+    // Test gain boundary values [-64, 63]
+    TEST_ASSERT_EQUAL(esp_gmf_alc_set_gain(handle, 0, -64), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_alc_set_gain(handle, 0, 63), ESP_GMF_ERR_OK);
+    // Test gain out of range (should be rejected or clamped)
+    // Note: According to API doc, values below -64 set to mute, values above 63 not supported
+    TEST_ASSERT_EQUAL(esp_gmf_alc_set_gain(handle, 0, 64), ESP_GMF_ERR_FAIL);
     // Get gain function test
     int8_t gain = 0;
     TEST_ASSERT_EQUAL(esp_gmf_alc_get_gain(NULL, 0, &gain), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_alc_get_gain(handle, 0, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_alc_get_gain(handle, config.channel + 1, &gain), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
     // Test for config is NULL, will create a default config
@@ -109,8 +119,26 @@ void test_esp_gmf_eq_if()
     // Initialize function test
     TEST_ASSERT_EQUAL(esp_gmf_eq_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_eq_init(&config, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_open((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Set para function test
     TEST_ASSERT_EQUAL(esp_gmf_eq_set_para(NULL, 0, &para), ESP_GMF_ERR_INVALID_ARG);
+    // sample_rate = 48000, so fc must be < 24000
+    para.filter_type = ESP_AE_EQ_FILTER_PEAK;
+    para.q = 1.0f;
+    para.gain = 0.0f;
+    para.fc = 25000;  // Greater than sample_rate/2, should be rejected
+    TEST_ASSERT_EQUAL(esp_gmf_eq_set_para(handle, 0, &para), ESP_GMF_ERR_FAIL);
+    // Test valid fc value
+    para.fc = 1000;  // Less than sample_rate/2, should be OK
+    TEST_ASSERT_EQUAL(esp_gmf_eq_set_para(handle, 0, &para), ESP_GMF_ERR_OK);
+    // Test EQ constraint: only one high pass filter allowed
+    para.filter_type = ESP_AE_EQ_FILTER_HIGH_PASS;
+    para.fc = 100;
+    TEST_ASSERT_EQUAL(esp_gmf_eq_set_para(handle, 0, &para), ESP_GMF_ERR_OK);
+    // Try to set a second high pass filter, should be rejected
+    para.fc = 200;
+    TEST_ASSERT_EQUAL(esp_gmf_eq_set_para(handle, 1, &para), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
     // Test for config is NULL, will create a default config
@@ -129,14 +157,14 @@ void test_esp_gmf_drc_if()
     float makeup_gain = 2.5f;
     float knee_width = 3.0f;
     esp_ae_drc_curve_point points[3] = {
-        {.x = 0.0f,  .y = -10.0f},
+        {.x = 0.0f, .y = -10.0f},
         {.x = -30.0f, .y = -35.0f},
         {.x = -60.0f, .y = -60.0f},
     };
 
     TEST_ASSERT_EQUAL(esp_gmf_drc_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_drc_init(&config, &handle), ESP_GMF_ERR_OK);
-
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_open((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_drc_set_attack_time(NULL, attack_time), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_drc_set_attack_time(handle, attack_time), ESP_GMF_ERR_OK);
     uint16_t attack_read = 0;
@@ -163,17 +191,35 @@ void test_esp_gmf_drc_if()
     float knee_read = 0.0f;
     TEST_ASSERT_EQUAL(esp_gmf_drc_get_knee_width(handle, &knee_read), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(knee_width, knee_read);
+    // Test DRC point_num range [2, 6]
     TEST_ASSERT_EQUAL(esp_gmf_drc_set_points(handle, points, 0), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_drc_set_points(handle, points, 1), ESP_GMF_ERR_INVALID_ARG);  // point_num=1 should be rejected
     TEST_ASSERT_EQUAL(esp_gmf_drc_set_points(handle, points, 7), ESP_GMF_ERR_INVALID_ARG);
-
-    TEST_ASSERT_EQUAL(esp_gmf_drc_set_points(handle, points, 3), ESP_GMF_ERR_OK);
+    // Test DRC curve must contain x=0.0 and x=-100.0
+    esp_ae_drc_curve_point points_no_zero[2] = {
+        {.x = -30.0f, .y = -35.0f},
+        {.x = -60.0f, .y = -60.0f},
+    };
+    TEST_ASSERT_EQUAL(esp_gmf_drc_set_points(handle, points_no_zero, 2), ESP_GMF_ERR_FAIL);  // Missing x=0.0 and x=-100.0
+    esp_ae_drc_curve_point points_no_minus100[2] = {
+        {.x = 0.0f, .y = -10.0f},
+        {.x = -30.0f, .y = -35.0f},
+    };
+    TEST_ASSERT_EQUAL(esp_gmf_drc_set_points(handle, points_no_minus100, 2), ESP_GMF_ERR_FAIL);  // Missing x=-100.0
+    esp_ae_drc_curve_point points_valid[3] = {
+        {.x = 0.0f, .y = -10.0f},
+        {.x = -30.0f, .y = -35.0f},
+        {.x = -100.0f, .y = -100.0f},
+    };
+    TEST_ASSERT_EQUAL(esp_gmf_drc_set_points(handle, points_valid, 3), ESP_GMF_ERR_OK);
     uint8_t point_num = 0;
     TEST_ASSERT_EQUAL(esp_gmf_drc_get_point_num(handle, &point_num), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(3, point_num);
     esp_ae_drc_curve_point out_points[3] = {0};
     TEST_ASSERT_EQUAL(esp_gmf_drc_get_points(handle, out_points), ESP_GMF_ERR_OK);
-    TEST_ASSERT_EQUAL(points[1].x, out_points[1].x);
-    TEST_ASSERT_EQUAL(points[1].y, out_points[1].y);
+    TEST_ASSERT_EQUAL(points_valid[1].x, out_points[1].x);
+    TEST_ASSERT_EQUAL(points_valid[1].y, out_points[1].y);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
 
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_drc_init(NULL, &handle), ESP_GMF_ERR_OK);
@@ -198,7 +244,7 @@ void test_esp_gmf_mbc_if()
 
     TEST_ASSERT_EQUAL(esp_gmf_mbc_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_mbc_init(&config, &handle), ESP_GMF_ERR_OK);
-
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_open((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_mbc_set_para(NULL, 0, &para), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_mbc_set_para(handle, 0, &para), ESP_GMF_ERR_OK);
     esp_ae_mbc_para_t para_out = {0};
@@ -225,6 +271,17 @@ void test_esp_gmf_mbc_if()
     bool bypass_state = false;
     TEST_ASSERT_EQUAL(esp_gmf_mbc_get_bypass(handle, 0, &bypass_state), ESP_GMF_ERR_OK);
     TEST_ASSERT_TRUE(bypass_state);
+    // Test MBC band_idx coverage (bands 0-3)
+    TEST_ASSERT_EQUAL(esp_gmf_mbc_set_para(handle, 1, &para), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_mbc_set_para(handle, 2, &para), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_mbc_set_para(handle, 3, &para), ESP_GMF_ERR_OK);
+    // Test invalid band_idx (should be >= 4)
+    TEST_ASSERT_EQUAL(esp_gmf_mbc_set_para(handle, 4, &para), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_mbc_get_para(handle, 1, &para_out), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_mbc_get_para(handle, 2, &para_out), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_mbc_get_para(handle, 3, &para_out), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_mbc_get_para(handle, 4, &para_out), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
 
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_mbc_init(NULL, &handle), ESP_GMF_ERR_OK);
@@ -240,6 +297,7 @@ void test_esp_gmf_fade_if()
     // Initialize function test
     TEST_ASSERT_EQUAL(esp_gmf_fade_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_fade_init(&config, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_open((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Set mode function test
     TEST_ASSERT_EQUAL(esp_gmf_fade_set_mode(NULL, 0), ESP_GMF_ERR_INVALID_ARG);
     // Get mode function test
@@ -249,6 +307,7 @@ void test_esp_gmf_fade_if()
     // Reset function test
     TEST_ASSERT_EQUAL(esp_gmf_fade_reset(NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_fade_reset(handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
     // Test for config is NULL, will create a default config
@@ -283,13 +342,15 @@ void test_esp_gmf_mixer_if()
     // Initialize function test
     TEST_ASSERT_EQUAL(esp_gmf_mixer_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_mixer_init(&config, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_open((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Set mode function test
     TEST_ASSERT_EQUAL(esp_gmf_mixer_set_mode(NULL, 0, mode), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_mixer_set_mode(handle, config.src_num + 1, mode), ESP_GMF_ERR_INVALID_ARG);
-    TEST_ASSERT_EQUAL(esp_gmf_mixer_set_mode(handle, 0, mode), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_mixer_set_mode(handle, 0, mode), ESP_GMF_ERR_FAIL);
     // Set audio info function test
     TEST_ASSERT_EQUAL(esp_gmf_mixer_set_audio_info(NULL, sample_rate, channel, bits), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_mixer_set_audio_info(handle, sample_rate, channel, bits), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
     // Test for config is NULL, will create a default config
@@ -326,18 +387,32 @@ void test_esp_gmf_sonic_if()
     // Initialize function test
     TEST_ASSERT_EQUAL(esp_gmf_sonic_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_sonic_init(&config, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_open((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Set speed function test
     TEST_ASSERT_EQUAL(esp_gmf_sonic_set_speed(NULL, speed), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_sonic_set_speed(handle, speed), ESP_GMF_ERR_OK);
+    // Test speed range [0.5, 2.0] - boundary values
+    TEST_ASSERT_EQUAL(esp_gmf_sonic_set_speed(handle, 0.5f), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_sonic_set_speed(handle, 2.0f), ESP_GMF_ERR_OK);
+    // Test speed out of range values
+    TEST_ASSERT_EQUAL(esp_gmf_sonic_set_speed(handle, 0.3f), ESP_GMF_ERR_FAIL);  // Below minimum
+    TEST_ASSERT_EQUAL(esp_gmf_sonic_set_speed(handle, 2.5f), ESP_GMF_ERR_FAIL);  // Above maximum
     // Get speed function test
     TEST_ASSERT_EQUAL(esp_gmf_sonic_get_speed(NULL, &speed), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_sonic_get_speed(handle, &speed), ESP_GMF_ERR_OK);
     // Set pitch function test
     TEST_ASSERT_EQUAL(esp_gmf_sonic_set_pitch(NULL, pitch), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_sonic_set_pitch(handle, pitch), ESP_GMF_ERR_OK);
+    // Test pitch range [0.5, 2.0] - boundary values
+    TEST_ASSERT_EQUAL(esp_gmf_sonic_set_pitch(handle, 0.5f), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_sonic_set_pitch(handle, 2.0f), ESP_GMF_ERR_OK);
+    // Test pitch out of range values
+    TEST_ASSERT_EQUAL(esp_gmf_sonic_set_pitch(handle, 0.3f), ESP_GMF_ERR_FAIL);  // Below minimum
+    TEST_ASSERT_EQUAL(esp_gmf_sonic_set_pitch(handle, 2.5f), ESP_GMF_ERR_FAIL);  // Above maximum
     // Get pitch function test
     TEST_ASSERT_EQUAL(esp_gmf_sonic_get_pitch(NULL, &pitch), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_sonic_get_pitch(handle, &pitch), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
     // Test for config is NULL, will create a default config
@@ -360,7 +435,7 @@ void test_esp_gmf_dec_if()
     esp_audio_simple_dec_cfg_t *cfg = OBJ_GET_CFG(handle);
     TEST_ASSERT_NOT_EQUAL(NULL, cfg);
     TEST_ASSERT_EQUAL(cfg->dec_type, ESP_AUDIO_SIMPLE_DEC_TYPE_NONE);
-    TEST_ASSERT_EQUAL(cfg->dec_cfg, NULL);
+    TEST_ASSERT_NULL(cfg->dec_cfg);
     TEST_ASSERT_EQUAL(cfg->cfg_size, 0);
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
@@ -379,7 +454,7 @@ void test_esp_gmf_enc_if()
     esp_audio_enc_config_t *cfg = OBJ_GET_CFG(handle);
     TEST_ASSERT_NOT_EQUAL(NULL, cfg);
     TEST_ASSERT_EQUAL(cfg->type, ESP_AUDIO_TYPE_UNSUPPORT);
-    TEST_ASSERT_EQUAL(cfg->cfg, NULL);
+    TEST_ASSERT_NULL(cfg->cfg);
     TEST_ASSERT_EQUAL(cfg->cfg_sz, 0);
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }

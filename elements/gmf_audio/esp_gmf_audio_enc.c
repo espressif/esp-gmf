@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
  * See LICENSE file for details.
@@ -33,7 +33,6 @@ typedef struct {
     esp_gmf_audio_element_t parent;          /*!< The GMF audio encoder handle */
     esp_audio_enc_handle_t  audio_enc_hd;    /*!< The audio encoder handle */
     esp_gmf_cache_t        *cached_payload;  /*!< A Cached payload for data concatenation */
-    uint32_t                bitrate;         /*!< The bitrate of the encoded data */
     esp_gmf_payload_t      *origin_in_load;  /*!< The original input payload */
     int64_t                 cur_pts;         /*!< The audio Presentation Time Stamp(pts) */
 } esp_gmf_audio_enc_t;
@@ -192,6 +191,133 @@ static esp_gmf_err_t audio_enc_set_subcfg(esp_audio_enc_config_t *enc_cfg, void 
     return ESP_GMF_ERR_OK;
 }
 
+static inline esp_gmf_err_t audio_enc_set_bitrate_to_cfg(esp_audio_enc_config_t *enc_cfg, uint32_t bitrate)
+{
+    ESP_GMF_NULL_CHECK(TAG, enc_cfg, return ESP_GMF_ERR_INVALID_ARG);
+    if (enc_cfg->cfg == NULL) {
+        ESP_LOGE(TAG, "Encoder sub-config is NULL, cannot set bitrate");
+        return ESP_GMF_ERR_FAIL;
+    }
+    switch (enc_cfg->type) {
+        case ESP_AUDIO_TYPE_AAC: {
+            esp_aac_enc_config_t *aac_enc_cfg = (esp_aac_enc_config_t *)enc_cfg->cfg;
+            aac_enc_cfg->bitrate = bitrate;
+            break;
+        }
+        case ESP_AUDIO_TYPE_AMRNB: {
+            esp_amrnb_enc_config_t *amr_enc_cfg = (esp_amrnb_enc_config_t *)enc_cfg->cfg;
+            amr_enc_cfg->bitrate_mode = bitrate;
+            break;
+        }
+        case ESP_AUDIO_TYPE_AMRWB: {
+            esp_amrwb_enc_config_t *amr_enc_cfg = (esp_amrwb_enc_config_t *)enc_cfg->cfg;
+            amr_enc_cfg->bitrate_mode = bitrate;
+            break;
+        }
+        case ESP_AUDIO_TYPE_OPUS: {
+            esp_opus_enc_config_t *opus_enc_cfg = (esp_opus_enc_config_t *)enc_cfg->cfg;
+            opus_enc_cfg->bitrate = bitrate;
+            break;
+        }
+        case ESP_AUDIO_TYPE_LC3: {
+            esp_lc3_enc_config_t *lc3_enc_cfg = (esp_lc3_enc_config_t *)enc_cfg->cfg;
+            uint32_t tmp = bitrate * lc3_enc_cfg->frame_dms;
+            lc3_enc_cfg->nbyte = (lc3_enc_cfg->sample_rate == 44100) ? (tmp / 73500) : (tmp / 80000);
+            break;
+        }
+        case ESP_AUDIO_TYPE_SBC: {
+            esp_sbc_enc_config_t *sbc_enc_cfg = (esp_sbc_enc_config_t *)enc_cfg->cfg;
+            if (sbc_enc_cfg->sbc_mode == ESP_SBC_MODE_MSBC) {
+                sbc_enc_cfg->bitpool = 26;
+                break;
+            }
+            if (sbc_enc_cfg->sample_rate == 0 || sbc_enc_cfg->block_length == 0 || sbc_enc_cfg->sub_bands_num == 0) {
+                ESP_LOGE(TAG, "Invalid SBC parameters for bitrate calculation: sample_rate: %ld, block_length: %d, sub_bands_num: %d",
+                         sbc_enc_cfg->sample_rate, sbc_enc_cfg->block_length, sbc_enc_cfg->sub_bands_num);
+                return ESP_GMF_ERR_INVALID_ARG;
+            }
+            int bitpool = 0;
+            int channel = ((sbc_enc_cfg->ch_mode == ESP_SBC_CH_MODE_MONO) ? (1) : (2));
+            if ((sbc_enc_cfg->ch_mode == ESP_SBC_CH_MODE_STEREO) || (sbc_enc_cfg->ch_mode == ESP_SBC_CH_MODE_JOINT_STEREO)) {
+                int bitnum_per_subband = bitrate * sbc_enc_cfg->sub_bands_num / sbc_enc_cfg->sample_rate;
+                bitpool = bitnum_per_subband - ((32 + (sbc_enc_cfg->sub_bands_num * channel << 2) + ((sbc_enc_cfg->ch_mode - 2) * sbc_enc_cfg->sub_bands_num)) / sbc_enc_cfg->block_length);
+            } else {
+                int bitnum_per_subband = bitrate * sbc_enc_cfg->sub_bands_num / (sbc_enc_cfg->sample_rate);
+                bitpool = bitnum_per_subband - (((32) + (sbc_enc_cfg->sub_bands_num << 2)) / sbc_enc_cfg->block_length);
+            }
+            sbc_enc_cfg->bitpool = (uint16_t)bitpool;
+            break;
+        }
+        default:
+            break;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
+static inline esp_gmf_err_t audio_enc_get_bitrate_from_cfg(esp_audio_enc_config_t *enc_cfg, uint32_t *bitrate)
+{
+    ESP_GMF_NULL_CHECK(TAG, enc_cfg, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, bitrate, return ESP_GMF_ERR_INVALID_ARG);
+    if (enc_cfg->cfg == NULL) {
+        ESP_LOGE(TAG, "Encoder sub-config is NULL, cannot get bitrate");
+        return ESP_GMF_ERR_FAIL;
+    }
+    switch (enc_cfg->type) {
+        case ESP_AUDIO_TYPE_AAC: {
+            esp_aac_enc_config_t *aac_enc_cfg = (esp_aac_enc_config_t *)enc_cfg->cfg;
+            *bitrate = aac_enc_cfg->bitrate;
+            break;
+        }
+        case ESP_AUDIO_TYPE_AMRNB: {
+            esp_amrnb_enc_config_t *amr_enc_cfg = (esp_amrnb_enc_config_t *)enc_cfg->cfg;
+            *bitrate = amr_enc_cfg->bitrate_mode;
+            break;
+        }
+        case ESP_AUDIO_TYPE_AMRWB: {
+            esp_amrwb_enc_config_t *amr_enc_cfg = (esp_amrwb_enc_config_t *)enc_cfg->cfg;
+            *bitrate = amr_enc_cfg->bitrate_mode;
+            break;
+        }
+        case ESP_AUDIO_TYPE_OPUS: {
+            esp_opus_enc_config_t *opus_enc_cfg = (esp_opus_enc_config_t *)enc_cfg->cfg;
+            *bitrate = opus_enc_cfg->bitrate;
+            break;
+        }
+        case ESP_AUDIO_TYPE_LC3: {
+            esp_lc3_enc_config_t *lc3_enc_cfg = (esp_lc3_enc_config_t *)enc_cfg->cfg;
+            if (lc3_enc_cfg->frame_dms == 0) {
+                ESP_LOGE(TAG, "Invalid LC3 parameters for bitrate calculation: frame_dms: %d", lc3_enc_cfg->frame_dms);
+                return ESP_GMF_ERR_INVALID_ARG;
+            }
+            uint32_t denominator = (lc3_enc_cfg->sample_rate == 44100) ? 73500 : 80000;
+            *bitrate = (lc3_enc_cfg->nbyte * denominator) / lc3_enc_cfg->frame_dms;
+            break;
+        }
+        case ESP_AUDIO_TYPE_SBC: {
+            esp_sbc_enc_config_t *sbc_enc_cfg = (esp_sbc_enc_config_t *)enc_cfg->cfg;
+            if (sbc_enc_cfg->sbc_mode == ESP_SBC_MODE_MSBC) {
+                *bitrate = 64000;
+            } else {
+                if (sbc_enc_cfg->sub_bands_num == 0 || sbc_enc_cfg->block_length == 0) {
+                    ESP_LOGE(TAG, "Invalid SBC parameters for bitrate calculation: sub_bands_num: %d, block_length: %d",
+                             sbc_enc_cfg->sub_bands_num, sbc_enc_cfg->block_length);
+                    return ESP_GMF_ERR_INVALID_ARG;
+                }
+                esp_audio_enc_frame_info_t frame_info = {0};
+                esp_audio_err_t ret = esp_audio_enc_get_frame_info_by_cfg(enc_cfg, &frame_info);
+                ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to get SBC frame info");
+                *bitrate = (frame_info.out_frame_size * sbc_enc_cfg->sample_rate << 3) / (sbc_enc_cfg->sub_bands_num * sbc_enc_cfg->block_length);
+            }
+            break;
+        }
+        default: {
+            *bitrate = 0;
+            break;
+        }
+    }
+    return ESP_GMF_ERR_OK;
+}
+
 static esp_gmf_err_t audio_enc_reconfig_enc_by_sound_info(esp_gmf_element_handle_t handle, esp_gmf_info_sound_t *info)
 {
     esp_audio_enc_config_t *cfg = (esp_audio_enc_config_t *)OBJ_GET_CFG(handle);
@@ -217,21 +343,21 @@ static esp_gmf_err_t audio_enc_reconfig_enc_by_sound_info(esp_gmf_element_handle
         case ESP_AUDIO_TYPE_AAC: {
             esp_aac_enc_config_t aac_enc_cfg = ESP_AAC_ENC_CONFIG_DEFAULT();
             SET_ENC_BASIC_INFO(&aac_enc_cfg, info);
-            aac_enc_cfg.bitrate = info->bitrate;
+            aac_enc_cfg.bitrate = (info->bitrate == 0) ? 90000 : info->bitrate;
             ret = audio_enc_set_subcfg(cfg, &aac_enc_cfg, sizeof(esp_aac_enc_config_t));
             break;
         }
         case ESP_AUDIO_TYPE_AMRNB: {
             esp_amrnb_enc_config_t amr_enc_cfg = ESP_AMRNB_ENC_CONFIG_DEFAULT();
             SET_ENC_BASIC_INFO(&amr_enc_cfg, info);
-            amr_enc_cfg.bitrate_mode = info->bitrate;
+            amr_enc_cfg.bitrate_mode = (info->bitrate == 0) ? 6700 : info->bitrate;
             ret = audio_enc_set_subcfg(cfg, &amr_enc_cfg, sizeof(esp_amrnb_enc_config_t));
             break;
         }
         case ESP_AUDIO_TYPE_AMRWB: {
             esp_amrnb_enc_config_t amr_enc_cfg = ESP_AMRNB_ENC_CONFIG_DEFAULT();
             SET_ENC_BASIC_INFO(&amr_enc_cfg, info);
-            amr_enc_cfg.bitrate_mode = info->bitrate;
+            amr_enc_cfg.bitrate_mode = (info->bitrate == 0) ? 8850 : info->bitrate;
             ret = audio_enc_set_subcfg(cfg, &amr_enc_cfg, sizeof(esp_amrnb_enc_config_t));
             break;
         }
@@ -262,7 +388,7 @@ static esp_gmf_err_t audio_enc_reconfig_enc_by_sound_info(esp_gmf_element_handle
         case ESP_AUDIO_TYPE_OPUS: {
             esp_opus_enc_config_t opus_enc_cfg = ESP_OPUS_ENC_CONFIG_DEFAULT();
             SET_ENC_BASIC_INFO(&opus_enc_cfg, info);
-            opus_enc_cfg.bitrate = info->bitrate;
+            opus_enc_cfg.bitrate = (info->bitrate == 0) ? 64000 : info->bitrate;
             ret = audio_enc_set_subcfg(cfg, &opus_enc_cfg, sizeof(esp_opus_enc_config_t));
             break;
         }
@@ -310,7 +436,12 @@ static esp_gmf_job_err_t gmf_audio_enc_acquire_in(esp_gmf_audio_enc_t *audio_enc
         ESP_GMF_PORT_ACQUIRE_IN_CHECK(TAG, load_ret, job_ret, return job_ret);
         int cache_size = 0;
         esp_gmf_cache_get_cached_size(audio_enc->cached_payload, &cache_size);
-        audio_enc->cur_pts = audio_enc->origin_in_load->pts - GMF_AUDIO_CALC_PTS(cache_size, audio_enc->parent.snd_info.sample_rates, audio_enc->parent.snd_info.channels, audio_enc->parent.snd_info.bits);
+        uint32_t cache_dur = GMF_AUDIO_CALC_PTS(cache_size, audio_enc->parent.snd_info.sample_rates, audio_enc->parent.snd_info.channels, audio_enc->parent.snd_info.bits);
+        if (audio_enc->origin_in_load->pts > cache_dur) {
+            audio_enc->cur_pts = audio_enc->origin_in_load->pts - cache_dur;
+        } else {
+            audio_enc->cur_pts = 0;
+        }
         esp_gmf_cache_load(audio_enc->cached_payload, audio_enc->origin_in_load);
     }
     esp_gmf_err_t ret = esp_gmf_cache_acquire(audio_enc->cached_payload, ESP_GMF_ELEMENT_GET(audio_enc)->in_attr.data_size, in_load);
@@ -399,7 +530,7 @@ static esp_gmf_job_err_t esp_gmf_audio_enc_process(esp_gmf_element_handle_t self
     ESP_GMF_RET_ON_ERROR(TAG, ret, {out_len = ESP_GMF_JOB_ERR_FAIL; goto __audio_enc_release;}, "Audio encoder process error %d", ret);
     out_load->valid_size = enc_out_frame.encoded_bytes;
     out_load->is_done = in_load->is_done;
-    out_load->pts = audio_enc->cur_pts;
+    out_load->pts = in_load->pts == 0 ? enc_out_frame.pts : audio_enc->cur_pts;
     audio_enc->cur_pts += GMF_AUDIO_CALC_PTS(enc_in_frame.len, audio_enc->parent.snd_info.sample_rates, audio_enc->parent.snd_info.channels, audio_enc->parent.snd_info.bits);
     // Handle end of stream
     if (in_load->is_done) {
@@ -599,28 +730,63 @@ esp_gmf_err_t esp_gmf_audio_enc_set_bitrate(esp_gmf_element_handle_t handle, uin
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_audio_enc_t *enc = (esp_gmf_audio_enc_t *)handle;
+    esp_gmf_err_t gmf_ret = ESP_GMF_ERR_OK;
     if (enc->audio_enc_hd) {
         esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
         esp_audio_err_t ret = esp_audio_enc_set_bitrate(enc->audio_enc_hd, (int)bitrate);
+        do {
+            if (ret == ESP_AUDIO_ERR_NOT_SUPPORT) {
+                break;
+            }
+            ESP_GMF_RET_ON_NOT_OK(TAG, ret, break, "Failed to set bitrate");
+            ret = esp_audio_enc_get_frame_size(enc->audio_enc_hd, &ESP_GMF_ELEMENT_GET(enc)->in_attr.data_size,
+                                               &ESP_GMF_ELEMENT_GET(enc)->out_attr.data_size);
+            ESP_GMF_RET_ON_NOT_OK(TAG, ret, break, "Failed to get frame size");
+        } while (0);
         esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        return ((ret == ESP_AUDIO_ERR_OK) ? (ESP_GMF_ERR_OK) : (ESP_GMF_ERR_FAIL));
+        if (ret != ESP_AUDIO_ERR_OK) {
+            return (ret == ESP_AUDIO_ERR_NOT_SUPPORT) ? (ESP_GMF_ERR_OK) : (ESP_GMF_ERR_FAIL);
+        }
+    } else {
+        // Open encoder handle to check bitrate validity
+        esp_audio_enc_handle_t audio_enc_hd = NULL;
+        esp_audio_enc_config_t *new_config = NULL;
+        esp_audio_enc_config_t *config = (esp_audio_enc_config_t *)OBJ_GET_CFG(handle);
+        ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
+        gmf_ret = dupl_esp_gmf_audio_enc_cfg(config, &new_config);
+        ESP_GMF_RET_ON_NOT_OK(TAG, gmf_ret, {return gmf_ret;}, "Failed to duplicate config");
+        do {
+            gmf_ret = audio_enc_set_bitrate_to_cfg(new_config, bitrate);
+            ESP_GMF_RET_ON_NOT_OK(TAG, gmf_ret, break, "Failed to set bitrate to new config");
+            esp_audio_err_t ret = esp_audio_enc_open(new_config, &audio_enc_hd);
+            gmf_ret = (ret == ESP_AUDIO_ERR_OK) ? (ESP_GMF_ERR_OK) : (ESP_GMF_ERR_FAIL);
+            ESP_GMF_RET_ON_NOT_OK(TAG, ret, break, "Failed to open encoder handle on set bitrate");
+        } while (0);
+        esp_audio_enc_close(audio_enc_hd);
+        free_esp_gmf_audio_enc_cfg(new_config);
+        if (gmf_ret != ESP_GMF_ERR_OK) {
+            return ESP_GMF_ERR_FAIL;
+        }
     }
-    enc->bitrate = bitrate;
-    return ESP_GMF_JOB_ERR_OK;
+    gmf_ret = audio_enc_set_bitrate_to_cfg(OBJ_GET_CFG(handle), bitrate);
+    return gmf_ret;
 }
 
 esp_gmf_err_t esp_gmf_audio_enc_get_bitrate(esp_gmf_element_handle_t handle, uint32_t *bitrate)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_audio_enc_t *enc = (esp_gmf_audio_enc_t *)handle;
+    *bitrate = 0;
     if (enc->audio_enc_hd) {
         esp_audio_enc_info_t enc_info = {0};
         esp_audio_err_t ret = esp_audio_enc_get_info(enc->audio_enc_hd, &enc_info);
+        ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ESP_GMF_ERR_FAIL, "Failed to get bitrate");
         *bitrate = enc_info.bitrate;
-        return ((ret == ESP_AUDIO_ERR_OK) ? (ESP_GMF_ERR_OK) : (ESP_GMF_ERR_FAIL));
+    } else {
+        esp_gmf_err_t ret = audio_enc_get_bitrate_from_cfg(OBJ_GET_CFG(handle), bitrate);
+        ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to get bitrate");
     }
-    *bitrate = enc->bitrate;
-    return ESP_GMF_JOB_ERR_OK;
+    return ESP_GMF_ERR_OK;
 }
 
 esp_gmf_err_t esp_gmf_audio_enc_reconfig(esp_gmf_element_handle_t handle, esp_audio_enc_config_t *config)

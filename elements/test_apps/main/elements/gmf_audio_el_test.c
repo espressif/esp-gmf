@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -48,8 +48,6 @@
 #include "esp_gmf_caps_def.h"
 #include "esp_gmf_method_helper.h"
 #include "gmf_loader_setup_defaults.h"
-#include "esp_gmf_audio_enc.h"
-#include "esp_gmf_audio_dec.h"
 #include "esp_gmf_bit_cvt.h"
 #include "esp_gmf_ch_cvt.h"
 #include "esp_gmf_eq.h"
@@ -106,19 +104,18 @@ extern const uint8_t test_flac_end[] asm("_binary_test_48000hz_16bit_2ch_5000ms_
 }
 
 typedef struct {
-    uint32_t  in_port_num;
-    uint32_t  out_port_num;
-    uint64_t *caps_cc;
-    uint8_t   el_cnt;
-    uint32_t  src_size;
-    void      (*config_func)(esp_gmf_element_handle_t, void *);
+    uint32_t   in_port_num;
+    uint32_t   out_port_num;
+    uint64_t  *caps_cc;
+    uint8_t    el_cnt;
+    uint32_t   src_size;
+    void       (*config_func)(esp_gmf_element_handle_t, void *);
 } audio_el_res_cfg_t;
 
 static void SAFE_FREE(void *ptr)
 {
     if (ptr) {
-        free(ptr);
-        ptr = NULL;
+        esp_gmf_oal_free(ptr);
     }
 }
 
@@ -142,11 +139,13 @@ static esp_err_t audio_el_pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 static void audio_el_cfg_task(void *pvParameters)
 {
     audio_el_res_t *res = (audio_el_res_t *)pvParameters;
+    res->is_first_open = true;
+    ESP_LOGI(TAG, "Cfg task start");
     while (!res->is_end) {
         if (res->config_func) {
             res->config_func(res->current_hd[0], res);
         }
-        vTaskDelay(500 / portTICK_RATE_MS);
+        vTaskDelay(50 / portTICK_RATE_MS);
     }
     ESP_LOGI(TAG, "Cfg task end");
     res->cfg_task_hd = NULL;
@@ -243,7 +242,7 @@ static esp_gmf_err_io_t audio_el_in_acquire(void *handle, esp_gmf_payload_t *loa
 {
     audio_el_in_test_t *in_inst = (audio_el_in_test_t *)handle;
     load->pts = in_inst->in_frame_count * 100;
-    sweep_data_t sweep_data;
+    sweep_data_t sweep_data = {0};
     esp_gmf_err_io_t ret = ESP_GMF_IO_OK;
     if (in_inst->is_done) {
         in_inst->in_acquire_count++;
@@ -284,23 +283,19 @@ static esp_gmf_err_io_t audio_el_out_acquire(void *handle, esp_gmf_payload_t *lo
 {
     audio_el_out_test_t *out_inst = (audio_el_out_test_t *)handle;
     out_inst->out_acquire_count++;
-    if (load->buf) {
-        out_inst->no_need_free = true;
-    } else {
-        if (wanted_size > out_inst->out_max_size) {
-            SAFE_FREE(out_inst->out_data);
-            out_inst->out_data = NULL;
-            uint8_t *new_buf = esp_gmf_oal_malloc_align(TEST_AUDIO_ALIGNMENT, wanted_size + TEST_AUDIO_ALIGNMENT);
-            if (new_buf == NULL) {
-                ESP_LOGE(TAG, "Fail to allocate %d bytes for output buffer", (int)wanted_size + TEST_AUDIO_ALIGNMENT);
-                return ESP_GMF_IO_FAIL;
-            }
-            out_inst->out_data = new_buf;
-            out_inst->out_max_size = wanted_size + TEST_AUDIO_ALIGNMENT;
+    if (wanted_size > out_inst->out_max_size) {
+        SAFE_FREE(out_inst->out_data);
+        out_inst->out_data = NULL;
+        uint8_t *new_buf = esp_gmf_oal_malloc_align(TEST_AUDIO_ALIGNMENT, wanted_size + TEST_AUDIO_ALIGNMENT);
+        if (new_buf == NULL) {
+            ESP_LOGE(TAG, "Fail to allocate %d bytes for output buffer", (int)wanted_size + TEST_AUDIO_ALIGNMENT);
+            return ESP_GMF_IO_FAIL;
         }
-        load->buf = out_inst->out_data;
-        load->buf_length = out_inst->out_max_size;
+        out_inst->out_data = new_buf;
+        out_inst->out_max_size = wanted_size + TEST_AUDIO_ALIGNMENT;
     }
+    load->buf = out_inst->out_data;
+    load->buf_length = out_inst->out_max_size;
     return ESP_GMF_IO_OK;
 }
 
@@ -355,6 +350,7 @@ static void audio_el_set_audio_info(audio_el_res_t *res)
         res->in_inst[i].change_info = true;
         res->in_inst[i].is_sweep_signal = true;
     }
+    res->is_do_open_set = false;
 }
 
 static void audio_el_pool_init(audio_el_res_t *res)
@@ -512,9 +508,9 @@ static void test_element_run_stop(audio_el_res_t *res)
 {
     ESP_LOGI(TAG, "Test_element_run_stop");
     audio_el_inst_init(res);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
     xTaskCreate(audio_el_cfg_task, "cfg_task", 10240, res, 6, &(res->cfg_task_hd));
     TEST_ASSERT_NOT_EQUAL(NULL, res->cfg_task_hd);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(res->pipe));
     for (uint32_t i = 0; i < res->in_port_num; i++) {
         esp_gmf_pipeline_report_info(res->pipe, ESP_GMF_INFO_SOUND, &res->in_inst[i].src_info, sizeof(res->in_inst[i].src_info));
@@ -544,26 +540,27 @@ static void test_element_run_finish(audio_el_res_t *res)
 {
     ESP_LOGI(TAG, "Test_element_run_finish");
     audio_el_inst_init(res);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
     xTaskCreate(audio_el_cfg_task, "cfg_task", 10240, res, 6, &(res->cfg_task_hd));
     TEST_ASSERT_NOT_EQUAL(NULL, res->cfg_task_hd);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(res->pipe));
     for (uint32_t i = 0; i < res->in_port_num; i++) {
         esp_gmf_pipeline_report_info(res->pipe, ESP_GMF_INFO_SOUND, &res->in_inst[i].src_info, sizeof(res->in_inst[i].src_info));
     }
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res->pipe));
     char *el_name = OBJ_GET_TAG(res->current_hd[0]);
-    res->is_end = true;
-    while (res->cfg_task_hd != NULL) {
-        vTaskDelay(10 / portTICK_RATE_MS);
-    }
     // Mixer need to stop by user
     if (strcmp(el_name, "aud_mixer") == 0) {
-        vTaskDelay(6000 / portTICK_RATE_MS);
+        vTaskDelay(2000 / portTICK_RATE_MS);
+        res->is_end = true;
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
     } else {
         xEventGroupWaitBits(res->pipe_sync_evt, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
+        res->is_end = true;
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
+    }
+    while (res->cfg_task_hd != NULL) {
+        vTaskDelay(10 / portTICK_RATE_MS);
     }
     // Test in acquire and in release count should be equal
     for (uint32_t i = 0; i < res->in_port_num; i++) {
@@ -578,14 +575,55 @@ static void test_element_run_finish(audio_el_res_t *res)
     audio_el_inst_deinit(res);
 }
 
+static void test_element_reopen_parameter_persistence(audio_el_res_t *res)
+{
+    ESP_LOGI(TAG, "Test_element_reopen_parameter_persistence");
+    audio_el_inst_init(res);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
+    xTaskCreate(audio_el_cfg_task, "cfg_task", 10240, res, 6, &(res->cfg_task_hd));
+    TEST_ASSERT_NOT_EQUAL(NULL, res->cfg_task_hd);
+    // First run: set parameters and open
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(res->pipe));
+    for (uint32_t i = 0; i < res->in_port_num; i++) {
+        esp_gmf_pipeline_report_info(res->pipe, ESP_GMF_INFO_SOUND, &res->in_inst[i].src_info, sizeof(res->in_inst[i].src_info));
+    }
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res->pipe));
+    vTaskDelay(1000 / portTICK_RATE_MS);
+    // Stop pipeline
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
+    xEventGroupWaitBits(res->pipe_sync_evt, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
+    // Reopen: reset and run again, parameters should be preserved
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
+    vTaskDelay(1000 / portTICK_RATE_MS);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(res->pipe));
+    for (uint32_t i = 0; i < res->in_port_num; i++) {
+        esp_gmf_pipeline_report_info(res->pipe, ESP_GMF_INFO_SOUND, &res->in_inst[i].src_info, sizeof(res->in_inst[i].src_info));
+    }
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res->pipe));
+    vTaskDelay(1000 / portTICK_RATE_MS);
+    res->is_end = true;
+    char *el_name = OBJ_GET_TAG(res->current_hd[0]);
+    if (strcmp(el_name, "aud_mixer") == 0) {
+        vTaskDelay(2000 / portTICK_RATE_MS);
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
+    } else {
+        xEventGroupWaitBits(res->pipe_sync_evt, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
+    }
+    while (res->cfg_task_hd != NULL) {
+        vTaskDelay(10 / portTICK_RATE_MS);
+    }
+    audio_el_inst_deinit(res);
+}
+
 static void test_element_run_error_open(audio_el_res_t *res)
 {
     ESP_LOGI(TAG, "Test_element_run_error_open");
     audio_el_set_audio_info(res);
     audio_el_inst_init(res);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
     xTaskCreate(audio_el_cfg_task, "cfg_task", 10240, res, 6, &(res->cfg_task_hd));
     TEST_ASSERT_NOT_EQUAL(NULL, res->cfg_task_hd);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(res->pipe));
     for (uint32_t i = 0; i < res->in_port_num; i++) {
         res->in_inst[i].src_info.bits = 20;
@@ -613,9 +651,9 @@ static void test_element_run_error_process(audio_el_res_t *res)
     }
     audio_el_set_audio_info(res);
     audio_el_inst_init(res);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
     xTaskCreate(audio_el_cfg_task, "cfg_task", 10240, res, 6, &(res->cfg_task_hd));
     TEST_ASSERT_NOT_EQUAL(NULL, res->cfg_task_hd);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(res->pipe));
     for (uint32_t i = 0; i < res->in_port_num; i++) {
         esp_gmf_pipeline_report_info(res->pipe, ESP_GMF_INFO_SOUND, &res->in_inst[i].src_info, sizeof(res->in_inst[i].src_info));
@@ -649,12 +687,12 @@ static void test_element_run_with_multi_task(audio_el_res_cfg_t *cfg, void (*con
     }
     audio_el_inst_init(res1);
     audio_el_inst_init(res2);
-    xTaskCreate(audio_el_cfg_task, "cfg_task1", 10240, res1, 6, &(res1->cfg_task_hd));
-    xTaskCreate(audio_el_cfg_task, "cfg_task2", 10240, res2, 7, &(res2->cfg_task_hd));
-    TEST_ASSERT_NOT_EQUAL(NULL, res1->cfg_task_hd);
-    TEST_ASSERT_NOT_EQUAL(NULL, res2->cfg_task_hd);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res1->pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res2->pipe));
+    xTaskCreate(audio_el_cfg_task, "cfg_task1", 10240, res1, 6, &(res1->cfg_task_hd));
+    xTaskCreate(audio_el_cfg_task, "cfg_task2", 10240, res2, 6, &(res2->cfg_task_hd));
+    TEST_ASSERT_NOT_EQUAL(NULL, res1->cfg_task_hd);
+    TEST_ASSERT_NOT_EQUAL(NULL, res2->cfg_task_hd);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(res1->pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(res2->pipe));
     for (uint32_t i = 0; i < res1->in_port_num; i++) {
@@ -679,6 +717,55 @@ static void test_element_run_with_multi_task(audio_el_res_cfg_t *cfg, void (*con
     audio_el_res_deinit(res2);
 }
 
+static void test_element_cfg_task_priority(audio_el_res_cfg_t *cfg, void (*config_func)(esp_gmf_element_handle_t, void *))
+{
+    ESP_LOGI(TAG, "Test_element_cfg_task_priority");
+    int test_priorities[] = {1, 5, 10};
+    const char *priority_names[] = {"LOW", "SAME", "HIGH"};
+    for (int prio_idx = 0; prio_idx < sizeof(test_priorities) / sizeof(test_priorities[0]); prio_idx++) {
+        int cfg_priority = test_priorities[prio_idx];
+        ESP_LOGI(TAG, "Testing with config task priority: %d (%s relative to process task)",
+                 cfg_priority, priority_names[prio_idx]);
+        audio_el_res_t *res = NULL;
+        audio_el_res_init(cfg, &res);
+        res->config_func = config_func;
+        res->cfg_task_prio = cfg_priority;
+        audio_el_set_audio_info(res);
+        audio_el_inst_init(res);
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
+        // Create config task with specified priority
+        xTaskCreate(audio_el_cfg_task, "cfg_task_prio", 10240, res, 6, &(res->cfg_task_hd));
+        TEST_ASSERT_NOT_EQUAL(NULL, res->cfg_task_hd);
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(res->pipe));
+        for (uint32_t i = 0; i < res->in_port_num; i++) {
+            esp_gmf_pipeline_report_info(res->pipe, ESP_GMF_INFO_SOUND, &res->in_inst[i].src_info, sizeof(res->in_inst[i].src_info));
+        }
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res->pipe));
+        // Run for sufficient time to allow multiple config updates and process cycles
+        vTaskDelay(2000 / portTICK_RATE_MS);
+        res->is_end = true;
+        while (res->cfg_task_hd != NULL) {
+            vTaskDelay(10 / portTICK_RATE_MS);
+        }
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
+        xEventGroupWaitBits(res->pipe_sync_evt, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
+        // Verify acquire/release counts are balanced (indicates no data corruption)
+        for (uint32_t i = 0; i < res->in_port_num; i++) {
+            ESP_LOGI(TAG, "Priority %d: In port %ld acquire count %ld, release count %ld",
+                     cfg_priority, i, res->in_inst[i].in_acquire_count, res->in_inst[i].in_release_count);
+            TEST_ASSERT_EQUAL(res->in_inst[i].in_acquire_count, res->in_inst[i].in_release_count);
+        }
+        for (uint32_t i = 0; i < res->out_port_num; i++) {
+            ESP_LOGI(TAG, "Priority %d: Out port %ld acquire count %ld, release count %ld",
+                     cfg_priority, i, res->out_inst[i].out_acquire_count, res->out_inst[i].out_release_count);
+            TEST_ASSERT_EQUAL(res->out_inst[i].out_acquire_count, res->out_inst[i].out_release_count);
+        }
+        audio_el_inst_deinit(res);
+        audio_el_res_deinit(res);
+        ESP_LOGI(TAG, "Priority %d test completed successfully", cfg_priority);
+    }
+}
+
 TEST_CASE("Audio ENCODER Element Test", "[ESP_GMF_AUDIO]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
@@ -689,7 +776,10 @@ TEST_CASE("Audio ENCODER Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_init(&cfg, &res);
     res->config_func = encoder_config_callback;
     // Test encoder with different types
-    uint32_t enc_types[] = {ESP_AUDIO_TYPE_AAC, ESP_AUDIO_TYPE_LC3, ESP_AUDIO_TYPE_OPUS, ESP_AUDIO_TYPE_SBC};
+    uint32_t enc_types[] = {ESP_AUDIO_TYPE_AAC, ESP_AUDIO_TYPE_LC3, ESP_AUDIO_TYPE_OPUS,
+                            ESP_AUDIO_TYPE_SBC, ESP_AUDIO_TYPE_AMRWB, ESP_AUDIO_TYPE_AMRNB,
+                            ESP_AUDIO_TYPE_PCM, ESP_AUDIO_TYPE_ADPCM, ESP_AUDIO_TYPE_G711A,
+                            ESP_AUDIO_TYPE_G711U};
     // Test different input sizes
     uint32_t test_sizes[] = {120, 256, 512, 4096};
     // Test for run and stop
@@ -697,6 +787,15 @@ TEST_CASE("Audio ENCODER Element Test", "[ESP_GMF_AUDIO]")
         for (int j = 0; j < sizeof(test_sizes) / sizeof(test_sizes[0]); j++) {
             audio_el_set_audio_info(res);
             res->in_inst[0].src_info.format_id = enc_types[i];
+            if (enc_types[i] == ESP_AUDIO_TYPE_AMRNB) {
+                res->in_inst[0].src_info.channels = 1;
+                res->in_inst[0].src_info.sample_rates = 8000;
+                res->in_inst[0].src_info.bitrate = 10200;
+            } else if (enc_types[i] == ESP_AUDIO_TYPE_AMRWB) {
+                res->in_inst[0].src_info.channels = 1;
+                res->in_inst[0].src_info.sample_rates = 16000;
+                res->in_inst[0].src_info.bitrate = 23050;
+            }
             res->in_inst[0].src_size = test_sizes[j];
             test_element_run_stop(res);
         }
@@ -706,9 +805,33 @@ TEST_CASE("Audio ENCODER Element Test", "[ESP_GMF_AUDIO]")
         for (int j = 0; j < sizeof(test_sizes) / sizeof(test_sizes[0]); j++) {
             audio_el_set_audio_info(res);
             res->in_inst[0].src_info.format_id = enc_types[i];
+            if (enc_types[i] == ESP_AUDIO_TYPE_AMRNB) {
+                res->in_inst[0].src_info.channels = 1;
+                res->in_inst[0].src_info.sample_rates = 8000;
+                res->in_inst[0].src_info.bitrate = 10200;
+            } else if (enc_types[i] == ESP_AUDIO_TYPE_AMRWB) {
+                res->in_inst[0].src_info.channels = 1;
+                res->in_inst[0].src_info.sample_rates = 16000;
+                res->in_inst[0].src_info.bitrate = 23050;
+            }
             res->in_inst[0].src_size = test_sizes[j];
             test_element_run_finish(res);
         }
+    }
+    // Test for run and reopen
+    for (int i = 0; i < sizeof(enc_types) / sizeof(enc_types[0]); i++) {
+        audio_el_set_audio_info(res);
+        res->in_inst[0].src_info.format_id = enc_types[i];
+        if (enc_types[i] == ESP_AUDIO_TYPE_AMRNB) {
+            res->in_inst[0].src_info.channels = 1;
+            res->in_inst[0].src_info.sample_rates = 8000;
+            res->in_inst[0].src_info.bitrate = 10200;
+        } else if (enc_types[i] == ESP_AUDIO_TYPE_AMRWB) {
+            res->in_inst[0].src_info.channels = 1;
+            res->in_inst[0].src_info.sample_rates = 16000;
+            res->in_inst[0].src_info.bitrate = 23050;
+        }
+        test_element_reopen_parameter_persistence(res);
     }
     // Test for run on process error
     test_element_run_error_process(res);
@@ -721,6 +844,8 @@ TEST_CASE("Audio ENCODER Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, encoder_config_callback);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, encoder_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
@@ -738,6 +863,7 @@ TEST_CASE("Audio DECODER Element Test", "[ESP_GMF_AUDIO]")
     // Test for run and stop
     for (int i = 0; i < sizeof(test_sizes) / sizeof(test_sizes[0]); i++) {
         audio_el_set_audio_info(res);
+        res->in_inst[0].src_info.format_id = ESP_AUDIO_TYPE_FLAC;
         res->in_inst[0].src_size = test_sizes[i];
         res->in_inst[0].is_sweep_signal = false;
         test_element_run_stop(res);
@@ -745,9 +871,18 @@ TEST_CASE("Audio DECODER Element Test", "[ESP_GMF_AUDIO]")
     // Test for run and finish
     for (int i = 0; i < sizeof(test_sizes) / sizeof(test_sizes[0]); i++) {
         audio_el_set_audio_info(res);
+        res->in_inst[0].src_info.format_id = ESP_AUDIO_TYPE_FLAC;
         res->in_inst[0].src_size = test_sizes[i];
         res->in_inst[0].is_sweep_signal = false;
         test_element_run_finish(res);
+    }
+    // Test for run and reopen
+    for (int i = 0; i < sizeof(test_sizes) / sizeof(test_sizes[0]); i++) {
+        audio_el_set_audio_info(res);
+        res->in_inst[0].src_info.format_id = ESP_AUDIO_TYPE_FLAC;
+        res->in_inst[0].src_size = test_sizes[i];
+        res->in_inst[0].is_sweep_signal = false;
+        test_element_reopen_parameter_persistence(res);
     }
     // Test for run on process error
     test_element_run_error_process(res);
@@ -759,6 +894,8 @@ TEST_CASE("Audio DECODER Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, decoder_config_callback);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, decoder_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
@@ -777,6 +914,9 @@ TEST_CASE("Audio ALC Element Test", "[ESP_GMF_AUDIO]")
     // Test for run and finish
     audio_el_set_audio_info(res);
     test_element_run_finish(res);
+    // Test for run and reopen
+    audio_el_set_audio_info(res);
+    test_element_reopen_parameter_persistence(res);
     // Test for run on open error
     test_element_run_error_open(res);
     // Test for run on process error
@@ -784,6 +924,8 @@ TEST_CASE("Audio ALC Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, alc_config_callback);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, alc_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
@@ -802,6 +944,9 @@ TEST_CASE("Audio EQ Element Test", "[ESP_GMF_AUDIO]")
     // Test for run and finish
     audio_el_set_audio_info(res);
     test_element_run_finish(res);
+    // Test for run and reopen
+    audio_el_set_audio_info(res);
+    test_element_reopen_parameter_persistence(res);
     // Test for run on open error
     test_element_run_error_open(res);
     // Test for run on process error
@@ -809,6 +954,8 @@ TEST_CASE("Audio EQ Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, eq_config_callback);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, eq_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
@@ -827,6 +974,9 @@ TEST_CASE("Audio FADE Element Test", "[ESP_GMF_AUDIO]")
     // Test for run and finish
     audio_el_set_audio_info(res);
     test_element_run_finish(res);
+    // Test for run and reopen
+    audio_el_set_audio_info(res);
+    test_element_reopen_parameter_persistence(res);
     // Test for run on open error
     test_element_run_error_open(res);
     // Test for run on process error
@@ -834,6 +984,8 @@ TEST_CASE("Audio FADE Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, fade_config_callback);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, fade_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
@@ -852,6 +1004,9 @@ TEST_CASE("Audio DRC Element Test", "[ESP_GMF_AUDIO]")
     // Test for run and finish
     audio_el_set_audio_info(res);
     test_element_run_finish(res);
+    // Test for run and reopen
+    audio_el_set_audio_info(res);
+    test_element_reopen_parameter_persistence(res);
     // Test for run on open error
     audio_el_set_audio_info(res);
     test_element_run_error_open(res);
@@ -861,6 +1016,8 @@ TEST_CASE("Audio DRC Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, drc_config_callback);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, drc_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
@@ -879,6 +1036,9 @@ TEST_CASE("Audio MBC Element Test", "[ESP_GMF_AUDIO]")
     // Test for run and finish
     audio_el_set_audio_info(res);
     test_element_run_finish(res);
+    // Test for run and reopen
+    audio_el_set_audio_info(res);
+    test_element_reopen_parameter_persistence(res);
     // Test for run on open error
     audio_el_set_audio_info(res);
     test_element_run_error_open(res);
@@ -888,6 +1048,8 @@ TEST_CASE("Audio MBC Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, mbc_config_callback);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, mbc_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
@@ -906,6 +1068,9 @@ TEST_CASE("Audio SONIC Element Test", "[ESP_GMF_AUDIO]")
     // Test for run and finish
     audio_el_set_audio_info(res);
     test_element_run_finish(res);
+    // Test for run and reopen
+    audio_el_set_audio_info(res);
+    test_element_reopen_parameter_persistence(res);
     // Test for run on open error
     test_element_run_error_open(res);
     // Test for run on process error
@@ -913,12 +1078,15 @@ TEST_CASE("Audio SONIC Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, sonic_config_callback);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, sonic_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
 TEST_CASE("Audio BIT_CVT Element Test", "[ESP_GMF_AUDIO]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
+
     ESP_GMF_MEM_SHOW(TAG);
     audio_el_res_cfg_t cfg = DEFAULT_SINGLE_IN_SINGLE_OUT_CONFIG();
     cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_BIT_CONVERT};
@@ -933,6 +1101,7 @@ TEST_CASE("Audio BIT_CVT Element Test", "[ESP_GMF_AUDIO]")
         res->in_inst[0].src_info.bits = bit_pairs[i][0];
         res->out_inst[0].out_info.bits = bit_pairs[i][1];
         test_element_run_stop(res);
+        vTaskDelay(1000 / portTICK_RATE_MS);
     }
     // Test for run and finish
     for (int i = 0; i < sizeof(bit_pairs) / sizeof(bit_pairs[0]); i++) {
@@ -941,6 +1110,13 @@ TEST_CASE("Audio BIT_CVT Element Test", "[ESP_GMF_AUDIO]")
         res->out_inst[0].out_info.bits = bit_pairs[i][1];
         test_element_run_finish(res);
     }
+    // Test for run and reopen
+    for (int i = 0; i < sizeof(bit_pairs) / sizeof(bit_pairs[0]); i++) {
+        audio_el_set_audio_info(res);
+        res->in_inst[0].src_info.bits = bit_pairs[i][0];
+        res->out_inst[0].out_info.bits = bit_pairs[i][1];
+        test_element_reopen_parameter_persistence(res);
+    }
     // Test for run on open error
     test_element_run_error_open(res);
     // Test for run on process error
@@ -948,6 +1124,8 @@ TEST_CASE("Audio BIT_CVT Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, bit_cvt_config_callback);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, bit_cvt_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
@@ -983,6 +1161,8 @@ TEST_CASE("Audio CH_CVT Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, ch_cvt_config_callback);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, ch_cvt_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
@@ -1011,6 +1191,13 @@ TEST_CASE("Audio RATE_CVT Element Test", "[ESP_GMF_AUDIO]")
         res->out_inst[0].out_info.sample_rates = rate_pairs[i][1];
         test_element_run_finish(res);
     }
+    // Test for run and reopen
+    for (int i = 0; i < sizeof(rate_pairs) / sizeof(rate_pairs[0]); i++) {
+        audio_el_set_audio_info(res);
+        res->in_inst[0].src_info.sample_rates = rate_pairs[i][0];
+        res->out_inst[0].out_info.sample_rates = rate_pairs[i][1];
+        test_element_reopen_parameter_persistence(res);
+    }
     // Test for run on open error
     test_element_run_error_open(res);
     // Test for run on process error
@@ -1018,6 +1205,8 @@ TEST_CASE("Audio RATE_CVT Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_deinit(res);
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, rate_cvt_config_callback);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, rate_cvt_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 

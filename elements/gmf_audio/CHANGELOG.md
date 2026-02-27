@@ -15,6 +15,9 @@
 
 - Fixed audio_dec element failed to propagate is_done payload flag 
 - Fixed memory leak in `audio_dec` element's `audio_dec_reconfig_dec_by_sound_info` function
+- Fixed `audio_enc` not updating input/output buffer size after bitrate change
+- Fixed bitrate set before audio encoder handle is created not taking effect
+- Fixed `audio_enc->cur_pts` calculation to prevent negative values by clamping to 0 when cached duration exceeds origin timestamp
 
 ## v0.7.2
 

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
  * See LICENSE file for details.
@@ -114,8 +114,6 @@ static esp_gmf_job_err_t vdec_el_open(esp_gmf_video_element_handle_t self, void 
     esp_video_dec_get_frame_align(vdec->dec_handle, &in_frame_align, &out_frame_align);
     ESP_GMF_ELEMENT_GET(vdec)->in_attr.port.buf_addr_aligned = in_frame_align;
     ESP_GMF_ELEMENT_GET(vdec)->out_attr.port.buf_addr_aligned = out_frame_align;
-    esp_gmf_info_video_t out_info = vdec->parent.src_info;
-    out_info.format_id = vdec->out_format;
     return ESP_GMF_JOB_ERR_OK;
 }
 

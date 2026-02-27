@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
  * See LICENSE file for details.
@@ -319,7 +319,6 @@ static esp_gmf_err_t _load_mixer_methods_func(esp_gmf_element_handle_t handle)
 {
     esp_gmf_method_t *method = NULL;
     esp_gmf_args_desc_t *set_args = NULL;
-    esp_gmf_args_desc_t *args = NULL;
     esp_gmf_err_t ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(MIXER, SET_INFO, RATE), ESP_GMF_ARGS_TYPE_UINT32, sizeof(uint32_t), 0);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append RATE argument");
     ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(MIXER, SET_INFO, CH), ESP_GMF_ARGS_TYPE_UINT8,
