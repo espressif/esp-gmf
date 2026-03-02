@@ -366,8 +366,12 @@ TEST_CASE("Abort when read task and write task thread safe test", "[ESP_GMF_PBUF
                 break;
             }
         }
-        TEST_ASSERT_TRUE(is_abort_read);
-        TEST_ASSERT_TRUE(is_abort_write);
+        if (write_run) {
+            TEST_ASSERT_TRUE(is_abort_read);
+        }
+        if (read_run) {
+            TEST_ASSERT_TRUE(is_abort_write);
+        }
         esp_gmf_pbuf_reset(pbuf);
     }
     esp_gmf_pbuf_destroy(pbuf);

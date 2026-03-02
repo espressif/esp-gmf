@@ -57,6 +57,11 @@
   variables:
     IMAGE: "$CI_IDF_DOCKER_REGISTRY/esp-env-v5.4:2"
 
+.idf-version-tag-v5-5: &idf-version-tag-v5-5
+  if: '$IDF_VERSION_TAG == "v5.5.3"'
+  variables:
+    IMAGE: "$CI_IDF_DOCKER_REGISTRY/esp-env-v5.5:3"
+
 .rules:ref:main-schedule:
   rules:
     - <<: *if-ref-main
@@ -88,6 +93,7 @@
       when: never
     - <<: *idf-version-tag-v5-3
     - <<: *idf-version-tag-v5-4
+    - <<: *idf-version-tag-v5-5
     - <<: *if-web
     - <<: *if-trigger
     - <<: *if-pipeline

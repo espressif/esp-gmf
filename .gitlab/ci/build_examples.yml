@@ -41,7 +41,7 @@
 .matrix_template: &matrix_template
   parallel:
     matrix:
-      - IDF_VERSION_TAG: ['v5.4.3']
+      - IDF_VERSION_TAG: ['v5.5.3']
         parallel: [ 1/1 ]
 
 build_examples_esp32_lyrat_mini_v1_1:

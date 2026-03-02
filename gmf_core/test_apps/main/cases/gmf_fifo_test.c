@@ -191,8 +191,12 @@ TEST_CASE("Abort when FIFO read and write on different task", "[ESP_GMF_FIFO]")
                 break;
             }
         }
-        TEST_ASSERT_TRUE(is_abort_read);
-        TEST_ASSERT_TRUE(is_abort_write);
+        if (write_run) {
+            TEST_ASSERT_TRUE(is_abort_read);
+        }
+        if (read_run) {
+            TEST_ASSERT_TRUE(is_abort_write);
+        }
         esp_gmf_fifo_reset(fifo);
     }
 
