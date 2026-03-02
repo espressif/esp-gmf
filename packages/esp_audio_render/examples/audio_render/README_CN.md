@@ -7,7 +7,6 @@
 ## 硬件要求
 
 - **推荐**：[ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) 或 [ESP32‑P4‑Function‑EV‑Board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
-- 支持其他开发板；请参阅 [其他开发板支持](#其他开发板支持)
 
 ## 软件要求
 
@@ -61,13 +60,21 @@ flowchart LR
 - **ALC 处理** 在每流和混音后都应用，用于演示音频处理器功能
 
 ## 运行示例
+1. 选择目标开发板
+```bash
+idf.py gen-bmgr-config -l
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+```
+> [!NOTE]
+> 如果切换为其他 `esp_board_manager` 支持的开发板重复上述步骤.
+> 如果需要定制板子，请参阅 [自定义开发板指南](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board_cn.md) 获取详细信息。
 
-1. 在示例的 `app_main()`（或相应的辅助函数）中配置 Wi‑Fi 和开发板音频编解码器初始化，然后构建和烧录：
+2. 在示例的 `app_main()`（或相应的辅助函数）中配置 Wi‑Fi 和开发板音频编解码器初始化，然后构建和烧录：
 ```bash
 idf.py -p /dev/XXXXX flash monitor
 ```
 
-2. 该示例自动运行两个测试场景：
+3. 该示例自动运行两个测试场景：
    - **单流测试**：下载并播放一个 MP3 文件 30 秒
    - **多流混音测试**：同时下载并混音 8 个不同的音频源
 
@@ -79,10 +86,3 @@ idf.py -p /dev/XXXXX flash monitor
 - `esp_audio_render_stream_write()` - 写入 PCM 数据
 - `esp_audio_render_stream_close()` - 关闭流并保护互斥锁
 - `esp_audio_render_destroy()` - 清理并销毁互斥锁
-
-## 其他开发板支持
-
-本示例可以利用 `gmf_app_utils` 进行快速开发板启动。在menuconfig的"GMF APP Configuration"下检查开发板兼容性。详情请参阅 `gmf_app_utils` README。
-
-或者，您可以使用 [esp-bsp](https://github.com/espressif/esp-bsp/tree/master) API：
-- 使用 `bsp_audio_codec_microphone_init()` 替代 `esp_gmf_app_get_record_handle()`

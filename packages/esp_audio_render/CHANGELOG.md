@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- Added missing declare of `esp_audio_render_stream_get_latency`
+
+### Features
+
+- Corrected document for board setup for examples
+
 ## v0.7.2~1
 
 ### Bug Fixes

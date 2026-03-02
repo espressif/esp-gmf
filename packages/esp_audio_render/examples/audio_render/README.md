@@ -7,7 +7,6 @@ This example demonstrates how to use `esp_audio_render` to render PCM audio with
 ## Hardware Requirements
 
 - Recommended: [ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) or [ESP32‑P4‑Function‑EV‑Board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
-- Other boards are supported; see [Other Board Support](#other-board-support)
 
 ## Software Requirements
 
@@ -62,12 +61,21 @@ flowchart LR
 
 ## Running the example
 
-1. Configure Wi‑Fi and board audio codec initialization in the example's `app_main()` (or corresponding helper), then build and flash:
+1. Configure for target board
+```bash
+idf.py gen-bmgr-config -l
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+```
+> [!NOTE]
+> For other supported boards (via `esp_board_manager`), follow the same steps above.
+> For customer board refer to the [Custom Board Guide](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board.md) for details.
+
+2. Configure Wi‑Fi and board audio codec initialization in the example's `app_main()` (or corresponding helper), then build and flash:
 ```bash
 idf.py -p /dev/XXXXX flash monitor
 ```
 
-2. The example automatically runs two test scenarios:
+3. The example automatically runs two test scenarios:
    - **Single stream test**: Downloads and plays one MP3 file for 30 seconds
    - **Multi-stream mixing test**: Downloads and mixes 8 different audio sources simultaneously
 
@@ -79,11 +87,3 @@ idf.py -p /dev/XXXXX flash monitor
 - `esp_audio_render_stream_write()` - Writes PCM data
 - `esp_audio_render_stream_close()` - Closes stream with mutex protection
 - `esp_audio_render_destroy()` - Cleans up with mutex destruction
-
-
-## Other Board Support
-
-This example can leverage `gmf_app_utils` for quick board bring‑up. Check board compatibility in menuconfig under "GMF APP Configuration." For details, see the `gmf_app_utils` README.
-
-Alternatively, you can use [esp-bsp](https://github.com/espressif/esp-bsp/tree/master) APIs:
-- Use `bsp_audio_codec_microphone_init()` to replace `esp_gmf_app_get_record_handle()`

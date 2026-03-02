@@ -90,7 +90,6 @@ Python控制器（`piano_key.py`）提供：
 ### **硬件要求**
 - **推荐**：[ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) 或 [ESP32‑P4‑Function‑EV‑Board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
 - **音频输出**：内置扬声器或耳机插孔
-- **其他开发板**：通过 `esp_gmf_app_setup_peripheral()` 支持
 
 ### **软件要求**
 - ESP‑IDF v5.4 或更高版本
@@ -99,10 +98,20 @@ Python控制器（`piano_key.py`）提供：
 - `esp_codec_dev`（音频输出）
 
 ### **构建和烧录**
+- 选择开发板
+
 ```bash
 # 导航到示例目录
 cd examples/simple_piano
+idf.py gen-bmgr-config -l
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+```
+> [!NOTE]
+> 如果切换为其他 `esp_board_manager` 支持的开发板重复上述步骤.
+> 如果需要定制板子，请参阅 [自定义开发板指南](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board_cn.md) 获取详细信息。
 
+- 构建和烧录
+```bash
 # 构建和烧录
 idf.py -p /dev/ttyUSB0 flash monitor
 ```

@@ -429,9 +429,6 @@ esp_gmf_err_t esp_audio_simple_player_destroy(esp_asp_handle_t handle)
         xEventGroupWaitBits(player->wait_event, ASP_PIPELINE_ERROR_BIT | ASP_PIPELINE_STOPPED_BIT | ASP_PIPELINE_FINISHED_BIT,
                             pdTRUE, pdFALSE, portMAX_DELAY);
     }
-    if (player->wait_event) {
-        vEventGroupDelete(player->wait_event);
-    }
     if (esp_asp_decoder_ref_count == 1) {
         esp_audio_dec_unregister_default();
         esp_audio_simple_dec_unregister_default();
@@ -440,6 +437,9 @@ esp_gmf_err_t esp_audio_simple_player_destroy(esp_asp_handle_t handle)
     esp_gmf_task_deinit(player->work_task);
     esp_gmf_pipeline_destroy(player->pipe);
     esp_gmf_pool_deinit(player->pool);
+    if (player->wait_event) {
+        vEventGroupDelete(player->wait_event);
+    }
     esp_gmf_oal_free(player);
 
     return ESP_GMF_ERR_OK;

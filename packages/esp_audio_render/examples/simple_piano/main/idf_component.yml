@@ -8,6 +8,6 @@ dependencies:
   espressif/esp_audio_render:
     version: "^0.7.0"
     override_path: ../../../../esp_audio_render
-  espressif/gmf_app_utils:
-    version: "^0.7.0"
-    override_path: ../../../../gmf_app_utils
+  espressif/esp_board_manager:
+    version: "*"
+    override_path: ../../../../esp_board_manager

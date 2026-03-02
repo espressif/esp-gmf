@@ -89,7 +89,6 @@ The Python controller (`piano_key.py`) provides:
 ### **Hardware Requirements**
 - **Recommended**: [ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) or [ESP32‑P4‑Function‑EV‑Board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
 - **Audio Output**: Built-in speaker or headphone jack
-- **Other boards**: Supported via `esp_gmf_app_setup_peripheral()`
 
 ### **Software Requirements**
 - ESP‑IDF v5.4 or later
@@ -98,10 +97,22 @@ The Python controller (`piano_key.py`) provides:
 - `esp_codec_dev` (audio output)
 
 ### **Build and Flash**
+
+- Select target board firstly
+
 ```bash
 # Navigate to example directory
 cd examples/simple_piano
+idf.py gen-bmgr-config -l
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+```
+> [!NOTE]
+> For other supported boards (via `esp_board_manager`), follow the same steps above.
+> For customer board refer to the [Custom Board Guide](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board.md) for details.
 
+- Build and flash
+
+```bash
 # Build and flash
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
@@ -223,13 +234,6 @@ Implemented in `calculate_adsr_envelope`
 - **Audio Pipeline Testing**: Multi-stream audio rendering
 - **Performance Benchmarking**: Real-time audio generation
 - **Format Conversion**: GMF pipeline validation
-
-## Other Board Support
-
-This example can leverage `gmf_app_utils` for quick board bring‑up. Check board compatibility in menuconfig under “GMF APP Configuration.” For details, see the `gmf_app_utils` README.
-
-Alternatively, you can use [esp-bsp](https://github.com/espressif/esp-bsp/tree/master) APIs:
-- Use `bsp_audio_codec_microphone_init()` to replace `esp_gmf_app_get_record_handle()`
 
 ## 🤝 **Contributing**
 
