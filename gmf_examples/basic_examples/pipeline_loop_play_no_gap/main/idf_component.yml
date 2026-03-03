@@ -16,3 +16,4 @@ dependencies:
     override_path: ../../../../elements/gmf_misc
   espressif/esp_board_manager:
     version: "*"
+    override_path: ../../../../packages/esp_board_manager

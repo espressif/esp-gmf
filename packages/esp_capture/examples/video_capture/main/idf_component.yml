@@ -18,7 +18,7 @@ dependencies:
   espressif/esp_video_codec:
     version: "~0.5"
   espressif/esp_audio_codec:
-    version: "~2.3"
+    version: "~2.4"
   espressif/esp_board_manager:
-    version: "~0.5"
+    version: "*"
     override_path: ../../../../esp_board_manager

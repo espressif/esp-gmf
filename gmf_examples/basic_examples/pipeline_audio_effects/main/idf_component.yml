@@ -10,3 +10,4 @@ dependencies:
     override_path: ../../../../elements/gmf_audio
   espressif/esp_board_manager:
     version: "*"
+    override_path: ../../../../packages/esp_board_manager
