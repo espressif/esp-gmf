@@ -167,6 +167,10 @@ esp_gmf_err_io_t esp_gmf_block_acquire_read(esp_gmf_block_handle_t handle, esp_g
         return ESP_GMF_IO_OK;
     }
     blk->is_last = 0;
+    if ((hd->p_rd == hd->buf_end) || (hd->p_wr_end > hd->buf && hd->p_wr_end == hd->p_rd)) {
+        hd->p_rd = hd->buf;
+        hd->p_wr_end = hd->buf;
+    }
     while (get_fill_size(hd) < wanted_size) {
         if (hd->_is_abort) {
             esp_gmf_oal_mutex_unlock(hd->lock);
@@ -208,8 +212,12 @@ esp_gmf_err_io_t esp_gmf_block_acquire_read(esp_gmf_block_handle_t handle, esp_g
         return ESP_GMF_IO_ABORT;
     }
     uint32_t act_sz = wanted_size;
-    if ((hd->p_rd + act_sz) > hd->buf_end) {
-        act_sz = hd->buf_end - hd->p_rd;
+    uint8_t *end = hd->buf_end;
+    if (hd->p_wr < hd->p_rd && hd->p_wr_end > hd->buf) {
+        end = hd->p_wr_end;
+    }
+    if ((hd->p_rd + act_sz) > end) {
+        act_sz = end - hd->p_rd;
         blk->valid_size = act_sz;
         blk->buf = hd->p_rd;
         blk->buf_length = act_sz;
@@ -258,6 +266,11 @@ esp_gmf_err_io_t esp_gmf_block_acquire_write(esp_gmf_block_handle_t handle, esp_
         return ESP_GMF_IO_FAIL;
     }
     esp_gmf_oal_mutex_lock(hd->lock);
+    if (hd->fill_size == 0) {
+        hd->p_rd = hd->buf;
+        hd->p_wr = hd->buf;
+        hd->p_wr_end = hd->buf;
+    }
     uint32_t emtpy_size = get_empty_size(hd);
     ESP_LOGD(TAG, "ACQ_W+, f:%ld, emt:%ld, rd:%p, wr:%p, wr_e:%p, done:%d, wanted:%ld", hd->fill_size, emtpy_size, hd->p_rd, hd->p_wr, hd->p_wr_end, hd->_is_write_done, wanted_size);
     if ((emtpy_size == 0) && hd->_is_write_done) {

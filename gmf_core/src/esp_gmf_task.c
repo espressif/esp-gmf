@@ -424,14 +424,17 @@ static void esp_gmf_thread_fun(void *pv)
                 TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUN);
             }
         }
-        int ret = __esp_gmf_task_event_state_change_and_notify(tsk, ESP_GMF_EVENT_STATE_RUNNING);
+        // Set RUN_BIT before io open for maybe time consuming
         GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_RUN_BIT);
+        int ret = __esp_gmf_task_event_state_change_and_notify(tsk, ESP_GMF_EVENT_STATE_RUNNING);
         if (ret != ESP_GMF_ERR_OK) {
             TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUNNING);
             ESP_LOGE(TAG, "Failed on prepare, [%s,%p],ret:%d", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, ret);
             // Clear the jobs, to make sure the task re-running must need to loading jobs again
             __esp_gmf_task_delete_jobs(tsk);
             esp_gmf_job_stack_clear(tsk->start_stack);
+            // For already run force set STOP_BIT
+            GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT);
             continue;
         }
         // Loop jobs until done or error
@@ -671,7 +674,9 @@ esp_gmf_err_t esp_gmf_task_stop(esp_gmf_task_handle_t handle)
     esp_gmf_task_t *tsk = (esp_gmf_task_t *)handle;
     esp_gmf_oal_mutex_lock(tsk->lock);
     ESP_LOGD(TAG, "%s, %s-%p, st:%s", __func__, OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, esp_gmf_event_get_state_str(tsk->state));
-    if ((tsk->state != ESP_GMF_EVENT_STATE_RUNNING) && (tsk->state != ESP_GMF_EVENT_STATE_PAUSED)) {
+    // There is transition state from action RUNNING to status RUNNING, check both
+    if (!(tsk->state == ESP_GMF_EVENT_STATE_RUNNING || TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUNNING)) &&
+        (tsk->state != ESP_GMF_EVENT_STATE_PAUSED)) {
         esp_gmf_oal_mutex_unlock(tsk->lock);
         ESP_LOGD(TAG, "Already stopped, %s, [%s,%p]", esp_gmf_event_get_state_str(tsk->state), OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
         return ESP_GMF_ERR_OK;
@@ -691,10 +696,15 @@ esp_gmf_err_t esp_gmf_task_stop(esp_gmf_task_handle_t handle)
         __esp_gmf_task_release_signal(tsk, portMAX_DELAY);
     }
     if (GMF_TASK_WAIT_FOR_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT, tsk->api_sync_time) == false) {
-        ESP_LOGE(TAG, "Stop timeout,[%s,%p]", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
+        ESP_LOGW(TAG, "Stop timeout for [%s,%p], retrying...", OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk);
+        esp_gmf_err_t ret = ESP_GMF_ERR_TIMEOUT;
+        // Print timeout message if user timeout too small, wait more until task full quit
+        if (GMF_TASK_WAIT_FOR_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT, 0xFFFFFFFF)) {
+            ret = ESP_GMF_ERR_OK;
+        }
         esp_gmf_oal_mutex_unlock(tsk->lock);
         TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP);
-        return ESP_GMF_ERR_TIMEOUT;
+        return ret;
     }
     TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP);
     esp_gmf_oal_mutex_unlock(tsk->lock);

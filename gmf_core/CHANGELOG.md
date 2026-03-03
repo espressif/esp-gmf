@@ -9,11 +9,15 @@
 - Unified runtime state handling macro: `GMF_TASK_HANDLE_PAUSE_AND_STOP` for pause/stop
 - New job error: `ESP_GMF_JOB_ERR_ABORT = ESP_GMF_IO_ABORT`
 - Added `DRC` and `MBC` capability definition
+- Enhanced `esp_gmf_task_run`: Optimized to return immediately before time-consuming IO operations, enabling users to abort ongoing IO via `esp_gmf_task_stop`
+- Enhanced `esp_gmf_task_stop`: Enhanced with retry logic to ensure task termination, adds a warning if user-specified timeout is shorter than the actual execution time
 
 ### Bug Fixes
 
 - `esp_gmf_element_process_open`: allows the first element's IN port to be NULL, still checks that non-last elements have a non-NULL OUT port
 - `esp_gmf_task_run`: clears any left-over PAUSE/STOP event bits before running to prevent issues for the current run
+- Fixed block data bus read data wrong in corner case
+- Fixed reuse pipeline crash if task stop timeout
 
 ## v0.7.10
 

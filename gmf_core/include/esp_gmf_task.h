@@ -192,7 +192,10 @@ esp_gmf_err_t esp_gmf_task_set_strategy_func(esp_gmf_task_handle_t handle, esp_g
 
 /**
  * @brief  Run the specific GMF task
- *         This function may block for either the DEFAULT_TASK_OPT_MAX_TIME_MS or the time set by esp_gmf_task_set_timeout
+ *
+ * @note   The function returns once the worker task receives the run command
+ *         If internal IO blocks (e.g., due to poor network conditions),
+ *         the user may call `esp_gmf_task_stop()` to abort the ongoing jobs
  *
  * @param[in]  handle  GMF task handle
  *
@@ -207,17 +210,15 @@ esp_gmf_err_t esp_gmf_task_run(esp_gmf_task_handle_t handle);
 
 /**
  * @brief  Stop a running or paused GMF task
- *         This function may block for either the DEFAULT_TASK_OPT_MAX_TIME_MS or the time set by esp_gmf_task_set_timeout
- *         This function is used to stop a GMF task during its execution lifecycle.
- *         You can call this function after the task has been started with `esp_gmf_task_run`.
- *         The stop can only happen while the task is actively running or paused.
- *         After all task elements (jobs) are completed, stopping is no longer possible.
  *
- * @note   If ESP_GMF_ERR_TIMEOUT is returned, the stop operation is still effective.
- *         This just means the function did not finish waiting for the stop within the timeout,
- *         but the stop will still take effect in the background.
- *         Calling `esp_gmf_task_run` will automatically clear the stop bit and restore the task to normal running state.
- *         This makes it easy and intuitive—there's no need to manually clear the stop status.
+ *         Guarantees all task jobs have exited before returning, ensuring resources are in a stable state
+ *
+ *         Stop is executed in two stages:
+ *         1. Wait up to the configured timeout
+ *         2. If timeout occurs, print a warning and continue waiting until all jobs exit
+ *
+ * @note   This API acts as the lifecycle synchronization barrier
+ *         Operations that timed out in other APIs are guaranteed to be fully resolved when this function returns
  *
  * @param[in]  handle  GMF task handle
  *
