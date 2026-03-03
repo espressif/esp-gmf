@@ -58,7 +58,6 @@ static esp_capture_err_t get_video_encoder(gmf_capture_path_mngr_t *mngr, uint8_
             continue;
         }
         if (capture_pipeline_is_sink(pipeline->pipeline)) {
-            // TODO get by caps
             esp_gmf_element_handle_t venc_handle = capture_get_element_by_caps(pipeline->pipeline, ESP_GMF_CAPS_VIDEO_ENCODER);
             if (venc_handle) {
                 res->venc_el = venc_handle;
@@ -160,6 +159,15 @@ static esp_capture_err_t video_path_prepare_all(gmf_capture_path_mngr_t *mngr)
     for (int i = 0; i < mngr->path_num; i++) {
         get_video_encoder(mngr, i);
         video_path_apply_setting(mngr, i);
+    }
+    return ESP_CAPTURE_ERR_OK;
+}
+
+static esp_capture_err_t video_path_release_all(gmf_capture_path_mngr_t *mngr)
+{
+    for (int i = 0; i < mngr->path_num; i++) {
+        video_path_res_t *res = (video_path_res_t *)gmf_capture_path_mngr_get_idx(mngr, i);
+        res->venc_el = NULL;
     }
     return ESP_CAPTURE_ERR_OK;
 }
@@ -472,7 +480,9 @@ esp_capture_err_t gmf_video_path_return_frame(esp_capture_path_mngr_if_t *p, uin
 esp_capture_err_t gmf_video_path_stop(esp_capture_path_mngr_if_t *p)
 {
     gmf_video_path_t *video_path = (gmf_video_path_t *)p;
-    return gmf_capture_path_mngr_stop(&video_path->mngr, video_path_stop, video_path_release);
+    esp_capture_err_t ret = gmf_capture_path_mngr_stop(&video_path->mngr, video_path_stop, video_path_release);
+    video_path_release_all(&video_path->mngr);
+    return ret;
 }
 
 esp_capture_err_t gmf_video_path_close(esp_capture_path_mngr_if_t *p)

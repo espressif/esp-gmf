@@ -105,6 +105,15 @@ static esp_capture_err_t audio_path_prepare_all(gmf_capture_path_mngr_t *mngr)
     return ESP_CAPTURE_ERR_OK;
 }
 
+static esp_capture_err_t audio_path_release_all(gmf_capture_path_mngr_t *mngr)
+{
+    for (int i = 0; i < mngr->path_num; i++) {
+        audio_path_res_t *res = (audio_path_res_t *)gmf_capture_path_mngr_get_idx(mngr, i);
+        res->aenc_el = NULL;
+    }
+    return ESP_CAPTURE_ERR_OK;
+}
+
 static esp_gmf_err_io_t audio_sink_acquire(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
 {
     audio_path_res_t *res = (audio_path_res_t *)handle;
@@ -317,7 +326,9 @@ esp_capture_err_t gmf_audio_path_return_frame(esp_capture_path_mngr_if_t *p, uin
 esp_capture_err_t gmf_audio_path_stop(esp_capture_path_mngr_if_t *p)
 {
     gmf_audio_path_t *audio_path = (gmf_audio_path_t *)p;
-    return gmf_capture_path_mngr_stop(&audio_path->mngr, audio_path_stop, audio_path_release);
+    esp_capture_err_t ret = gmf_capture_path_mngr_stop(&audio_path->mngr, audio_path_stop, audio_path_release);
+    audio_path_release_all(&audio_path->mngr);
+    return ret;
 }
 
 esp_capture_err_t gmf_audio_path_close(esp_capture_path_mngr_if_t *p)

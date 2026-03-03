@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- Fixed setting crash for audio encoder and video encoder after stop
+
 ## v0.7.11
 
 ### Features
