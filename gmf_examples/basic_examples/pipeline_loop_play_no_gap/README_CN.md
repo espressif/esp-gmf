@@ -75,7 +75,7 @@ gantt
 
 ### IDF 默认分支
 
-本例程支持 IDF release/v5.4(>=v5.4.3) 和 release/v5.5(>=v5.5.2) 分支。
+本例程支持 IDF release/v5.4(>= v5.4.3) and release/v5.5(>= v5.5.2) 分支。
 
 ### 配置
 

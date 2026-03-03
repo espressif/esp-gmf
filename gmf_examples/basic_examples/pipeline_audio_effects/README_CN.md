@@ -1,6 +1,6 @@
 # 音频特效播放演示
 
-- [English Version](./README.md)
+- [English](./README.md)
 - 例程难度 ⭐
 
 ## 例程简介

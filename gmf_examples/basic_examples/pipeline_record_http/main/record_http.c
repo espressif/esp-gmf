@@ -10,6 +10,8 @@
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_http_client.h"
+#include "esp_board_manager_includes.h"
+#include "esp_codec_dev.h"
 #include "esp_gmf_element.h"
 #include "esp_gmf_pipeline.h"
 #include "esp_gmf_pool.h"
@@ -32,7 +34,7 @@ static const char *TAG = "REC_HTTP";
 esp_gmf_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
     ESP_LOGI(TAG, "CB: RECV Pipeline EVT: el:%s-%p, type:%d, sub:%s, payload:%p, size:%d,%p",
-             "OBJ_GET_TAG(event->from)", event->from, event->type, esp_gmf_event_get_state_str(event->sub),
+             OBJ_GET_TAG(event->from), event->from, event->type, esp_gmf_event_get_state_str(event->sub),
              event->payload, event->payload_size, ctx);
     return ESP_GMF_ERR_OK;
 }
@@ -149,6 +151,52 @@ static esp_gmf_err_t _http_stream_event_handle(http_stream_event_msg_t *msg)
     }
 }
 
+static int record_peripheral_init(esp_codec_dev_handle_t *out_handle)
+{
+    int ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_ADC);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to init audio ADC");
+        return ret;
+    }
+    dev_audio_codec_handles_t *rec_dev_handle = NULL;
+    esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&rec_dev_handle);
+    if (rec_dev_handle == NULL || rec_dev_handle->codec_dev == NULL) {
+        ESP_LOGE(TAG, "Failed to get record handle");
+        return ESP_ERR_NOT_FOUND;
+    }
+    *out_handle = rec_dev_handle->codec_dev;
+    ret = esp_codec_dev_set_in_gain(*out_handle, DEFAULT_MICROPHONE_GAIN);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set input gain");
+        return ret;
+    }
+    esp_codec_dev_sample_info_t fs = {
+        .sample_rate = DEFAULT_RECORD_SAMPLE_RATE,
+        .channel = DEFAULT_RECORD_CHANNEL,
+        .bits_per_sample = DEFAULT_RECORD_BITS,
+    };
+#ifdef CONFIG_BOARD_LYRAT_MINI_V1_1
+    if (fs.channel == 1) {
+        fs.channel = 2;
+        fs.channel_mask = 0x02;
+    }
+#endif  /* CONFIG_BOARD_LYRAT_MINI_V1_1 */
+    ret = esp_codec_dev_open(*out_handle, &fs);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open record codec");
+        return ret;
+    }
+    return ESP_OK;
+}
+
+static void record_peripheral_deinit(esp_codec_dev_handle_t handle)
+{
+    if (handle != NULL) {
+        esp_codec_dev_close(handle);
+    }
+    esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_ADC);
+}
+
 static void gmf_loader_setup_all(esp_gmf_pool_handle_t pool)
 {
     gmf_loader_setup_io_default(pool);
@@ -163,19 +211,14 @@ static void gmf_loader_teardown_all(esp_gmf_pool_handle_t pool)
 
 void app_main(void)
 {
-    esp_log_level_set("*", ESP_LOG_INFO);
-    int ret = 0;
+    esp_codec_dev_handle_t record_handle = NULL;
     ESP_LOGI(TAG, "[ 1 ] Mount peripheral");
     esp_gmf_app_wifi_connect();
-    // Configuration of codec to be aligned with audio pipeline input
-    esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
-    codec_info.record_info.sample_rate = DEFAULT_RECORD_SAMPLE_RATE;
-    codec_info.record_info.bits_per_sample = DEFAULT_RECORD_BITS;
-    codec_info.record_info.channel = DEFAULT_RECORD_CHANNEL;
-    codec_info.play_info = codec_info.record_info;
-    esp_gmf_app_setup_codec_dev(&codec_info);
-    // Set default microphone gain
-    esp_codec_dev_set_in_gain((esp_codec_dev_handle_t)esp_gmf_app_get_record_handle(), DEFAULT_MICROPHONE_GAIN);
+    int ret = record_peripheral_init(&record_handle);
+    if (ret != ESP_OK) {
+        esp_gmf_app_wifi_disconnect();
+        return;
+    }
 
     ESP_LOGI(TAG, "[ 2 ] Register all the elements and set audio information to record codec device");
     esp_gmf_pool_handle_t pool = NULL;
@@ -187,8 +230,8 @@ void app_main(void)
     esp_gmf_pipeline_handle_t pipe = NULL;
     const char *name[] = {"aud_enc"};
     ret = esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), "io_http", &pipe);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, { return; }, "Failed to new pipeline");
-    esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_IN_INSTANCE(pipe), esp_gmf_app_get_record_handle());
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to new pipeline");
+    esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_IN_INSTANCE(pipe), record_handle);
 
     ESP_LOGI(TAG, "[ 3.1 ] Register the http io of the record pipeline");
     esp_gmf_io_handle_t http_io = NULL;
@@ -214,11 +257,9 @@ void app_main(void)
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     // To support all encoders, especially AMR-NB、AMR-WB、OPUS, the task stack size should be about 40k
     cfg.thread.stack = 40 * 1024;
-    cfg.ctx = NULL;
-    cfg.cb = NULL;
     esp_gmf_task_handle_t work_task = NULL;
     ret = esp_gmf_task_init(&cfg, &work_task);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, { return;}, "Failed to create pipeline task");
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to create pipeline task");
     esp_gmf_pipeline_bind_task(pipe, work_task);
     esp_gmf_pipeline_loading_jobs(pipe);
 
@@ -236,6 +277,6 @@ void app_main(void)
     esp_gmf_pipeline_destroy(pipe);
     gmf_loader_teardown_all(pool);
     esp_gmf_pool_deinit(pool);
-    esp_gmf_app_teardown_codec_dev();
+    record_peripheral_deinit(record_handle);
     esp_gmf_app_wifi_disconnect();
 }

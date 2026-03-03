@@ -2,6 +2,7 @@
 # Recording Audio File to microSD Card
 
 - [中文版](./README_CN.md)
+- Example Difficulty ⭐
 
 ## Example Brief
 
@@ -20,7 +21,7 @@ This example achieves lower overall system power consumption by fixing the CPU f
 
 ### Default IDF Branch
 
-This example supports IDF release/v5.3 and later branches.
+This example supports ESP-IDF `release/v5.4` (v5.4.3 and later) and `release/v5.5` (v5.5.2 and later) branches.
 
 ### Configuration
 
@@ -53,12 +54,6 @@ source prebuild.sh
 On Windows, run following command:
 ```powershell
 .\prebuild.ps1
-```
-
-- Use `esp_board_manager` to select supported board and custom board, be sure to see [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager), taking ESP32-S3-Korvo2 V3.1 as an example:
-
-```
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
 
 - Build the Example

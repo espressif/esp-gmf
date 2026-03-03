@@ -1,6 +1,7 @@
 # 播放 HTTP 音乐
 
 - [English](./README.md)
+- 例程难度 ⭐
 
 ## 例程简介
 
@@ -10,7 +11,7 @@
 
 ### IDF 默认分支
 
-本例程支持 IDF release/v5.3 及以后的分支。
+本例程支持 IDF release/v5.4(>= v5.4.3) and release/v5.5(>= v5.5.2) 分支。
 
 ### 编译和下载
 
@@ -39,12 +40,6 @@ source prebuild.sh
 在 Windows 中运行以下命令：
 ```powershell
 .\prebuild.ps1
-```
-
-- 通过 `esp_board_manager` 选择支持的开发板或自定义开发板，请务必参阅 [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager)，以 ESP32-S3-Korvo2 V3.1 为例：
-
-```
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
 
 - 配置 WIFI 信息：

@@ -1,6 +1,7 @@
 # 播放 Flash 中的音乐
 
 - [English](./README.md)
+- 例程难度 ⭐
 
 ## 例程简介
 
@@ -12,7 +13,7 @@
 
 ### IDF 默认分支
 
-本例程支持 IDF release/v5.3 及以后的分支。
+本例程支持 IDF release/v5.4(>= v5.4.3) and release/v5.5(>= v5.5.2) 分支。
 
 ### 预备知识
 

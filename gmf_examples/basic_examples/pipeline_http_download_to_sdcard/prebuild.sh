@@ -56,7 +56,7 @@ EOF
 
     # Special-case: accept 5.5.1 only when the IDF repo's most recent commit date >= 2025-12
     if [ "${idf_ver}" = "5.5.1" ]; then
-        idf_repo_path="${IDF_PATH}" 
+        idf_repo_path="${IDF_PATH}"
         # detect git repo
         if ! git -C "${idf_repo_path}" rev-parse --git-dir >/dev/null 2>&1 && [ ! -e "${idf_repo_path}/.git" ]; then
             echo "ERROR: IDF_PATH (${idf_repo_path}) is not a git repository; cannot verify 5.5.1 commit date"
@@ -113,33 +113,33 @@ else
     # Step 1.3: IDF not properly installed, attempt automatic installation
     echo "IDF installation incomplete. Attempting automatic setup..."
     echo ""
-    
+
     install_script="$idf_path/install.sh"
     export_script="$idf_path/export.sh"
-    
+
     # Check if install.sh exists
     if [ ! -f "$install_script" ]; then
         echo "install.sh not found at: $install_script"
         return 1
     fi
-    
+
     # Run install.sh
     echo "Running: $install_script"
     bash "$install_script"
     echo "IDF installed successfully"
     echo ""
-    
+
     # Source the export.sh to update environment
     echo "Sourcing: $export_script"
     source "$export_script"
-    
+
     # Verify installation
     if ! idf.py --version > /dev/null 2>&1; then
         echo "Failed to verify IDF after installation. Please try manually:"
         echo "source $export_script"
         return 1
     fi
-    
+
     echo "IDF environment setup successfully"
     # Check IDF version
     if ! check_idf_version; then
@@ -162,7 +162,7 @@ echo ""
 rm -rf components/gen_bmgr_codes
 
 # Get list of available targets from idf.py
-targets=$(idf.py --list-targets 2>&1 | grep -v "^WARNING" | sed -e '/^[[:space:]]*\//{d}' -e '/^[[:space:]]*$/{d}')
+targets=$(idf.py --list-targets 2>&1 | grep -v "^WARNING" | sed -e '/^[[:space:]]*\//d' -e '/^[[:space:]]*$/d')
 
 if [ $? -ne 0 ]; then
     echo "Failed to get available targets"
@@ -291,7 +291,7 @@ search_board_manager_path() {
             fi
         fi
     done
-    
+
     echo "esp_board_manager not found in the expected directories." >&2
     return 1
 }
@@ -324,13 +324,39 @@ export IDF_EXTRA_ACTIONS_PATH
 echo "IDF_EXTRA_ACTIONS_PATH=$IDF_EXTRA_ACTIONS_PATH"
 echo ""
 
+# -----------------------------------------------------------
+# 4. Select board and generate configuration
+# -----------------------------------------------------------
+echo "Step 4: Selecting board and generating configuration..."
+echo ""
+
+# Get board list
 idf.py gen-bmgr-config -l
 echo ""
-echo "Prebuild configuration completed successfully!"
+echo "If you need modular customization of your own development board, please refer to: https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board.md"
+
+# Ask for board selection
 echo ""
-echo "You can now select board from above or customed board"
+printf "Enter board number or name: "
+read board_input
+
+# Set default if empty
+if [ -z "$board_input" ]; then
+    echo "Board_input cannot be empty"
+    return 1
+fi
+
+echo "Board selected: $board_input"
+echo "Executing: idf.py gen-bmgr-config -b $board_input"
 echo ""
-echo "Take ESP32-S3-Korvo2 V3.1 for example, run 'idf.py gen-bmgr-config -b esp32_s3_korvo2_v3'"
+
+# Generate board configuration
+idf.py gen-bmgr-config -b "$board_input"
+if [ $? -ne 0 ]; then
+    echo "Failed to generate board configuration"
+    return 1
+fi
+
 echo ""
-echo "After selecting board, you can build the project by running 'idf.py build'"
+echo "You can config the project by running 'idf.py menuconfig', then build the project by running 'idf.py build'"
 echo ""

@@ -196,6 +196,7 @@ void app_main(void)
     gmf_loader_teardown_audio_codec_default(pool);
     gmf_loader_teardown_io_default(pool);
     esp_gmf_pool_deinit(pool);
+    esp_codec_dev_close(playback_handle);
     esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
     esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_FS_SDCARD);
 }

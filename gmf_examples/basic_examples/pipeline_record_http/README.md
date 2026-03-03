@@ -1,7 +1,7 @@
 # Recording Audio Stream to HTTP Server
 
 - [中文版](./README_CN.md)
-- Basic Example ⭐
+- Example Difficulty ⭐
 
 ## Example Brief
 
@@ -13,7 +13,7 @@ This example supports encoding the recording into AAC、G711A、G711U、AMRNB、
 
 ### Default IDF Branch
 
-This example supports IDF release/v5.3 and later branches.
+This example supports ESP-IDF `release/v5.4` (v5.4.3 and later) and `release/v5.5` (v5.5.2 and later) branches.
 
 ### Prerequisites
 
@@ -52,12 +52,6 @@ source prebuild.sh
 On Windows, run following command:
 ```powershell
 .\prebuild.ps1
-```
-
-- Use `esp_board_manager` to select supported board and custom board, be sure to see [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager), taking ESP32-S3-Korvo2 V3.1 as an example:
-
-```
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
 
 - Configure network parameters (such as SSID and Password):

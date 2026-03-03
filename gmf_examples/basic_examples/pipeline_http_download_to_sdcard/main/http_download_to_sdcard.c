@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "esp_err.h"
 
+#include "esp_board_manager_includes.h"
 #include "esp_gmf_element.h"
 #include "esp_gmf_pipeline.h"
 #include "esp_gmf_pool.h"
@@ -32,7 +33,7 @@ static const char *save_url = "/sdcard/ff-16b-2c-44100hz.opus";
 esp_gmf_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
     ESP_LOGI(TAG, "CB: RECV Pipeline EVT: el:%s-%p, type:%d, sub:%s, payload:%p, size:%d,%p",
-             "OBJ_GET_TAG(event->from)", event->from, event->type, esp_gmf_event_get_state_str(event->sub),
+             OBJ_GET_TAG(event->from), event->from, event->type, esp_gmf_event_get_state_str(event->sub),
              event->payload, event->payload_size, ctx);
     if ((event->sub == ESP_GMF_EVENT_STATE_STOPPED)
         || (event->sub == ESP_GMF_EVENT_STATE_FINISHED)
@@ -48,8 +49,11 @@ void app_main(void)
     esp_log_level_set("*", ESP_LOG_INFO);
 
     ESP_LOGI(TAG, "[ 1 ] Mount sdcard and connect to wifi");
-    void *sdcard_handle = NULL;
-    esp_gmf_app_setup_sdcard(&sdcard_handle);
+    int ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_FS_SDCARD);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to init SD card");
+        return;
+    }
     esp_gmf_app_wifi_connect();
 
     ESP_LOGI(TAG, "[ 2 ] Register elements and setup io");
@@ -62,7 +66,6 @@ void app_main(void)
     ESP_LOGI(TAG, "[ 3 ] Create pipeline");
     esp_gmf_pipeline_handle_t pipe = NULL;
     const char *name[] = {"copier"};
-    int ret = 0;
 #if ONLY_ENABLE_HTTP
     ret = esp_gmf_pool_new_pipeline(pool, "io_http", name, sizeof(name) / sizeof(char *), NULL, &pipe);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto cleanup, "Failed to new pipeline");
@@ -129,6 +132,6 @@ cleanup:
     gmf_loader_teardown_io_default(pool);
     esp_gmf_pool_deinit(pool);
     esp_gmf_app_wifi_disconnect();
-    esp_gmf_app_teardown_sdcard(sdcard_handle);
+    esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_FS_SDCARD);
     ESP_GMF_MEM_SHOW("APP_MAIN_END");
 }

@@ -1,7 +1,7 @@
 # HTTP Download and Store to microSD Card
 
 - [中文版](./README_CN.md)
-- Basic Example ⭐
+- Example Difficulty ⭐
 
 ## Example Brief
 
@@ -13,7 +13,7 @@ This example demonstrates how to implement high-speed downloading and local savi
 
 ### ESP-IDF Version
 
-This example supports ESP-IDF release/v5.3 and later versions.
+This example supports ESP-IDF `release/v5.4` (v5.4.3 and later) and `release/v5.5` (v5.5.2 and later) branches.
 
 ### Hardware Preparation
 
@@ -61,14 +61,7 @@ For detailed ESP-IDF configuration and usage guide, please refer to the [ESP-IDF
    .\prebuild.ps1
    ```
 
-3. **Select the board**
-   Use `esp_board_manager` to select supported board and custom board, be sure to see [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager), taking ESP32-S3-Korvo2 V3.1 as an example:
-
-   ```
-   idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
-   ```
-
-4. **Configure project parameters**
+3. **Configure project parameters**
    ```bash
    idf.py menuconfig
    ```
@@ -79,17 +72,17 @@ For detailed ESP-IDF configuration and usage guide, please refer to the [ESP-IDF
 
    > After configuration, press `s` to save, then press `Esc` to exit.
 
-5. **Build the project**
+4. **Build the project**
    ```bash
    idf.py build
    ```
 
-6. **Flash and monitor** (please replace PORT with the actual serial port name)
+5. **Flash and monitor** (please replace PORT with the actual serial port name)
    ```bash
    idf.py -p PORT flash monitor
    ```
 
-7. **Exit monitoring mode**
+6. **Exit monitoring mode**
    Use the `Ctrl-]` key combination to exit the serial monitoring interface.
 
 ## Usage Instructions

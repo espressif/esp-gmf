@@ -134,7 +134,7 @@ try {
 if (-not $idfOk) {
     Write-Host "IDF installation incomplete. Attempting automatic setup..."
     Write-Host ""
-    
+
     $installPs1 = Join-Path $idf_path 'install.ps1'
     $exportPs1  = Join-Path $idf_path 'export.ps1'
 
@@ -292,23 +292,41 @@ $env:IDF_EXTRA_ACTIONS_PATH = $newPath
 Write-Host "IDF_EXTRA_ACTIONS_PATH=$newPath"
 Write-Host ""
 
-# Run gen-bmgr-config -l to list available board manager configs (same as prebuild.sh)
-Write-Host "Running: idf.py gen-bmgr-config -l"
-try {
-    & idf.py gen-bmgr-config -l
-} catch {
-    # If idf.py exits with non-zero, PowerShell may not throw; still check $LASTEXITCODE
-}
+# -----------------------------------------------------------
+# 4. Select board and generate configuration
+# -----------------------------------------------------------
+Write-Host "Step 4: Selecting board and generating configuration..."
+Write-Host ""
+
+# Get board list
+& idf.py gen-bmgr-config -l
 if ($LASTEXITCODE -ne 0) {
     Write-Host "'idf.py gen-bmgr-config -l' exited with code $LASTEXITCODE"
 }
 Write-Host ""
+Write-Host "If you need modular customization of your own development board, please refer to: https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board.md"
 
-Write-Host "Prebuild configuration completed successfully!"
+# Ask for board selection
 Write-Host ""
-Write-Host "You can now select board from above or a custom board"
+$board_input = Read-Host "Enter board number or name"
+
+# Set default if empty
+if ([string]::IsNullOrWhiteSpace($board_input)) {
+    Write-Host "Board_input cannot be empty"
+    return 1
+}
+
+Write-Host "Board selected: $board_input"
+Write-Host "Executing: idf.py gen-bmgr-config -b $board_input"
 Write-Host ""
-Write-Host "Take ESP32-S3-Korvo2 V3.1 for example, run 'idf.py gen-bmgr-config -b esp32_s3_korvo2_v3'"
+
+# Generate board configuration
+& idf.py gen-bmgr-config -b $board_input
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to generate board configuration"
+    return 1
+}
+
 Write-Host ""
-Write-Host "After selecting board, you can build the project by running 'idf.py build'"
+Write-Host "You can config the project by running 'idf.py menuconfig', then build the project by running 'idf.py build'"
 Write-Host ""

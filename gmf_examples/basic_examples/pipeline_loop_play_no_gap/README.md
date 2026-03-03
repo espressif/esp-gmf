@@ -1,7 +1,7 @@
 # Loop Music Playback Without Gap
 
 - [中文版](./README_CN.md)
-- Basic Example ⭐
+- Example Difficulty ⭐
 
 ## Example Brief
 
@@ -75,7 +75,7 @@ gantt
 
 ### Default IDF Branch
 
-This example needs use release/v5.4(>=v5.4.3) and release/v5.5(>=v5.5.2) branches for IDF.
+This example supports ESP-IDF `release/v5.4` (v5.4.3 and later) and `release/v5.5` (v5.5.2 and later) branches.
 
 ### Configuration
 

@@ -60,12 +60,6 @@ On Windows, run following command:
 .\prebuild.ps1
 ```
 
-- Use `esp_board_manager` to select supported board and custom board, be sure to see [ESP Board Manager](https://components.espressif.com/components/espressif/esp_board_manager), taking ESP32-S3-Korvo2 V3.1 as an example:
-
-```
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
-```
-
 - Build the Example
 
 ```

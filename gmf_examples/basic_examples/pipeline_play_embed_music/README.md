@@ -2,6 +2,7 @@
 # Play music from flash
 
 - [中文版](./README_CN.md)
+- Example Difficulty ⭐
 
 ## Example Brief
 
@@ -13,7 +14,7 @@ The example supports MP3, WAV, FLAC, AAC, M4A, TS, AMRNB, and AMRWB audio format
 
 ### Default IDF Branch
 
-This example supports IDF release/v5.3 and later branches.
+This example supports ESP-IDF `release/v5.4` (v5.4.3 and later) and `release/v5.5` (v5.5.2 and later) branches.
 
 ### Prerequisites
 

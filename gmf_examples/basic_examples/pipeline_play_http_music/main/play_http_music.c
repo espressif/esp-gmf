@@ -10,6 +10,8 @@
 #include "freertos/event_groups.h"
 #include "esp_log.h"
 
+#include "esp_board_manager_includes.h"
+#include "esp_codec_dev.h"
 #include "esp_gmf_element.h"
 #include "esp_gmf_pipeline.h"
 #include "esp_gmf_pool.h"
@@ -20,15 +22,56 @@
 #include "esp_gmf_io_codec_dev.h"
 #include "esp_gmf_io_http.h"
 
-#define PIPELINE_BLOCK_BIT BIT(0)
-#define URI_HTTP           "https://dl.espressif.com/dl/audio/gs-16b-2c-44100hz.mp3"
+#define PIPELINE_BLOCK_BIT       BIT(0)
+#define URI_HTTP                 "https://dl.espressif.com/dl/audio/gs-16b-2c-44100hz.mp3"
+#define PLAYBACK_DEFAULT_VOLUME  80
 
 static const char *TAG = "PIPELINE_PLAY_HTTP_MUSIC";
+
+static int playback_peripheral_init(esp_codec_dev_handle_t *out_handle)
+{
+    int ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to init audio DAC");
+        return ret;
+    }
+    dev_audio_codec_handles_t *play_dev_handle = NULL;
+    esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&play_dev_handle);
+    if (play_dev_handle == NULL || play_dev_handle->codec_dev == NULL) {
+        ESP_LOGE(TAG, "Failed to get playback handle");
+        return ESP_ERR_NOT_FOUND;
+    }
+    *out_handle = play_dev_handle->codec_dev;
+    ret = esp_codec_dev_set_out_vol(*out_handle, PLAYBACK_DEFAULT_VOLUME);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set output volume");
+        return ret;
+    }
+    esp_codec_dev_sample_info_t fs = {
+        .sample_rate = CONFIG_GMF_AUDIO_EFFECT_RATE_CVT_DEST_RATE,
+        .channel = CONFIG_GMF_AUDIO_EFFECT_CH_CVT_DEST_CH,
+        .bits_per_sample = CONFIG_GMF_AUDIO_EFFECT_BIT_CVT_DEST_BITS,
+    };
+    ret = esp_codec_dev_open(*out_handle, &fs);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open playback codec");
+        return ret;
+    }
+    return ESP_OK;
+}
+
+static void playback_peripheral_deinit(esp_codec_dev_handle_t handle)
+{
+    if (handle != NULL) {
+        esp_codec_dev_close(handle);
+    }
+    esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
+}
 
 esp_gmf_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
     ESP_LOGI(TAG, "Receive pipeline event: el: %s, type: %x, sub: %s",
-             "OBJ_GET_TAG(event->from)", event->type, esp_gmf_event_get_state_str(event->sub));
+             OBJ_GET_TAG(event->from), event->type, esp_gmf_event_get_state_str(event->sub));
     if ((event->sub == ESP_GMF_EVENT_STATE_STOPPED)
         || (event->sub == ESP_GMF_EVENT_STATE_FINISHED)
         || (event->sub == ESP_GMF_EVENT_STATE_ERROR)) {
@@ -43,8 +86,12 @@ void app_main(void)
     ESP_GMF_MEM_SHOW(TAG);
     int ret;
     esp_gmf_task_handle_t work_task = NULL;
+    esp_codec_dev_handle_t playback_handle = NULL;
     ESP_LOGI(TAG, "[ 1 ] Mount peripheral");
-    esp_gmf_app_setup_codec_dev(NULL);
+    ret = playback_peripheral_init(&playback_handle);
+    if (ret != ESP_OK) {
+        return;
+    }
     esp_gmf_app_wifi_connect();
 
     ESP_LOGI(TAG, "[ 2 ] Register all the elements and set audio information to play codec device");
@@ -61,7 +108,7 @@ void app_main(void)
     ret = esp_gmf_pool_new_pipeline(pool, "io_http", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _resources_destroy, "Failed to new pipeline");
 
-    esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(pipe), esp_gmf_app_get_playback_handle());
+    esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(pipe), playback_handle);
 
     ESP_LOGI(TAG, "[ 4 ] Set audio url and format to play");
     esp_gmf_pipeline_set_in_uri(pipe, URI_HTTP);
@@ -74,11 +121,11 @@ void app_main(void)
 
     ESP_LOGI(TAG, "[ 5 ] Create gmf task, bind task to pipeline and load linked element jobs to the bind task");
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
-    cfg.ctx = NULL;
-    cfg.cb = NULL;
+    cfg.name = "pipeline_task";
     ret = esp_gmf_task_init(&cfg, &work_task);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _resources_destroy, "Failed to create pipeline task");
     esp_gmf_pipeline_bind_task(pipe, work_task);
+    esp_gmf_task_set_timeout(work_task, 20000);
     esp_gmf_pipeline_loading_jobs(pipe);
 
     ESP_LOGI(TAG, "[ 5.1 ] Create an event group and listen for events from the pipeline");
@@ -103,6 +150,6 @@ _resources_destroy:
     gmf_loader_teardown_io_default(pool);
     esp_gmf_pool_deinit(pool);
     esp_gmf_app_wifi_disconnect();
-    esp_gmf_app_teardown_codec_dev();
+    playback_peripheral_deinit(playback_handle);
     ESP_GMF_MEM_SHOW(TAG);
 }

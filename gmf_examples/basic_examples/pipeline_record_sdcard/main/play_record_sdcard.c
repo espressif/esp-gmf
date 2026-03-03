@@ -3,6 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
@@ -36,16 +37,16 @@ static const char *TAG = "REC_SDCARD";
 #define DEFAULT_CPU_FREQ_MHZ  100
 #else
 #define DEFAULT_CPU_FREQ_MHZ  90
-#endif
+#endif  /* CONFIG_ESP32P4_REV_MIN_300 */
 #else
 #define DEFAULT_CPU_FREQ_MHZ  80
-#endif
-#endif // CONFIG_PM_ENABLE
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+#endif  /* CONFIG_PM_ENABLE */
 
 esp_gmf_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
     ESP_LOGI(TAG, "CB: RECV Pipeline EVT: el:%s-%p, type:%d, sub:%s, payload:%p, size:%d,%p",
-             "OBJ_GET_TAG(event->from)", event->from, event->type, esp_gmf_event_get_state_str(event->sub),
+             OBJ_GET_TAG(event->from), event->from, event->type, esp_gmf_event_get_state_str(event->sub),
              event->payload, event->payload_size, ctx);
     return ESP_GMF_ERR_OK;
 }
@@ -69,17 +70,9 @@ static void esp_enable_pm_with_freq(int min_freq, int max_freq)
     ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
 }
 
-static int setup_peripheral(esp_codec_dev_handle_t *rec_handle)
+static int record_peripheral_init(esp_codec_dev_handle_t *rec_handle)
 {
-    int ret = ESP_OK;
-    // Temporary changes to lyrat_mini_v1.1 board to enable SD card power control
-#ifdef CONFIG_ESP32_LYRAT_MINI_V1_BOARD
-    ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_SD_POWER);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to init SD card power");
-#endif  /* CONFIG_ESP32_LYRAT_MINI_V1_BOARD */
-    ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_FS_SDCARD);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to init SD card");
-    ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_ADC);
+    int ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_ADC);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to init audio ADC");
     dev_audio_codec_handles_t *rec_dev_handle = NULL;
     esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&rec_dev_handle);
@@ -93,12 +86,12 @@ static int setup_peripheral(esp_codec_dev_handle_t *rec_handle)
         .channel = DEFAULT_RECORD_CHANNEL,
         .bits_per_sample = DEFAULT_RECORD_BITS,
     };
-#ifdef CONFIG_ESP32_LYRAT_MINI_V1_BOARD
+#ifdef CONFIG_BOARD_LYRAT_MINI_V1_1
     if (fs.channel == 1) {
         fs.channel = 2;
-        fs.channel_mask = 2;
+        fs.channel_mask = 0x02;
     }
-#endif  /* CONFIG_ESP32_LYRAT_MINI_V1_BOARD */
+#endif  /* CONFIG_BOARD_LYRAT_MINI_V1_1 */
     ret = esp_codec_dev_open(record_handle, &fs);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to open record codec");
     *rec_handle = record_handle;
@@ -111,12 +104,14 @@ void app_main(void)
     esp_gmf_app_sys_monitor_start();
 #if CONFIG_PM_ENABLE
     esp_enable_pm_with_freq(DEFAULT_CPU_FREQ_MHZ, DEFAULT_CPU_FREQ_MHZ);
-#endif // CONFIG_PM_ENABLE
-    int ret = 0;
-    ESP_LOGI(TAG, "[ 1 ] Setup peripheral for audio codec device and sdcard");
+#endif  /* CONFIG_PM_ENABLE */
+    int ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_FS_SDCARD);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to init SD card");
+
+    ESP_LOGI(TAG, "[ 1 ] Init record peripheral for audio codec device and sdcard");
     esp_codec_dev_handle_t record_handle = NULL;
-    ret = setup_peripheral(&record_handle);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to setup peripheral");
+    ret = record_peripheral_init(&record_handle);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to init record peripheral");
 
     ESP_LOGI(TAG, "[ 2 ] Register all the elements and set audio information to record codec device");
     esp_gmf_pool_handle_t pool = NULL;
@@ -157,9 +152,7 @@ void app_main(void)
 
     ESP_LOGI(TAG, "[ 3.3 ] Create gmf task, bind task to pipeline and load linked element jobs to the bind task");
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
-    cfg.ctx = NULL;
-    cfg.cb = NULL;
-    cfg.thread.stack = 40 * 1024; // If you encode to AMR, please make sure the stack is large enough
+    cfg.thread.stack = 40 * 1024;  // If you encode to AMR, please make sure the stack is large enough
     cfg.thread.stack_in_ext = true;
     cfg.name = "gmf_rec";
     esp_gmf_task_handle_t work_task = NULL;
