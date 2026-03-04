@@ -26,24 +26,37 @@ typedef union {
     adc_oneshot_unit_handle_t  oneshot;     /*!< One-shot unit handle */
 } periph_adc_handle_t;
 
+typedef enum {
+    PERIPH_ADC_CONTINUOUS_CFG_MODE_SINGLE_UNIT = 0,  /*!< Single unit + channel list */
+    PERIPH_ADC_CONTINUOUS_CFG_MODE_PATTERN     = 1,  /*!< Full adc_digi_pattern_config_t list */
+} periph_adc_continuous_cfg_mode_t;
+
 /**
  * @brief  Continuous-mode configuration
  *
  *         This structure contains all the configuration needed to
  *         initialize continuous-mode ADC operation, including handle config,
- *         sampling frequency, conversion mode, output format,
- *         pattern number, unit id, ADC attenuation, bit width and channel IDs.
+ *         sampling frequency, conversion mode, output format and pattern list.
+ *         It supports two internal modes:
+ *         - single_unit: unit/atten/bit_width + channel_id[] (legacy-compatible)
+ *         - pattern: full adc_digi_pattern_config_t[] (supports mixed unit patterns)
  */
 typedef struct {
-    adc_continuous_handle_cfg_t  handle_cfg;                        /*!< Continuous-mode handle config */
-    uint32_t                     sample_freq_hz;                    /*!< Sampling frequency in Hz. */
-    adc_digi_convert_mode_t      conv_mode;                         /*!< ADC DMA conversion mode. */
-    adc_digi_output_format_t     format;                            /*!< ADC DMA output format. */
-    uint32_t                     pattern_num;                       /*!< Number of valid entries in `channel_id`. */
-    uint8_t                      unit_id;                           /*!< ADC unit id (1 or 2) */
-    uint8_t                      atten;                             /*!< ADC attenuation */
-    uint8_t                      bit_width;                         /*!< ADC bit width */
-    uint8_t                      channel_id[SOC_ADC_PATT_LEN_MAX];  /*!< Channel id pattern array */
+    adc_continuous_handle_cfg_t       handle_cfg;      /*!< Continuous-mode handle config */
+    uint32_t                          sample_freq_hz;  /*!< Sampling frequency in Hz. */
+    adc_digi_convert_mode_t           conv_mode;       /*!< ADC DMA conversion mode. */
+    adc_digi_output_format_t          format;          /*!< ADC DMA output format. */
+    uint32_t                          pattern_num;     /*!< Number of valid pattern entries */
+    periph_adc_continuous_cfg_mode_t  cfg_mode;        /*!< Continuous config mode */
+    union {
+        struct {
+            uint8_t  unit_id;                           /*!< ADC unit id (1 or 2) */
+            uint8_t  atten;                             /*!< ADC attenuation */
+            uint8_t  bit_width;                         /*!< ADC bit width */
+            uint8_t  channel_id[SOC_ADC_PATT_LEN_MAX];  /*!< Channel id list */
+        } single_unit;
+        adc_digi_pattern_config_t  patterns[SOC_ADC_PATT_LEN_MAX];  /*!< Full pattern list */
+    } cfg;
 } periph_adc_continuous_cfg_t;
 
 /**

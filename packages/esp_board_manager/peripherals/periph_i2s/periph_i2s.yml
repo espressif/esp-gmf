@@ -211,6 +211,7 @@
     # - I2S_PDM_SLOT_BOTH
 
     # Data format (default: I2S_PDM_DATA_FMT_PCM)
+    # This configuration is only supported in IDF v5.5 and later versions
     data_fmt: "I2S_PDM_DATA_FMT_PCM"
     # Valid values:
     # - I2S_PDM_DATA_FMT_PCM
@@ -251,6 +252,7 @@
       clk: -1                     # [IO] Clock pin
       dout: -1                    # [IO] Data output pin
       dout2: -1                   # [IO] Second data pin for dual-line DAC mode
+                                  # ESP32 defines SOC_I2S_PDM_MAX_TX_LINES (1) — no dout2 field.
 
     # Invert flags
     invert_flags:
@@ -312,6 +314,7 @@
     # - I2S_PDM_LINE_SLOT_ALL
 
     # Data format (default: I2S_PDM_DATA_FMT_PCM)
+    # This configuration is only supported in IDF v5.5 and later versions
     data_fmt: "I2S_PDM_DATA_FMT_PCM"
     # Valid values:
     # - I2S_PDM_DATA_FMT_PCM

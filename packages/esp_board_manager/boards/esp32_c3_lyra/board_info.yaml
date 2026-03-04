@@ -1,5 +1,5 @@
 board: esp32_c3_lyra
 chip: esp32c3
 version: 1.0.0
-description: "esp32_c3_lyra"
+description: "ESP32-C3 LYRA Development Board"
 manufacturer: "ESPRESSIF"

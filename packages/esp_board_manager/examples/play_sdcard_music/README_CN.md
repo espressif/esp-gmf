@@ -1,85 +1,106 @@
-# 播放 microSD 卡音乐
+# 从 microSD 卡播放音乐
 
-- [English](./README.md)
+- [English Version](./README.md)
+- 例程难度：⭐
 
 ## 例程简介
 
-本例程介绍了如何使用 `esp_board_manager` 初始化 codec 和 sdcard，获取设备的句柄，并使用 `esp_codec_dev` 的 API 播放 microSD 卡中的音乐。
+- 从 microSD 卡根目录播放 WAV 文件（默认 `/sdcard/test.wav`）。
+- 技术上演示 `esp_board_manager` 初始化 Audio DAC 与 FAT/SD 卡（`fs_sdcard`），配合 `common/wav_header` 解析 WAV 头，并使用 `esp_codec_dev` 流式播放。
 
-## 示例创建
+### 典型场景
 
-### IDF 默认分支
+- 本地音乐播放、外置存储上的提示音或音频资源演示。
 
-本例程仅支持 IDF release/v5.5 (>=5.5.2) 及 IDF release/v5.4 (>=5.4.3) 分支。
+### 运行机制
 
-### 准备工作
+挂载 SD → 打开 WAV → `read_wav_header` → `esp_codec_dev_open` / 循环 `write` → 卸载并释放设备。
 
-本例程需要一张 microSD 卡，并在根目录中存放一个名为 `test.wav` 的 WAV 文件。
+### 文件结构
 
-### 编译和下载
+```
+├── common
+│   ├── CMakeLists.txt
+│   ├── wav_header.c
+│   └── include/wav_header.h
+├── main
+│   ├── CMakeLists.txt
+│   ├── idf_component.yml
+│   └── play_sdcard_music.c
+├── CMakeLists.txt               工程：bmgr_play_sdcard_music（EXTRA_COMPONENT_DIRS ../common）
+├── partitions.csv
+├── sdkconfig.defaults           含 FatFs / 长文件名等
+├── sdkconfig.defaults.esp32
+├── sdkconfig.defaults.esp32s3
+├── sdkconfig.defaults.esp32p4
+├── README.md
+└── README_CN.md
+```
 
-编译本例程前需要先确保已配置 ESP-IDF ，如果已配置可跳到下一项配置，如果未配置需要先在 ESP-IDF 根目录运行下面脚本设置编译环境，有关配置和使用 ESP-IDF 完整步骤，请参阅 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)：
+## 环境配置
 
-```shell
+### 硬件要求
+
+- 具备 SD 卡的开发板，将 `test.wav` 置于卡根目录。
+
+### 默认 IDF 分支
+
+本例程支持 IDF release/v5.4 (>= v5.4.3) 与 release/v5.5 (>= v5.5.2) 分支。
+
+### 软件要求
+
+- SD 卡根目录下的 `test.wav` 文件。
+
+## 编译和下载
+
+### 编译准备
+
+```
 ./install.sh
 . ./export.sh
 ```
 
-下面是简略编译步骤：
-
-- 进入播放 microSD 卡音乐测试工程存放位置
-
-```shell
-cd $YOUR_GMF_PATH/packages/esp_board_manager/example/dev_audio_codec/play_sdcard_music
+```
+cd $YOUR_GMF_PATH/packages/esp_board_manager/examples/play_sdcard_music
 ```
 
-- 配置 `esp_board_manager` 路径，激活环境（在当前终端下只需要执行一次）
-
-```shell
-# Ubuntu and Mac:
+```
+# Linux / macOS:
 export IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
 
 # Windows PowerShell:
 $env:IDF_EXTRA_ACTIONS_PATH = "$YOUR_GMF_PATH/packages/esp_board_manager"
 
-# Windows Command Prompt (CMD):
+# Windows CMD:
 set IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
 ```
 
-- 选择使用的开发板
-
-```shell
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
-
-- 也可以执行以下命令查看支持的开发板列表
-
-```shell
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 idf.py gen-bmgr-config -l
 ```
 
-- 编译例程代码
+自定义板：[自定义板子](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board)。
 
-```shell
-idf.py build
+### 编译与烧录
+
 ```
-
-- 烧录程序并运行 monitor 工具来查看串口输出 (替换 PORT 为端口名称)：
-
-```shell
+idf.py build
 idf.py -p PORT flash monitor
 ```
 
-- 退出调试界面使用 ``Ctrl-]``
+退出 monitor：`Ctrl-]`
 
 ## 如何使用例程
 
 ### 功能和用法
 
-- 例程开始运行后，将自动播放 microSD 卡中的 `test.wav` 文件。输出如下：
+- 插入已放好 `test.wav` 的 SD 卡上电，固件自动播放该文件一次。
 
-```c
-I (732) BOARD_MANAGER_PLAY_SDCARD_MUSIC: Playing music from /sdcard/test.wav
+### 日志输出
+
+```text
+I (732) BMGR_PLAY_SDCARD_MUSIC: Playing music from /sdcard/test.wav
 I (739) PERIPH_I2S: I2S[0] TDM,  TX, ws: 45, bclk: 9, dout: 8, din: 10
 I (745) PERIPH_I2S: I2S[0] initialize success: 0x3c096c58
 I (750) DEV_AUDIO_CODEC: DAC is ENABLED
@@ -100,11 +121,11 @@ SSR: bus_width=1
 I (881) BOARD_MANAGER: Device fs_sdcard initialized
 I (886) BOARD_DEVICE: Device handle audio_dac found, Handle: 0x3fce9a7c TO: 0x3fce9a7c
 I (900) WAV_HEADER: WAV file: 48000 Hz, 2 channels, 16 bits
-I (900) BOARD_MANAGER_PLAY_SDCARD_MUSIC: Play WAV file info: 48000 Hz, 2 channels, 16 bits
+I (900) BMGR_PLAY_SDCARD_MUSIC: Play WAV file info: 48000 Hz, 2 channels, 16 bits
 I (907) I2S_IF: channel mode 2 bits:16/16 channel:2 mask:3
 I (912) I2S_IF: TDM Mode 1 bits:16/16 channel:2 sample_rate:48000 mask:3
 I (933) Adev_Codec: Open codec device OK
-I (5185) BOARD_MANAGER_PLAY_SDCARD_MUSIC: Play WAV file completed
+I (5185) BMGR_PLAY_SDCARD_MUSIC: Play WAV file completed
 I (5185) BOARD_DEVICE: Deinit device audio_dac ref_count: 0 device_handle:0x3fce9a7c
 I (5197) BOARD_DEVICE: Device audio_dac config found: 0x3c064ebc (size: 92)
 I (5198) BOARD_PERIPH: Deinit peripheral i2s_audio_out ref_count: 0
@@ -117,18 +138,29 @@ I (5231) PERIPH_I2C: i2c_del_master_bus deinitialize
 I (5235) BOARD_MANAGER: Device audio_dac deinitialized
 I (5240) BOARD_DEVICE: Deinit device fs_sdcard ref_count: 0 device_handle:0x3fceaa98
 I (5248) BOARD_MANAGER: Device fs_sdcard deinitialized
-
 ```
 
-## 问题解答
+## 故障排除
 
-1. 如果出现以下错误信息，请执行 `echo $IDF_EXTRA_ACTIONS_PATH` 检查 `esp_board_manager` 路径配置是否正确：
+### `gen-bmgr-config` 无 `-b` 选项
 
-```c
-Usage: idf.py gen-bmgr-config [OPTIONS]
-Try 'idf.py gen-bmgr-config --help' for help.
+检查 `IDF_EXTRA_ACTIONS_PATH` 是否指向 `esp_board_manager` 包目录。
 
-Error: No such option: -b
+```
+# Linux / macOS:
+echo $IDF_EXTRA_ACTIONS_PATH
+
+# Windows PowerShell:
+echo $env:IDF_EXTRA_ACTIONS_PATH
+
+# Windows CMD:
+echo %IDF_EXTRA_ACTIONS_PATH%
 ```
 
-2. 如果需要使用自定义的开发板，请参考 [README_CN.md](../../../README_CN.md) 中关于 **自定义板级** 的说明。
+### 找不到音频文件
+
+若日志提示无法打开 `/sdcard/test.wav`，请确认音频文件是否存在，命名是否正确。
+
+### 自定义开发板
+
+参阅 [esp_board_manager README](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md)。

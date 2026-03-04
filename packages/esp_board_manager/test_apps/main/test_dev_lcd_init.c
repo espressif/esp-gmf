@@ -46,7 +46,6 @@ static esp_err_t lcd_lvgl_port_init(void)
     const lvgl_port_cfg_t lvgl_cfg = {
         .task_priority = LVGL_TASK_PRIORITY,
         .task_stack = LVGL_TASK_STACK_SIZE,
-        .task_affinity = 1,
         .task_max_sleep_ms = LVGL_TASK_MAX_SLEEP_MS,
         .timer_period_ms = LVGL_TICK_PERIOD_MS,
     };
@@ -149,7 +148,7 @@ esp_err_t test_dev_lcd_lvgl_init(void)
                  lcd_cfg->swap_xy, lcd_cfg->mirror_x, lcd_cfg->mirror_y);
 
         // Add LCD screen to LVGL based on sub_type
-        if (strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI) == 0) {
+        if (strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI) == 0 || strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_PARLIO) == 0) {
             disp = lvgl_port_add_disp(&disp_cfg);
             if (disp == NULL) {
                 ESP_LOGE(TAG, "Failed to add unified SPI LCD display");

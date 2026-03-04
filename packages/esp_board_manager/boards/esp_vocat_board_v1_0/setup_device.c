@@ -201,9 +201,9 @@ static const st77916_lcd_init_cmd_t vendor_specific_init_default[] = {
 
 // define st77916_vendor_config_t
 static const st77916_vendor_config_t vendor_config = {
-    .init_cmds = vendor_specific_init_default,
+    .init_cmds      = vendor_specific_init_default,
     .init_cmds_size = sizeof(vendor_specific_init_default) / sizeof(vendor_specific_init_default[0]),
-    .flags = {
+    .flags          = {
         .use_qspi_interface = 1,  // QSPI
     }};
 

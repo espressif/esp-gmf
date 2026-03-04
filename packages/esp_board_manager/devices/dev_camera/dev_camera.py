@@ -17,7 +17,15 @@ VALID_ENUMS = {
         'CAM_CTLR_DATA_WIDTH_10',
         'CAM_CTLR_DATA_WIDTH_12',
         'CAM_CTLR_DATA_WIDTH_16'
-    ]
+    ],
+    'spi_cam_intf': [
+        'ESP_CAM_CTLR_SPI_CAM_INTF_SPI',
+        'ESP_CAM_CTLR_SPI_CAM_INTF_PARLIO',
+    ],
+    'spi_cam_io_mode': [
+        'ESP_CAM_CTLR_SPI_CAM_IO_MODE_1BIT',
+        'ESP_CAM_CTLR_SPI_CAM_IO_MODE_2BIT',
+    ],
 }
 
 def get_includes() -> list:
@@ -103,10 +111,13 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
             if periph_name.startswith('i2c'):
                 # Check if peripheral exists in peripherals_dict if provided
                 if peripherals_dict is not None and periph_name not in peripherals_dict:
-                    raise ValueError(f"IO Expander device {name} references undefined peripheral '{periph_name}'")
+                    raise ValueError(f"Camera device {name} references undefined peripheral '{periph_name}'")
                 i2c_name = periph_name
                 i2c_freq = int(periph.get('frequency', 100000))
                 break
+
+        if not i2c_name:
+            raise ValueError(f"Camera device {name} (dvp) requires an i2c peripheral in 'peripherals'")
 
         dvp_config_dict = device_config.get('dvp_config', {})
 
@@ -157,6 +168,8 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
         i2c_name = ''
         i2c_freq = 0
         ldo_name = ''
+        csi_config_dict = device_config.get('csi_config', {})
+        dont_init_ldo = bool(csi_config_dict.get('dont_init_ldo', True))
         peripherals = config.get('peripherals', [])
         for periph in peripherals:
             periph_name = periph.get('name', '')
@@ -172,12 +185,16 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
                     raise ValueError(f"Camera device {name} references undefined peripheral '{periph_name}'")
                 ldo_name = periph_name
 
-        csi_config_dict = device_config.get('csi_config', {})
+        if not i2c_name:
+            raise ValueError(f"Camera device {name} (csi) requires an i2c peripheral in 'peripherals'")
+        if dont_init_ldo and not ldo_name:
+            raise ValueError(
+                f'Camera device {name} (csi) requires an ldo peripheral when dont_init_ldo is true'
+            )
 
         # Parse CSI settings
         reset_io = int(csi_config_dict.get('reset_io', -1))
         pwdn_io = int(csi_config_dict.get('pwdn_io', -1))
-        dont_init_ldo = bool(csi_config_dict.get('dont_init_ldo', True))
 
         # Parse XCLK configuration
         xclk_config_dict = csi_config_dict.get('xclk_config', {})
@@ -208,11 +225,58 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
             'xclk_config': xclk_config_struct
         }
 
-    # Placeholder for other bus types (SPI, USB-UVC)
-    # These can be implemented similarly when their configurations are defined
     elif sub_type == 'spi':
-        # SPI configuration parsing would go here
-        bus_config = {}  # Placeholder
+        i2c_name = ''
+        i2c_freq = 0
+        peripherals = config.get('peripherals', [])
+        for periph in peripherals:
+            periph_name = periph.get('name', '')
+            if periph_name.startswith('i2c'):
+                if peripherals_dict is not None and periph_name not in peripherals_dict:
+                    raise ValueError(f"Camera device {name} references undefined peripheral '{periph_name}'")
+                i2c_name = periph_name
+                i2c_freq = int(periph.get('frequency', 100000))
+                break
+
+        if not i2c_name:
+            raise ValueError(f"Camera device {name} (spi) requires an i2c peripheral in 'peripherals'")
+
+        sc = device_config.get('spi_config', {})
+        intf = get_enum_value(sc.get('intf'), 'ESP_CAM_CTLR_SPI_CAM_INTF_SPI', 'spi_cam_intf')
+        # io_mode / spi_data1_io_pin: newer esp_video (esp_video_init.h) has these fields; older 1.4.x
+        # layout does not — emitting them breaks static init alignment vs released components.
+        # Defaults are applied in dev_camera_sub_spi.c (1-bit, data1 NC) when the struct includes them.
+
+        esp_video_spi = {
+            'intf': intf,
+            'spi_port': int(sc.get('spi_port', 0)),
+            'spi_cs_pin': int(sc.get('spi_cs_pin', -1)),
+            'spi_sclk_pin': int(sc.get('spi_sclk_pin', -1)),
+            'spi_data0_io_pin': int(sc.get('spi_data0_io_pin', -1)),
+            'reset_pin': int(sc.get('reset_pin', -1)),
+            'pwdn_pin': int(sc.get('pwdn_pin', -1)),
+            'xclk_source': sc.get('xclk_source', 'ESP_CAM_SENSOR_XCLK_LEDC'),
+            'xclk_freq': int(sc.get('xclk_freq', 20000000)),
+            'xclk_pin': int(sc.get('xclk_pin', -1)),
+        }
+        # Optional: only for esp_video whose esp_video_init_spi_config_t includes these members
+        # (see esp_video_init.h). Omitted by default for compatibility with esp_video 1.4.x.
+        if sc.get('io_mode') is not None and sc.get('io_mode') != '':
+            esp_video_spi['io_mode'] = get_enum_value(sc.get('io_mode'), 'ESP_CAM_CTLR_SPI_CAM_IO_MODE_1BIT', 'spi_cam_io_mode')
+        if sc.get('spi_data1_io_pin') is not None:
+            esp_video_spi['spi_data1_io_pin'] = int(sc.get('spi_data1_io_pin'))
+        ledc = sc.get('xclk_ledc_cfg')
+        if ledc:
+            esp_video_spi['xclk_ledc_cfg'] = {
+                'timer': ledc.get('timer', 0),
+                'clk_cfg': ledc.get('clk_cfg', 'LEDC_AUTO_CLK'),
+                'channel': ledc.get('channel', 0),
+            }
+        bus_config = {
+            'i2c_name': i2c_name,
+            'i2c_freq': i2c_freq,
+            'esp_video_spi': esp_video_spi,
+        }
     elif sub_type == 'usb_uvc':
         # USB-UVC configuration parsing would go here
         bus_config = {}  # Placeholder

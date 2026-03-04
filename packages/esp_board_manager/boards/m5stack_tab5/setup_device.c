@@ -16,8 +16,6 @@
 
 static const char *TAG = "M5STACK_TAB5_SETUP_DEVICE";
 
-static esp_io_expander_handle_t io_expander;
-
 esp_err_t io_expander_factory_entry_t(i2c_master_bus_handle_t i2c_handle, const uint16_t dev_addr, esp_io_expander_handle_t *handle_ret)
 {
     esp_err_t ret = esp_io_expander_new_i2c_pi4ioe5v6408(i2c_handle, dev_addr, handle_ret);
@@ -25,7 +23,6 @@ esp_err_t io_expander_factory_entry_t(i2c_master_bus_handle_t i2c_handle, const 
         ESP_LOGE(TAG, "Failed to create IO expander handle\n");
         return ret;
     }
-    io_expander = *handle_ret;
     return ESP_OK;
 }
 

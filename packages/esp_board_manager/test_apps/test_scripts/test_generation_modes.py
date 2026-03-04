@@ -13,7 +13,7 @@ class TestKconfigOnlyMode:
         """Test --kconfig-only mode succeeds"""
         result = run_bmgr_cmd(['-b', valid_board, '--kconfig-only'])
         assert result.returncode == 0
-        assert 'Kconfig generation completed' in result.stdout
+        assert 'GMF Board Manager setup completed successfully!' in result.stdout
 
     def test_kconfig_only_skips_board_config(self, run_bmgr_cmd, valid_board):
         """Test that --kconfig-only skips board configuration generation"""
@@ -30,7 +30,7 @@ class TestPeripheralsOnlyMode:
         """Test --peripherals-only mode succeeds"""
         result = run_bmgr_cmd(['-b', valid_board, '--peripherals-only'])
         assert result.returncode == 0
-        assert 'Peripheral processing completed' in result.stdout
+        assert 'GMF Board Manager setup completed successfully!' in result.stdout
 
     def test_peripherals_only_skips_devices(self, run_bmgr_cmd, valid_board):
         """Test that --peripherals-only skips device processing"""
@@ -46,7 +46,7 @@ class TestDevicesOnlyMode:
         """Test --devices-only mode succeeds"""
         result = run_bmgr_cmd(['-b', valid_board, '--devices-only'])
         assert result.returncode == 0
-        assert 'Device processing completed' in result.stdout
+        assert 'GMF Board Manager setup completed successfully!' in result.stdout
 
     def test_devices_only_loads_peripherals_for_reference(self, run_bmgr_cmd, valid_board):
         """Test that --devices-only loads peripherals for reference"""
@@ -62,13 +62,13 @@ class TestModeCombinations:
         """Test combining --peripherals-only with --kconfig-only"""
         result = run_bmgr_cmd(['-b', valid_board, '--peripherals-only', '--kconfig-only'])
         assert result.returncode == 0
-        assert 'Kconfig generation completed' in result.stdout
+        assert 'GMF Board Manager setup completed successfully!' in result.stdout
 
     def test_devices_only_with_kconfig(self, run_bmgr_cmd, valid_board):
         """Test combining --devices-only with --kconfig-only"""
         result = run_bmgr_cmd(['-b', valid_board, '--devices-only', '--kconfig-only'])
         assert result.returncode == 0
-        assert 'Kconfig generation completed' in result.stdout
+        assert 'GMF Board Manager setup completed successfully!' in result.stdout
 
     def test_both_peripherals_and_devices_only(self, run_bmgr_cmd, valid_board):
         """Test using both --peripherals-only and --devices-only"""

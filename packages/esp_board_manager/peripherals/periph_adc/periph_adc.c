@@ -6,11 +6,21 @@
  */
 
 #include "esp_log.h"
+#include <string.h>
 #include "esp_board_manager_defs.h"
 #include "esp_board_periph.h"
 #include "periph_adc.h"
 
 static const char *TAG = "PERIPH_ADC";
+
+static inline bool adc_unit_supported(adc_unit_t unit)
+{
+#ifdef SOC_ADC_DIG_SUPPORTED_UNIT
+    return SOC_ADC_DIG_SUPPORTED_UNIT(unit);
+#else
+    return unit == ADC_UNIT_1;
+#endif  /* SOC_ADC_DIG_SUPPORTED_UNIT */
+}
 
 static inline esp_err_t continuous_adc_init(periph_adc_config_t *adc_cfg, periph_adc_handle_t *handle)
 {
@@ -29,15 +39,41 @@ static inline esp_err_t continuous_adc_init(periph_adc_config_t *adc_cfg, periph
         .format = adc_cfg->cfg.continuous.format,
     };
     int pattern_num = adc_cfg->cfg.continuous.pattern_num;
+    if (pattern_num <= 0 || pattern_num > SOC_ADC_PATT_LEN_MAX) {
+        ESP_LOGE(TAG, "Invalid pattern_num:%d", pattern_num);
+        adc_continuous_deinit(continuous_handle);
+        return ESP_ERR_INVALID_ARG;
+    }
     adc_digi_pattern_config_t adc_pattern[SOC_ADC_PATT_LEN_MAX] = {0};
     dig_cfg.pattern_num = pattern_num;
-    for (int i = 0; i < pattern_num && i < SOC_ADC_PATT_LEN_MAX; i++) {
-        adc_pattern[i].atten = adc_cfg->cfg.continuous.atten;
-        adc_pattern[i].channel = adc_cfg->cfg.continuous.channel_id[i];
-        adc_pattern[i].unit = adc_cfg->cfg.continuous.unit_id;
-        adc_pattern[i].bit_width = adc_cfg->cfg.continuous.bit_width;
+    if (adc_cfg->cfg.continuous.cfg_mode == PERIPH_ADC_CONTINUOUS_CFG_MODE_SINGLE_UNIT) {
+        for (int i = 0; i < pattern_num; i++) {
+            adc_pattern[i].atten = adc_cfg->cfg.continuous.cfg.single_unit.atten;
+            adc_pattern[i].channel = adc_cfg->cfg.continuous.cfg.single_unit.channel_id[i];
+            adc_pattern[i].unit = adc_cfg->cfg.continuous.cfg.single_unit.unit_id;
+            adc_pattern[i].bit_width = adc_cfg->cfg.continuous.cfg.single_unit.bit_width;
+        }
+    } else if (adc_cfg->cfg.continuous.cfg_mode == PERIPH_ADC_CONTINUOUS_CFG_MODE_PATTERN) {
+        memcpy(adc_pattern, adc_cfg->cfg.continuous.cfg.patterns,
+               pattern_num * sizeof(adc_digi_pattern_config_t));
+    } else {
+        ESP_LOGE(TAG, "Invalid cfg_mode:%d", adc_cfg->cfg.continuous.cfg_mode);
+        adc_continuous_deinit(continuous_handle);
+        return ESP_ERR_INVALID_ARG;
     }
     dig_cfg.adc_pattern = adc_pattern;
+    for (int i = 0; i < pattern_num; i++) {
+        if (!adc_unit_supported((adc_unit_t)adc_pattern[i].unit)) {
+            ESP_LOGE(TAG, "ADC unit %u not supported in continuous mode", adc_pattern[i].unit);
+            adc_continuous_deinit(continuous_handle);
+            return ESP_ERR_NOT_SUPPORTED;
+        }
+        if (adc_pattern[i].channel >= SOC_ADC_CHANNEL_NUM((adc_unit_t)adc_pattern[i].unit)) {
+            ESP_LOGE(TAG, "Invalid ADC channel %u for unit %u", adc_pattern[i].channel, adc_pattern[i].unit);
+            adc_continuous_deinit(continuous_handle);
+            return ESP_ERR_INVALID_ARG;
+        }
+    }
 
     err = adc_continuous_config(continuous_handle, &dig_cfg);
     if (err != ESP_OK) {

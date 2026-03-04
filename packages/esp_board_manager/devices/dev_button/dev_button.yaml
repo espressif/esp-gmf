@@ -42,7 +42,7 @@
   peripherals:
     - name: gpio                 # [TO_BE_CONFIRMED] GPIO peripheral name
 
-# Example ADC  Button device configuration (Single button)
+# Example ADC Button device configuration (Single button)
 - name: adc_button_0      # The name of the device, must be unique
   type: button            # The type of the device
   sub_type: adc_single    # Button sub type: "gpio", "adc_single", or "adc_multi"
@@ -78,7 +78,7 @@
   peripherals:
     - name: adc_oneshot          # [TO_BE_CONFIRMED] ADC peripheral name
 
-# Example ADC  Button device configuration (Multi buttons)
+# Example ADC Button device configuration (Multi buttons)
 - name: adc_button_group         # The name of the device, must be unique
   type: button                   # The type of the device
   sub_type: adc_multi            # Button sub type: "gpio", "adc_single", or "adc_multi"

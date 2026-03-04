@@ -5,7 +5,7 @@
 - name: display_lcd          # The name of the device, must be unique
   type: display_lcd          # The type of the device, must be unique
   version: default
-  sub_type: dsi              # The sub type of the device, must be 'dsi' or 'spi'
+  sub_type: dsi              # The sub type: dsi, spi, or parlio
   chip: generic_lcd          # [TO_BE_CONFIRMED] LCD chip type (generic)
   dependencies:
     espressif/esp_lcd_generic: "*"  # [TO_BE_CONFIRMED] Component dependency for the LCD chip
@@ -73,7 +73,7 @@
 - name: display_lcd          # The name of the device, must be unique
   type: display_lcd          # The type of the device, must be unique
   version: default
-  sub_type: spi              # The sub type of the device, must be 'dsi' or 'spi'
+  sub_type: spi              # The sub type: dsi, spi, or parlio
   chip: generic_lcd          # [TO_BE_CONFIRMED] LCD chip type (e.g., st77916, st7789, ili9341, gc9a01)
   dependencies:
     espressif/esp_lcd_generic: "*"  # [TO_BE_CONFIRMED] Component dependency for the LCD chip
@@ -126,3 +126,56 @@
 
   peripherals:
     - name: spi_master                  # [TO_BE_CONFIRMED] SPI peripheral for LCD communication
+
+# Example LCD over PARLIO (esp_lcd_new_panel_io_parl), sub_type parlio — no spi_master peripheral.
+# io_parl_config maps to esp_lcd_panel_io_parl_config_t (components/esp_lcd/include/esp_lcd_io_parl.h).
+- name: display_lcd
+  type: display_lcd
+  version: default
+  sub_type: parlio
+  chip: ili9341
+  dependencies:
+    espressif/esp_lcd_ili9341: "*"
+  config:
+    swap_xy: false
+    mirror_y: false
+    mirror_x: false
+    x_max: 284                            # [TO_BE_CONFIRMED] Horizontal resolution
+    y_max: 240                            # [TO_BE_CONFIRMED] Vertical resolution
+    invert_color: false                   # Invert color flag (default: false)
+    need_reset: true                      # Whether to reset the LCD panel during initialization (default: true)
+    # dev_display_lcd_parlio_sub_config_t fields for Parlio communication
+    io_parl_config:
+      dc_gpio_num: 4                      # [IO] GPIO used for D/C line
+      clk_gpio_num: 5                     # [IO] GPIO used for CLK line
+      cs_gpio_num: 6                      # [IO] GPIO used for CS line
+      # GPIOs used for data lines (ESP_PARLIO_LCD_WIDTH_MAX == 8); 1-line SPI uses index 0 only, rest -1
+      data_gpio_nums: [7, -1, -1, -1, -1, -1, -1, -1]                      # [IO] GPIOs used for data lines
+      data_width: 1                       # Number of data lines, 1 (SPI) or 8 (I80)
+      pclk_hz: 40000000                   # [TO_BE_CONFIRMED] Frequency of pixel clock
+      clk_src: PARLIO_CLK_SRC_DEFAULT     # Clock source for the Parlio peripheral (parlio_clock_source_t)
+      max_transfer_bytes: 11360           # Maximum transfer size; determines internal DMA link length
+      dma_burst_size: 32                  # DMA burst size, in bytes
+      trans_queue_depth: 10               # Transaction queue size; larger queue, higher throughput
+      lcd_cmd_bits: 8                     # [TO_BE_CONFIRMED] Bit-width of LCD command
+      lcd_param_bits: 8                   # [TO_BE_CONFIRMED] Bit-width of LCD parameter
+      dc_levels:
+        dc_cmd_level: 0                   # [TO_BE_CONFIRMED] Level of DC line in CMD phase
+        dc_data_level: 1                  # [TO_BE_CONFIRMED] Level of DC line in DATA phase
+      flags:
+        # If set, high CS selects device; otherwise CS is low-active
+        cs_active_high: false
+    lcd_panel_config:
+      reset_gpio_num: -1
+      rgb_ele_order: LCD_RGB_ELEMENT_ORDER_RGB  # [TO_BE_CONFIRMED] RGB element order (default: RGB)
+      # Valid values:
+      # - LCD_RGB_ELEMENT_ORDER_RGB
+      # - LCD_RGB_ELEMENT_ORDER_BGR
+      data_endian: LCD_RGB_DATA_ENDIAN_LITTLE  # [TO_BE_CONFIRMED] Data endianness (default: LITTLE)
+      # Valid values:
+      # - LCD_RGB_DATA_ENDIAN_BIG
+      # - LCD_RGB_DATA_ENDIAN_LITTLE
+      bits_per_pixel: 16                    # [TO_BE_CONFIRMED] Bits per pixel (default: 16)
+      flags:
+        reset_active_high: false             # Reset pin active level (default: false)
+      vendor_config: ""

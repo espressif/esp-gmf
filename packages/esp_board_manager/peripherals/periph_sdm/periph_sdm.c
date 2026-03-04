@@ -32,7 +32,7 @@ int periph_sdm_init(void *cfg, int cfg_size, void **periph_handle)
         return -1;
     }
 
-    ESP_LOGI(TAG, "SDM channel initialized successfully, GPIO: %d, sample rate: %d Hz",
+    ESP_LOGI(TAG, "SDM channel initialized successfully, GPIO: %d, sample rate: %" PRIu32 " Hz",
              sdm_cfg->gpio_num, sdm_cfg->sample_rate_hz);
 
     *periph_handle = handle;

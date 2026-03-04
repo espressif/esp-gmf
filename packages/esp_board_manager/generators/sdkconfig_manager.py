@@ -37,7 +37,7 @@ class SDKConfigManager(LoggerMixin):
         Update sdkconfig file based on board device and peripheral types.
 
         This function only manages device/peripheral support configurations.
-        Board selection (CONFIG_BOARD_XXX) and chip target (CONFIG_IDF_TARGET)
+        Board selection (CONFIG_ESP_BOARD_XXX) and chip target (CONFIG_IDF_TARGET)
         are managed by generate_board_manager_defaults() in board_manager.defaults file.
 
         Args:
@@ -45,8 +45,6 @@ class SDKConfigManager(LoggerMixin):
             peripheral_types: Set of peripheral types from board YAML
             sdkconfig_path: Path to sdkconfig file (auto-detect if None)
             enable: Whether to enable features (True) or just check (False)
-            board_name: Optional board name to update board selection
-            chip_name: Chip name to set CONFIG_IDF_TARGET
 
         Returns:
             Dict with 'enabled' and 'checked' lists of config items
@@ -426,7 +424,10 @@ class SDKConfigManager(LoggerMixin):
 
     def generate_board_manager_defaults(self, board_path: str, project_path: Optional[str] = None,
                                         board_name: Optional[str] = None, chip_name: Optional[str] = None,
-                                        output_file: Optional[str] = None) -> Dict[str, List[str]]:
+                                        output_file: Optional[str] = None,
+                                        device_types: Optional[Set[str]] = None,
+                                        peripheral_types: Optional[Set[str]] = None,
+                                        device_subtypes: Optional[Dict[str, Set[str]]] = None) -> Dict[str, List[str]]:
         """
         Generate board_manager.defaults file with board-specific configurations.
 
@@ -435,16 +436,22 @@ class SDKConfigManager(LoggerMixin):
 
         The generated file includes:
         - CONFIG_IDF_TARGET: chip name
-        - CONFIG_BOARD_XXX: board selection macro
-        - CONFIG_BOARD_NAME: board name string
+        - CONFIG_ESP_BOARD_XXX: board selection macro
+        - CONFIG_ESP_BOARD_NAME: board name string
+        - CONFIG_ESP_BOARD_PERIPH_XXX_SUPPORT: enabled peripheral types from board config
+        - CONFIG_ESP_BOARD_DEV_XXX_SUPPORT: enabled device types from board config
+        - CONFIG_ESP_BOARD_DEV_<DEV>_SUB_<SUBTYPE>_SUPPORT: enabled device subtypes
         - Content from board's sdkconfig.defaults.board file (if exists)
 
         Args:
             board_path: Path to the board directory
             project_path: Path to the project directory (auto-detect if None)
-            board_name: Board name for CONFIG_BOARD_XXX selection (optional)
+            board_name: Board name for CONFIG_ESP_BOARD_XXX selection (optional)
             chip_name: Chip name for CONFIG_IDF_TARGET (optional)
             output_file: Path to output file (board_manager.defaults)
+            device_types: Enabled device types from board parsing
+            peripheral_types: Enabled peripheral types from board parsing
+            device_subtypes: Enabled device subtypes from board parsing
 
         Returns:
             Dict with 'added' list of config items count
@@ -469,10 +476,29 @@ class SDKConfigManager(LoggerMixin):
             config_count += 1
 
         # Add board selection configs
-        board_config_macro = f'CONFIG_BOARD_{board_name.upper().replace("-", "_")}'
+        board_config_macro = f'CONFIG_ESP_BOARD_{board_name.upper().replace("-", "_")}'
         board_section_content += f'{board_config_macro}=y\n'
-        board_section_content += f'CONFIG_BOARD_NAME="{board_name}"\n'
+        board_section_content += f'CONFIG_ESP_BOARD_NAME="{board_name}"\n'
         config_count += 2  # Board selection + board name
+
+        # Add device/peripheral board-manager config symbols.
+        # These are generated from parsed board YAML and should be treated as
+        # source-of-truth defaults for the selected board.
+        enabled_bmgr_symbols: List[str] = []
+        for periph_type in sorted(peripheral_types or set()):
+            enabled_bmgr_symbols.append(f'CONFIG_ESP_BOARD_PERIPH_{periph_type.upper()}_SUPPORT=y')
+        for dev_type in sorted(device_types or set()):
+            enabled_bmgr_symbols.append(f'CONFIG_ESP_BOARD_DEV_{dev_type.upper()}_SUPPORT=y')
+        for dev_type in sorted((device_subtypes or {}).keys()):
+            for subtype in sorted(device_subtypes.get(dev_type, set())):
+                enabled_bmgr_symbols.append(
+                    f'CONFIG_ESP_BOARD_DEV_{dev_type.upper()}_SUB_{subtype.upper()}_SUPPORT=y'
+                )
+
+        if enabled_bmgr_symbols:
+            board_section_content += '\n'
+            board_section_content += '\n'.join(enabled_bmgr_symbols) + '\n'
+            config_count += len(enabled_bmgr_symbols)
 
         # Check if sdkconfig.defaults.board file exists and add its content
         board_defaults_path = Path(board_path) / 'sdkconfig.defaults.board'
@@ -544,3 +570,264 @@ class SDKConfigManager(LoggerMixin):
         if project_path is None:
             return self.project_path if hasattr(self, 'project_path') else os.getcwd()
         return project_path
+
+    def _parse_bmgr_symbols_from_kconfig(self, project_path: Optional[str] = None) -> Set[str]:
+        """Parse board manager symbols from generated gen_codes/Kconfig.in
+        and external boards' Kconfig.projbuild.
+
+        Args:
+            project_path: Project directory for locating Kconfig.projbuild.
+                          Falls back to _get_project_path(None) if not provided.
+
+        Returns:
+            Set of symbol names without CONFIG_ prefix, e.g. ESP_BOARD_PERIPH_I2C_SUPPORT
+        """
+        symbols: Set[str] = set()
+
+        # 1. Parse internal board symbols from Kconfig.in
+        kconfig_in_path = self.gen_codes_dir / 'Kconfig.in'
+        if kconfig_in_path.exists():
+            try:
+                with open(kconfig_in_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        m = re.match(r'^\s*config\s+(ESP_BOARD_[A-Z0-9_]+)\s*$', line)
+                        if m:
+                            symbols.add(m.group(1))
+            except Exception as e:
+                self.logger.warning(f'⚠️  Failed to parse Kconfig.in for symbols: {e}')
+        else:
+            self.logger.warning(f'   Kconfig.in not found at {kconfig_in_path}, skip checking internal symbols')
+
+        # 2. Parse external board symbols from Kconfig.projbuild
+        resolved_project_path = project_path or self._get_project_path(None)
+        projbuild_path = Path(resolved_project_path) / 'components' / 'gen_bmgr_codes' / 'Kconfig.projbuild'
+        if projbuild_path.exists():
+            try:
+                with open(projbuild_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        m = re.match(r'^\s*config\s+(ESP_BOARD_[A-Z0-9_]+)\s*$', line)
+                        if m:
+                            symbols.add(m.group(1))
+            except Exception as e:
+                self.logger.warning(f'⚠️  Failed to parse Kconfig.projbuild for symbols: {e}')
+
+        return symbols
+
+    def _build_expected_enabled_symbols(
+        self,
+        *,
+        board_select_symbol: Optional[str],
+        device_types: Set[str],
+        peripheral_types: Set[str],
+        device_subtypes: Optional[Dict[str, Set[str]]] = None,
+    ) -> Set[str]:
+        """Build expected enabled board manager symbols (without CONFIG_ prefix)."""
+        expected: Set[str] = set()
+        if board_select_symbol:
+            expected.add(board_select_symbol)
+
+        for periph_type in peripheral_types:
+            expected.add(f'ESP_BOARD_PERIPH_{periph_type.upper()}_SUPPORT')
+
+        for dev_type in device_types:
+            expected.add(f'ESP_BOARD_DEV_{dev_type.upper()}_SUPPORT')
+
+        for dev_type, subtypes in (device_subtypes or {}).items():
+            dev_upper = dev_type.upper()
+            for subtype in subtypes:
+                expected.add(f'ESP_BOARD_DEV_{dev_upper}_SUB_{subtype.upper()}_SUPPORT')
+
+        return expected
+
+    def _detect_board_select_symbol(self, selected_board: str, project_path: Optional[str] = None) -> Optional[str]:
+        """Detect board selection symbol from Kconfig.in or Kconfig.projbuild for current board name.
+
+        Supports both historical naming styles:
+        - BOARD_<BOARD_NAME>
+        - ESP_BOARD_<BOARD_NAME>
+
+        Args:
+            selected_board: Currently selected board name
+            project_path: Project directory for locating Kconfig.projbuild.
+                          Falls back to _get_project_path(None) if not provided.
+        """
+        board_upper = selected_board.upper().replace('-', '_')
+        candidates = [f'BOARD_{board_upper}', f'ESP_BOARD_{board_upper}']
+
+        # Check internal board configs (Kconfig.in)
+        kconfig_in_path = self.gen_codes_dir / 'Kconfig.in'
+        if kconfig_in_path.exists():
+            try:
+                with open(kconfig_in_path, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                for sym in candidates:
+                    if re.search(rf'^\s*config\s+{re.escape(sym)}\s*$', text, flags=re.M):
+                        return sym
+            except Exception as e:
+                self.logger.warning(f'⚠️  Failed to detect board selection symbol in Kconfig.in: {e}')
+
+        # Check external board configs (Kconfig.projbuild)
+        resolved_project_path = project_path or self._get_project_path(None)
+        projbuild_path = Path(resolved_project_path) / 'components' / 'gen_bmgr_codes' / 'Kconfig.projbuild'
+        if projbuild_path.exists():
+            try:
+                with open(projbuild_path, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                for sym in candidates:
+                    if re.search(rf'^\s*config\s+{re.escape(sym)}\s*$', text, flags=re.M):
+                        return sym
+            except Exception as e:
+                self.logger.warning(f'⚠️  Failed to detect board selection symbol in Kconfig.projbuild: {e}')
+
+        return None
+
+    def _parse_sdkconfig_bmgr_state(self, sdkconfig_content: str) -> Dict[str, bool]:
+        """Parse board manager bool symbols from sdkconfig text.
+
+        Returns:
+            Dict of symbol name (without CONFIG_) to bool enabled state.
+        """
+        states: Dict[str, bool] = {}
+        line_set = re.compile(r'^CONFIG_(ESP_BOARD_[A-Z0-9_]+)=y\s*$')
+        line_unset = re.compile(r'^#\s+CONFIG_(ESP_BOARD_[A-Z0-9_]+)\s+is\s+not\s+set\s*$')
+
+        for line in sdkconfig_content.splitlines():
+            m = line_set.match(line)
+            if m:
+                states[m.group(1)] = True
+                continue
+            m = line_unset.match(line)
+            if m:
+                states[m.group(1)] = False
+        return states
+
+    def ensure_sdkconfig_consistency(
+        self,
+        *,
+        sdkconfig_path: str,
+        selected_board: str,
+        device_types: Set[str],
+        peripheral_types: Set[str],
+        device_subtypes: Optional[Dict[str, Set[str]]] = None,
+        auto_fix: bool = True,
+        project_path: Optional[str] = None,
+    ) -> Dict[str, object]:
+        """Ensure sdkconfig board-manager symbols match current generated board selection.
+
+        This method only checks and updates board-manager related symbols (ESP_BOARD_*),
+        without touching unrelated sdkconfig options.
+
+        Args:
+            project_path: Project directory for locating external board Kconfig.projbuild.
+                          Falls back to os.getcwd() if not provided.
+        """
+        result: Dict[str, object] = {
+            'ok': True,
+            'fixed': False,
+            'issues': [],
+            'fixed_items': [],
+        }
+
+        if not os.path.exists(sdkconfig_path):
+            self.logger.info(f'   sdkconfig not found at {sdkconfig_path}, skip consistency check')
+            return result
+
+        try:
+            with open(sdkconfig_path, 'r', encoding='utf-8') as f:
+                sdkconfig_content = f.read()
+        except Exception as e:
+            self.logger.error(f'❌ Failed to read sdkconfig for consistency check: {e}')
+            result['ok'] = False
+            return result
+
+        managed_symbols = self._parse_bmgr_symbols_from_kconfig(project_path=project_path)
+        if not managed_symbols:
+            return result
+
+        # Board selection macro style differs between versions (BOARD_* / ESP_BOARD_*).
+        board_select_symbol = self._detect_board_select_symbol(selected_board, project_path=project_path)
+        if board_select_symbol:
+            managed_symbols.add(board_select_symbol)
+
+        expected_enabled = self._build_expected_enabled_symbols(
+            board_select_symbol=board_select_symbol,
+            device_types=device_types,
+            peripheral_types=peripheral_types,
+            device_subtypes=device_subtypes,
+        )
+        expected_states = {sym: (sym in expected_enabled) for sym in managed_symbols}
+        actual_states = self._parse_sdkconfig_bmgr_state(sdkconfig_content)
+
+        issues: List[str] = []
+        updates: Dict[str, bool] = {}
+
+        for sym in sorted(managed_symbols):
+            expected = expected_states[sym]
+            actual = actual_states.get(sym, None)
+
+            # Missing symbol in sdkconfig should be treated as "not set".
+            # So only missing-but-expected-y is an inconsistency.
+            if actual is None:
+                if expected:
+                    issues.append(f'CONFIG_{sym} missing, expected y')
+                    updates[sym] = True
+                continue
+
+            if actual != expected:
+                issues.append(f'CONFIG_{sym} is {"y" if actual else "not set"}, expected {"y" if expected else "not set"}')
+                updates[sym] = expected
+
+        result['issues'] = issues
+
+        if not issues:
+            self.logger.info('   sdkconfig board-manager symbols are consistent with current board generation')
+            return result
+
+        self.logger.warning(f'⚠️  Detected {len(issues)} board-manager sdkconfig inconsistency issue(s)')
+        for issue in issues:
+            self.logger.warning(f'   - {issue}')
+
+        if not auto_fix:
+            result['ok'] = False
+            return result
+
+        lines = sdkconfig_content.splitlines()
+        line_set = re.compile(r'^CONFIG_(ESP_BOARD_[A-Z0-9_]+)=y\s*$')
+        line_unset = re.compile(r'^#\s+CONFIG_(ESP_BOARD_[A-Z0-9_]+)\s+is\s+not\s+set\s*$')
+        fixed_items: List[str] = []
+        touched: Set[str] = set()
+
+        for i, line in enumerate(lines):
+            m = line_set.match(line) or line_unset.match(line)
+            if not m:
+                continue
+            sym = m.group(1)
+            if sym not in updates:
+                continue
+            desired = updates[sym]
+            lines[i] = f'CONFIG_{sym}=y' if desired else f'# CONFIG_{sym} is not set'
+            fixed_items.append(f'CONFIG_{sym} -> {"y" if desired else "not set"}')
+            touched.add(sym)
+
+        missing = [sym for sym in sorted(updates.keys()) if sym not in touched]
+        if missing:
+            lines.append('')
+            lines.append('# --- Board Manager sdkconfig consistency fix ---')
+            for sym in missing:
+                desired = updates[sym]
+                lines.append(f'CONFIG_{sym}=y' if desired else f'# CONFIG_{sym} is not set')
+                fixed_items.append(f'CONFIG_{sym} -> {"y" if desired else "not set"} (added)')
+
+        try:
+            with open(sdkconfig_path, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(lines) + '\n')
+            self._delete_sdkconfig_json(sdkconfig_path)
+        except Exception as e:
+            self.logger.error(f'❌ Failed to auto-fix sdkconfig consistency: {e}')
+            result['ok'] = False
+            return result
+
+        result['fixed'] = True
+        result['fixed_items'] = fixed_items
+        self.logger.info(f'✅ Auto-fixed {len(fixed_items)} board-manager sdkconfig symbol(s)')
+        return result

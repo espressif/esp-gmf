@@ -42,8 +42,11 @@ esp_board_manager/
 │   ├── gen_board_device_config.c
 │   ├── gen_board_device_handles.c
 │   ├── gen_board_info.c
+│   ├── board_manager.defaults
 │   ├── CMakeLists.txt
-│   └── idf_component.yml
+│   ├── idf_component.yml
+│   ├── gen_board_device_custom.h    # 仅使用自定义设备时生成
+│   └── Kconfig.projbuild            # 仅存在自定义板子时生成
 ```
 
 ## 快速开始
@@ -163,8 +166,11 @@ idf.py gen-bmgr-config -b OTHER_BOARD
 - `components/gen_bmgr_codes/gen_board_device_config.c` - 设备配置
 - `components/gen_bmgr_codes/gen_board_device_handles.c` - 设备句柄
 - `components/gen_bmgr_codes/gen_board_info.c` - 板子元数据
+- `components/gen_bmgr_codes/board_manager.defaults` - 板级 sdkconfig 默认值与板子选择符号
 - `components/gen_bmgr_codes/CMakeLists.txt` - 构建系统配置
 - `components/gen_bmgr_codes/idf_component.yml` - 组件依赖关系
+- `components/gen_bmgr_codes/gen_board_device_custom.h` - 自定义设备结构体定义
+- `components/gen_bmgr_codes/Kconfig.projbuild` - 自定义板子 Kconfig 定义
 
 > **注意:** 遇到问题可以查看 [故障排除](#故障排除) 部分
 
@@ -293,34 +299,35 @@ void app_main(void)
 
 ## 命令行选项
 
-**板子选择:**
+**板子选择与发现：**
 
 ```bash
--b, --board BOARD_NAME           # 直接指定板子名称（绕过 sdkconfig 读取）
--b, --board BOARD_INDEX          # 通过索引指定板子
--c, --customer-path PATH         # 客户板子目录路径（使用 "NONE" 跳过）
+-b, --board BOARD                # 板子名称或索引
+-c, --customer-path PATH         # 自定义板子目录（单个或多个）
 -l, --list-boards                # 列出所有可用板子并退出
+-n, --new-board ARG              # 创建新板子（仅 idf.py action 支持）
+[BOARD]                          # 直接使用板子名称或索引（仅独立脚本支持）
 ```
 
-**生成控制:**
+**生成模式：**
 
 ```bash
---kconfig-only                   # 仅生成 Kconfig 菜单系统（跳过板子配置生成）
---peripherals-only               # 仅处理外设（跳过设备）
---devices-only                   # 仅处理设备（跳过外设）
+--peripherals-only               # 仅生成外设相关输出；跳过设备生成
+--devices-only                   # 仅生成设备相关输出；仍会加载外设配置作为设备引用
+--kconfig-only                   # 仅生成 Kconfig 文件；跳过板级代码生成和 sdkconfig 清理
 ```
 
-**SDKconfig 配置:**
+**SDKconfig 行为：**
 
 ```bash
---sdkconfig-only                 # 仅检查 sdkconfig 功能而不启用它们
---disable-sdkconfig-auto-update  # 禁用自动 sdkconfig 功能启用（默认启用）
+--skip-sdkconfig-check           # 跳过 sdkconfig 符号一致性检查
+-x, --clean                      # 删除生成的 .c/.h 文件，重置生成的 CMakeLists.txt / idf_component.yml，并移除 board_manager.defaults
 ```
 
-**日志控制:**
+**日志控制：**
 
 ```bash
---log-level LEVEL                # 设置日志级别: DEBUG, INFO, WARNING, ERROR (默认: INFO)
+--log-level LEVEL                # DEBUG, INFO, WARNING, ERROR（默认: INFO）
 ```
 
 ### 方法1: 作为 IDF Action 扩展使用（推荐）
@@ -338,15 +345,20 @@ idf.py gen-bmgr-config -b 1
 # 使用自定义板子
 idf.py gen-bmgr-config -b my_board -c /path/to/custom/boards
 
+# 在默认 components 目录创建新板子
+idf.py gen-bmgr-config -n my_new_board
+
+# 在指定路径创建新板子
+idf.py gen-bmgr-config -n path/to/boards/my_new_board
+
+# 仅生成 Kconfig 文件
+idf.py gen-bmgr-config -b esp_vocat_board_v1_0 --kconfig-only
+
+# 复用当前 sdkconfig 时跳过一致性检查
+idf.py gen-bmgr-config -b esp_vocat_board_v1_0 --skip-sdkconfig-check
+
 # 清理生成的文件
 idf.py gen-bmgr-config -x
-
-# 在默认路径创建板子(默认路径为 {PROJECT_ROOT}/components/<board_name>):
-idf.py gen-bmgr-config -n <board_name>
-
-# 在自定义路径创建板子:
-idf.py gen-bmgr-config -n path/to/board/<board_name>
-...
 ```
 
 ### 方法2: 使用独立脚本
@@ -365,8 +377,17 @@ python gen_bmgr_config_codes.py -b 1
 python gen_bmgr_config_codes.py 1 -c /custom/boards
 python gen_bmgr_config_codes.py -b my_board -c /path/to/custom/boards
 
+# 仅生成外设
+python gen_bmgr_config_codes.py -b esp_vocat_board_v1_0 --peripherals-only
+
+# 仅生成设备
+python gen_bmgr_config_codes.py -b esp_vocat_board_v1_0 --devices-only
+
+# 仅生成 Kconfig 文件
+python gen_bmgr_config_codes.py -b esp_vocat_board_v1_0 --kconfig-only
+
 # 清理生成的文件
-python gen_bmgr_config_codes.py -x
+python gen_bmgr_config_codes.py --clean
 ```
 
 直接使用独立脚本时还有部分额外的用法：
@@ -376,25 +397,25 @@ python gen_bmgr_config_codes.py -x
 python gen_bmgr_config_codes.py
 
 # 将板子作为直接参数指定（名称或索引）
-# 直接参数（不使用 `-b`）仅在直接调用脚本时有效，由于 ESP-IDF 框架限制，`idf.py` 不支持。
+# 直接使用板子命名或索引参数仅在直接调用脚本时有效
 python gen_bmgr_config_codes.py esp32_s3_korvo2_v3
 python gen_bmgr_config_codes.py 1
 ```
 
 ## 脚本执行流程
 
-ESP Board Manager 使用 `gen_bmgr_config_codes.py` 进行代码生成，它在统一的工作流程中处理 Kconfig 菜单生成和板子配置生成。执行全面的 8 步流程，将 YAML 配置转换为 C 代码和构建系统文件：
+ESP Board Manager 使用 `gen_bmgr_config_codes.py` 进行代码生成，它在统一的工作流程中处理 Kconfig 生成和板子配置生成。当前执行流程为 8 个步骤，将 YAML 配置转换为源码和构建元数据：
 
 1. **板子目录扫描**: 在默认、客户和组件目录中发现板子
 2. **板子选择**: 从 sdkconfig 或命令行参数读取板子选择
-3. **Kconfig 生成**: 为板子和组件选择创建统一 Kconfig 菜单系统
-4. **配置文件发现**: 定位所选板子的 `board_peripherals.yaml` 和 `board_devices.yaml`
-5. **外设处理**: 解析外设配置并生成 C 结构
-6. **设备处理**: 处理设备配置、依赖关系并更新构建文件
-7. **项目 sdkconfig 配置**: 根据板子设备和外设类型更新项目 sdkconfig
-8. **文件生成**: 在工程文件夹的 `components/gen_bmgr_codes/` 中创建所有必要的 C 配置和句柄文件
+3. **配置文件发现**: 定位所选板子的 `board_peripherals.yaml` 和 `board_devices.yaml`
+4. **外设处理**: 解析外设配置并生成外设 C 结构/句柄
+5. **设备处理**: 解析设备配置、处理依赖并生成设备 C 结构/句柄
+6. **Kconfig 生成**: 存在外部板子时生成 `components/gen_bmgr_codes/Kconfig.projbuild`
+7. **板子 sdkconfig 配置**: 在需要时检查保留的 sdkconfig 一致性，生成 `components/gen_bmgr_codes/board_manager.defaults`
+8. **生成组件**: 写入板子信息和 `components/gen_bmgr_codes/` 下的生成组件文件
 
-**⚠️ 重要提示：** 切换板子时，脚本会在第 1 步中自动备份并删除现有的 `sdkconfig` 文件。这是为了防止旧板子的配置残留影响新板子的配置（例如不同芯片的 CONFIG_IDF_TARGET、不同板子的设备配置等）。备份文件为 `sdkconfig.bmgr_board.old`，如需恢复可重命名回 `sdkconfig`（`--kconfig-only` 时跳过此操作）。
+**⚠️ 重要提示：** 切换板子时，脚本会在环境清理阶段自动备份并删除现有的 `sdkconfig` 文件。这是为了防止旧板子的配置残留影响新板子的配置（例如不同芯片的 `CONFIG_IDF_TARGET`、残留的板级符号等）。备份文件为 `sdkconfig.bmgr_board.old`。
 
 ## 自定义板子
 
@@ -426,7 +447,7 @@ ESP Board Manager 的未来开发计划（优先级从高到低）：
 1. 检查 `IDF_EXTRA_ACTIONS_PATH` 是否正确设置
 2. 重新启动您的终端会话
 
-### `undefined reference for g_board_devices and g_board_peripherals`
+### `undefined reference to 'g_esp_board_devices'` 或 `g_esp_board_peripherals`
 
 1. 确保您的项目中没有 `idf_build_set_property(MINIMAL_BUILD ON)`，因为 MINIMAL_BUILD 仅通过包含所有其他组件所需的"通用"组件来执行最小构建。
 2. 确保您的项目有 `components/gen_bmgr_codes` 文件夹，其中包含生成的文件。这些文件是通过运行 `idf.py gen-bmgr-config -b YOUR_BOARD` 生成的。
@@ -457,7 +478,7 @@ Failed to resolve component 'esp_board_manager' required by component
   'gen_bmgr_codes': unknown name.
 ```
 
-这可能是 board manager 上次残留的生成文件未被清除导致的。**您可以使用 `idf.py gen-bmgr-config -x`（或 `python gen_bmgr_config_codes.py -x`）清理生成的文件**，这将删除所有生成的 .c 和 .h 文件并重置 CMakeLists.txt 和 idf_component.yml。
+这可能是 board manager 上次残留的生成文件未被清除导致的。**您可以使用 `idf.py gen-bmgr-config -x`（或 `python gen_bmgr_config_codes.py -x`）清理生成的文件**，这会删除生成的 `.c/.h` 文件，重置生成的 `CMakeLists.txt` / `idf_component.yml`，并移除 `board_manager.defaults`。
 
 ### Undefined reference to 'g_esp_board_devices'
 

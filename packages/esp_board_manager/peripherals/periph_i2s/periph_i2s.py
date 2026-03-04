@@ -219,21 +219,76 @@ def parse_i2s_format(format_str: str) -> dict:
 
     return result
 
+def get_effective_chip_name():
+    """Resolve target chip for I2S struct layout (board YAML first, then build env).
+
+    Code generation must match ``i2s_pdm.h`` / ``i2s_std.h`` layout for the *actual*
+    ``CONFIG_IDF_TARGET``. If board metadata is missing (e.g. kconfig-only runs),
+    fall back to ``IDF_TARGET`` from the environment so ESP32 (HW v1) does not get
+    v2-only PDM slot fields, and so GPIO config does not include ``dout2`` when
+    ``SOC_I2S_PDM_MAX_TX_LINES <= 1``.
+    """
+    from generators.utils.board_utils import get_chip_name
+    chip_name = get_chip_name()
+    if chip_name:
+        return chip_name.strip().lower()
+    for env_key in ('IDF_TARGET',):
+        raw = os.environ.get(env_key, '').strip().lower().replace('-', '')
+        if raw:
+            return raw
+    return None
+
+
+def chip_supports_pdm_tx_second_dout_pin(chip_name) -> bool:
+    """Whether ``i2s_pdm_tx_gpio_config_t`` includes ``dout2`` (``SOC_I2S_PDM_MAX_TX_LINES > 1``)."""
+    if not chip_name:
+        # Prefer omitting dout2 when unknown; boards that need two lines should set board path / chip.
+        return False
+    c = chip_name.strip().lower().replace('-', '')
+    # Matches ESP-IDF soc_caps: ESP32 defines SOC_I2S_PDM_MAX_TX_LINES (1) — no dout2 field.
+    if c == 'esp32':
+        return False
+    return True
+
+
 def get_i2s_hw_version() -> int:
     """Determine I2S hardware version based on chip type.
     Returns:
         1 for SOC_I2S_HW_VERSION_1 (ESP32/ESP32-S2)
         2 for SOC_I2S_HW_VERSION_2 (all other chips)
     """
-    from generators.utils.board_utils import get_chip_name
-    chip_name = get_chip_name()
+    chip_name = get_effective_chip_name()
     if not chip_name:
-        # Default to SOC_I2S_HW_VERSION_2 if chip name not found
+        # Legacy: assume newer IP (v2). Re-run gen-bmgr-config with a board selected for correct ESP32 output.
         return 2
-    if chip_name in ['esp32', 'esp32s2']:
+    if chip_name in ('esp32', 'esp32s2'):
         return 1  # SOC_I2S_HW_VERSION_1
-    else:
-        return 2  # SOC_I2S_HW_VERSION_2
+    return 2  # SOC_I2S_HW_VERSION_2
+
+
+def pdm_slot_supports_data_fmt() -> bool:
+    """Whether current ESP-IDF exposes ``data_fmt`` in PDM RX/TX slot config.
+
+    The field is present starting from IDF 5.5.x. When version cannot be resolved,
+    prefer omitting the field because zero-initialization keeps PCM default behavior
+    on newer IDF while avoiding compile failures on older IDF.
+    """
+    from generators.utils.idf_version import get_idf_version
+
+    return get_idf_version() >= (5, 5, 0)
+
+
+def validate_pdm_data_fmt_compat(cfg: dict) -> None:
+    """Reject explicit RAW/advanced PDM data format on older IDF branches."""
+    if pdm_slot_supports_data_fmt():
+        return
+
+    data_fmt = cfg.get('data_fmt')
+    if data_fmt and data_fmt != 'I2S_PDM_DATA_FMT_PCM':
+        raise ValueError(
+            f"PDM data_fmt '{data_fmt}' requires ESP-IDF >= 5.5. "
+            'Use I2S_PDM_DATA_FMT_PCM or upgrade the IDF version.'
+        )
 
 def build_std_slot_config(cfg: dict, hw_version: int) -> dict:
     """Build slot configuration based on hardware version.
@@ -271,17 +326,21 @@ def build_pdm_tx_slot_config(cfg: dict, hw_version: int) -> dict:
     Returns:
         Dictionary containing PDM TX slot configuration
     """
+    validate_pdm_data_fmt_compat(cfg)
+
     slot_cfg = {
         'data_bit_width': f"I2S_DATA_BIT_WIDTH_{cfg.get('data_bit_width', 16)}BIT",
         'slot_bit_width': get_enum_value(cfg.get('slot_bit_width'), 'I2S_SLOT_BIT_WIDTH_AUTO', 'slot_bit_width'),
         'slot_mode': get_enum_value(cfg.get('slot_mode'), 'I2S_SLOT_MODE_STEREO', 'slot_mode'),
-        'data_fmt': get_enum_value(cfg.get('data_fmt'), 'I2S_PDM_DATA_FMT_PCM', 'pdm_data_fmt'),
         'sd_prescale': int(cfg.get('sd_prescale', 0)),
         'sd_scale': get_enum_value(cfg.get('sd_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale'),
         'hp_scale': get_enum_value(cfg.get('hp_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale'),
         'lp_scale': get_enum_value(cfg.get('lp_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale'),
         'sinc_scale': get_enum_value(cfg.get('sinc_scale'), 'I2S_PDM_SIG_SCALING_MUL_1', 'pdm_sig_scale')
     }
+
+    if pdm_slot_supports_data_fmt():
+        slot_cfg['data_fmt'] = get_enum_value(cfg.get('data_fmt'), 'I2S_PDM_DATA_FMT_PCM', 'pdm_data_fmt')
 
     # Add hardware version specific fields
     if hw_version == 1:  # SOC_I2S_HW_VERSION_1 (ESP32/ESP32-S2)
@@ -310,13 +369,17 @@ def build_pdm_rx_slot_config(cfg: dict, hw_version: int) -> dict:
     Returns:
         Dictionary containing PDM RX slot configuration
     """
+    validate_pdm_data_fmt_compat(cfg)
+
     slot_cfg = {
         'data_bit_width': f"I2S_DATA_BIT_WIDTH_{cfg.get('data_bit_width', 16)}BIT",
         'slot_bit_width': get_enum_value(cfg.get('slot_bit_width'), 'I2S_SLOT_BIT_WIDTH_AUTO', 'slot_bit_width'),
         'slot_mode': get_enum_value(cfg.get('slot_mode'), 'I2S_SLOT_MODE_STEREO', 'slot_mode'),
-        'slot_mask': get_enum_value(cfg.get('slot_mask'), 'I2S_PDM_SLOT_BOTH', 'pdm_slot_mask'),
-        'data_fmt': get_enum_value(cfg.get('data_fmt'), 'I2S_PDM_DATA_FMT_PCM', 'pdm_data_fmt')
+        'slot_mask': get_enum_value(cfg.get('slot_mask'), 'I2S_PDM_SLOT_BOTH', 'pdm_slot_mask')
     }
+
+    if pdm_slot_supports_data_fmt():
+        slot_cfg['data_fmt'] = get_enum_value(cfg.get('data_fmt'), 'I2S_PDM_DATA_FMT_PCM', 'pdm_data_fmt')
 
     # Add hardware version specific fields
     if hw_version == 2:  # SOC_I2S_HW_VERSION_2 (all other chips) - only these chips support HP filter
@@ -391,8 +454,12 @@ def parse(name: str, config: dict) -> dict:
         invert_flags = cfg.get('invert_flags', {})
 
         # Determine I2S hardware version
+        eff_chip = get_effective_chip_name()
         hw_version = get_i2s_hw_version()
-        logger.debug(f"I2S {name} detected hardware version: {hw_version} ({'SOC_I2S_HW_VERSION_1' if hw_version == 1 else 'SOC_I2S_HW_VERSION_2'})")
+        logger.debug(
+            f'I2S {name} chip={eff_chip!r} hw_version={hw_version} '
+            f"({'SOC_I2S_HW_VERSION_1' if hw_version == 1 else 'SOC_I2S_HW_VERSION_2'})"
+        )
 
         # Create base config
         config_dict = {
@@ -491,20 +558,23 @@ def parse(name: str, config: dict) -> dict:
                     'up_sample_fs': int(cfg.get('up_sample_fs', 480)),
                     'bclk_div': int(cfg.get('bclk_div', 8))
                 }
+                pdm_gpio_cfg = {
+                    'clk': int(pins.get('clk', -1)),
+                    'dout': int(pins.get('dout', -1)),
+                    'invert_flags': {
+                        'clk_inv': bool(invert_flags.get('clk_inv', False))
+                    }
+                }
+                # dout2 exists only when SOC_I2S_PDM_MAX_TX_LINES > 1 (e.g. not on ESP32)
+                if chip_supports_pdm_tx_second_dout_pin(get_effective_chip_name()):
+                    pdm_gpio_cfg['dout2'] = int(pins.get('dout2', -1)) if 'dout2' in pins else -1
+
                 config_dict['struct_init']['i2s_cfg'] = {
                     'pdm_tx': {  # Use pdm_tx for output
                         'clk_cfg': pdm_tx_clk_cfg,
                         # Slot config
                         'slot_cfg': build_pdm_tx_slot_config(cfg, hw_version),
-                        # GPIO config
-                        'gpio_cfg': {
-                            'clk': int(pins.get('clk', -1)),
-                            'dout': int(pins.get('dout', -1)),
-                            'dout2': int(pins.get('dout2', -1)) if 'dout2' in pins else -1,  # Second data pin for dual-line DAC mode
-                            'invert_flags': {
-                                'clk_inv': bool(invert_flags.get('clk_inv', False))
-                            }
-                        }
+                        'gpio_cfg': pdm_gpio_cfg,
                     }
                 }
             else:  # I2S_DIR_RX - Use PDM RX configuration for input direction
@@ -516,26 +586,28 @@ def parse(name: str, config: dict) -> dict:
                     'dn_sample_mode': get_enum_value(cfg.get('dn_sample_mode'), 'I2S_PDM_DSR_8S', 'pdm_dsr'),
                     'bclk_div': int(cfg.get('bclk_div', 8))
                 }
+                pdm_rx_gpio_cfg = {
+                    'clk': int(pins.get('clk', -1)),
+                    'invert_flags': {
+                        'clk_inv': bool(invert_flags.get('clk_inv', False))
+                    },
+                }
+                # SOC_I2S_PDM_MAX_RX_LINES is hardcoded to 4 in esp32p4 and esp32s3, other chips only support 1.
+                if any(f'din{i}' in pins for i in range(4)):
+                    pdm_rx_gpio_cfg['dins'] = [
+                        int(pins.get('din0', -1)),
+                        int(pins.get('din1', -1)),
+                        int(pins.get('din2', -1)),
+                        int(pins.get('din3', -1)),
+                    ]
+                else:
+                    pdm_rx_gpio_cfg['din'] = int(pins.get('din', -1)) if 'din' in pins else -1
+
                 config_dict['struct_init']['i2s_cfg'] = {
                     'pdm_rx': {  # Use pdm_rx for input
                         'clk_cfg': pdm_rx_clk_cfg,
-                        # Slot config
                         'slot_cfg': build_pdm_rx_slot_config(cfg, hw_version),
-                        # GPIO config
-                        'gpio_cfg': {
-                            'clk': int(pins.get('clk', -1)),
-                            'din': int(pins.get('din', -1)) if 'din' in pins else -1,  # Single din pin for PDM RX
-                            # FIXME Number of rx pins defined in SOC_I2S_PDM_MAX_RX_LINES is hardcoded to 4
-                            'dins': [
-                                int(pins.get('din0', -1)),
-                                int(pins.get('din1', -1)),
-                                int(pins.get('din2', -1)),
-                                int(pins.get('din3', -1))
-                            ] if any(f'din{i}' in pins for i in range(4)) else None,  # Multiple din pins for PDM RX
-                            'invert_flags': {
-                                'clk_inv': bool(invert_flags.get('clk_inv', False))
-                            }
-                        }
+                        'gpio_cfg': pdm_rx_gpio_cfg,
                     }
                 }
 

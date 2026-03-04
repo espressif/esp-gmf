@@ -12,7 +12,7 @@ devices:
       # e.g. "0111", bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable, bit4: Mic4 disable
       adc_channel_mask: "1"            # Mic0 enable
       adc_channel_labels: ['FC']
-      dac_enabled: true
+      dac_enabled: false
       dac_max_channel: 1
       # DAC channel mask, 1-enable, 0-disable, layout: left,right
       dac_channel_mask: "1"            # Left enable

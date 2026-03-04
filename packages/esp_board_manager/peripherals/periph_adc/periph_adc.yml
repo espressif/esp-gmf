@@ -9,11 +9,14 @@
   type: adc
   role: continuous
   config:
-    # ADC unit, optional values are ADC_UNIT_1 and ADC_UNIT_2, should be less than 'SOC_ADC_PERIPH_NUM'
-    # please check the 'SOC_ADC_PERIPH_NUM' in 'soc/soc_caps.h' for the valid values
+    # Continuous mode supports two YAML styles (auto-detected by parser):
+    # 1) single_unit (legacy compatible): unit_id + channel_id
+    # 2) pattern (multi-unit capable): patterns[]
+
+    # [single_unit] ADC unit, optional values are ADC_UNIT_1 and ADC_UNIT_2
     unit_id: ADC_UNIT_1  # [TO_BE_CONFIRMED] ADC unit ID
 
-    # ADC attenuation. Different parameters determine the range of the ADC. (default: ADC_ATTEN_DB_0)
+    # [single_unit] ADC attenuation. Different parameters determine the range of the ADC. (default: ADC_ATTEN_DB_0)
     atten: ADC_ATTEN_DB_0
     # Valid values:
     # - ADC_ATTEN_DB_0
@@ -22,7 +25,7 @@
     # - ADC_ATTEN_DB_12
     # - ADC_ATTEN_DB_11 (deprecated)
 
-    # ADC raw output bitwidth. (default: ADC_BITWIDTH_DEFAULT)
+    # [single_unit] ADC raw output bitwidth. (default: ADC_BITWIDTH_DEFAULT)
     bit_width: ADC_BITWIDTH_DEFAULT
     # Valid values:
     # - ADC_BITWIDTH_9
@@ -51,7 +54,11 @@
     # - ADC_DIGI_OUTPUT_FORMAT_TYPE1
     # - ADC_DIGI_OUTPUT_FORMAT_TYPE2
 
-    # Conversion mode for DMA operation. (default: ADC_CONV_SINGLE_UNIT_1)
+    # Conversion mode for DMA operation.
+    # If omitted, parser auto-derives:
+    # - single_unit + unit1 => ADC_CONV_SINGLE_UNIT_1
+    # - single_unit + unit2 => ADC_CONV_SINGLE_UNIT_2
+    # - pattern mixed unit  => ADC_CONV_BOTH_UNIT
     conv_mode: ADC_CONV_SINGLE_UNIT_1
     # Valid values:
     # - ADC_CONV_SINGLE_UNIT_1
@@ -59,13 +66,21 @@
     # - ADC_CONV_BOTH_UNIT
     # - ADC_CONV_ALTER_UNIT
 
-    # Number of ADC channels that will be used, should less than 'SOC_ADC_PATT_LEN_MAX'
-    # Please check the 'soc/soc_caps.h' for the valid values
-    pattern_num: 1
-
-    # List of configs for each ADC channel that will be used
+    # [single_unit] List of ADC channels that will be used
     # Use adc_continuous_io_to_channel() and adc_continuous_channel_to_io() to get the corresponding relationship between ADC channels and ADC IO.
     channel_id: [4]  # [TO_BE_CONFIRMED] ADC channel ID(s)
+
+    # [pattern] Full pattern list (supports mixed units)
+    # Do not configure together with channel_id/unit_id/atten/bit_width
+    # patterns:
+    #   - unit: ADC_UNIT_1
+    #     channel: 4
+    #     atten: ADC_ATTEN_DB_0
+    #     bit_width: ADC_BITWIDTH_DEFAULT
+    #   - unit: ADC_UNIT_2
+    #     channel: 0
+    #     atten: ADC_ATTEN_DB_0
+    #     bit_width: ADC_BITWIDTH_DEFAULT
 
 
 # -----------------------------------------------------------------------------
