@@ -557,6 +557,9 @@ void encoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
                 TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_encoder_frame_size(el, &in_size, &out_size));
                 TEST_ASSERT_EQUAL(ESP_GMF_ELEMENT_GET(el)->in_attr.data_size, in_size);
                 TEST_ASSERT_EQUAL(ESP_GMF_ELEMENT_GET(el)->out_attr.data_size, out_size);
+                esp_audio_enc_config_t enc_cfg = {0};
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_FAIL, audio_el_test_reconfig_encoder(el, &enc_cfg));
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_FAIL, audio_el_test_reconfig_encoder_by_sound_info(el, &res->in_inst[0].src_info));
             }
             res->is_first_open = false;
         } else if (res->is_first_open == false) {
@@ -577,18 +580,6 @@ void encoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_encoder_frame_size(el, &in_size, &out_size));
             TEST_ASSERT_EQUAL(ESP_GMF_ELEMENT_GET(el)->in_attr.data_size, in_size);
             TEST_ASSERT_EQUAL(ESP_GMF_ELEMENT_GET(el)->out_attr.data_size, out_size);
-            esp_audio_enc_config_t enc_cfg = {0};
-            esp_gmf_event_state_t cur_event_state = 0;
-            esp_gmf_element_get_state(el, &cur_event_state);
-            if (cur_event_state >= ESP_GMF_EVENT_STATE_OPENING) {
-                ret = audio_el_test_reconfig_encoder(el, &enc_cfg);
-                TEST_ASSERT_EQUAL(ESP_GMF_ERR_FAIL, ret);
-            }
-            esp_gmf_element_get_state(el, &cur_event_state);
-            if (cur_event_state >= ESP_GMF_EVENT_STATE_OPENING) {
-                ret = audio_el_test_reconfig_encoder_by_sound_info(el, &res->in_inst[0].src_info);
-                TEST_ASSERT_EQUAL(ESP_GMF_ERR_FAIL, ret);
-            }
         }
     }
 }
