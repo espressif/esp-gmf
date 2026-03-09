@@ -48,12 +48,13 @@ static const char *TAG = "ESP_GMF_TASK";
 #define TASK_CLR_ACTION(flag, type)  (atomic_fetch_and(&flag, ~(1 << type)))
 
 typedef enum {
-    GMF_TASK_ACTION_TYPE_CREATED = 0,
-    GMF_TASK_ACTION_TYPE_RUN     = 1,
-    GMF_TASK_ACTION_TYPE_RUNNING = 2,
-    GMF_TASK_ACTION_TYPE_PAUSE   = 3,
-    GMF_TASK_ACTION_TYPE_STOP    = 4,
-    GMF_TASK_ACTION_TYPE_DESTROY = 5,
+    GMF_TASK_ACTION_TYPE_CREATED        = 0,
+    GMF_TASK_ACTION_TYPE_RUN            = 1,
+    GMF_TASK_ACTION_TYPE_RUNNING        = 2,
+    GMF_TASK_ACTION_TYPE_PAUSE          = 3,
+    GMF_TASK_ACTION_TYPE_STOP           = 4,
+    GMF_TASK_ACTION_TYPE_DESTROY        = 5,
+    GMF_TASK_ACTION_TYPE_PAUSE_ON_START = 6,
 } gmf_task_action_type_t;
 
 /**
@@ -298,6 +299,17 @@ static inline int __process_func(esp_gmf_task_handle_t handle, void *para)
     GMF_TASK_CLR_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT);
     esp_gmf_event_state_t quit_state = ESP_GMF_EVENT_STATE_STOPPED;
     while (worker && worker->func) {
+        if (TASK_HAS_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE_ON_START)) {
+            ESP_LOGI(TAG, "Pause on start, pause task, [%s-%p, wk:%p, job:%p-%s],st:%s", OBJ_GET_TAG((esp_gmf_obj_handle_t)(tsk)),
+                     tsk, worker, worker ? worker->ctx : NULL, worker ? worker->label : "NULL", esp_gmf_event_get_state_str(tsk->state));
+            __esp_gmf_task_event_state_change_and_notify(tsk, ESP_GMF_EVENT_STATE_PAUSED);
+            TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE_ON_START);
+            __esp_gmf_task_acquire_signal(tsk, portMAX_DELAY);
+            ESP_LOGI(TAG, "Pause on start, resume task, [%s-%p, wk:%p, job:%p-%s]", OBJ_GET_TAG((esp_gmf_obj_handle_t)(tsk)), tsk, worker,
+                     worker ? worker->ctx : NULL, worker ? worker->label : "NULL");
+            __esp_gmf_task_event_state_change_and_notify(tsk, ESP_GMF_EVENT_STATE_RUNNING);
+            GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_RESUME_BIT);
+        }
         ESP_LOGV(TAG, "Running, job:%p, ctx:%p, working:%p", worker->func, worker->ctx, tsk->working);
         worker->ret = worker->func(worker->ctx, NULL);
         ESP_LOGV(TAG, "Job ret:%d, [tsk:%s-%p:%p-%p-%s]", worker->ret, OBJ_GET_TAG((esp_gmf_obj_handle_t)tsk), tsk, worker, worker->ctx, worker->label);
@@ -637,6 +649,16 @@ esp_gmf_err_t esp_gmf_task_set_strategy_func(esp_gmf_task_handle_t handle, esp_g
     esp_gmf_task_t *tsk = (esp_gmf_task_t *)handle;
     tsk->_strategy_func = func;
     tsk->_strategy_ctx = ctx;
+    return ESP_GMF_ERR_OK;
+}
+
+esp_gmf_err_t esp_gmf_task_set_pause_on_start(esp_gmf_task_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_task_t *tsk = (esp_gmf_task_t *)handle;
+    esp_gmf_oal_mutex_lock(tsk->lock);
+    TASK_SET_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_PAUSE_ON_START);
+    esp_gmf_oal_mutex_unlock(tsk->lock);
     return ESP_GMF_ERR_OK;
 }
 

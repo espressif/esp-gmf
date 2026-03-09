@@ -596,3 +596,47 @@ TEST_CASE("GMF Pipeline Iterate Element test", "[ESP_GMF_PIPELINE]")
     esp_gmf_pool_deinit(pool);
     ESP_GMF_MEM_SHOW(TAG);
 }
+
+TEST_CASE("Pipeline pause on start test", "[ESP_GMF_PIPELINE]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+
+    pipeline_state_t state = {};
+    general_el_cfg_t cfg[2] = {};
+    for (int i = 0; i < 2; i++) {
+        cfg[i].state = &state;
+    }
+
+    // 1. Verify normal run (pipeline runs normally)
+    pipeline_test_ctx_t ctx1 = {};
+    pipeline_test_setup(&ctx1, cfg, 2, pipeline_event, NULL);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(ctx1.pipe));
+
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    esp_gmf_element_handle_t iter1 = NULL;
+    esp_gmf_pipeline_get_head_el(ctx1.pipe, &iter1);
+    general_el_t *el1 = (general_el_t *)iter1;
+    TEST_ASSERT_GREATER_THAN(0, el1->running_count);
+    pipeline_test_cleanup(&ctx1);
+
+    // 2. Verify pause on start
+    pipeline_test_ctx_t ctx2 = {};
+    pipeline_test_setup(&ctx2, cfg, 2, pipeline_event, NULL);
+    // Set pause on start
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_pause_on_start(ctx2.pipe, true));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(ctx2.pipe));
+
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    esp_gmf_element_handle_t iter2 = NULL;
+    esp_gmf_pipeline_get_head_el(ctx2.pipe, &iter2);
+    general_el_t *el2 = (general_el_t *)iter2;
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, el2->running_count, "Element shouldn't be running when pause_on_start is set");
+
+    // Verify it resumes normally
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_resume(ctx2.pipe));
+    // Wait for the pipeline to start running
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    TEST_ASSERT_GREATER_THAN(0, el2->running_count);
+    pipeline_test_cleanup(&ctx2);
+}

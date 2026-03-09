@@ -191,6 +191,17 @@ esp_gmf_err_t esp_gmf_task_set_event_func(esp_gmf_task_handle_t handle, esp_gmf_
 esp_gmf_err_t esp_gmf_task_set_strategy_func(esp_gmf_task_handle_t handle, esp_gmf_task_strategy_func func, void *ctx);
 
 /**
+ * @brief  Set pause on start for the task. If set, the task will behavior to pause status after call `esp_gmf_task_run`
+ *
+ * @param[in]  handle  GMF task handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Indicating the handle is invalid
+ */
+esp_gmf_err_t esp_gmf_task_set_pause_on_start(esp_gmf_task_handle_t handle);
+
+/**
  * @brief  Run the specific GMF task
  *
  * @note   The function returns once the worker task receives the run command

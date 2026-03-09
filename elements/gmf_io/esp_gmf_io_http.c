@@ -394,6 +394,14 @@ static esp_gmf_err_io_t _http_release_write(esp_gmf_io_handle_t handle, void *pa
     return ESP_GMF_IO_OK;
 }
 
+static esp_gmf_err_t _http_reload(esp_gmf_io_handle_t handle, const char *new_uri)
+{
+    http_stream_t *http = (http_stream_t *)handle;
+    http->is_open = false;
+    esp_gmf_io_set_uri(handle, new_uri);
+    return _http_open(handle);
+}
+
 esp_gmf_err_t esp_gmf_io_http_reset(esp_gmf_io_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
@@ -442,6 +450,7 @@ esp_gmf_err_t esp_gmf_io_http_init(http_io_cfg_t *config, esp_gmf_io_handle_t *i
     http->base.prev_close = _http_prev_close;
     http->base.close = _http_close;
     http->base.reset = esp_gmf_io_http_reset;
+    http->base.reload = _http_reload;
     if (config->dir == ESP_GMF_IO_DIR_WRITER) {
         http->base.acquire_write = _http_acquire_write;
         http->base.release_write = _http_release_write;

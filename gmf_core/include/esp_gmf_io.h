@@ -90,11 +90,12 @@ typedef struct {
  * @brief  Structure representing a GMF I/O
  */
 typedef struct esp_gmf_io_ {
-    struct esp_gmf_obj_  parent;                                    /*!< Parent object */
-    esp_gmf_err_t (*open)(esp_gmf_io_handle_t obj);                 /*!< Open callback function */
-    esp_gmf_err_t (*seek)(esp_gmf_io_handle_t obj, uint64_t data);  /*!< Seek callback function */
-    esp_gmf_err_t (*close)(esp_gmf_io_handle_t obj);                /*!< Close callback function */
-    esp_gmf_err_t (*reset)(esp_gmf_io_handle_t obj);                /*!< Reset callback function */
+    struct esp_gmf_obj_  parent;                                        /*!< Parent object */
+    esp_gmf_err_t (*open)(esp_gmf_io_handle_t obj);                     /*!< Open callback function */
+    esp_gmf_err_t (*seek)(esp_gmf_io_handle_t obj, uint64_t data);      /*!< Seek callback function */
+    esp_gmf_err_t (*close)(esp_gmf_io_handle_t obj);                    /*!< Close callback function */
+    esp_gmf_err_t (*reset)(esp_gmf_io_handle_t obj);                    /*!< Reset callback function */
+    esp_gmf_err_t (*reload)(esp_gmf_io_handle_t obj, const char *uri);  /*!< Reload callback function */
 
     /*!< Previous close callback function
      *   For some block IO instances, this function can be called before the `close` operation
@@ -197,6 +198,7 @@ esp_gmf_err_t esp_gmf_io_open(esp_gmf_io_handle_t handle);
  * @return
  *       - ESP_GMF_ERR_OK           On success
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ *       - ESP_GMF_ERR_NOT_SUPPORT  Not support
  *       - Others                   Indicating failure
  */
 esp_gmf_err_t esp_gmf_io_seek(esp_gmf_io_handle_t handle, uint64_t seek_byte_pos);
@@ -386,6 +388,19 @@ esp_gmf_err_t esp_gmf_io_set_size(esp_gmf_io_handle_t handle, uint64_t total_siz
 esp_gmf_err_t esp_gmf_io_get_size(esp_gmf_io_handle_t handle, uint64_t *total_size);
 
 /**
+ * @brief  Get the filled size in the data bus of the specific I/O handle
+ *
+ * @param[in]   handle       GMF I/O handle
+ * @param[out]  filled_size  Pointer to store the filled size in the data bus
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ *       - ESP_GMF_ERR_NOT_SUPPORT  Operation not supported, the I/O instance does not have a configured data bus
+ */
+esp_gmf_err_t esp_gmf_io_get_db_filled_size(esp_gmf_io_handle_t handle, uint32_t *filled_size);
+
+/**
  * @brief  Get the I/O type of the specific I/O handle
  *
  * @param[in]   handle  GMF I/O handle
@@ -407,6 +422,25 @@ esp_gmf_err_t esp_gmf_io_get_type(esp_gmf_io_handle_t handle, esp_gmf_io_type_t 
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
  */
 esp_gmf_err_t esp_gmf_io_reset(esp_gmf_io_handle_t handle);
+
+/**
+ * @brief  Reload Io with a URI. Used primarily for seamless transitions (e.g., Hls segments)
+ *         Reload is specailly designed to optimized download efficiency
+ *         This function is used to avoid reconnection which is time-consuming when download sequential urls from same host
+ *         If the IO has an io_process task, this function will reset the done_write (EOF) flag of data_bus and rerun the task
+ *
+ * @note  This function should be called after the current IO operation (e.g., reading the resource) has finished.
+ *
+ * @param[in]  handle  GMF I/O handle
+ * @param[in]  uri     Pointer to the URI string
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ *       - ESP_GMF_ERR_NOT_SUPPORT  Not support
+ *       - Others                   Indicating failure
+ */
+esp_gmf_err_t esp_gmf_io_reload(esp_gmf_io_handle_t handle, const char *uri);
 
 /**
  * @brief  Mark an I/O as done, cause the `esp_gmf_io_acquire_*` / `esp_gmf_io_release_*` input parameter(load) to have the is_done flag set

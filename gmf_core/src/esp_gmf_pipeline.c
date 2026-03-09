@@ -513,11 +513,21 @@ esp_gmf_err_t esp_gmf_pipeline_prev_stop(esp_gmf_pipeline_handle_t pipeline)
     return ESP_GMF_ERR_OK;
 }
 
+esp_gmf_err_t esp_gmf_pipeline_set_pause_on_start(esp_gmf_pipeline_handle_t pipeline, bool enable)
+{
+    ESP_GMF_NULL_CHECK(TAG, pipeline, return ESP_GMF_ERR_INVALID_ARG);
+    pipeline->pause_on_start = enable ? 1 : 0;
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_pipeline_run(esp_gmf_pipeline_handle_t pipeline)
 {
     ESP_GMF_NULL_CHECK(TAG, pipeline, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_err_t ret = esp_gmf_pipeline_prev_run(pipeline);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Fail to prev run for %p", pipeline);
+    if (pipeline->pause_on_start && pipeline->thread) {
+        esp_gmf_task_set_pause_on_start(pipeline->thread);
+    }
     return esp_gmf_task_run(pipeline->thread);
 }
 

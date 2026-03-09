@@ -16,10 +16,10 @@
 extern "C" {
 #endif  /* __cplusplus */
 
-#define ESP_GMF_PIPELINE_GET_IN_INSTANCE(p)   (p->in)
-#define ESP_GMF_PIPELINE_GET_OUT_INSTANCE(p)  (p->out)
-#define ESP_GMF_PIPELINE_GET_FIRST_ELEMENT(p) (p->head_el)
-#define ESP_GMF_PIPELINE_GET_LAST_ELEMENT(p)  (p->last_el)
+#define ESP_GMF_PIPELINE_GET_IN_INSTANCE(p)    (p->in)
+#define ESP_GMF_PIPELINE_GET_OUT_INSTANCE(p)   (p->out)
+#define ESP_GMF_PIPELINE_GET_FIRST_ELEMENT(p)  (p->head_el)
+#define ESP_GMF_PIPELINE_GET_LAST_ELEMENT(p)   (p->last_el)
 
 /**
  * @brief  Pointer to a GMF pipeline
@@ -35,22 +35,23 @@ typedef esp_gmf_err_t (*esp_gmf_pipeline_prev_act)(void *handle);  /*!<  */
  * @brief  Structure representing a pipeline in GMF
  */
 typedef struct esp_gmf_pipeline {
-    esp_gmf_element_handle_t   head_el;        /*!< Handle of the first element in the pipeline */
-    esp_gmf_element_handle_t   last_el;        /*!< Handle of the last element in the pipeline */
-    esp_gmf_io_handle_t        in;             /*!< Handle of the input I/O port */
-    esp_gmf_io_handle_t        out;            /*!< Handle of the output I/O port */
-    esp_gmf_event_item_t      *evt_conveyor;   /*!< Event conveyor list */
-    esp_gmf_event_cb           evt_acceptor;   /*!< Event acceptor callback function */
-    esp_gmf_event_cb           user_cb;        /*!< User callback function */
-    void                      *user_ctx;       /*!< User context */
-    esp_gmf_event_state_t      state;          /*!< Current state of the pipeline */
-    esp_gmf_task_handle_t      thread;         /*!< Handle of the task associated with the pipeline */
-    esp_gmf_pipeline_prev_act  prev_run;       /*!< A pointer to the previous run callback */
-    esp_gmf_pipeline_prev_act  prev_stop;      /*!< A pointer to the previous stop callback */
-    void                      *prev_run_ctx;   /*!< The previous run context */
-    void                      *prev_stop_ctx;  /*!< The previous stop context */
-    uint8_t                    prev_state;     /*!< The previous action state */
-    void                      *lock;           /*!< Lock for thread synchronization */
+    esp_gmf_element_handle_t   head_el;         /*!< Handle of the first element in the pipeline */
+    esp_gmf_element_handle_t   last_el;         /*!< Handle of the last element in the pipeline */
+    esp_gmf_io_handle_t        in;              /*!< Handle of the input I/O port */
+    esp_gmf_io_handle_t        out;             /*!< Handle of the output I/O port */
+    esp_gmf_event_item_t      *evt_conveyor;    /*!< Event conveyor list */
+    esp_gmf_event_cb           evt_acceptor;    /*!< Event acceptor callback function */
+    esp_gmf_event_cb           user_cb;         /*!< User callback function */
+    void                      *user_ctx;        /*!< User context */
+    esp_gmf_event_state_t      state;           /*!< Current state of the pipeline */
+    esp_gmf_task_handle_t      thread;          /*!< Handle of the task associated with the pipeline */
+    esp_gmf_pipeline_prev_act  prev_run;        /*!< A pointer to the previous run callback */
+    esp_gmf_pipeline_prev_act  prev_stop;       /*!< A pointer to the previous stop callback */
+    void                      *prev_run_ctx;    /*!< The previous run context */
+    void                      *prev_stop_ctx;   /*!< The previous stop context */
+    uint8_t                    prev_state;      /*!< The previous action state */
+    uint8_t                    pause_on_start;  /*!< Whether automatic paused before processing */
+    void                      *lock;            /*!< Lock for thread synchronization */
 } esp_gmf_pipeline_t;
 
 /**
@@ -246,7 +247,7 @@ esp_gmf_err_t esp_gmf_pipeline_set_prev_stop_cb(esp_gmf_pipeline_handle_t pipeli
  *
  * @note  Typically used to perform setup operations before dependency pipelines run
  *
- * @param[in]  pipeline   Handle to the GMF pipeline
+ * @param[in]  pipeline  Handle to the GMF pipeline
  *
  * @return
  *       - ESP_GMF_ERR_OK           On success
@@ -259,13 +260,28 @@ esp_gmf_err_t esp_gmf_pipeline_prev_run(esp_gmf_pipeline_handle_t pipeline);
  *
  * @note  Typically used to perform cleanup operations before dependency pipelines stop
  *
- * @param[in]  pipeline   Handle to the GMF pipeline
+ * @param[in]  pipeline  Handle to the GMF pipeline
  *
  * @return
  *       - ESP_GMF_ERR_OK           Success
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid pipeline
  */
 esp_gmf_err_t esp_gmf_pipeline_prev_stop(esp_gmf_pipeline_handle_t pipeline);
+
+/**
+ * @brief  Set pause_on_start flag for a GMF pipeline
+ *
+ * @note  Typically used to configure the pipeline behavior to pause status after call `esp_gmf_pipeline_run`
+ *        This must be called before `esp_gmf_pipeline_run`
+ *
+ * @param[in]  pipeline  Handle to the GMF pipeline
+ * @param[in]  enable    Enable or disable automatic paused when pipeline start run
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid pipeline
+ */
+esp_gmf_err_t esp_gmf_pipeline_set_pause_on_start(esp_gmf_pipeline_handle_t pipeline, bool enable);
 
 /**
  * @brief  Run the specific pipeline using `esp_gmf_task_run`, which blocks by default for `DEFAULT_TASK_OPT_MAX_TIME_MS`
@@ -500,7 +516,7 @@ esp_gmf_err_t esp_gmf_pipeline_reg_el_port(esp_gmf_pipeline_handle_t pipeline, c
 /**
  * @brief  Report information from first element of pipeline
  *
- * @note   This function is only for the GMF's first element, which does not report music information. However, this information is used by the linked elements.
+ * @note  This function is only for the GMF's first element, which does not report music information. However, this information is used by the linked elements.
  *         For example, if the pipeline is `rate conversion -> channel conversion -> encoder -> file`, the rate conversion and channel conversion elements
  *         require the music information to trigger their loading jobs. Therefore, this API is called to report the music information to the first element.
  *

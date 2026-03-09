@@ -5,6 +5,7 @@
 ### Features
 
 - Added configuration of IO buffering task scheduler
+- Added API reload of IO with new uri
 
 ## v0.7.6
 

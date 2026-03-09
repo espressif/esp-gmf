@@ -205,6 +205,15 @@ static esp_gmf_job_err_t esp_gmf_io_process(esp_gmf_io_handle_t handle, void *pa
     return ret;
 }
 
+static esp_gmf_err_t io_register_task(esp_gmf_io_handle_t handle)
+{
+    esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
+    char name[ESP_GMF_JOB_LABLE_MAX_LEN] = "";
+    esp_gmf_job_str_cat(name, ESP_GMF_JOB_LABLE_MAX_LEN, OBJ_GET_TAG(io), ESP_GMF_JOB_STR_PROCESS, strlen(ESP_GMF_JOB_STR_PROCESS));
+    esp_gmf_task_register_ready_job(io->task_hd, name, esp_gmf_io_process, ESP_GMF_JOB_TIMES_INFINITE, handle, true);
+    return ESP_GMF_ERR_OK;
+}
+
 static esp_gmf_err_t esp_gmf_io_task_evt(esp_gmf_event_pkt_t *pkt, void *ctx)
 {
     if (pkt->type == ESP_GMF_EVT_TYPE_CHANGE_STATE) {
@@ -331,9 +340,7 @@ esp_gmf_err_t esp_gmf_io_open(esp_gmf_io_handle_t handle)
             ESP_GMF_NULL_CHECK(TAG, io->evt_group, return ESP_GMF_ERR_FAIL);
         }
         esp_gmf_task_set_event_func(io->task_hd, esp_gmf_io_task_evt, io->evt_group);
-        char name[ESP_GMF_JOB_LABLE_MAX_LEN] = "";
-        esp_gmf_job_str_cat(name, ESP_GMF_JOB_LABLE_MAX_LEN, OBJ_GET_TAG(io), ESP_GMF_JOB_STR_PROCESS, strlen(ESP_GMF_JOB_STR_PROCESS));
-        ret = esp_gmf_task_register_ready_job(io->task_hd, name, esp_gmf_io_process, ESP_GMF_JOB_TIMES_INFINITE, handle, true);
+        io_register_task(handle);
         ESP_LOGD(TAG, "Initialize a GMF IO[%p-%s], stack:%d, thread:%p-%s", handle, OBJ_GET_TAG(io),
                  io_cfg == NULL ? -1 : io_cfg->thread.stack, io->task_hd, OBJ_GET_TAG(io->task_hd));
     }
@@ -353,7 +360,7 @@ esp_gmf_err_t esp_gmf_io_seek(esp_gmf_io_handle_t handle, uint64_t seek_byte_pos
     esp_gmf_info_file_t info = {0};
     esp_gmf_io_get_info(handle, &info);
     if (io->seek == NULL) {
-        return ESP_GMF_ERR_NOT_READY;
+        return ESP_GMF_ERR_NOT_SUPPORT;
     }
     if (info.size > 0 && seek_byte_pos >= info.size) {
         ESP_LOGE(TAG, "The seek position is out of range, pos %llu >= %llu, io: %p-%s", seek_byte_pos, info.size, io, OBJ_GET_TAG(io));
@@ -614,6 +621,17 @@ esp_gmf_err_t esp_gmf_io_get_size(esp_gmf_io_handle_t handle, uint64_t *total_si
     return esp_gmf_info_file_get_size(&io->attr, total_size);
 }
 
+esp_gmf_err_t esp_gmf_io_get_db_filled_size(esp_gmf_io_handle_t handle, uint32_t *filled_size)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, filled_size, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
+    if (io->data_bus) {
+        return esp_gmf_db_get_filled_size(io->data_bus, filled_size);
+    }
+    return ESP_GMF_ERR_NOT_SUPPORT;
+}
+
 esp_gmf_err_t esp_gmf_io_get_type(esp_gmf_io_handle_t handle, esp_gmf_io_type_t *type)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
@@ -629,6 +647,7 @@ esp_gmf_err_t esp_gmf_io_reset(esp_gmf_io_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
+    int ret = ESP_GMF_ERR_OK;
 
     io->_is_done = 0;
     io->_is_abort = 0;
@@ -640,16 +659,45 @@ esp_gmf_err_t esp_gmf_io_reset(esp_gmf_io_handle_t handle)
         esp_gmf_db_reset(io->data_bus);
     }
     if (io->reset) {
-        io->reset(io);
+        ret = io->reset(io);
     }
-    int ret = ESP_GMF_ERR_OK;
     if (io->task_hd) {
         io->_is_hold = 0;
         xEventGroupClearBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_BLOCK_RUN_BIT | IO_EVT_TASK_HOLD_DONE_BIT | IO_EVT_TASK_SEEK_DONE_BIT);
         esp_gmf_task_reset(io->task_hd);
-        char name[ESP_GMF_JOB_LABLE_MAX_LEN] = "";
-        esp_gmf_job_str_cat(name, ESP_GMF_JOB_LABLE_MAX_LEN, OBJ_GET_TAG(io), ESP_GMF_JOB_STR_PROCESS, strlen(ESP_GMF_JOB_STR_PROCESS));
-        ret = esp_gmf_task_register_ready_job(io->task_hd, name, esp_gmf_io_process, ESP_GMF_JOB_TIMES_INFINITE, handle, true);
+        io_register_task(handle);
+    }
+    esp_gmf_io_enable_speed_monitor(io, io->speed_stats != NULL);
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_io_reload(esp_gmf_io_handle_t handle, const char *uri)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, uri, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
+    if (io->reload == NULL) {
+        return ESP_GMF_ERR_NOT_SUPPORT;
+    }
+    io->_is_done = 0;
+    io->_is_abort = 0;
+    io->seek_pos = ESP_GMF_IO_SEEK_POS_INVALID;
+    esp_gmf_io_set_pos(handle, 0);
+    esp_gmf_io_set_size(handle, 0);
+
+    if (io->data_bus) {
+        esp_gmf_db_reset_done_write(io->data_bus);
+    }
+
+    esp_gmf_err_t ret = io->reload(io, uri);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "esp_gmf_io_reload failed");
+
+    if (io->task_hd) {
+        io->_is_hold = 0;
+        xEventGroupClearBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_BLOCK_RUN_BIT | IO_EVT_TASK_HOLD_DONE_BIT | IO_EVT_TASK_SEEK_DONE_BIT);
+        esp_gmf_task_reset(io->task_hd);
+        io_register_task(handle);
+        ret = esp_gmf_task_run(io->task_hd);
     }
     esp_gmf_io_enable_speed_monitor(io, io->speed_stats != NULL);
     return ret;

@@ -17,7 +17,9 @@
   - Added speed measurement for gmf_io
   - Added done and abort capability for gmf_io
 - Added API esp_gmf_db_clear_abort for condition which no need reset after abort
-- Added API esp_gmf_db_reset_write_done for `block`, `fifo` and `pbuf`
+- Added API esp_gmf_db_reset_done_write for `block`, `fifo` and `pbuf`
+- Added API esp_gmf_io_reload with new uri
+- Added API esp_gmf_pipeline_set_pause_on_start and esp_gmf_task_set_pause_on_start for pausing the pipeline task before processing jobs
 
 ### Bug Fixes
 
