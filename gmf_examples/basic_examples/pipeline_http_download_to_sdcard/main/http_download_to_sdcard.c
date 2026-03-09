@@ -19,9 +19,10 @@
 #include "gmf_loader_setup_defaults.h"
 #include "esp_gmf_oal_sys.h"
 
-#define PIPELINE_BLOCK_BIT  BIT(0)
+#define PIPELINE_BLOCK_BIT    BIT(0)
+#define PIPELINE_OPENING_BIT  BIT(1)
 // Set to true to test HTTP download speed only (no SD card writing), false for full pipeline with SD card storage
-#define ONLY_ENABLE_HTTP    (false)
+#define ONLY_ENABLE_HTTP      (false)
 
 static const char *TAG      = "HTTP_DOWNLOAD_TO_SDCARD";
 
@@ -35,6 +36,9 @@ esp_gmf_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
     ESP_LOGI(TAG, "CB: RECV Pipeline EVT: el:%s-%p, type:%d, sub:%s, payload:%p, size:%d,%p",
              OBJ_GET_TAG(event->from), event->from, event->type, esp_gmf_event_get_state_str(event->sub),
              event->payload, event->payload_size, ctx);
+    if (event->sub == ESP_GMF_EVENT_STATE_OPENING) {
+        xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_OPENING_BIT);
+    }
     if ((event->sub == ESP_GMF_EVENT_STATE_STOPPED)
         || (event->sub == ESP_GMF_EVENT_STATE_FINISHED)
         || (event->sub == ESP_GMF_EVENT_STATE_ERROR)) {
@@ -103,11 +107,13 @@ void app_main(void)
     ESP_LOGI(TAG, "[ 4 ] Start pipeline");
     ret = esp_gmf_pipeline_run(pipe);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto cleanup, "Failed to run pipeline");
+    xEventGroupWaitBits(pipe_sync_evt, PIPELINE_OPENING_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
     int start_time = esp_gmf_oal_sys_get_time_ms();
 
     // Wait until completion or error occurs
     ESP_LOGI(TAG, "[ 5 ] Wait stop event to the pipeline and stop all the pipeline");
     xEventGroupWaitBits(pipe_sync_evt, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
+    int duration = esp_gmf_oal_sys_get_time_ms() - start_time;
     ret = esp_gmf_pipeline_stop(pipe);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto cleanup, "Failed to stop pipeline");
 
@@ -118,7 +124,6 @@ void app_main(void)
     uint64_t file_size = 0;
     ret = esp_gmf_io_get_size(http_io, &file_size);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto cleanup, "Failed to get size");
-    int duration = esp_gmf_oal_sys_get_time_ms() - start_time;
     if (duration) {
         float speed = ((float)file_size * 1000.0) / ((float)duration * 1024 * 1024);
         ESP_LOGI(TAG, "Http download and write to sdcard speed: %.2f MB/s", speed);
