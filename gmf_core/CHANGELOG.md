@@ -20,6 +20,8 @@
 - Added API esp_gmf_db_reset_done_write for `block`, `fifo` and `pbuf`
 - Added API esp_gmf_io_reload with new uri
 - Added API esp_gmf_pipeline_set_pause_on_start and esp_gmf_task_set_pause_on_start for pausing the pipeline task before processing jobs
+- Added `esp_gmf_pool_get_io_tag_by_url` to support dynamic IO selection based on URL
+- Added `get_score` callback to `esp_gmf_io_t` to support URL-based scoring mechanism
 
 ### Bug Fixes
 

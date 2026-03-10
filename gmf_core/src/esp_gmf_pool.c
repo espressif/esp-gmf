@@ -318,6 +318,36 @@ NEW_PIPE_FAIL:
     return ret;
 }
 
+esp_gmf_err_t esp_gmf_pool_get_io_tag_by_url(esp_gmf_pool_handle_t handle, const char *url, esp_gmf_io_dir_t dir, char **tag)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, url, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, tag, return ESP_GMF_ERR_INVALID_ARG);
+
+    esp_gmf_io_item_t *item, *tmp;
+    int max_score = 0;
+    char *best_tag = NULL;
+
+    STAILQ_FOREACH_SAFE(item, &handle->io_list, next, tmp) {
+        esp_gmf_io_t *io = (esp_gmf_io_t *)item->instance;
+        if (io->dir == dir) {
+            int score = 0;
+            if ((esp_gmf_io_get_score(io, url, &score) == ESP_GMF_ERR_OK) && (score > max_score)) {
+                max_score = score;
+                esp_gmf_obj_get_tag((esp_gmf_obj_handle_t)io, &best_tag);
+            }
+        }
+    }
+
+    if (max_score > 0 && best_tag != NULL) {
+        *tag = best_tag;
+        ESP_LOGD(TAG, "Best IO tag found for URL:%s, tag:%s, score:%d", url, best_tag, max_score);
+        return ESP_GMF_ERR_OK;
+    }
+
+    return ESP_GMF_ERR_NOT_FOUND;
+}
+
 void esp_gmf_pool_show_lists(esp_gmf_pool_handle_t handle, int line, const char *func)
 {
     esp_gmf_io_item_t *item, *tmp;

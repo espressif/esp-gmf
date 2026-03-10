@@ -40,6 +40,10 @@ extern "C" {
  */
 typedef void *esp_gmf_io_handle_t;
 
+#define ESP_GMF_IO_SCORE_NONE      (0)    /*!< No match (The IO does not support this URL) */
+#define ESP_GMF_IO_SCORE_STANDARD  (50)   /*!< Standard match (e.g., matching the URL scheme) */
+#define ESP_GMF_IO_SCORE_PERFECT   (100)  /*!< Perfect match (e.g., matching both scheme and extension) */
+
 /**
  * @brief  Enumeration for the direction of a GMF I/O (none, reader, writer)
  */
@@ -90,12 +94,13 @@ typedef struct {
  * @brief  Structure representing a GMF I/O
  */
 typedef struct esp_gmf_io_ {
-    struct esp_gmf_obj_  parent;                                        /*!< Parent object */
-    esp_gmf_err_t (*open)(esp_gmf_io_handle_t obj);                     /*!< Open callback function */
-    esp_gmf_err_t (*seek)(esp_gmf_io_handle_t obj, uint64_t data);      /*!< Seek callback function */
-    esp_gmf_err_t (*close)(esp_gmf_io_handle_t obj);                    /*!< Close callback function */
-    esp_gmf_err_t (*reset)(esp_gmf_io_handle_t obj);                    /*!< Reset callback function */
-    esp_gmf_err_t (*reload)(esp_gmf_io_handle_t obj, const char *uri);  /*!< Reload callback function */
+    struct esp_gmf_obj_  parent;                                                       /*!< Parent object */
+    esp_gmf_err_t (*get_score)(esp_gmf_io_handle_t obj, const char *url, int *score);  /*!< Get score callback function */
+    esp_gmf_err_t (*open)(esp_gmf_io_handle_t obj);                                    /*!< Open callback function */
+    esp_gmf_err_t (*seek)(esp_gmf_io_handle_t obj, uint64_t data);                     /*!< Seek callback function */
+    esp_gmf_err_t (*close)(esp_gmf_io_handle_t obj);                                   /*!< Close callback function */
+    esp_gmf_err_t (*reset)(esp_gmf_io_handle_t obj);                                   /*!< Reset callback function */
+    esp_gmf_err_t (*reload)(esp_gmf_io_handle_t obj, const char *uri);                 /*!< Reload callback function */
 
     /*!< Previous close callback function
      *   For some block IO instances, this function can be called before the `close` operation
@@ -172,6 +177,24 @@ esp_gmf_err_t esp_gmf_io_enable_speed_monitor(esp_gmf_io_handle_t handle, bool e
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
  */
 esp_gmf_err_t esp_gmf_io_get_speed_stats(esp_gmf_io_handle_t handle, esp_gmf_io_speed_stats_t *stats);
+
+/**
+ * @brief  Evaluate how well the IO matches a given URL
+ *         The score ranges from ESP_GMF_IO_SCORE_NONE to ESP_GMF_IO_SCORE_PERFECT:
+ *         - ESP_GMF_IO_SCORE_NONE: No match (The IO does not support this URL).
+ *         - ESP_GMF_IO_SCORE_STANDARD: Standard match (e.g., matching the URL scheme like "http://" or "file://").
+ *         - ESP_GMF_IO_SCORE_PERFECT: Perfect match (e.g., matching both scheme and file extension, or high priority specialized IO).
+ *
+ * @param[in]   handle  GMF I/O handle
+ * @param[in]   url     URL to evaluate
+ * @param[out]  score   Pointer to store the calculated score
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ *       - ESP_GMF_ERR_NOT_SUPPORT  The IO does not support scoring
+ */
+esp_gmf_err_t esp_gmf_io_get_score(esp_gmf_io_handle_t handle, const char *url, int *score);
 
 /**
  * @brief  Open the specific I/O handle, run the thread if it is valid

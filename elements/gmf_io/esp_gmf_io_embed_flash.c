@@ -28,6 +28,15 @@ static esp_gmf_err_t _embed_flash_new(void *cfg, esp_gmf_obj_handle_t *io)
     return esp_gmf_io_embed_flash_init(cfg, io);
 }
 
+static esp_gmf_err_t _embed_get_score(esp_gmf_io_handle_t handle, const char *url, int *score)
+{
+    *score = ESP_GMF_IO_SCORE_NONE;
+    if (strncasecmp(url, "embed://", 8) == 0) {
+        *score = ESP_GMF_IO_SCORE_STANDARD;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
 static esp_gmf_err_t _embed_flash_open(esp_gmf_io_handle_t io)
 {
     embed_flash_io_t *embed_flash = (embed_flash_io_t *)io;
@@ -143,6 +152,7 @@ esp_gmf_err_t esp_gmf_io_embed_flash_init(embed_flash_io_cfg_t *config, esp_gmf_
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
     ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_embed_flash" : config->name));
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _embed_fail, "Failed to set obj tag");
+    embed_flash->base.get_score = _embed_get_score;
     embed_flash->base.open = _embed_flash_open;
     embed_flash->base.close = _embed_flash_close;
     embed_flash->base.seek = NULL;

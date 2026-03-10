@@ -59,6 +59,15 @@ static esp_gmf_err_t _file_new(void *cfg, esp_gmf_obj_handle_t *io)
     return esp_gmf_io_file_init(cfg, io);
 }
 
+static esp_gmf_err_t _file_get_score(esp_gmf_io_handle_t handle, const char *url, int *score)
+{
+    *score = ESP_GMF_IO_SCORE_NONE;
+    if (url[0] == '/' || strncasecmp(url, "file://", 7) == 0) {
+        *score = ESP_GMF_IO_SCORE_STANDARD;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
 static esp_gmf_err_t _file_open(esp_gmf_io_handle_t io)
 {
     file_io_stream_t *file_io = (file_io_stream_t *)io;
@@ -257,6 +266,7 @@ esp_gmf_err_t esp_gmf_io_file_init(file_io_cfg_t *config, esp_gmf_io_handle_t *i
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
     ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_file" : config->name));
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _file_fail, "Failed to set obj tag");
+    file_io->base.get_score = _file_get_score;
     file_io->base.close = _file_close;
     file_io->base.open = _file_open;
     file_io->base.seek = _file_seek;

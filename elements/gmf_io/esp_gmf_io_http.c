@@ -95,6 +95,15 @@ static esp_gmf_err_t _http_new(void *cfg, esp_gmf_obj_handle_t *io)
     return esp_gmf_io_http_init(cfg, io);
 }
 
+static esp_gmf_err_t _http_get_score(esp_gmf_io_handle_t handle, const char *url, int *score)
+{
+    *score = ESP_GMF_IO_SCORE_NONE;
+    if (strncasecmp(url, "http://", 7) == 0 || strncasecmp(url, "https://", 8) == 0) {
+        *score = ESP_GMF_IO_SCORE_STANDARD;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
 static esp_gmf_err_t _http_open(esp_gmf_io_handle_t self)
 {
     http_stream_t *http = (http_stream_t *)self;
@@ -111,13 +120,7 @@ static esp_gmf_err_t _http_open(esp_gmf_io_handle_t self)
         ESP_LOGE(TAG, "Error open connection, uri = NULL");
         return ESP_GMF_ERR_FAIL;
     }
-    char *hls_type = strrchr(uri, '/');
-    if (hls_type && strstr(hls_type, ".m3u")) {
-        ESP_LOGE(TAG, "The HTTP stream does not support HTTP Live Streaming. URI:%s", uri);
-        return ESP_GMF_ERR_FAIL;
-    }
 
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)http, &info);
     http_io_cfg_t *http_io_cfg = (http_io_cfg_t *)OBJ_GET_CFG(http);
     ESP_LOGI(TAG, "HTTP Open, URI = %s", uri);
     if (http->client == NULL) {
@@ -445,6 +448,7 @@ esp_gmf_err_t esp_gmf_io_http_init(http_io_cfg_t *config, esp_gmf_io_handle_t *i
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _http_init_fail, "Failed to set obj tag");
     http->base.dir = config->dir;
     http->base.type = ESP_GMF_IO_TYPE_BLOCK;
+    http->base.get_score = _http_get_score;
     http->base.open = _http_open;
     http->base.seek = _http_seek;
     http->base.prev_close = _http_prev_close;

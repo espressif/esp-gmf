@@ -43,9 +43,9 @@ esp_gmf_err_t esp_gmf_pool_deinit(esp_gmf_pool_handle_t handle);
 /**
  * @brief  Register a GMF element to specific pool
  *
- * @note   Once an element is registered to the pool, the pool takes ownership of it
- *         The user should avoid destroying the element manually to prevent issues
- *         caused by the pool accessing an invalid element
+ * @note  Once an element is registered to the pool, the pool takes ownership of it
+ *        The user should avoid destroying the element manually to prevent issues
+ *        caused by the pool accessing an invalid element
  *
  * @param[in]  handle  GMF pool handle
  * @param[in]  el      GMF element handle to register
@@ -61,8 +61,8 @@ esp_gmf_err_t esp_gmf_pool_register_element(esp_gmf_pool_handle_t handle, esp_gm
 /**
  * @brief  Insert a GMF element at the head of specific pool
  *
- * @note   This API functions like `esp_gmf_pool_register_element`, except that it
- *         inserts the element at the head of the pool to ensure higher search priority
+ * @note  This API functions like `esp_gmf_pool_register_element`, except that it
+ *        inserts the element at the head of the pool to ensure higher search priority
  *
  * @param[in]  handle  GMF pool handle
  * @param[in]  el      GMF element handle to register
@@ -161,6 +161,24 @@ esp_gmf_err_t esp_gmf_pool_new_element(esp_gmf_pool_handle_t handle, const char 
 esp_gmf_err_t esp_gmf_pool_iterate_element(esp_gmf_pool_handle_t handle, const void **iterator, esp_gmf_element_handle_t *el);
 
 /**
+ * @brief  Find the best-matched IO tag for a given URL and direction
+ *
+ * @note  This API traverses the registered IO list, evaluates the matching
+ *        score for each IO and returns the IO tag with the highest score
+ *
+ * @param[in]   handle  GMF pool handle
+ * @param[in]   url     The URL to check
+ * @param[in]   dir     The IO direction
+ * @param[out]  tag     Pointer to store the resulting IO tag
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid arguments
+ *       - ESP_GMF_ERR_NOT_FOUND    No suitable IO found
+ */
+esp_gmf_err_t esp_gmf_pool_get_io_tag_by_url(esp_gmf_pool_handle_t handle, const char *url, esp_gmf_io_dir_t dir, char **tag);
+
+/**
  * @brief  Print information about elements and IOs registered in a GMF pool
  *
  * @param[in]  handle  GMF pool handle
@@ -169,7 +187,7 @@ esp_gmf_err_t esp_gmf_pool_iterate_element(esp_gmf_pool_handle_t handle, const v
  */
 void esp_gmf_pool_show_lists(esp_gmf_pool_handle_t handle, int line, const char *func);
 
-#define ESP_GMF_POOL_SHOW_ITEMS(x) esp_gmf_pool_show_lists(x, __LINE__, __FUNCTION__)
+#define ESP_GMF_POOL_SHOW_ITEMS(x)  esp_gmf_pool_show_lists(x, __LINE__, __FUNCTION__)
 
 #ifdef __cplusplus
 }

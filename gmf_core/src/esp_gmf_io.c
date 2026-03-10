@@ -299,6 +299,19 @@ esp_gmf_err_t esp_gmf_io_get_speed_stats(esp_gmf_io_handle_t handle, esp_gmf_io_
     return ESP_GMF_ERR_OK;
 }
 
+esp_gmf_err_t esp_gmf_io_get_score(esp_gmf_io_handle_t handle, const char *url, int *score)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, url, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, score, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
+    *score = ESP_GMF_IO_SCORE_NONE;
+    if (io->get_score) {
+        return io->get_score(io, url, score);
+    }
+    return ESP_GMF_ERR_NOT_SUPPORT;
+}
+
 esp_gmf_err_t esp_gmf_io_open(esp_gmf_io_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);

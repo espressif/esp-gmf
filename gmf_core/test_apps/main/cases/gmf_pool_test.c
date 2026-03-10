@@ -725,3 +725,80 @@ TEST_CASE("Shared port, [port callback -> dec -> port callback]", "[ELEMENT_POOL
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_obj_delete(obj_hd));
     free(test_buffer);
 }
+
+static esp_gmf_err_t _mock_http_get_score(esp_gmf_io_handle_t handle, const char *url, int *score)
+{
+    *score = ESP_GMF_IO_SCORE_NONE;
+    if (strncasecmp(url, "http", 4) == 0) {
+        *score = ESP_GMF_IO_SCORE_STANDARD;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
+static esp_gmf_err_t _mock_file_get_score(esp_gmf_io_handle_t handle, const char *url, int *score)
+{
+    *score = ESP_GMF_IO_SCORE_NONE;
+    if (url[0] == '/' || strncasecmp(url, "file://", 7) == 0) {
+        *score = ESP_GMF_IO_SCORE_PERFECT - 10;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
+static esp_gmf_err_t _mock_hls_get_score(esp_gmf_io_handle_t handle, const char *url, int *score)
+{
+    *score = ESP_GMF_IO_SCORE_NONE;
+    if (strstr(url, ".m3u8")) {
+        *score = ESP_GMF_IO_SCORE_PERFECT;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
+TEST_CASE("Get IO tag by URL", "[ELEMENT_POOL]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("ESP_GMF_POOL", ESP_LOG_DEBUG);
+
+    esp_gmf_pool_handle_t pool = NULL;
+    esp_gmf_pool_init(&pool);
+    TEST_ASSERT_NOT_NULL(pool);
+
+    fake_io_cfg_t io_cfg = FAKE_IO_CFG_DEFAULT();
+    io_cfg.dir = ESP_GMF_IO_DIR_READER;
+
+    // Register HTTP IO
+    esp_gmf_io_handle_t http_io = NULL;
+    fake_io_init(&io_cfg, &http_io);
+    ((esp_gmf_io_t *)http_io)->get_score = _mock_http_get_score;
+    TEST_ASSERT_EQUAL(ESP_OK, esp_gmf_pool_register_io(pool, http_io, "io_http"));
+
+    // Register File IO
+    esp_gmf_io_handle_t file_io = NULL;
+    fake_io_init(&io_cfg, &file_io);
+    ((esp_gmf_io_t *)file_io)->get_score = _mock_file_get_score;
+    TEST_ASSERT_EQUAL(ESP_OK, esp_gmf_pool_register_io(pool, file_io, "io_file"));
+
+    // Register HLS IO
+    esp_gmf_io_handle_t hls_io = NULL;
+    fake_io_init(&io_cfg, &hls_io);
+    ((esp_gmf_io_t *)hls_io)->get_score = _mock_hls_get_score;
+    TEST_ASSERT_EQUAL(ESP_OK, esp_gmf_pool_register_io(pool, hls_io, "io_hls"));
+
+    char *tag = NULL;
+
+    // Test HTTP URL
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_get_io_tag_by_url(pool, "http://example.com/audio.mp3", ESP_GMF_IO_DIR_READER, &tag));
+    TEST_ASSERT_EQUAL_STRING("io_http", tag);
+
+    // Test File URL
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_get_io_tag_by_url(pool, "/sdcard/test.mp3", ESP_GMF_IO_DIR_READER, &tag));
+    TEST_ASSERT_EQUAL_STRING("io_file", tag);
+
+    // Test HLS URL (should match both HTTP and HLS, but HLS has higher score)
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_get_io_tag_by_url(pool, "http://example.com/playlist.m3u8", ESP_GMF_IO_DIR_READER, &tag));
+    TEST_ASSERT_EQUAL_STRING("io_hls", tag);
+
+    // Test unsupported URL
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_NOT_FOUND, esp_gmf_pool_get_io_tag_by_url(pool, "ftp://example.com/audio.mp3", ESP_GMF_IO_DIR_READER, &tag));
+
+    esp_gmf_pool_deinit(pool);
+}

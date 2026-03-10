@@ -155,40 +155,24 @@ static int asp_func_release_write(void *handle, esp_gmf_data_bus_block_t *blk, i
 
 static int __setup_pipeline(esp_audio_simple_player_t *player, const char *uri, esp_asp_music_info_t *music_info)
 {
-    esp_gmf_uri_t *uri_st = NULL;
     int ret = 0;
-    esp_gmf_uri_parse(uri, &uri_st);
-    if ((uri_st == NULL) || (uri_st->path == NULL) || (uri_st->scheme == NULL)) {
-        ESP_LOGE(TAG, "The URI is invalid, uri:%s", uri);
-        return ESP_GMF_ERR_INVALID_URI;
-    }
     char *in_str = NULL;
-    if (strcasecmp(uri_st->scheme, "https") == 0
-        || strcasecmp(uri_st->scheme, "http") == 0) {
-        in_str = strndup("io_http", strlen("io_http"));
-        free(uri_st->scheme);
-        uri_st->scheme = in_str;
-    } else if (strcasecmp(uri_st->scheme, "file") == 0) {
-        in_str = strndup("io_file", strlen("io_file"));
-        free(uri_st->scheme);
-        uri_st->scheme = in_str;
-    } else if (strcasecmp(uri_st->scheme, "embed") == 0) {
-        in_str = strndup("io_embed_flash", strlen("io_embed_flash"));
-        free(uri_st->scheme);
-        uri_st->scheme = in_str;
-    } else if (strncasecmp(uri_st->scheme, "raw", strlen("raw")) == 0) {
+    if (esp_gmf_pool_get_io_tag_by_url(player->pool, uri, ESP_GMF_IO_DIR_READER, &in_str) == ESP_GMF_ERR_OK) {
+        ESP_LOGI(TAG, "Use the tag of io from pool, in_str:%s", in_str);
+    } else if (strncasecmp(uri, "raw", strlen("raw")) == 0) {
         if (player->cfg.in.cb == NULL) {
             ESP_LOGE(TAG, "No registered in raw callback, uri:%s", uri);
-            esp_gmf_uri_free(uri_st);
             return ESP_GMF_ERR_NOT_SUPPORT;
         }
+    } else {
+        ESP_LOGE(TAG, "The URI is invalid or no support IO, uri:%s", uri);
+        return ESP_GMF_ERR_INVALID_URI;
     }
 
     if (player->pipe == NULL) {
         esp_gmf_pool_new_pipeline(player->pool, in_str, el_names, sizeof(el_names) / sizeof(char *), NULL, &player->pipe);
         if (player->pipe == NULL) {
             ESP_LOGE(TAG, "Failed to create an new pipeline");
-            esp_gmf_uri_free(uri_st);
             return ESP_GMF_ERR_FAIL;
         }
         if (in_str == NULL) {
@@ -240,35 +224,34 @@ static int __setup_pipeline(esp_audio_simple_player_t *player, const char *uri, 
     ret = esp_gmf_pipeline_get_el_by_name(player->pipe, "aud_dec", &dec_el);
     ESP_GMF_RET_ON_ERROR(TAG, ret, goto __setup_pipe_err, "There is no decoder in pipeline");
     if (music_info) {
-        esp_gmf_info_sound_t info ={
+        esp_gmf_info_sound_t info = {
             .sample_rates = music_info->sample_rate,
             .channels = music_info->channels,
             .bits = music_info->bits,
             .bitrate = music_info->bitrate,
         };
-        esp_gmf_audio_helper_get_audio_type_by_uri((char *)uri_st->path, &info.format_id);
+        esp_gmf_audio_helper_get_audio_type_by_uri(uri, &info.format_id);
         info.format_id = (info.format_id == 0) ? ASP_PREFER_FORMAT_ID : info.format_id;
         ESP_LOGI(TAG, "Reconfig decoder by music info, rate:%d, channels:%d, bits:%d, bitrate:%d", info.sample_rates, info.channels, info.bits, info.bitrate);
         ret = esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);
     } else {
-        esp_gmf_info_sound_t info ={
+        esp_gmf_info_sound_t info = {
             .sample_rates = 16000,
             .channels = 1,
             .bits = 16,
             .bitrate = 0,
         };
-        esp_gmf_audio_helper_get_audio_type_by_uri((char *)uri_st->path, &info.format_id);
+        esp_gmf_audio_helper_get_audio_type_by_uri(uri, &info.format_id);
         info.format_id = (info.format_id == 0) ? ASP_PREFER_FORMAT_ID : info.format_id;
         ret = esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);
     }
-    ESP_GMF_RET_ON_ERROR(TAG, ret, goto __setup_pipe_err, "Failed to reconfig decoder, ret:%x, path:%p", ret, uri_st->path);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, goto __setup_pipe_err, "Failed to reconfig decoder, ret:%x, uri:%s", ret, uri);
     ret = esp_gmf_pipeline_set_in_uri(player->pipe, uri);
     ESP_GMF_RET_ON_ERROR(TAG, ret, goto __setup_pipe_err, "Failed set URI for in stream, ret:%x", ret);
     ret = esp_gmf_pipeline_loading_jobs(player->pipe);
     ESP_GMF_RET_ON_ERROR(TAG, ret, goto __setup_pipe_err, "Failed loading jobs for pipeline, ret:%x", ret);
 
 __setup_pipe_err:
-    esp_gmf_uri_free(uri_st);
     return ret;
 }
 
