@@ -23,6 +23,7 @@
 #include "esp_gmf_rate_cvt.h"
 #include "esp_gmf_bit_cvt.h"
 #include "esp_gmf_ch_cvt.h"
+#include "decoder/impl/esp_pcm_dec.h"
 
 #define PREPARE_METHOD()                                                                      \
     esp_gmf_method_exec_ctx_t exec_ctx    = {};                                               \
@@ -590,6 +591,12 @@ void decoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
     esp_gmf_event_state_t event_state = 0;
     esp_gmf_element_get_state(el, &event_state);
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_info_sound_t src_info = {
+        .format_id = ESP_AUDIO_TYPE_PCM,
+        .sample_rates = res->in_inst[0].src_info.sample_rates,
+        .channels = res->in_inst[0].src_info.channels,
+        .bits = res->in_inst[0].src_info.bits,
+    };
     if (event_state < ESP_GMF_EVENT_STATE_OPENING) {
         if (res->is_first_open == true) {
             ret = audio_el_test_reconfig_decoder_by_sound_info(el, &res->in_inst[0].src_info);
@@ -598,10 +605,28 @@ void decoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
             TEST_ASSERT_EQUAL(res->in_inst[0].src_info.format_id, get_cfg->dec_type);
             res->is_do_open_set = true;
         } else if (res->is_first_open == false) {
+            esp_audio_simple_dec_cfg_t *get_cfg = NULL;
             if (res->is_do_open_set == true) {
-                esp_audio_simple_dec_cfg_t *get_cfg = OBJ_GET_CFG(el);
-                TEST_ASSERT_EQUAL(res->in_inst[0].src_info.format_id, get_cfg->dec_type);
+                get_cfg = OBJ_GET_CFG(el);
+                TEST_ASSERT_EQUAL(ESP_AUDIO_TYPE_PCM, get_cfg->dec_type);
             }
+            esp_pcm_dec_cfg_t pcm_cfg = {
+                .sample_rate = 8000,
+                .channel = 1,
+                .bits_per_sample = 16,
+            };
+            esp_audio_simple_dec_cfg_t dec_cfg = {
+                .dec_type = ESP_AUDIO_TYPE_PCM,
+                .dec_cfg = &pcm_cfg,
+                .cfg_size = sizeof(esp_pcm_dec_cfg_t),
+            };
+            audio_el_test_reconfig_decoder(el, &dec_cfg);
+            get_cfg = OBJ_GET_CFG(el);
+            esp_pcm_dec_cfg_t *get_pcm_cfg = (esp_pcm_dec_cfg_t *)get_cfg->dec_cfg;
+            TEST_ASSERT_EQUAL(ESP_AUDIO_TYPE_PCM, get_cfg->dec_type);
+            TEST_ASSERT_EQUAL(8000, get_pcm_cfg->sample_rate);
+            TEST_ASSERT_EQUAL(1, get_pcm_cfg->channel);
+            TEST_ASSERT_EQUAL(16, get_pcm_cfg->bits_per_sample);
         }
     } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
         if (res->is_first_open == true) {
@@ -611,18 +636,8 @@ void decoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
             }
             res->is_first_open = false;
         } else if (res->is_first_open == false) {
-            esp_audio_simple_dec_cfg_t dec_cfg = {0};
-            esp_gmf_event_state_t cur_event_state = 0;
-            esp_gmf_element_get_state(el, &cur_event_state);
-            if (cur_event_state >= ESP_GMF_EVENT_STATE_OPENING) {
-                ret = audio_el_test_reconfig_decoder(el, &dec_cfg);
-                TEST_ASSERT_EQUAL(ESP_GMF_ERR_FAIL, ret);
-            }
-            esp_gmf_element_get_state(el, &cur_event_state);
-            if (cur_event_state >= ESP_GMF_EVENT_STATE_OPENING) {
-                ret = audio_el_test_reconfig_decoder_by_sound_info(el, &res->in_inst[0].src_info);
-                TEST_ASSERT_EQUAL(ESP_GMF_ERR_FAIL, ret);
-            }
+            ret = audio_el_test_reconfig_decoder_by_sound_info(el, &src_info);
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
         }
     }
 }

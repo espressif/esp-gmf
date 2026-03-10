@@ -10,6 +10,7 @@
 - Added `aud_drc` (Dynamic Range Control) and `aud_mbc` (Multi-Band Compressor) audio effect elements
 - Added reset function support for `aud_alc`, `aud_fade`, `aud_sonic`, `aud_mixer`, and `aud_rate_cvt` elements
 - Added `VORBIS` and `ALAC` decoder configuration support in `esp_gmf_audio_dec_reconfig_by_sound_info` function
+- Enhanced the `aud_dec` reconfiguration API to allow updates at any time, with changes applied during processing
 
 ### Bug Fixes
 

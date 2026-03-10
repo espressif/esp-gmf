@@ -39,14 +39,17 @@
  * @brief  Audio simple decoder context in GMF
  */
 typedef struct {
-    esp_gmf_audio_element_t        parent;     /*!< The GMF audio decoder handle */
-    esp_audio_simple_dec_handle_t  dec_hd;     /*!< The audio simple decoder handle */
-    esp_audio_simple_dec_raw_t     in_data;    /*!< The audio simple decoder input data handle */
-    esp_audio_simple_dec_out_t     out_data;   /*!< The audio simple decoder output data handle */
-    int32_t                        buf_size;   /*!< The size of decoder out buffer */
-    esp_gmf_payload_t             *in_load;    /*!< The input payload */
-    uint64_t                       pts;        /*!< Audio pts */
-    bool                           is_opened;  /*!< Whether the decoder is opened */
+    esp_gmf_audio_element_t        parent;            /*!< The GMF audio decoder handle */
+    esp_audio_simple_dec_handle_t  dec_hd;            /*!< The audio simple decoder handle */
+    esp_audio_simple_dec_raw_t     in_data;           /*!< The audio simple decoder input data handle */
+    esp_audio_simple_dec_out_t     out_data;          /*!< The audio simple decoder output data handle */
+    int32_t                        buf_size;          /*!< The size of decoder out buffer */
+    esp_gmf_payload_t             *in_load;           /*!< The input payload */
+    uint64_t                       pts;               /*!< Audio pts */
+    bool                           is_opened;         /*!< Whether the decoder is opened */
+    bool                           need_reopen : 1;   /*!< Whether need to reopen.
+                                                           True: Execute the close function first, then execute the open function.
+                                                           False: Do nothing. */
 } esp_gmf_audio_dec_t;
 
 static const char *TAG = "ESP_GMF_ASMP_DEC";
@@ -339,8 +342,26 @@ static esp_gmf_job_err_t esp_gmf_audio_dec_open(esp_gmf_element_handle_t self, v
     }
     esp_gmf_port_enable_payload_share(ESP_GMF_ELEMENT_GET(self)->in, false);
     audio_dec->buf_size = DEFAULT_DEC_OUTPUT_BUFFER_SIZE;
+    audio_dec->need_reopen = false;
     ESP_LOGD(TAG, "Open, el: %p, cfg: %p, type: %d", self, dec_cfg, dec_cfg->dec_type);
     return ESP_GMF_JOB_ERR_OK;
+}
+
+static esp_gmf_job_err_t esp_gmf_audio_dec_close(esp_gmf_element_handle_t self, void *para)
+{
+    ESP_LOGD(TAG, "Closed, %p", self);
+    esp_gmf_audio_dec_t *audio_dec = (esp_gmf_audio_dec_t *)self;
+    if (audio_dec->dec_hd != NULL) {
+        esp_audio_simple_dec_close(audio_dec->dec_hd);
+        audio_dec->is_opened = false;
+        audio_dec->dec_hd = NULL;
+    }
+    audio_dec->pts = 0;
+    esp_gmf_info_sound_t snd_info = {0};
+    audio_dec->in_load = NULL;
+    audio_dec->in_data.len = 0;
+    esp_gmf_audio_el_set_snd_info(self, &snd_info);
+    return ESP_GMF_ERR_OK;
 }
 
 static esp_gmf_job_err_t esp_gmf_audio_dec_process(esp_gmf_element_handle_t self, void *para)
@@ -399,6 +420,15 @@ static esp_gmf_job_err_t esp_gmf_audio_dec_process(esp_gmf_element_handle_t self
             out_len = ESP_GMF_JOB_ERR_CONTINUE;
             ESP_LOGD(TAG, "Return Continue, size:%d", audio_dec->in_load->valid_size);
             goto __aud_proc_release;
+        }
+    }
+    if (audio_dec->need_reopen) {
+        if (audio_dec->dec_hd != NULL) {
+            esp_audio_simple_dec_close(audio_dec->dec_hd);
+            esp_audio_simple_dec_cfg_t *dec_cfg = (esp_audio_simple_dec_cfg_t *)OBJ_GET_CFG(self);
+            esp_audio_simple_dec_open(dec_cfg, &audio_dec->dec_hd);
+            ESP_GMF_CHECK(TAG, audio_dec->dec_hd, {return ESP_GMF_JOB_ERR_FAIL;}, "Failed to reopen simple decoder handle");
+            audio_dec->need_reopen = false;
         }
     }
     while (1) {
@@ -488,23 +518,6 @@ __aud_proc_release:
     return out_len;
 }
 
-static esp_gmf_job_err_t esp_gmf_audio_dec_close(esp_gmf_element_handle_t self, void *para)
-{
-    ESP_LOGD(TAG, "Closed, %p", self);
-    esp_gmf_audio_dec_t *audio_dec = (esp_gmf_audio_dec_t *)self;
-    if (audio_dec->dec_hd != NULL) {
-        esp_audio_simple_dec_close(audio_dec->dec_hd);
-        audio_dec->is_opened = false;
-        audio_dec->dec_hd = NULL;
-    }
-    audio_dec->pts = 0;
-    esp_gmf_info_sound_t snd_info = {0};
-    audio_dec->in_load = NULL;
-    audio_dec->in_data.len = 0;
-    esp_gmf_audio_el_set_snd_info(self, &snd_info);
-    return ESP_GMF_ERR_OK;
-}
-
 static esp_gmf_err_t esp_gmf_audio_dec_destroy(esp_gmf_element_handle_t self)
 {
     ESP_LOGD(TAG, "Destroyed, %p", self);
@@ -578,34 +591,24 @@ esp_gmf_err_t esp_gmf_audio_dec_reconfig(esp_gmf_element_handle_t handle, esp_au
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_INVALID_ARG);
-    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
-    esp_gmf_element_get_state(handle, &state);
-    if (state < ESP_GMF_EVENT_STATE_OPENING) {
-        esp_audio_simple_dec_cfg_t *new_config = NULL;
-        esp_gmf_err_t ret = dupl_esp_audio_simple_cfg(config, &new_config);
-        ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to duplicate audio decoder configuration");
-        free_esp_audio_simple_cfg(OBJ_GET_CFG(handle));
-        esp_gmf_obj_set_config(handle, new_config, sizeof(*config));
-        return ESP_GMF_ERR_OK;
-    } else {
-        ESP_LOGE(TAG, "Failed to reconfig decoder due to invalid state: %s", esp_gmf_event_get_state_str(state));
-        return ESP_GMF_ERR_FAIL;
-    }
+    esp_audio_simple_dec_cfg_t *new_config = NULL;
+    esp_gmf_err_t ret = dupl_esp_audio_simple_cfg(config, &new_config);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to duplicate audio decoder configuration");
+    free_esp_audio_simple_cfg(OBJ_GET_CFG(handle));
+    esp_gmf_obj_set_config(handle, new_config, sizeof(*config));
+    esp_gmf_audio_dec_t *audio_dec = (esp_gmf_audio_dec_t *)handle;
+    audio_dec->need_reopen = true;
+    return ESP_GMF_ERR_OK;
 }
 
 esp_gmf_err_t esp_gmf_audio_dec_reconfig_by_sound_info(esp_gmf_element_handle_t handle, esp_gmf_info_sound_t *info)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
-    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
-    esp_gmf_element_get_state(handle, &state);
-    if (state < ESP_GMF_EVENT_STATE_OPENING) {
-        esp_gmf_err_t ret = audio_dec_reconfig_dec_by_sound_info(handle, info);
-        ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to reconfig simple decoder by sound information");
-        return ESP_GMF_ERR_OK;
-    } else {
-        ESP_LOGE(TAG, "Failed to reconfig decoder due to invalid state: %s", esp_gmf_event_get_state_str(state));
-        return ESP_GMF_ERR_FAIL;
-    }
+    esp_gmf_err_t ret = audio_dec_reconfig_dec_by_sound_info(handle, info);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to reconfig simple decoder by sound information");
+    esp_gmf_audio_dec_t *audio_dec = (esp_gmf_audio_dec_t *)handle;
+    audio_dec->need_reopen = true;
+    return ESP_GMF_ERR_OK;
 }
 
 static esp_gmf_job_err_t esp_gmf_audio_dec_reset(esp_gmf_element_handle_t handle, void *para)
