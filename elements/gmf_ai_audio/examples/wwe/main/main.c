@@ -5,8 +5,13 @@
  */
 
 #include <stdbool.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
 
 #include "esp_err.h"
 #include "esp_log.h"
@@ -24,19 +29,19 @@
 #include "gmf_loader_setup_defaults.h"
 
 #if SOC_SDMMC_HOST_SUPPORTED == 1
-#define VOICE2FILE     (true)
+#define VOICE2FILE  (false)
 #endif  /* SOC_SDMMC_HOST_SUPPORTED == 1 */
 #ifdef CONFIG_GMF_AI_AUDIO_WAKEUP_ENABLE
-#define WAKENET_ENABLE (true)
+#define WAKENET_ENABLE  (true)
 #else
-#define WAKENET_ENABLE (false)
-#endif /* CONFIG_GMF_AI_AUDIO_WAKEUP_ENABLE */
+#define WAKENET_ENABLE  (false)
+#endif  /* CONFIG_GMF_AI_AUDIO_WAKEUP_ENABLE */
 #ifdef CONFIG_GMF_AI_AUDIO_VOICE_COMMAND_ENABLE
-#define VCMD_ENABLE (true)
+#define VCMD_ENABLE  (true)
 #else
-#define VCMD_ENABLE (false)
-#endif /* CONFIG_GMF_AI_AUDIO_VOICE_COMMAND_ENABLE */
-#define QUIT_CMD_FOUND (BIT0)
+#define VCMD_ENABLE  (false)
+#endif  /* CONFIG_GMF_AI_AUDIO_VOICE_COMMAND_ENABLE */
+#define QUIT_CMD_FOUND  (BIT0)
 
 #define BOARD_LYRAT_MINI (0)
 #define BOARD_KORVO_2    (1)
@@ -105,6 +110,79 @@ static EventGroupHandle_t g_event_group = NULL;
 #if WITH_AFE == true
 static esp_gmf_element_handle_t g_afe   = NULL;
 #endif  /* WITH_AFE == true */
+
+#if VOICE2FILE == true && WITH_AFE == true
+#define VOICE2FILE_QUEUE_LEN   (16)
+#define VOICE2FILE_TASK_STACK  (3072)
+#define VOICE2FILE_TASK_PRIO   (4)
+
+/**
+ * @brief  Message to writer task.
+ */
+typedef struct {
+    enum {
+        SAVE_TO_FILE,
+        QUIT_TASK,
+    } id;           /**< Message ID. */
+    uint8_t *data;  /**< Pointer to copied audio data; NULL for state-only (e.g. VAD_END). */
+    int      len;   /**< Length in bytes; < 0 means poison (task exit). */
+} voice2file_msg_t;
+
+static QueueHandle_t voice2file_queue = NULL;
+
+static void voice2file_task(void *arg)
+{
+#define MAX_FNAME_LEN  (50)
+    FILE *fp = NULL;
+    int fcnt = 0;
+    voice2file_msg_t msg;
+
+    while (xQueueReceive(voice2file_queue, &msg, portMAX_DELAY) == pdTRUE) {
+        if (msg.id == QUIT_TASK) {
+            if (fp) {
+                fclose(fp);
+                fp = NULL;
+            }
+            if (msg.data) {
+                esp_gmf_oal_free(msg.data);
+            }
+            break;
+        }
+        if (speeching && msg.id == SAVE_TO_FILE) {
+            if (msg.data && msg.len > 0) {
+                if (!fp) {
+                    char fname[MAX_FNAME_LEN] = {0};
+                    snprintf(fname, MAX_FNAME_LEN - 1, "/sdcard/16k_16bit_1ch_%d.pcm", fcnt++);
+                    fp = fopen(fname, "wb");
+                    if (!fp) {
+                        ESP_LOGE(TAG, "Open failed");
+                    }
+                }
+                if (fp) {
+                    fwrite(msg.data, (size_t)msg.len, 1, fp);
+                }
+            }
+        } else {
+            if (fp) {
+                ESP_LOGI(TAG, "File closed");
+                fclose(fp);
+                fp = NULL;
+            }
+        }
+        if (msg.data) {
+            esp_gmf_oal_free(msg.data);
+        }
+    }
+    while (xQueueReceive(voice2file_queue, &msg, 0) == pdTRUE) {
+        if (msg.data) {
+            esp_gmf_oal_free(msg.data);
+        }
+    }
+    vQueueDelete(voice2file_queue);
+    voice2file_queue = NULL;
+    vTaskDelete(NULL);
+}
+#endif  /* VOICE2FILE == true && WITH_AFE == true */
 
 static esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
@@ -183,29 +261,26 @@ static void esp_gmf_wn_event_cb(esp_gmf_obj_handle_t obj, int32_t trigger_ch, vo
 static void voice_2_file(uint8_t *buffer, int len)
 {
 #if VOICE2FILE == true && WITH_AFE == true
-#define MAX_FNAME_LEN (50)
-
-    static FILE *fp = NULL;
-    static int fcnt = 0;
-
-    if (speeching) {
-        if (!fp) {
-            char fname[MAX_FNAME_LEN] = {0};
-            snprintf(fname, MAX_FNAME_LEN - 1, "/sdcard/16k_16bit_1ch_%d.pcm", fcnt++);
-            fp = fopen(fname, "wb");
-            if (!fp) {
-                ESP_LOGE(TAG, "File open failed");
-                return;
-            }
+    if (!voice2file_queue) {
+        return;
+    }
+    uint8_t *copy = NULL;
+    if (len > 0 && buffer) {
+        copy = esp_gmf_oal_malloc(len);
+        if (!copy) {
+            ESP_LOGE(TAG, "voice2file: malloc failed");
+            return;
         }
-        if (len) {
-            fwrite(buffer, len, 1, fp);
-        }
-    } else {
-        if (fp) {
-            ESP_LOGI(TAG, "File closed");
-            fclose(fp);
-            fp = NULL;
+        memcpy(copy, buffer, (size_t)len);
+    }
+    voice2file_msg_t msg = {
+        .data = copy,
+        .len = len,
+    };
+    if (xQueueSend(voice2file_queue, &msg, pdMS_TO_TICKS(100)) != pdTRUE) {
+        ESP_LOGW(TAG, "voice2file: queue full, drop");
+        if (copy) {
+            esp_gmf_oal_free(copy);
         }
     }
 #endif  /* VOICE2FILE == true && WITH_AFE == true */
@@ -320,8 +395,15 @@ void app_main(void)
     codec_info.record_info.bits_per_sample = ADC_I2S_BITS;
     codec_info.play_info.sample_rate = codec_info.record_info.sample_rate;
     esp_gmf_app_setup_codec_dev(&codec_info);
+#if VOICE2FILE == true && WITH_AFE == true
     void *sdcard_handle = NULL;
     esp_gmf_app_setup_sdcard(&sdcard_handle);
+    voice2file_queue = xQueueCreate(VOICE2FILE_QUEUE_LEN, sizeof(voice2file_msg_t));
+    if (voice2file_queue) {
+        xTaskCreate(voice2file_task, "voice2file", VOICE2FILE_TASK_STACK, NULL,
+                    VOICE2FILE_TASK_PRIO, NULL);
+    }
+#endif  /* VOICE2FILE == true && WITH_AFE == true */
     g_event_group = xEventGroupCreate();
 
     esp_gmf_pool_handle_t pool = NULL;
@@ -329,6 +411,7 @@ void app_main(void)
     gmf_loader_setup_all_defaults(pool);
 
     esp_gmf_pipeline_handle_t pipe = NULL;
+    esp_gmf_task_handle_t task = NULL;
 #if WITH_AFE == true
     const char *name[] = {"ai_afe"};
 #else
@@ -369,7 +452,6 @@ void app_main(void)
     cfg.thread.core = 0;
     cfg.thread.prio = 5;
     cfg.thread.stack = 5120;
-    esp_gmf_task_handle_t task = NULL;
     esp_gmf_task_init(&cfg, &task);
     esp_gmf_pipeline_bind_task(pipe, task);
     esp_gmf_pipeline_loading_jobs(pipe);
@@ -387,13 +469,34 @@ void app_main(void)
     }
 
 __quit:
-    esp_gmf_pipeline_stop(pipe);
-    esp_gmf_task_deinit(task);
-    esp_gmf_pipeline_destroy(pipe);
-    gmf_loader_teardown_all_defaults(pool);
-    esp_gmf_pool_deinit(pool);
+    if (pipe) {
+        esp_gmf_pipeline_stop(pipe);
+        esp_gmf_pipeline_destroy(pipe);
+        pipe = NULL;
+    }
+    if (task) {
+        esp_gmf_task_deinit(task);
+        task = NULL;
+    }
+    if (pool) {
+        gmf_loader_teardown_all_defaults(pool);
+        esp_gmf_pool_deinit(pool);
+        pool = NULL;
+    }
     esp_gmf_app_teardown_codec_dev();
-    esp_gmf_app_teardown_sdcard(sdcard_handle);
-    vEventGroupDelete(g_event_group);
+#if VOICE2FILE == true && WITH_AFE == true
+    if (voice2file_queue) {
+        voice2file_msg_t msg = {.id = QUIT_TASK};
+        xQueueSend(voice2file_queue, &msg, portMAX_DELAY);
+    }
+    if (sdcard_handle) {
+        esp_gmf_app_teardown_sdcard(sdcard_handle);
+        sdcard_handle = NULL;
+    }
+#endif  /* VOICE2FILE == true && WITH_AFE == true */
+    if (g_event_group) {
+        vEventGroupDelete(g_event_group);
+        g_event_group = NULL;
+    }
     ESP_LOGW(TAG, "Wake word engine demo finished");
 }
