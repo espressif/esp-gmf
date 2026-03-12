@@ -28,6 +28,8 @@ static const char *TAG = "REC_SDCARD";
 #define DEFAULT_RECORD_SAMPLE_RATE  48000
 #define DEFAULT_RECORD_CHANNEL      1
 #define DEFAULT_RECORD_BITS         16
+#define DEFAULT_RECORD_DURATION_MS  10000
+#define DEFAULT_MICROPHONE_GAIN     32
 #define DEFAULT_RECORD_BITRATE      90000
 #define DEFAULT_RECORD_OUTPUT_URL   "/sdcard/esp_gmf_rec001.aac"
 
@@ -51,6 +53,7 @@ esp_gmf_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
     return ESP_GMF_ERR_OK;
 }
 
+#if CONFIG_PM_ENABLE
 static void esp_enable_pm_with_freq(int min_freq, int max_freq)
 {
     max_freq = max_freq < min_freq ? min_freq : max_freq;
@@ -67,8 +70,9 @@ static void esp_enable_pm_with_freq(int min_freq, int max_freq)
         .max_freq_mhz = max_freq,
         .min_freq_mhz = min_freq,
     };
-    ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
+    ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
 }
+#endif  /* CONFIG_PM_ENABLE */
 
 static int record_peripheral_init(esp_codec_dev_handle_t *rec_handle)
 {
@@ -79,7 +83,7 @@ static int record_peripheral_init(esp_codec_dev_handle_t *rec_handle)
     ESP_GMF_NULL_CHECK(TAG, rec_dev_handle, return ESP_GMF_ERR_NOT_FOUND);
     esp_codec_dev_handle_t record_handle = rec_dev_handle->codec_dev;
     ESP_GMF_NULL_CHECK(TAG, record_handle, return ESP_GMF_ERR_NOT_FOUND);
-    ret = esp_codec_dev_set_in_gain(record_handle, 32);
+    ret = esp_codec_dev_set_in_gain(record_handle, DEFAULT_MICROPHONE_GAIN);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to set input gain");
     esp_codec_dev_sample_info_t fs = {
         .sample_rate = DEFAULT_RECORD_SAMPLE_RATE,
@@ -168,7 +172,7 @@ void app_main(void)
     esp_gmf_pipeline_run(pipe);
 
     ESP_LOGI(TAG, "[ 5 ] Wait for a while to stop record pipeline");
-    vTaskDelay(10000 / portTICK_PERIOD_MS);
+    vTaskDelay(DEFAULT_RECORD_DURATION_MS / portTICK_PERIOD_MS);
     esp_gmf_pipeline_stop(pipe);
 
     ESP_LOGI(TAG, "[ 6 ] Destroy all the resources");

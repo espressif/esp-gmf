@@ -1,21 +1,35 @@
 # 音频特效播放演示
 
-- [English](./README.md)
-- 例程难度 ⭐
+- [English Version](./README.md)
+- 例程难度：⭐
 
 ## 例程简介
 
 本示例基于 Espressif Generic Media Framework (GMF)，演示如何构建和运行多种音频处理流水线。示例通过内置音频素材展示不同音频特效和混音功能，帮助开发者快速了解 GMF 框架的使用方法与效果呈现。
 
 - 音频特效演示：播放音频时动态调整特效参数（如 EQ 增益、DRC 压缩曲线等），实时体验不同音效变化。
-
 - 混音器演示：展示多路音频的实时混合与控制能力，模拟背景音乐与提示音同时播放的场景，实现淡入淡出效果。
 
-## 示例创建
+### 典型场景
 
-### IDF 默认分支
+- 播放时实时调节音效参数，体验 ALC、Sonic、EQ、Fade、DRC、MBC 等特效。
+- 多路音频混合播放，如背景音乐与提示音叠加及淡入淡出控制。
 
-本例程支持 IDF release/v5.4(>= v5.4.3) and release/v5.5(>= v5.5.2) 分支。
+### 运行机制
+
+- 混音模式：多条 pipeline（背景音乐、提示音）经 ringbuffer 送入 mixer 元素混合后输出；提示音 pipeline 含解码、采样率/声道/位深转换，与 mixer 协同实现淡入淡出。
+- 单特效模式：单条 pipeline 为 `io_embed_flash` → `aud_dec` → `effect`（ALC/Sonic/EQ/Fade/DRC/MBC 之一）→ `io_codec_dev`；播放约 4 秒后通过 API 动态更新特效参数。
+
+## 环境配置
+
+### 硬件要求
+
+- **开发板**：默认以 ESP32-S3-Korvo V3 为例，其他 ESP 音频板同样适用。
+- **资源要求**：Audio DAC、扬声器。
+
+### 默认 IDF 分支
+
+本例程支持 IDF release/v5.4 (>= v5.4.3) 与 release/v5.5 (>= v5.5.2) 分支。
 
 ### 预备知识
 
@@ -27,29 +41,26 @@
 python $YOUR_GMF_PATH/elements/gmf_io/mk_flash_embed_tone.py -p $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_audio_effects/components/music_src
 ```
 
-### 配置说明
+## 编译和下载
 
-- **效果演示**：默认启用所有音频特效演示（ALC、Sonic、EQ、Fade、DRC、MBC 和混音器），用户可在 menuconfig 的 "Pipeline Audio Effects Example" 菜单中选择感兴趣的特效进行演示
-- **音频类型**：示例中使用的音频文件为 WAV 和 MP3 格式，默认已注册对应的解码器。如需使用其他格式的音频文件，请在 menuconfig 中进入 "Audio Codec Configuration" → "Audio Decoder Configuration" 或 "Audio Simple Decoder Configuration" 菜单，启用相应音频解码器的支持选项
+### 编译准备
 
-### 编译和下载
-
-编译本例程前需要先确保已配置 ESP-IDF 的环境，如果已配置可跳到下一项配置，如果未配置需要先在 ESP-IDF 根目录运行下面脚本设置编译环境，有关配置和使用 ESP-IDF 完整步骤，请参阅 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)：
+编译本例程前需先确保已配置 ESP-IDF 环境；若已配置可跳过本段，直接进入工程目录并运行相关预编译脚本。若未配置，请在 ESP-IDF 根目录运行以下脚本完成环境设置，完整步骤请参阅 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)。
 
 ```
 ./install.sh
 . ./export.sh
 ```
 
-下面是简略编译步骤：
+下面是简略步骤：
 
-- 进入音频特效测试工程存放位置
+- 进入本例程工程目录：
 
 ```
 cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_audio_effects
 ```
 
-- 执行预编译脚本，根据提示选择编译芯片，自动设置 IDF Action 扩展
+- 执行预编译脚本，根据提示选择编译芯片，自动设置 IDF Action 扩展，通过 `esp_board_manager` 选择支持的开发板，如需选择自定义开发板，详情参考：[自定义板子](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board)
 
 在 Linux / macOS 中运行以下命令：
 ```bash/zsh
@@ -61,7 +72,25 @@ source prebuild.sh
 .\prebuild.ps1
 ```
 
-- 编译例子程序
+### 项目配置
+
+- **效果演示**：默认启用所有音频特效演示（ALC、Sonic、EQ、Fade、DRC、MBC 和混音器），可在 menuconfig 的 `Pipeline Audio Effects Example` 中选择要演示的特效。
+- **音频类型**：示例使用 WAV 和 MP3 格式，已注册对应解码器。其他格式可通过下述配置选择。
+
+```bash
+idf.py menuconfig
+```
+
+根据需要在 menuconfig 中进行以下配置：
+
+- 选择演示的特效：`(Top)` → `Pipeline Audio Effects Example`
+- 选择对应解码器：`Component config` → `Audio Codec Configuration` → `Audio Decoder Configuration`
+
+> 配置完成后按 `s` 保存，然后按 `Esc` 退出。
+
+### 编译与烧录
+
+- 编译示例程序
 
 ```
 idf.py build
@@ -73,11 +102,11 @@ idf.py build
 idf.py -p PORT flash monitor
 ```
 
-- 退出调试界面使用 ``Ctrl-]``
+- 退出调试界面使用 `Ctrl-]`
 
 ## 如何使用例程
 
-### 功能描述
+### 功能和用法
 
 - **单特效模式**：
   1. 从闪存读取并解码 WAV 文件 `manloud_48000_2_16_10.wav`；
@@ -91,9 +120,9 @@ idf.py -p PORT flash monitor
   3. 流水线 C 负责混合两路音频，并通过提示音事件实现淡入淡出控制；
   4. 当所有输入播放完成后，Mixer 及相关流水线自动退出并释放资源。
 
-### 运行示例
+### 日志输出
 
-以下是完整的运行输出（以 ESP32-S3 为例）：
+正常流程依次为混音演示、单特效演示（ALC、Sonic、EQ、Fade、DRC、MBC）及资源释放，关键步骤以 `[ 1 ]`～`[ 4 ]` 及 "Applying aud_xxx parameters"、"Mixer demo finished"、"Effect demo finished" 等标出。以下为关键 log（以 ESP32-S3 为例）：
 
 ```c
 I (1360) PIPELINE_AUDIO_EFFECTS: [ 1 ] Prepare GMF pool
@@ -324,3 +353,22 @@ I (74186) BOARD_MANAGER: Device audio_dac deinitialized
 I (74191) PIPELINE_AUDIO_EFFECTS: Effect demo finished
 I (74196) main_task: Returned from app_main()
 ```
+
+## 故障排除
+
+### 无声音或设备未就绪
+
+若日志出现 codec/DAC 初始化失败或 I2S 报错，请确认开发板板级配置中已正确启用音频输出设备，且扬声器或耳机已连接。
+
+### 嵌入式音频文件缺失
+
+若提示无法打开 `embed://tone/0` 等，请确认已运行 `mk_flash_embed_tone.py` 生成 `esp_embed_tone.h` 与 `esp_embed_tone.cmake`，且 `components/music_src/` 下存在对应音频文件。
+
+## 技术支持
+
+请按照下面的链接获取技术支持：
+
+- 技术支持参见 [esp32.com](https://esp32.com/viewforum.php?f=20) 论坛
+- 问题反馈与功能需求，请创建 [GitHub issue](https://github.com/espressif/esp-gmf/issues)
+
+我们会尽快回复。

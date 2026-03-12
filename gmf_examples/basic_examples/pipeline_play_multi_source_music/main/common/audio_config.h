@@ -21,7 +21,7 @@ extern "C" {
 #define PIPELINE_STOP_TIMEOUT_MS  5000
 #define PIPELINE_TASK_TIMEOUT_MS  30000
 
-#define PLAYBACK_DEFAULT_VOLUME  80
+#define PLAYBACK_DEFAULT_VOLUME   80
 
 #ifdef __cplusplus
 }

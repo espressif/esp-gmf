@@ -19,9 +19,9 @@
 #include "esp_gmf_io_codec_dev.h"
 #include "esp_board_manager_includes.h"
 
-#define PIPELINE_BLOCK_BIT    BIT(0)
-#define PLAYBACK_DURATION_MS  (60000)
-#define PLAYBACK_VOLUME       (60)
+#define PIPELINE_BLOCK_BIT       BIT(0)
+#define PLAYBACK_DURATION_MS     (60000)
+#define PLAYBACK_DEFAULT_VOLUME  (80)
 
 typedef struct {
     bool                 stop_loop;   /*!< Whether to stop the loop playback */
@@ -104,7 +104,7 @@ static int setup_peripheral(void **playback_handle)
     ESP_GMF_NULL_CHECK(TAG, dac_dev_handle, return ESP_GMF_ERR_NOT_FOUND);
     esp_codec_dev_handle_t playback = dac_dev_handle->codec_dev;
     ESP_GMF_NULL_CHECK(TAG, playback, return ESP_GMF_ERR_NOT_FOUND);
-    ret = esp_codec_dev_set_out_vol(playback, PLAYBACK_VOLUME);
+    ret = esp_codec_dev_set_out_vol(playback, PLAYBACK_DEFAULT_VOLUME);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to set output volume");
     esp_codec_dev_sample_info_t fs = {
         .sample_rate = CONFIG_GMF_AUDIO_EFFECT_RATE_CVT_DEST_RATE,

@@ -87,7 +87,7 @@ static esp_gmf_err_t gmf_loader_setup_default_eq(esp_gmf_pool_handle_t pool)
 #endif  /* CONFIG_GMF_EQ_FILTER_NUM >= 10 */
     };
     eq_cfg.filter_num = CONFIG_GMF_EQ_FILTER_NUM;
-    eq_cfg.para = para;
+    eq_cfg.para = (esp_ae_eq_filter_para_t *)para;
 #endif  /* CONFIG_GMF_EQ_FILTER_NUM > 0 */
     ret = esp_gmf_eq_init(&eq_cfg, &hd);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init audio EQ");
@@ -364,9 +364,7 @@ static esp_gmf_err_t gmf_loader_setup_default_mbc(esp_gmf_pool_handle_t pool)
 
 esp_gmf_err_t gmf_loader_setup_audio_effects_default(esp_gmf_pool_handle_t pool)
 {
-    if (pool == NULL) {
-        return ESP_GMF_ERR_INVALID_ARG;
-    }
+    ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
 
 #ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_ALC
@@ -434,8 +432,6 @@ esp_gmf_err_t gmf_loader_setup_audio_effects_default(esp_gmf_pool_handle_t pool)
 
 esp_gmf_err_t gmf_loader_teardown_audio_effects_default(esp_gmf_pool_handle_t pool)
 {
-    if (pool == NULL) {
-        return ESP_GMF_ERR_INVALID_ARG;
-    }
+    ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
     return ESP_GMF_ERR_OK;
 }

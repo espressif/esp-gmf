@@ -1,19 +1,16 @@
-_This is the README template for ESP-GMF examples. Content in italics (between double underscores, e.g. `_XXX_`) is placeholder text; replace it according to the actual example. Items marked as "recommended" should be filled in as much as possible; items marked as "optional" may be added as needed for the example._
+_This is the README template for ESP-GMF examples. Content in italics (between double underscores, e.g. `_XXX_`) is placeholder text; replace it according to the actual example. Items marked as "recommended" should be filled in as much as possible; items marked as "optional" may be added as needed for the example; all other unmarked items are required. The words "recommended" and "optional" should not appear in the actual example README._
 
 # _Example Title_
 
 _Link to Chinese version_
 
 - [中文版](./README_CN.md)
-
-_Mark the example difficulty; choose one of the following (that line can be left as-is):_
-
 - Basic Example: ⭐
 - Regular Example: ⭐⭐
 - Complex Example: ⭐⭐⭐
 
+_Note: Mark the example difficulty; choose one of the above (that line can be left as-is)_  
 _Meaning: Basic means entry-level, e.g. running a single pipeline; Regular means intermediate, e.g. multiple pipelines working together; Complex means advanced, e.g. using multiple protocols and running multiple pipelines._
-
 
 ## Example Brief
 
@@ -28,12 +25,11 @@ _Describe typical use cases for this example, e.g. low-power voice recorder, aud
 
 _e.g. RAM, CPU load._
 
-
 ### Prerequisites (Optional)
 
 - _Guide new users to run the get started example first_
 - _Point users to background material_
-- _Below is a typical example; if this example does not use embedded audio, delete or rewrite this paragraph. Replace with content that matches the current example's resources._
+- _Below is a typical example (if this example does not use embedded audio, delete or rewrite this paragraph. Replace with content that matches the current example's resources)._
 
 The audio files used in this example are in [embedded binary](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-guides/build-system.html#cmake-embed-data) format and are compiled and downloaded to flash with the firmware.
 
@@ -43,6 +39,9 @@ This example provides two test files, `manloud_48000_2_16_10.wav` and `tone.mp3`
 python $YOUR_GMF_PATH/elements/gmf_io/mk_flash_embed_tone.py -p $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_audio_effects/components/music_src
 ```
 
+### Run Flow (Optional)
+
+_Describe the run flow or internal process of the example; diagrams are welcome._
 
 ### File Structure (Optional)
 
@@ -88,9 +87,7 @@ python $YOUR_GMF_PATH/elements/gmf_io/mk_flash_embed_tone.py -p $YOUR_GMF_PATH/g
 └── README_CN.md
 ```
 
-
 ## Environment Setup
-
 
 ### Hardware Required
 
@@ -110,15 +107,13 @@ This example supports IDF release/v5.4 (>= v5.4.3) and release/v5.5 (>= v5.5.2).
 
 - _Software or resources used with this example, e.g.: test audio files (path or URL), HTTP server for record/upload examples (e.g. server.py), etc._
 
-
 ## Build and Flash
 
-
-### Build preparation
+### Build Preparation
 
 _Describe preparation before building. In the following text, only the example project directory and path need to be changed to the current example; the rest can stay as-is._
 
-Before building this example, ensure the ESP-IDF environment is set up. If it is already set up, skip this paragraph and go to the project directory and run the pre-build script(s) as follow. If not, run the following in the ESP-IDF root directory to complete the environment setup. For full steps, see the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html).
+Before building this example, ensure the ESP-IDF environment is set up. If it is already set up, skip this paragraph and go to the project directory and run the pre-build script(s) as follows. If not, run the following in the ESP-IDF root directory to complete the environment setup. For full steps, see the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html).
 
 ```
 ./install.sh
@@ -135,8 +130,8 @@ cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_audio_effects
 
 - Run the pre-build script: follow the prompts to select the target chip, set up the IDF Action extension, and use `esp_board_manager` to select a supported board. For a custom board, see [Custom board](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board).
 
-On Linux / macOS:
-```bash
+On Linux / macOS, run:
+```bash/zsh
 source prebuild.sh
 ```
 
@@ -165,7 +160,6 @@ Configure the following in menuconfig (example):
 
 > Press `s` to save and `Esc` to exit after configuration.
 
-
 ### Build and Flash Commands
 
 _Use the following as-is; no need to modify._
@@ -182,8 +176,9 @@ idf.py build
 idf.py -p PORT flash monitor
 ```
 
-## How to Use the Example
+- To exit the monitor, use `Ctrl-]`
 
+## How to Use the Example
 
 ### Functionality and Usage
 
@@ -192,11 +187,10 @@ idf.py -p PORT flash monitor
 - _If other software is required (e.g. HTTP server, Bluetooth device, app, second chip), list it here with links and setup instructions. e.g.:_
   - _Before running the example, start the HTTP server on the PC (e.g. `python server.py`) to receive data, for record/upload examples._
 
-
 ### Log Output
 
-_Log output need not be complete; show only key information that reflects the example behavior. Add boot log if needed to confirm startup._
-_Keep irrelevant log to a minimum; use esp_log_level_set() in code to reduce noise._
+- _Log output need not be complete; show only key information. Point out key log lines if necessary._
+- _Ensure log continuity; do not splice logs from different places; do not modify the original log._
 
 - _Briefly describe the example run process and actual result; point out key log lines if necessary._
 
@@ -224,12 +218,13 @@ I (62873) PLAY_MUSIC_NO_GAP: CB: RECV Pipeline EVT: el: NULL-0x3c118c68, type: 2
 I (62876) PLAY_MUSIC_NO_GAP: [ 6 ] Destroy all the resources
 ```
 
+### Results (Optional)
 
-### References (Recommended)
+- _If you have run process, results, or video links, you can show them here._
 
-- _If you have run flow, results, or video links, add them in this section_
-- _You can also briefly describe the run flow or internal process_
+### References (Optional)
 
+- _If there are related references or materials, link them here._
 
 ## Troubleshooting (Recommended)
 
