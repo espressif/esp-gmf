@@ -151,12 +151,6 @@ static esp_gmf_err_io_t _file_acquire_read(esp_gmf_io_handle_t handle, void *pay
 
 static esp_gmf_err_io_t _file_release_read(esp_gmf_io_handle_t handle, void *payload, int block_ticks)
 {
-    file_io_stream_t *file_io = (file_io_stream_t *)handle;
-    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)file_io, &info);
-    ESP_LOGD(TAG, "Update len = %d, pos = %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, pload->valid_size);
     return ESP_GMF_IO_OK;
 }
 
@@ -188,10 +182,6 @@ static esp_gmf_err_io_t _file_release_write(esp_gmf_io_handle_t handle, void *pa
         ESP_LOGE(TAG, "The error is happened in writing data, error msg:%s", strerror(errno));
         return ESP_GMF_IO_FAIL;
     }
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)file_io, &info);
-    ESP_LOGD(TAG, "Write len = %zu, pos = %d/%d", wlen_total, (int)info.pos, (int)info.size);
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, wlen_total);
     return ESP_GMF_IO_OK;
 }
 

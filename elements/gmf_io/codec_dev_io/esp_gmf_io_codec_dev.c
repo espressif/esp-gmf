@@ -52,12 +52,6 @@ static esp_gmf_err_io_t _codec_dev_acquire_read(esp_gmf_io_handle_t handle, void
 
 static esp_gmf_err_io_t _codec_dev_release_read(esp_gmf_io_handle_t handle, void *payload, int block_ticks)
 {
-    codec_dev_io_stream_t *codec_dev_io = (codec_dev_io_stream_t *)handle;
-    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)codec_dev_io, &info);
-    ESP_LOGD(TAG, "Update len = %d, pos = %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, pload->valid_size);
     return ESP_GMF_IO_OK;
 }
 
@@ -72,17 +66,10 @@ static esp_gmf_err_io_t _codec_dev_release_write(esp_gmf_io_handle_t handle, voi
     esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
     codec_dev_io_cfg_t *cfg = (codec_dev_io_cfg_t *)OBJ_GET_CFG(codec_dev_io);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_IO_FAIL;);
-    size_t wlen = pload->valid_size;
     if (esp_codec_dev_write(cfg->dev, pload->buf, pload->valid_size) != ESP_GMF_ERR_OK) {
         ESP_LOGE(TAG, "Write failed, valid: %d", pload->valid_size);
         return ESP_GMF_IO_FAIL;
     }
-    esp_gmf_info_file_t info = {0};
-    if (wlen > 0) {
-        esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, wlen);
-    }
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)codec_dev_io, &info);
-    ESP_LOGD(TAG, "Write len: %d, pos: %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
     return ESP_GMF_IO_OK;
 }
 

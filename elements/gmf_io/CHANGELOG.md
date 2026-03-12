@@ -7,6 +7,7 @@
 - Added configuration of IO buffering task scheduler
 - Added API reload of IO with new uri
 - Added URL scoring support for `http`, `file` and `embed_flash` IO elements to enable dynamic selection
+- Centralized `pos` management and logging to the base IO class
 
 ## v0.7.6
 

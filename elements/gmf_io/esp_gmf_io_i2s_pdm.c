@@ -82,12 +82,6 @@ static esp_gmf_err_io_t _i2s_pdm_acquire_read(esp_gmf_io_handle_t handle, void *
 
 static esp_gmf_err_io_t _i2s_pdm_release_read(esp_gmf_io_handle_t handle, void *payload, int block_ticks)
 {
-    i2s_pdm_io_stream_t *i2s_pdm_io = (i2s_pdm_io_stream_t *)handle;
-    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)i2s_pdm_io, &info);
-    ESP_LOGD(TAG, "Update len = %d, pos = %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, pload->valid_size);
     return ESP_GMF_IO_OK;
 }
 
@@ -107,16 +101,10 @@ static esp_gmf_err_io_t _i2s_pdm_release_write(esp_gmf_io_handle_t handle, void 
         ESP_LOGE(TAG, "I2S write failed, valid: %d", pload->valid_size);
         return ESP_GMF_IO_FAIL;
     }
-    esp_gmf_info_file_t info = {0};
     if (pload->is_done && i2s_pdm_io->pdm_event) {
         ESP_LOGE(TAG, "Clear the PDM_TX_DONE_BIT, len = %d", pload->valid_size);
         xEventGroupClearBits(i2s_pdm_io->pdm_event, PDM_TX_DONE_BIT);
     }
-    if (wlen > 0) {
-        esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, wlen);
-    }
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)i2s_pdm_io, &info);
-    ESP_LOGD(TAG, "Write len = %d, pos = %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
     return ESP_GMF_IO_OK;
 }
 

@@ -7,6 +7,7 @@
 - Added support for playback of streams where the audio type cannot be reliably identified from the URL suffix
 - Added preliminary audio type detection based on URL suffix (AAC, MP3, AMR-NB, AMR-WB, WAV, TS, M4A, FLAC), with further probing and validation of input data to ensure correct playback
 - Refactored URI-to-IO mapping to use the new dynamic GMF pool selection mechanism, removing hardcoded URI scheme checks
+- Added `esp_audio_simple_player_get_pool` API
 
 ### Bug Fixes
 

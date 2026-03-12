@@ -266,10 +266,7 @@ static esp_gmf_err_t _http_reconnect(esp_gmf_io_handle_t self)
 {
     esp_gmf_err_t err = ESP_GMF_ERR_OK;
     ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_FAIL);
-    esp_gmf_info_file_t info = {0};
-    err |= esp_gmf_io_get_info((esp_gmf_io_handle_t)self, &info);
     err |= _http_close(self);
-    err |= esp_gmf_io_update_pos(self, info.pos);
     err |= _http_open(self);
     return err;
 }
@@ -277,8 +274,6 @@ static esp_gmf_err_t _http_reconnect(esp_gmf_io_handle_t self)
 static int _http_read(esp_gmf_io_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
     http_stream_t *http = (http_stream_t *)self;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)http, &info);
     int wrlen = dispatch_hook(self, HTTP_STREAM_ON_RESPONSE, buffer, len);
     int rlen = wrlen;
     if (rlen == 0) {
@@ -286,14 +281,12 @@ static int _http_read(esp_gmf_io_handle_t self, char *buffer, int len, TickType_
     }
     if (rlen <= 0) {
         http->_errno = esp_http_client_get_errno(http->client);
-        ESP_LOGW(TAG, "No more data, errno: %d, read bytes: %llu, rlen = %d", http->_errno, info.pos, rlen);
+        ESP_LOGW(TAG, "No more data, errno: %d, rlen = %d", http->_errno, rlen);
         if (http->_errno != 0) {  // Error occuered, reset connection
             ESP_LOGE(TAG, "Got %d errno(%s)", http->_errno, strerror(http->_errno));
         }
-    } else {
-        esp_gmf_io_update_pos(self, rlen);
     }
-    ESP_LOGD(TAG, "req length = %d, read = %d, pos = %d/%d", len, rlen, (int)info.pos, (int)info.size);
+    ESP_LOGD(TAG, "req length = %d, read = %d", len, rlen);
     return rlen;
 }
 
@@ -333,7 +326,6 @@ static esp_gmf_err_t _http_seek(esp_gmf_io_handle_t handle, uint64_t pos)
     http_stream_t *http = (http_stream_t *)handle;
     ESP_LOGD(TAG, "HTTP Seek to: %lld, %p", pos, http);
     _http_close(handle);
-    esp_gmf_io_set_pos(http, pos);
     _http_open(handle);
 
     return ESP_GMF_ERR_OK;
@@ -390,10 +382,6 @@ static esp_gmf_err_io_t _http_release_write(esp_gmf_io_handle_t handle, void *pa
         ESP_LOGE(TAG, "The error is happened in writing data, error msg:%s", strerror(http->_errno));
         return ESP_GMF_IO_FAIL;
     }
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)handle, &info);
-    ESP_LOGD(TAG, "Write len = %zu, pos = %d/%d", wlen_total, (int)info.pos, (int)info.size);
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, wlen_total);
     return ESP_GMF_IO_OK;
 }
 

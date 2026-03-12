@@ -85,9 +85,9 @@ static esp_gmf_err_io_t _embed_flash_acquire_read(esp_gmf_io_handle_t io, void *
     if ((info.pos + wanted_size) > info.size) {
         wanted_size = info.size - info.pos;
     }
-    ESP_LOGD(TAG, "Embed read data, ret:%ld, pos: %llu/%llu", wanted_size, info.pos, info.size);
+    ESP_LOGD(TAG, "Embed read data, ret:%ld", wanted_size);
     if (wanted_size == 0) {
-        ESP_LOGW(TAG, "No more data, ret:%ld, pos: %llu/%llu", wanted_size, info.pos, info.size);
+        ESP_LOGW(TAG, "No more data, ret:%ld", wanted_size);
         pload->is_done = true;
     }
     memcpy(pload->buf, embed_flash->items[embed_flash->cur].address + info.pos, wanted_size);
@@ -97,12 +97,6 @@ static esp_gmf_err_io_t _embed_flash_acquire_read(esp_gmf_io_handle_t io, void *
 
 static esp_gmf_err_io_t _embed_flash_release_read(esp_gmf_io_handle_t io, void *payload, int block_ticks)
 {
-    embed_flash_io_t *embed_flash = (embed_flash_io_t *)io;
-    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)embed_flash, &info);
-    ESP_LOGD(TAG, "Update len = %d, pos = %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)embed_flash, pload->valid_size);
     return ESP_GMF_IO_OK;
 }
 

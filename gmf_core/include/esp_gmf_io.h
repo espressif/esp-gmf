@@ -67,6 +67,7 @@ typedef enum {
 typedef struct {
     size_t  io_size;      /*!< Each time io size in bytes */
     size_t  buffer_size;  /*!< Buffer size in bytes */
+    esp_gmf_err_t (*read_filter)(esp_gmf_io_handle_t obj, void *payload, uint32_t wanted_size, int block_ticks);  /*!< Read filter callback function */
 } esp_gmf_io_buffer_cfg_t;
 
 /**

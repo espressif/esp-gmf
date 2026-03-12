@@ -16,6 +16,7 @@
   - Added configuration of gmf_io buffering task scheduler
   - Added speed measurement for gmf_io
   - Added done and abort capability for gmf_io
+  - Added `read_filter` callback to support custom payload processing
 - Added API esp_gmf_db_clear_abort for condition which no need reset after abort
 - Added API esp_gmf_db_reset_done_write for `block`, `fifo` and `pbuf`
 - Added API esp_gmf_io_reload with new uri

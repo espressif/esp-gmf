@@ -343,10 +343,9 @@ TEST_CASE("GMF IO async seek within buffer", "[ESP_GMF_IO]")
     uint32_t filled_size = 0;
     esp_gmf_db_get_filled_size(fake_reader->base.data_bus, &filled_size);
     ESP_LOGI(TAG, "Before seek: pos=%llu, filled_size=%u", pos, filled_size);
-    TEST_ASSERT_GREATER_THAN(0, pos);
     TEST_ASSERT_GREATER_THAN(0, filled_size);
 
-    uint64_t seek_target = pos - filled_size / 2;
+    uint64_t seek_target = pos + filled_size / 2;
     fake_reader->seek_called_count = 0;
     ret = esp_gmf_io_seek(reader, seek_target);
     TEST_ASSERT_EQUAL(ret, ESP_GMF_ERR_OK);
@@ -384,7 +383,6 @@ TEST_CASE("GMF IO async seek full", "[ESP_GMF_IO]")
     uint64_t pos = 0;
     esp_gmf_io_get_pos(reader, &pos);
     ESP_LOGI(TAG, "Before full seek: pos=%llu", pos);
-    TEST_ASSERT_GREATER_THAN(0, pos);
 
     uint64_t seek_target = pos + 30000;
     fake_reader->seek_called_count = 0;
@@ -458,10 +456,10 @@ TEST_CASE("GMF IO reset with running task", "[ESP_GMF_IO]")
 
     vTaskDelay(200 / portTICK_PERIOD_MS);
 
-    uint64_t pos_before = 0;
-    esp_gmf_io_get_pos(reader, &pos_before);
-    TEST_ASSERT_GREATER_THAN(0, pos_before);
-    ESP_LOGI(TAG, "Position before close: %llu", pos_before);
+    uint32_t filled_size = 0;
+    esp_gmf_db_get_filled_size(fake_reader->base.data_bus, &filled_size);
+    TEST_ASSERT_GREATER_THAN(0, filled_size);
+    ESP_LOGI(TAG, "Filled size before close: %u", filled_size);
 
     ret = esp_gmf_io_close(reader);
     TEST_ASSERT_EQUAL(ret, ESP_GMF_ERR_OK);
@@ -469,18 +467,18 @@ TEST_CASE("GMF IO reset with running task", "[ESP_GMF_IO]")
     ret = esp_gmf_io_reset(reader);
     TEST_ASSERT_EQUAL(ret, ESP_GMF_ERR_OK);
 
-    uint64_t pos_after = 0;
-    esp_gmf_io_get_pos(reader, &pos_after);
-    TEST_ASSERT_EQUAL(0, pos_after);
+    esp_gmf_db_get_filled_size(fake_reader->base.data_bus, &filled_size);
+    TEST_ASSERT_EQUAL(0, filled_size);
+    ESP_LOGI(TAG, "Filled size after reset: %u", filled_size);
 
     ret = esp_gmf_io_open(reader);
     TEST_ASSERT_EQUAL(ret, ESP_GMF_ERR_OK);
 
     /* Verify data flows again after reset */
     vTaskDelay(200 / portTICK_PERIOD_MS);
-    esp_gmf_io_get_pos(reader, &pos_after);
-    ESP_LOGI(TAG, "Position after reset and re-open: %llu", pos_after);
-    TEST_ASSERT_GREATER_THAN(0, pos_after);
+    esp_gmf_db_get_filled_size(fake_reader->base.data_bus, &filled_size);
+    TEST_ASSERT_GREATER_THAN(0, filled_size);
+    ESP_LOGI(TAG, "Filled size after reset: %u", filled_size);
 
     esp_gmf_io_close(reader);
     esp_gmf_obj_delete(reader);

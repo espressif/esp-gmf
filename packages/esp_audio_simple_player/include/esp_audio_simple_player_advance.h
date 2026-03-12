@@ -10,6 +10,7 @@
 #include "esp_audio_simple_player.h"
 #include "esp_gmf_io.h"
 #include "esp_gmf_element.h"
+#include "esp_gmf_pool.h"
 #include "esp_gmf_pipeline.h"
 
 #ifdef __cplusplus
@@ -22,6 +23,23 @@ extern "C" {
  *         If you want to add new element for pipeline, please use `esp_audio_simple_player_register_el` to register the elements.
  *         Then, call `esp_audio_simple_player_set_pipeline` to set the specific pipeline.
  */
+
+/**
+ * @brief  Gets the pool handle from the ESP Audio Simple Player instance
+ *
+ * @note
+ *     - This function can be called after `esp_audio_simple_player_new`
+ *     - The returned pool handle should not be destroyed by the caller, as it is managed by the ESP Audio Simple Player
+ *
+ * @param[in]   handle  The handle to the ESP Audio Simple Player instance
+ * @param[out]  pool    Pointer to store the pool handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Successfully got the pool handle
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument(s), such as a NULL handle or pool pointer
+ *       - ESP_GMF_ERR_FAIL         Failed to get the pool handle due to other internal errors
+ */
+esp_gmf_err_t esp_audio_simple_player_get_pool(esp_asp_handle_t handle, esp_gmf_pool_handle_t *pool);
 
 /**
  * @brief  Register an IO handle with the audio simple player

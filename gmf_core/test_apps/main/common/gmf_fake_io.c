@@ -34,8 +34,6 @@ esp_gmf_err_io_t _file_release_read(esp_gmf_io_handle_t handle, void *payload, i
 {
     fake_io_t *file_io = (fake_io_t *)handle;
     ESP_LOGD(TAG, "%s, %s-%p", __func__, OBJ_GET_TAG(file_io), file_io);
-    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, pload->valid_size);
     vTaskDelay(2 / portTICK_PERIOD_MS);
     return file_io->release_read_return;
 }
@@ -52,8 +50,6 @@ esp_gmf_err_io_t _file_release_write(esp_gmf_io_handle_t handle, void *payload, 
 {
     fake_io_t *file_io = (fake_io_t *)handle;
     ESP_LOGD(TAG, "%s, %s-%p", __func__, OBJ_GET_TAG(file_io), file_io);
-    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, pload->valid_size);
     vTaskDelay(2 / portTICK_PERIOD_MS);
     return file_io->release_write_return;
 }
@@ -63,7 +59,6 @@ esp_gmf_err_t _file_seek(esp_gmf_io_handle_t io, uint64_t seek_byte_pos)
     fake_io_t *file_io = (fake_io_t *)io;
     ESP_LOGI(TAG, "%s, seek to %llu, %s-%p", __func__, seek_byte_pos, OBJ_GET_TAG(file_io), file_io);
     file_io->seek_called_count++;
-    esp_gmf_io_set_pos(io, seek_byte_pos);
     return file_io->seek_return;
 }
 

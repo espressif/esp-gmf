@@ -144,35 +144,28 @@ static esp_gmf_job_err_t io_process_write(esp_gmf_io_handle_t handle)
     return job_err;
 }
 
-static esp_gmf_err_t io_common_seek(esp_gmf_io_t *io, uint64_t seek_pos)
+static esp_gmf_err_t seek_in_cache(esp_gmf_io_t *io, uint64_t seek_pos)
 {
-    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     esp_gmf_info_file_t info = {0};
     esp_gmf_io_get_info((esp_gmf_io_handle_t)io, &info);
-    if (seek_pos < info.pos) {
-        uint64_t backward_bytes = info.pos - seek_pos;
+    if (seek_pos >= info.pos) {
+        uint64_t drop_bytes = seek_pos - info.pos;
         uint32_t filled_size = 0;
         esp_gmf_db_get_filled_size(io->data_bus, &filled_size);
-        if ((uint64_t)filled_size >= backward_bytes) {
-            uint32_t drop_bytes = filled_size - backward_bytes;
-            esp_gmf_db_clear_abort(io->data_bus);
+        if ((uint64_t)filled_size >= drop_bytes) {
             if (drop_bytes > 0) {
                 esp_gmf_data_bus_block_t blk = {0};
                 if (esp_gmf_db_acquire_read(io->data_bus, &blk, drop_bytes, portMAX_DELAY) != ESP_GMF_IO_OK) {
-                    goto _full_seek;
+                    return ESP_GMF_ERR_FAIL;
                 }
                 esp_gmf_db_release_read(io->data_bus, &blk, portMAX_DELAY);
             }
-            ESP_LOGI(TAG, "Seek within buffer, drop %u bytes, seek to %llu, [%p-%s]", drop_bytes, seek_pos, io, OBJ_GET_TAG(io));
-            xEventGroupSetBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_SEEK_DONE_BIT);
+            esp_gmf_io_set_pos(io, seek_pos);
+            ESP_LOGI(TAG, "Seek within buffer, drop %llu bytes, seek to %llu, [%p-%s]", drop_bytes, seek_pos, io, OBJ_GET_TAG(io));
             return ESP_GMF_ERR_OK;
         }
     }
-_full_seek:
-    esp_gmf_db_reset(io->data_bus);
-    ret = io->seek(io, seek_pos);
-    xEventGroupSetBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_SEEK_DONE_BIT);
-    return ret;
+    return ESP_GMF_ERR_FAIL;
 }
 
 static esp_gmf_job_err_t esp_gmf_io_process(esp_gmf_io_handle_t handle, void *params)
@@ -180,11 +173,12 @@ static esp_gmf_job_err_t esp_gmf_io_process(esp_gmf_io_handle_t handle, void *pa
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_JOB_ERR_FAIL);
     esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
     if (io->seek_pos != ESP_GMF_IO_SEEK_POS_INVALID) {
-        uint64_t pending_seek = io->seek_pos;
+        esp_gmf_db_reset(io->data_bus);
+        esp_gmf_err_t ret = io->seek(handle, io->seek_pos);
         io->seek_pos = ESP_GMF_IO_SEEK_POS_INVALID;
-        esp_gmf_err_t ret = io_common_seek(io, pending_seek);
+        xEventGroupSetBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_SEEK_DONE_BIT);
         if (ret != ESP_GMF_ERR_OK) {
-            ESP_LOGE(TAG, "IO common seek failed, [%p-%s]", io, OBJ_GET_TAG(io));
+            ESP_LOGE(TAG, "IO seek failed, [%p-%s]", io, OBJ_GET_TAG(io));
             return ESP_GMF_JOB_ERR_FAIL;
         }
     }
@@ -381,12 +375,27 @@ esp_gmf_err_t esp_gmf_io_seek(esp_gmf_io_handle_t handle, uint64_t seek_byte_pos
     }
     int ret = ESP_GMF_ERR_OK;
     if (io->data_bus && io->task_hd) {
+        if (seek_in_cache(io, seek_byte_pos) == ESP_GMF_ERR_OK) {
+            return ESP_GMF_ERR_OK;
+        }
         io->seek_pos = seek_byte_pos;
+        /* Set position as subclasses might rely on the updated position to perform the seek (e.g., HTTP range header) */
+        esp_gmf_io_set_pos(io, seek_byte_pos);
         esp_gmf_db_abort(io->data_bus);
+        esp_gmf_event_state_t st;
+        esp_gmf_task_get_state(io->task_hd, &st);
+        if (st == ESP_GMF_EVENT_STATE_FINISHED || st == ESP_GMF_EVENT_STATE_STOPPED || st == ESP_GMF_EVENT_STATE_ERROR) {
+            ESP_LOGI(TAG, "Task is %s, restarting for seek...", esp_gmf_event_get_state_str(st));
+            esp_gmf_task_reset(io->task_hd);
+            io_register_task(handle);
+            esp_gmf_task_run(io->task_hd);
+        }
         ESP_LOGD(TAG, "Async seek requested to %llu, [%p-%s]", seek_byte_pos, io, OBJ_GET_TAG(io));
         xEventGroupWaitBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_SEEK_DONE_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
         ESP_LOGD(TAG, "Async seek done to %llu, [%p-%s]", seek_byte_pos, io, OBJ_GET_TAG(io));
     } else {
+        /* Set position as subclasses might rely on the updated position to perform the seek (e.g., HTTP range header) */
+        esp_gmf_io_set_pos(io, seek_byte_pos);
         ret = io->seek(io, seek_byte_pos);
     }
     return ret;
@@ -432,6 +441,9 @@ esp_gmf_err_io_t esp_gmf_io_acquire_read(esp_gmf_io_handle_t handle, esp_gmf_pay
         return ESP_GMF_IO_OK;
     }
     if (io->data_bus && io->task_hd) {
+        if (io->io_cfg.buffer_cfg.read_filter) {
+            return io->io_cfg.buffer_cfg.read_filter(io, load, wanted_size, wait_ticks);
+        }
         esp_gmf_err_io_t ret = esp_gmf_db_acquire_read(io->data_bus, &io->db_block, wanted_size, wait_ticks);
         if (ret != ESP_GMF_IO_OK) {
             return ret;
@@ -460,6 +472,7 @@ esp_gmf_err_io_t esp_gmf_io_release_read(esp_gmf_io_handle_t handle, esp_gmf_pay
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_IO_FAIL);
     ESP_GMF_NULL_CHECK(TAG, load, return ESP_GMF_IO_FAIL);
     esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
+    esp_gmf_err_io_t ret = ESP_GMF_IO_OK;
     if (io->_is_abort) {
         load->valid_size = 0;
         return ESP_GMF_IO_ABORT;
@@ -473,17 +486,24 @@ esp_gmf_err_io_t esp_gmf_io_release_read(esp_gmf_io_handle_t handle, esp_gmf_pay
         if (load->valid_size < io->db_block.valid_size) {
             io->db_block.valid_size = load->valid_size;
         }
-        esp_gmf_err_io_t ret = esp_gmf_db_release_read(io->data_bus, &io->db_block, wait_ticks);
+        ret = esp_gmf_db_release_read(io->data_bus, &io->db_block, wait_ticks);
         memset(&io->db_block, 0, sizeof(esp_gmf_data_bus_block_t));
+        if (ret == ESP_GMF_IO_OK && load->valid_size > 0) {
+            esp_gmf_info_file_update_pos(&io->attr, load->valid_size);
+        }
         load->buf = NULL;
         load->buf_length = 0;
-        return ret;
     } else {
         if (io->release_read == NULL) {
             return ESP_GMF_IO_FAIL;
         }
-        return io->release_read(io, load, wait_ticks);
+        ret = io->release_read(io, load, wait_ticks);
+        if (ret == ESP_GMF_IO_OK && load->valid_size > 0) {
+            esp_gmf_info_file_update_pos(&io->attr, load->valid_size);
+        }
     }
+    ESP_LOGV(TAG, "Read len = %d, pos = %llu/%llu", load->valid_size, io->attr.pos, io->attr.size);
+    return ret;
 }
 
 esp_gmf_err_io_t esp_gmf_io_acquire_write(esp_gmf_io_handle_t handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
@@ -521,6 +541,7 @@ esp_gmf_err_io_t esp_gmf_io_release_write(esp_gmf_io_handle_t handle, esp_gmf_pa
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_IO_FAIL);
     ESP_GMF_NULL_CHECK(TAG, load, return ESP_GMF_IO_FAIL);
     esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
+    esp_gmf_err_io_t ret = ESP_GMF_IO_OK;
     if (io->_is_abort) {
         load->valid_size = 0;
         return ESP_GMF_IO_ABORT;
@@ -538,31 +559,36 @@ esp_gmf_err_io_t esp_gmf_io_release_write(esp_gmf_io_handle_t handle, esp_gmf_pa
             if (io->db_block.buf_length >= load->valid_size) {
                 io->db_block.valid_size = load->valid_size;
                 io->db_block.is_last = load->is_done;
-                esp_gmf_err_io_t ret = esp_gmf_db_release_write(io->data_bus, &io->db_block, wait_ticks);
+                ret = esp_gmf_db_release_write(io->data_bus, &io->db_block, wait_ticks);
                 memset(&io->db_block, 0, sizeof(esp_gmf_data_bus_block_t));
+                if (ret == ESP_GMF_IO_OK) {
+                    esp_gmf_info_file_update_pos(&io->attr, load->valid_size);
+                }
                 load->buf = NULL;
                 load->buf_length = 0;
-                return ret;
             } else {
                 ESP_LOGE(TAG, "ACQ_WR buf not enough, need:%d, got:%d", (int)load->valid_size, (int)io->db_block.buf_length);
                 return ESP_GMF_IO_FAIL;
             }
         } else if (load->is_done) {
-            return esp_gmf_db_done_write(io->data_bus);
+            ret = esp_gmf_db_done_write(io->data_bus);
         }
-        return ESP_GMF_IO_OK;
     } else {
         if (io->release_write == NULL) {
             return ESP_GMF_IO_FAIL;
         }
         uint64_t start_time_ms = esp_gmf_oal_sys_get_time_ms();
-        esp_gmf_err_io_t ret = io->release_write(io, load, wait_ticks);
+        ret = io->release_write(io, load, wait_ticks);
         if (ret == ESP_GMF_IO_OK) {
             uint64_t interval_ms = esp_gmf_oal_sys_get_time_ms() - start_time_ms;
             esp_gmf_io_update_speed_stats(io, load->valid_size, interval_ms);
+            if (load->valid_size > 0) {
+                esp_gmf_info_file_update_pos(&io->attr, load->valid_size);
+            }
         }
-        return ret;
     }
+    ESP_LOGV(TAG, "Write len = %zu, pos = %llu/%llu", load->valid_size, io->attr.pos, io->attr.size);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_io_set_info(esp_gmf_io_handle_t handle, esp_gmf_info_file_t *info)
