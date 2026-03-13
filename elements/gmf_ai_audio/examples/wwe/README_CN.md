@@ -1,24 +1,23 @@
-# 语音识别
+# 语音识别例程
 
-- [English](./README.md)
+- [English Version](./README.md)
+- 例程难度：⭐⭐
 
 ## 例程简介
 
-本例程介绍使用 `AFE element` 进行唤醒词、人声检测和命令词检测的方法，并通过 [main.c](./main/main.c) 中的以下宏定义来配置功能，从而实现不同的应用组合：
+本例程介绍使用 `AFE element` 进行唤醒词、人声检测和命令词检测的方法，并通过 [main.c](./main/main.c) 中的宏定义配置功能，实现不同的应用组合。
 
-```c
-#define VOICE2FILE     (true)
-#define WAKENET_ENABLE (true)
-#define VAD_ENABLE     (true)
-#define VCMD_ENABLE    (true)
-```
+### 典型场景
 
-- `VOICE2FILE`: 以文件的形式保存 VAD 开始到 VAD 结束之间的音频
-- `WAKENET_ENABLE`: 唤醒词识别使能
-- `VAD_ENABLE`: 人声检测使能
-- `VCMD_ENABLE`: 命令词检测使能
+- 离线语音唤醒与命令词：设备待机时先说唤醒词再发命令词，或关闭唤醒后直接说命令词
+- 语音事件记录：结合 VAD 将人声片段保存为文件（如 `VOICE2FILE`）便于后续分析
 
-## GMF Pipeline
+### 预备知识
+
+- 例程中使用的语音唤醒和命令词检测源自 `esp-sr`，请先了解其配置与使用：[esp-sr](https://github.com/espressif/esp-sr/blob/master/README.md)
+- 建议先熟悉 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)
+
+### GMF Pipeline
 
 ```mermaid
 graph
@@ -27,46 +26,63 @@ graph
     end
 ```
 
-## 示例创建
+## 环境配置
 
-### IDF 默认分支
+### 硬件要求
 
-本例程支持 IDF release/v5.3 及以后的分支
+- **开发板**：默认以 ESP32-S3-Korvo V3 为例，其他ESP音频板同样适用
+- **外设**：麦克风、Audio ADC、Audio DAC, I2S；启用 `VOICE2FILE` 时需 SDCard
 
-### 预备知识
+### 默认 IDF 分支
 
-例程中使用的语音唤醒和命令词检测，源自于 `esp-sr`，请先了解其配置和使用: [README](https://github.com/espressif/esp-sr/blob/master/README.md)
+本例程支持 IDF release/v5.4(>= v5.4.3) and release/v5.5(>= v5.5.2) 分支。
 
-### 编译和下载
+### 软件要求
 
-编译本例程前需要先确保已配置 ESP-IDF 的环境，如果已配置可跳到下一项配置，如果未配置需要先在 ESP-IDF 根目录运行下面脚本设置编译环境，有关配置和使用 ESP-IDF 完整步骤，请参阅 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)
+- 若启用 `VOICE2FILE`，请确保 SD 卡已正确安装；若启用 `WAKENET_ENABLE`，需先说出唤醒词再说命令词
 
-```
+## 编译和下载
+
+### 编译准备
+
+编译本例程前需先确保已配置 ESP-IDF 环境；若已配置可跳过本段，直接进入工程目录。若未配置，请在 ESP-IDF 根目录运行以下脚本完成环境设置，完整步骤请参阅 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)。
+
+```shell
 ./install.sh
 . ./export.sh
 ```
 
-下面是简略编译步骤：
+下面是简略步骤：
 
-- 进入示例工程的位置
-
-```
-cd gmf_ai_audio/examples/wwe
-```
-
-- 选择编译芯片，以 esp32s3 为例：
+- 进入本例程工程目录（以下为示例路径，请改为实际例程路径）：
 
 ```
+cd $YOUR_GMF_PATH/elements/gmf_ai_audio/examples/wwe
+```
+
+- 本例程使用 `esp_board_manager` 管理板级资源，需先添加板级支持
+
+在 Linux / macOS 中：
+
+```bash
 idf.py set-target esp32s3
-```
-- 选择编译目标板，以 ESP32-S3-Korvo V2 为例：
-
-```
-idf.py menuconfig
-在 `menuconfig` 中选择 `GMF APP Configuration` -> `Audio Board` -> `ESP32-S3-Korvo V2`，然后保存退出
+export IDF_EXTRA_ACTIONS_PATH=./managed_components/esp_board_manager
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
 
-- 编译例子程序
+在 Windows 中：
+
+```powershell
+idf.py set-target esp32s3
+$env:IDF_EXTRA_ACTIONS_PATH = ".\managed_components\esp_board_manager"
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+```
+
+如需选择自定义开发板，详情参考：[自定义板子](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board)。
+
+### 编译与烧录
+
+- 编译示例程序
 
 ```
 idf.py build
@@ -78,24 +94,23 @@ idf.py build
 idf.py -p PORT flash monitor
 ```
 
-- 退出调试界面使用 `Ctrl-]`
+退出 monitor 可使用 `Ctrl-]`。
 
 ## 如何使用例程
 
-1. **配置功能**: 在 `main.c` 中通过上文中说明的宏定义启用或禁用功能来选择对应的应用场景
-
-2. **运行要求**:
-   - 如果启用了 `VOICE2FILE`，请确保 SD 卡已正确安装到开发板上
-   - 如果启用了 `WAKENET_ENABLE`，运行时需要先说出唤醒词，然后再说命令词
-   - 如果关闭了 `WAKENET_ENABLE`，运行时可以直接说命令词
-
-3. **查看结果**:
-   - 运行过程中，串口会打印检测到的事件日志
-   - 如果启用了 `VOICE2FILE`，录音文件将保存到 SD 卡，文件名格式为 `16k_16bit_1ch_{idx}.pcm`
-
 ### 功能和用法
 
-运行后，可以对开发板说唤醒词和命令词，串口会打印如下日志：
+- **宏定义**：在 `main.c` 中通过以下宏启用或禁用功能，选择对应应用场景：
+  - `VOICE2FILE`：将 VAD 开始到 VAD 结束之间的音频保存为文件
+  - `WAKENET_ENABLE`：唤醒词识别使能
+  - `VAD_ENABLE`：人声检测使能
+  - `VCMD_ENABLE`：命令词检测使能
+- **运行要求**：若启用 `VOICE2FILE` 请确保 SD 卡已正确安装；若启用 `WAKENET_ENABLE` 需先说出唤醒词再说命令词，关闭唤醒则可直接说命令词
+- **查看结果**：串口会打印检测到的事件日志；若启用 `VOICE2FILE`，录音文件将保存到 SD 卡，文件名格式为 `16k_16bit_1ch_{idx}.pcm`
+
+### 日志输出
+
+以下为运行过程中的关键日志示例（AFE 初始化、Pipeline 就绪、唤醒与命令词事件）：
 
 ```c
 I (1547) AFE: AFE Version: (2MIC_V250113)
@@ -139,18 +154,35 @@ I (10111) AFE_manager: VAD ctrl ret 1
 I (10118) AI_AUDIO_WWE: WAKEUP_END
 ```
 
-### 常见问题
+### 参考文献
 
-1. **无法检测唤醒词**:
-   - 确保 `WAKENET_ENABLE` 设置为 `true`
-   - 检查模型文件是否正确加载
-   - 配置的通道顺序是否符合硬件实际
+- [esp-sr](https://github.com/espressif/esp-sr/blob/master/README.md)
+- [ESP-IDF 编程指南](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)
 
-2. **录音文件未生成**:
-   - 确保 SD 卡已正确安装。
-   - 检查 `VOICE2FILE` 是否设置为 `true`
-   - 唤醒后是否有说话
+## 故障排除
 
-3. **Task Watch Dog**:
-   - 确保 `esp_afe_manager_cfg_t.feed_task_setting.core` 和 `esp_afe_manager_cfg_t.fetch_task_setting.core` 配置在不同的 cpu 核心上
-   - 将出现 `task wdt` 的核上任务合理分配
+### 无法检测唤醒词
+
+- 确保 `WAKENET_ENABLE` 设置为 `true`
+- 检查模型文件是否正确加载
+- 确认配置的通道顺序是否符合硬件实际
+
+### 录音文件未生成
+
+- 确保 SD 卡已正确安装
+- 检查 `VOICE2FILE` 是否设置为 `true`
+- 确认唤醒后是否有说话
+
+### Task Watch Dog
+
+- 确保 `esp_afe_manager_cfg_t.feed_task_setting.core` 和 `esp_afe_manager_cfg_t.fetch_task_setting.core` 配置在不同的 CPU 核心上
+- 将出现 `task wdt` 的核上任务合理分配
+
+## 技术支持
+
+请按照下面的链接获取技术支持：
+
+- 技术支持参见 [esp32.com](https://esp32.com/viewforum.php?f=20) 论坛
+- 问题反馈与功能需求，请创建 [GitHub issue](https://github.com/espressif/esp-gmf/issues)
+
+我们会尽快回复。
