@@ -1,5 +1,5 @@
 version: 1.0.0
-# Peripherals Configuration for EchoEar Core Board V1.2
+# Peripherals Configuration for ESP VoCat Board V1.2
 peripherals:
   # I2C Configuration
   - name: i2c_master

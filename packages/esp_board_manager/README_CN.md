@@ -139,8 +139,8 @@ idf.py gen-bmgr-config -b YOUR_TARGET_BOARD
 例如：
 
 ```bash
-idf.py gen-bmgr-config -b echoear_core_board_v1_2  # 板子名称
-idf.py gen-bmgr-config -b 3                        # 板子索引
+idf.py gen-bmgr-config -b esp_vocat_board_v1_2  # 板子名称
+idf.py gen-bmgr-config -b 3                     # 板子索引
 ```
 
 如果需要切换其他的板子，可以执行以下命令，
@@ -237,8 +237,8 @@ void app_main(void)
 
 | 板子名称 | 芯片 | 音频 | SD卡 | LCD | LCD 触摸 | 摄像头 | 按键 |
 |---|---|---|---|---|---|---|---|
-| [`Echoear Core Board V1.0`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32s3/echoear/user_guide_v1.0.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
-| [`Echoear Core Board V1.2`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32s3/echoear/user_guide_v1.2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
+| [`ESP VoCat Board V1.0`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32s3/esp-vocat/user_guide_v1.0.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
+| [`ESP VoCat Board V1.2`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32s3/esp-vocat/user_guide_v1.2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
 | Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (双) | - | - | - |
 | [`ESP-BOX-3`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_3/hardware_overview_for_box_3_cn.md) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ GT911 | - | - |
 | [`ESP32-S3 Korvo2 V3`](https://docs.espressif.com/projects/esp-adf/zh_CN/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100 | ✅ DVP Camera | ✅ ADC button |
@@ -332,7 +332,7 @@ void app_main(void)
 idf.py gen-bmgr-config -l
 
 # 指定板子（名称或索引）
-idf.py gen-bmgr-config -b echoear_core_board_v1_0
+idf.py gen-bmgr-config -b esp_vocat_board_v1_0
 idf.py gen-bmgr-config -b 1
 
 # 使用自定义板子
@@ -358,7 +358,7 @@ idf.py gen-bmgr-config -n path/to/board/<board_name>
 python gen_bmgr_config_codes.py -l
 
 # 使用 -b 选项指定板子（名称或索引）
-python gen_bmgr_config_codes.py -b echoear_core_board_v1_0
+python gen_bmgr_config_codes.py -b esp_vocat_board_v1_0
 python gen_bmgr_config_codes.py -b 1
 
 # 使用自定义板子

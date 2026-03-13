@@ -139,8 +139,8 @@ idf.py gen-bmgr-config -b YOUR_TARGET_BOARD
 For example:
 
 ```bash
-idf.py gen-bmgr-config -b echoear_core_board_v1_2  # Board name
-idf.py gen-bmgr-config -b 3                        # Board index
+idf.py gen-bmgr-config -b esp_vocat_board_v1_2  # Board name
+idf.py gen-bmgr-config -b 3                     # Board index
 ```
 
 If you need to switch to another board, you can execute the following commands:
@@ -237,8 +237,8 @@ void app_main(void)
 
 | Board Name | Chip | Audio | SD Card | LCD | LCD Touch | Camera | Button |
 |---|---|---|---|---|---|---|---|
-| [`Echoear Core Board V1.0`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/echoear/user_guide_v1.0.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
-| [`Echoear Core Board V1.2`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/echoear/user_guide_v1.2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
+| [`ESP VoCat Board V1.0`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp-vocat/user_guide_v1.0.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
+| [`ESP VoCat Board V1.2`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp-vocat/user_guide_v1.2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
 | Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (dual) | - | - | - |
 | [`ESP-BOX-3`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_3/hardware_overview_for_box_3.md) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ GT911 | - | - |
 | [`ESP32-S3 Korvo2 V3`](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100 | ✅ DVP Camera | ✅ ADC button |
@@ -328,7 +328,7 @@ Use the command `idf.py gen-bmgr-config` followed by command line options, for e
 idf.py gen-bmgr-config -l
 
 # Specify board (name or index)
-idf.py gen-bmgr-config -b echoear_core_board_v1_0
+idf.py gen-bmgr-config -b esp_vocat_board_v1_0
 idf.py gen-bmgr-config -b 1
 
 # Use custom board
@@ -354,7 +354,7 @@ You can also use the standalone script directly in the esp_board_manager directo
 python gen_bmgr_config_codes.py -l
 
 # Specify board with -b option (name or index)
-python gen_bmgr_config_codes.py -b echoear_core_board_v1_0
+python gen_bmgr_config_codes.py -b esp_vocat_board_v1_0
 python gen_bmgr_config_codes.py -b 1
 
 # Use custom board

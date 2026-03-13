@@ -1678,9 +1678,9 @@ def main():
         epilog="""
 Examples:
     python gen_bmgr_config_codes.py                                   # Use sdkconfig and default boards (auto-sets CONFIG_IDF_TARGET)
-    python gen_bmgr_config_codes.py echoear_core_board_v1_0           # Specify board directly (auto-sets CONFIG_IDF_TARGET)
+    python gen_bmgr_config_codes.py esp_vocat_board_v1_0           # Specify board directly (auto-sets CONFIG_IDF_TARGET)
     python gen_bmgr_config_codes.py 1                                 # Specify board by index number
-    python gen_bmgr_config_codes.py -b echoear_core_board_v1_0        # Specify board using -b parameter (auto-sets CONFIG_IDF_TARGET)
+    python gen_bmgr_config_codes.py -b esp_vocat_board_v1_0        # Specify board using -b parameter (auto-sets CONFIG_IDF_TARGET)
     python gen_bmgr_config_codes.py -b 1                              # Specify board by index number using -b
     python gen_bmgr_config_codes.py -b my_board -c /custom/boards     # Both -b and -c options
     python gen_bmgr_config_codes.py --peripherals-only                # Only process peripherals

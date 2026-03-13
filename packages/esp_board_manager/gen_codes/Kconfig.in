@@ -8,15 +8,15 @@ config BOARD_DUAL_EYES_BOARD_V1_0
     help
         Use dual_eyes_board_v1_0 board configuration.
 
-config BOARD_ECHOEAR_CORE_BOARD_V1_0
-    bool "echoear_core_board_v1_0"
+config BOARD_ESP_VOCAT_BOARD_V1_0
+    bool "esp_vocat_board_v1_0"
     help
-        Use echoear_core_board_v1_0 board configuration.
+        Use esp_vocat_board_v1_0 board configuration.
 
-config BOARD_ECHOEAR_CORE_BOARD_V1_2
-    bool "echoear_core_board_v1_2"
+config BOARD_ESP_VOCAT_BOARD_V1_2
+    bool "esp_vocat_board_v1_2"
     help
-        Use echoear_core_board_v1_2 board configuration.
+        Use esp_vocat_board_v1_2 board configuration.
 
 config BOARD_ESP32_C5_SPOT
     bool "esp32_c5_spot"
@@ -66,8 +66,8 @@ config BOARD_M5STACK_TAB5
 config BOARD_NAME
     string
     default "dual_eyes_board_v1_0" if BOARD_DUAL_EYES_BOARD_V1_0
-    default "echoear_core_board_v1_0" if BOARD_ECHOEAR_CORE_BOARD_V1_0
-    default "echoear_core_board_v1_2" if BOARD_ECHOEAR_CORE_BOARD_V1_2
+    default "esp_vocat_board_v1_0" if BOARD_ESP_VOCAT_BOARD_V1_0
+    default "esp_vocat_board_v1_2" if BOARD_ESP_VOCAT_BOARD_V1_2
     default "esp32_c5_spot" if BOARD_ESP32_C5_SPOT
     default "esp32_p4_function_ev" if BOARD_ESP32_P4_FUNCTION_EV
     default "esp32_s3_korvo2_v3" if BOARD_ESP32_S3_KORVO2_V3

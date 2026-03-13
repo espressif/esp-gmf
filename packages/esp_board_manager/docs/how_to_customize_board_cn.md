@@ -208,7 +208,7 @@ idf.py gen-bmgr-config -n path/to/board/<board_name>
 - 在必要时覆盖或扩展默认的设备初始化行为
 
 有关具体实现示例可以参考：
-[setup_device.c](esp_board_manager/boards/echoear_core_board_v1_2/setup_device.c)，该文件实现了 display_lcd 和 lcd_touch 设备的特定初始化流程
+[setup_device.c](esp_board_manager/boards/esp_vocat_board_v1_2/setup_device.c)，该文件实现了 display_lcd 和 lcd_touch 设备的特定初始化流程
 
 ## YAML 配置规则
 

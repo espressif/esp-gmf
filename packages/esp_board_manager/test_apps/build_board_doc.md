@@ -10,7 +10,7 @@ Automates building test apps for all ESP Board Manager boards.
 python build_board.py
 
 # Build specific board
-python build_board.py -b echoear_core_board_v1_0
+python build_board.py -b esp_vocat_board_v1_0
 
 # Build all boards (comprehensive)
 # Scans Main Boards + Component Boards + Custom Boards
@@ -55,7 +55,7 @@ Board manager directory: /path/to/esp_board_manager
 
 Scanning for available boards...
 Found 9 board(s):
-  • echoear_core_board_v1_0
+  • esp_vocat_board_v1_0
   • esp_box_3
   • esp32_p4_function_ev
   ...
@@ -63,18 +63,18 @@ Found 9 board(s):
 Will process 9 board(s)
 
 ============================================================
-Building board: echoear_core_board_v1_0
+Building board: esp_vocat_board_v1_0
 ============================================================
   Chip type: esp32s3
-  → Generate config for echoear_core_board_v1_0...
+  → Generate config for esp_vocat_board_v1_0...
   ✓ Generate config completed
   → Cleaning build directory...
   ✓ Build directory cleaned
   → Set target to esp32s3...
   ✓ Set target completed
-  → Build echoear_core_board_v1_0...
+  → Build esp_vocat_board_v1_0...
   ✓ Build completed
-  ✓ Successfully processed echoear_core_board_v1_0
+  ✓ Successfully processed esp_vocat_board_v1_0
 
 ...
 
@@ -88,7 +88,7 @@ Failed: 1
 Time elapsed: 245.32 seconds
 
 ✓ Successful boards:
-  • echoear_core_board_v1_0
+  • esp_vocat_board_v1_0
   • esp_box_3
   ...
 

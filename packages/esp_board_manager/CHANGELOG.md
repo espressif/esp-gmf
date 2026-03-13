@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.5
+
+### Modifications
+
+- Rename `echoear_core_board_v1_0/v1_2` to `esp_vocat_board_v1_0/v1_2`
+
 ## 0.5.4
 
 ### Bug Fixes
