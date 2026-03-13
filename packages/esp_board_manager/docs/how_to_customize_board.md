@@ -208,7 +208,7 @@ To support flexible board adaptation, the board directory allows you to provide 
 - Override or extend the default device initialization behavior when necessary
 
 For concrete examples of how this is done, see:
-[setup_device.c](esp_board_manager/boards/echoear_core_board_v1_2/setup_device.c), which implements specific initialization flows for display_lcd and lcd_touch devices
+[setup_device.c](esp_board_manager/boards/esp_vocat_board_v1_2/setup_device.c), which implements specific initialization flows for display_lcd and lcd_touch devices
 
 ## YAML Configuration Rules
 
