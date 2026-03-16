@@ -388,9 +388,14 @@ static esp_gmf_err_io_t _http_release_write(esp_gmf_io_handle_t handle, void *pa
 static esp_gmf_err_t _http_reload(esp_gmf_io_handle_t handle, const char *new_uri)
 {
     http_stream_t *http = (http_stream_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     http->is_open = false;
     esp_gmf_io_set_uri(handle, new_uri);
-    return _http_open(handle);
+    ret = _http_open(handle);
+    if (ret != ESP_GMF_ERR_OK) {
+        ret = _http_reconnect(handle);
+    }
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_io_http_reset(esp_gmf_io_handle_t handle)
