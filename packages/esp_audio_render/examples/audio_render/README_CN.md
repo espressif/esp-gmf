@@ -1,88 +1,108 @@
-# ESP 音频渲染器示例
+# ESP 音频渲染示例
 
-- [English](./README.md)
+- [English Version](./README.md)
+- 例程难度：⭐⭐
 
-本示例演示了如何使用 `esp_audio_render` 来渲染带或不带音效处理的 PCM 音频，以及如何将多个输入混音为一个输出。它展示了端到端流程：通过网络获取压缩音频（例如 MP3），使用 `esp_audio_codec` 解码器解码，将 PCM 输入到渲染 API，最终输出到 `esp_codec_dev`（I2S 编解码器）。
+## 例程简介
 
-## 硬件要求
+- 本例程展示如何使用 `esp_audio_render` 实现单路播放与多路混音输出。
+- 例程覆盖完整链路：HTTP 音频源 -> 解码 -> `esp_audio_render` 流处理 -> 编解码器输出。
 
-- **推荐**：[ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) 或 [ESP32‑P4‑Function‑EV‑Board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
+### 典型场景
 
-## 软件要求
+- 验证音频渲染流的 open/write/close 生命周期
+- 验证多路输入混音到统一输出格式
+- 验证每路处理与混音后处理（ALC）能力
 
-- ESP‑IDF v5.4 或更高版本
-- `esp_audio_render` 组件
-- ESP‑GMF 框架（提供格式转换器和可选处理器）
-- `esp_audio_codec`（用于解码 MP3/其他格式）
-- `esp_codec_dev`（用于实际音频输出）
+## 环境配置
 
-## 演示的功能特性
+### 硬件要求
 
-- **单流播放**：MP3/AAC (HTTP) → 解码为 PCM → 渲染 → 编解码器
-- **多流混音**：解码多个独立的 MP3/AAC 源并混音到一个接收端
-- **固定输出格式配置**：16 kHz、16位、立体声输出
-- **每流处理**：每个流上的 ALC（自动电平控制）
-- **混音后处理**：混音后的 ALC 处理
-- **网络音频流**：基于 HTTP 的 MP3/AAC 文件下载和播放
+- 推荐开发板：[ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) 或 [ESP32-P4-Function-EV-Board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
+- 开发板具备音频播放设备（`ESP_BOARD_DEVICE_NAME_AUDIO_DAC`）
+- 需要可用 Wi-Fi 连接（用于下载测试音频）
 
-## 工作原理
+### 默认 IDF 分支
 
-### 整体流程
-```mermaid
-flowchart LR
-  NET[HTTP MP3/AAC] --> DEC[esp_audio_codec 解码器]
-  DEC -- PCM --> STRM[esp_audio_render 流]
-  STRM --> MIX[混音线程]
-  MIX --> POST[后处理流水线: ALC]
-  POST --> SINK[esp_codec_dev]
+本例程支持 IDF `release/v5.4` (>= v5.4.3) 和 `release/v5.5` (>= v5.5.2)。
+
+## 编译和下载
+
+### 编译准备
+
+进入例程目录：
+
+```bash
+cd $YOUR_GMF_PATH/packages/esp_audio_render/examples/audio_render
 ```
 
-### 处理器流水线布局
-```mermaid
-flowchart LR
-  subgraph 每流路径
-    IN[来自解码器的 PCM]
-    P1[可选: CH/BIT/RATE 转换]
-    P2[每流 ALC]
-  end
-  IN --> P1 --> P2 --> OUTQ[环形缓冲区]
+选择开发板配置：
 
-  subgraph 混音线程
-    OUTQ --> M[ESP 音频效果混音器]
-    M --> PM[后处理流水线: ALC]
-  end
-
-  PM --> WR[esp_codec_dev]
-```
-
-- **每流处理** 在 `esp_audio_render_stream_write()` 调用者中内联运行
-- **当 `stream_num > 1` 时**，混音线程消费每流环形缓冲区并运行混音后流水线
-- **ALC 处理** 在每流和混音后都应用，用于演示音频处理器功能
-
-## 运行示例
-1. 选择目标开发板
 ```bash
 idf.py gen-bmgr-config -l
 idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
-> [!NOTE]
-> 如果切换为其他 `esp_board_manager` 支持的开发板重复上述步骤.
-> 如果需要定制板子，请参阅 [自定义开发板指南](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board_cn.md) 获取详细信息。
 
-2. 在示例的 `app_main()`（或相应的辅助函数）中配置 Wi‑Fi 和开发板音频编解码器初始化，然后构建和烧录：
+> [!NOTE]
+> 如果切换为其他 `esp_board_manager` 支持的开发板，请按相同步骤执行并替换板型名称。
+> 自定义开发板请参考 [自定义开发板指南](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board_cn.md)。
+
+### 编译与烧录
+
 ```bash
-idf.py -p /dev/XXXXX flash monitor
+idf.py build
+idf.py -p PORT flash monitor
 ```
 
-3. 该示例自动运行两个测试场景：
-   - **单流测试**：下载并播放一个 MP3 文件 30 秒
-   - **多流混音测试**：同时下载并混音 8 个不同的音频源
+## 如何使用例程
 
-### 典型 API 调用
-- `esp_audio_render_create()` - 创建渲染器并初始化互斥锁
-- `esp_audio_render_set_out_sample_info()` - 设置输出格式
-- `esp_audio_render_stream_open()` - 打开流并保护互斥锁
-- `esp_audio_render_stream_add_procs()` - 向流添加处理器
-- `esp_audio_render_stream_write()` - 写入 PCM 数据
-- `esp_audio_render_stream_close()` - 关闭流并保护互斥锁
-- `esp_audio_render_destroy()` - 清理并销毁互斥锁
+### 流程介绍
+
+```mermaid
+flowchart LR
+  NET[HTTP MP3/AAC URL] --> DEC[esp_audio_codec 解码]
+  DEC --> STRM[esp_audio_render 流写入]
+  STRM --> MIX{stream_num > 1}
+  MIX -- 否 --> OUT[直接渲染输出]
+  MIX -- 是 --> MX[混音线程 + 后处理 ALC]
+  OUT --> SINK[esp_codec_dev 播放输出]
+  MX --> SINK
+```
+
+### 功能和用法
+
+程序启动后会自动执行两个测试阶段：
+
+1. 单流渲染测试（`simple_audio_render_run`）
+   - 下载一个远端音频并播放 30 秒
+2. 多流混音测试（`audio_render_with_mixer_run`）
+   - 启动 8 路解码/渲染流并混音到同一输出
+
+主要配置如下：
+
+- 固定输出格式：16 kHz / 16 bit / 双声道
+- 每流处理：`ESP_AUDIO_RENDER_PROC_ALC`
+- 混音后处理：`ESP_AUDIO_RENDER_PROC_ALC`
+
+### 参考资料
+
+- API 文档：`esp_audio_render`、`esp_audio_codec`、`esp_codec_dev`
+- 开发板配置：`esp_board_manager` 快速开始与自定义板文档
+
+## 故障排除
+
+### 无声音输出
+
+- 检查音频播放设备初始化（`ESP_BOARD_DEVICE_NAME_AUDIO_DAC`）
+- 检查 `app_main()` 中音量设置（`esp_codec_dev_set_out_vol`）
+- 确认扬声器或耳机连接正常
+
+### 网络音频播放失败
+
+- 确认播放前 Wi-Fi 已连接成功
+- 确认音频 URL 在当前网络环境可访问
+
+## 技术支持
+
+- 技术支持论坛：[esp32.com](https://esp32.com/viewforum.php?f=20)
+- 问题反馈与功能建议：[GitHub issue](https://github.com/espressif/esp-gmf/issues)

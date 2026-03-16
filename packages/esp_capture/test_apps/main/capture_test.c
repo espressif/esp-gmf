@@ -320,6 +320,9 @@ int demo_capture_one_shot(int timeout, bool dual_path)
 
 #define FILE_SLICE_STORAGE_PATTERN "/sdcard/J_%d.mp4"
 
+static int file_start_slice = 0;
+static int file_end_slice = 0;
+
 static int check_file_size(int slice_idx)
 {
     char file_path[64] = {0};
@@ -337,7 +340,8 @@ static int check_file_size(int slice_idx)
 
 static int storage_slice_hdlr(char *file_path, int len, int slice_idx)
 {
-    snprintf(file_path, len, FILE_SLICE_STORAGE_PATTERN, slice_idx);
+    snprintf(file_path, len, FILE_SLICE_STORAGE_PATTERN, slice_idx + file_start_slice);
+    file_end_slice = slice_idx + file_start_slice;
     ESP_LOGI(TAG, "Start to write to file %s", file_path);
     return 0;
 }
@@ -352,6 +356,7 @@ int demo_capture_to_storage(int timeout, bool dual_path)
     int ret = 0;
     esp_capture_video_src_if_t *video_src = NULL;
     esp_capture_audio_src_if_t *audio_src = NULL;
+    file_start_slice = 0;
     do {
         audio_src = create_audio_source(false);
         if (audio_src == NULL) {
@@ -429,7 +434,7 @@ int demo_capture_to_storage(int timeout, bool dual_path)
     } while (0);
     if (capture) {
         esp_capture_stop(capture);
-        if (check_file_size(0) == 0) {
+        if (check_file_size(file_end_slice) == 0) {
             ESP_LOGE(TAG, "Muxer not storage into file at all");
             ret = -1;
         }
@@ -1577,6 +1582,293 @@ int advance_av_muxer_path_test(int timeout, bool dual)
             ESP_LOGE(TAG, "Failed to verify frame and PTS");
             ret = -1;
         }
+    } while (0);
+    destroy_capture_sys(&capture_sys);
+    return ret;
+}
+
+int dynamic_enable_muxer_after_start(int timeout, bool dual_path)
+{
+    if (skip_storage_test) {
+        ESP_LOGW(TAG, "Skip %s test", __func__);
+        return 0;
+    }
+    capture_sys_t capture_sys = {0};
+    int ret = 0;
+    file_start_slice = 0;
+    file_end_slice = -1;
+    do {
+        ret = build_av_capture_sys(&capture_sys);
+        BREAK_ON_FAIL(ret);
+
+       #ifndef CONFIG_IDF_TARGET_ESP32P4
+        if (capture_sys.vid_src) {
+            esp_capture_video_info_t fixed_caps = {
+                .format_id = ESP_CAPTURE_FMT_ID_RGB565,
+                .width = VIDEO_WIDTH,
+                .height = VIDEO_HEIGHT,
+                .fps = VIDEO_FPS,
+            };
+            capture_sys.vid_src->set_fixed_caps(capture_sys.vid_src, &fixed_caps);
+        }
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+        esp_capture_sink_cfg_t sink_cfg = {
+            .audio_info = {
+                .format_id = ESP_CAPTURE_FMT_ID_AAC,
+                .sample_rate = 16000,
+                .channel = 1,
+                .bits_per_sample = 16,
+            },
+            .video_info = {
+                .format_id = VIDEO_SINK_FMT_0,
+                .width = VIDEO_WIDTH,
+                .height = VIDEO_HEIGHT,
+                .fps = VIDEO_FPS,
+            },
+        };
+        ret = esp_capture_sink_setup(capture_sys.capture, 0, &sink_cfg, &capture_sys.capture_sink[0]);
+        BREAK_ON_FAIL(ret);
+
+        esp_capture_sink_cfg_t sink_cfg_1 = {
+            .audio_info = {
+                .format_id = ESP_CAPTURE_FMT_ID_AAC,
+                .sample_rate = 32000,
+                .channel = 1,
+                .bits_per_sample = 16,
+            },
+            .video_info = {
+                .format_id = VIDEO_SINK_FMT_1,
+#ifdef CONFIG_IDF_TARGET_ESP32P4
+                .width = VIDEO_WIDTH / 2,
+                .height = VIDEO_HEIGHT / 2,
+#else
+                .width = VIDEO_WIDTH,
+                .height = VIDEO_HEIGHT,
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+                .fps = VIDEO_FPS / 2,
+            },
+        };
+        ret = esp_capture_sink_setup(capture_sys.capture, 1, &sink_cfg_1, &capture_sys.capture_sink[1]);
+        BREAK_ON_FAIL(ret);
+
+        // Save record content into MP4 container, all data consumed by muxer only
+        ts_muxer_config_t ts_cfg = {
+            .base_config = {
+                .muxer_type = ESP_MUXER_TYPE_TS,
+                .url_pattern = storage_slice_hdlr,
+                .slice_duration = 60000,
+            },
+        };
+        esp_capture_muxer_cfg_t muxer_cfg = {
+            .base_config = &ts_cfg.base_config,
+            .cfg_size = sizeof(ts_cfg),
+            .muxer_mask = ESP_CAPTURE_MUXER_MASK_VIDEO, // Only mux for video
+        };
+        ret = esp_capture_sink_add_muxer(capture_sys.capture_sink[0], &muxer_cfg);
+        BREAK_ON_FAIL(ret);
+        esp_capture_sink_enable_muxer(capture_sys.capture_sink[0], true);
+        esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_ALWAYS);
+        esp_capture_sink_enable(capture_sys.capture_sink[1], ESP_CAPTURE_RUN_MODE_ALWAYS);
+        // Start capture
+        ret = esp_capture_start(capture_sys.capture);
+        BREAK_ON_FAIL(ret);
+        for (int i = 0; i < 3; i++) {
+            // Read when muxer enabled
+            read_with_timeout(&capture_sys, true, timeout);
+            esp_capture_sink_enable_muxer(capture_sys.capture_sink[0], false);
+            if (!verify_test_result(&capture_sys, true,
+                                    TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO,
+                                    timeout)) {
+                ESP_LOGE(TAG, "Audio or video not received when mux on loop %d", i);
+                ret = -1;
+                break;
+            }
+            if (file_end_slice == -1 || check_file_size(file_end_slice) == 0) {
+                ESP_LOGE(TAG, "File not generated on loop %d", i);
+                ret = -1;
+                break;
+            }
+            file_end_slice = -1;
+            read_with_timeout(&capture_sys, true, timeout);
+            if (!verify_test_result(&capture_sys, true,
+                                    TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO,
+                                    timeout)) {
+                ESP_LOGE(TAG, "Audio or video not received after mux stop on loop %d", i);
+                ret = -1;
+            }
+             if (file_end_slice != -1) {
+                ESP_LOGE(TAG, "File generated not expected on loop %d", i);
+                ret = -1;
+                break;
+            }
+            file_end_slice = -1;
+            esp_capture_sink_enable_muxer(capture_sys.capture_sink[0], true);
+        }
+        BREAK_ON_FAIL(ret);
+
+    } while (0);
+    destroy_capture_sys(&capture_sys);
+    return ret;
+}
+
+int dynamic_setup_after_start(int timeout, bool dual_path)
+{
+    if (skip_storage_test) {
+        ESP_LOGW(TAG, "Skip %s test", __func__);
+        return 0;
+    }
+    capture_sys_t capture_sys = {0};
+    int ret = 0;
+    file_start_slice = 0;
+    file_end_slice = -1;
+    do {
+        ret = build_av_capture_sys(&capture_sys);
+        BREAK_ON_FAIL(ret);
+
+       #ifndef CONFIG_IDF_TARGET_ESP32P4
+        if (capture_sys.vid_src) {
+            esp_capture_video_info_t fixed_caps = {
+                .format_id = ESP_CAPTURE_FMT_ID_RGB565,
+                .width = VIDEO_WIDTH,
+                .height = VIDEO_HEIGHT,
+                .fps = VIDEO_FPS,
+            };
+            capture_sys.vid_src->set_fixed_caps(capture_sys.vid_src, &fixed_caps);
+        }
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+        esp_capture_sink_cfg_t sink_cfg = {
+            .audio_info = {
+                .format_id = ESP_CAPTURE_FMT_ID_AAC,
+                .sample_rate = 16000,
+                .channel = 1,
+                .bits_per_sample = 16,
+            },
+            .video_info = {
+                .format_id = VIDEO_SINK_FMT_0,
+                .width = VIDEO_WIDTH,
+                .height = VIDEO_HEIGHT,
+                .fps = VIDEO_FPS,
+            },
+        };
+        ret = esp_capture_sink_setup(capture_sys.capture, 0, &sink_cfg, &capture_sys.capture_sink[0]);
+        BREAK_ON_FAIL(ret);
+
+        esp_capture_sink_cfg_t sink_cfg_1 = {
+            .audio_info = {
+                .format_id = ESP_CAPTURE_FMT_ID_AAC,
+                .sample_rate = 32000,
+                .channel = 1,
+                .bits_per_sample = 16,
+            },
+            .video_info = {
+                .format_id = VIDEO_SINK_FMT_1,
+#ifdef CONFIG_IDF_TARGET_ESP32P4
+                .width = VIDEO_WIDTH / 2,
+                .height = VIDEO_HEIGHT / 2,
+#else
+                .width = VIDEO_WIDTH,
+                .height = VIDEO_HEIGHT,
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+                .fps = VIDEO_FPS / 2,
+            },
+        };
+        ret = esp_capture_sink_setup(capture_sys.capture, 1, &sink_cfg_1, &capture_sys.capture_sink[1]);
+        BREAK_ON_FAIL(ret);
+
+        // Save record content into MP4 container, all data consumed by muxer only
+        mp4_muxer_config_t mp4_cfg = {
+            .base_config = {
+                .muxer_type = ESP_MUXER_TYPE_MP4,
+                .url_pattern = storage_slice_hdlr,
+                .slice_duration = 60000,
+            },
+        };
+        esp_capture_muxer_cfg_t muxer_cfg = {
+            .base_config = &mp4_cfg.base_config,
+            .cfg_size = sizeof(mp4_cfg),
+            .muxer_mask = ESP_CAPTURE_MUXER_MASK_VIDEO, // Only mux for video
+        };
+        ret = esp_capture_sink_add_muxer(capture_sys.capture_sink[0], &muxer_cfg);
+        BREAK_ON_FAIL(ret);
+        // Some of video data is dropped during muxer for IDR frame not found yet
+        esp_capture_sink_enable_muxer(capture_sys.capture_sink[0], true);
+        // Not allow get audio video stream data
+        esp_capture_sink_disable_stream(capture_sys.capture_sink[0], ESP_CAPTURE_STREAM_TYPE_AUDIO);
+        esp_capture_sink_disable_stream(capture_sys.capture_sink[0], ESP_CAPTURE_STREAM_TYPE_VIDEO);
+        esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_ALWAYS);
+        esp_capture_sink_enable(capture_sys.capture_sink[1], ESP_CAPTURE_RUN_MODE_ALWAYS);
+        // Start capture
+        ret = esp_capture_start(capture_sys.capture);
+        BREAK_ON_FAIL(ret);
+        int loop_count = 3;
+        for (int i = 0; i < loop_count; i++) {
+            // Read when muxer enabled
+            read_with_timeout(&capture_sys, true, timeout);
+            ESP_LOGI(TAG, "Sink 0 muxer enable audio video disable, sink1 audio video enabled on loop %d", i);
+
+            // Disable sink and setup again
+            esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_DISABLE);
+            if (!verify_test_result_for_path(&capture_sys, 0,
+                                             TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, false)) {
+                ESP_LOGE(TAG, "Audio video received not expected when disabled on loop %d", i);
+            }
+            if (!verify_test_result_for_path(&capture_sys, 1,
+                                             TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, true)) {
+                ESP_LOGE(TAG, "Audio video not received before re_setup on loop %d", i);
+            }
+            if (file_end_slice == -1 || check_file_size(file_end_slice) == 0) {
+                ESP_LOGE(TAG, "File not generated on loop %d", i);
+                ret = -1;
+                break;
+            }
+            file_end_slice = -1;
+
+            // Reconfiguration and enable again
+            esp_capture_sink_setup(capture_sys.capture, 0, &sink_cfg, &capture_sys.capture_sink[0]);
+            // Disable muxer
+            esp_capture_sink_enable_muxer(capture_sys.capture_sink[0], false);
+            esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_ALWAYS);
+            read_with_timeout(&capture_sys, true, timeout);
+
+            // Disable sink and setup again
+            esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_DISABLE);
+            if (!verify_test_result_for_path(&capture_sys, 0,
+                                             TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, true)) {
+                ESP_LOGE(TAG, "Audio video not received when enable again on loop %d", i);
+            }
+            if (!verify_test_result_for_path(&capture_sys, 1,
+                                             TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, true)) {
+                ESP_LOGE(TAG, "Audio video not received after configure sink0 on loop %d", i);
+            }
+            if (file_end_slice != -1) {
+                ESP_LOGE(TAG, "File generated when mux disabled on loop %d", i);
+                ret = -1;
+                break;
+            }
+            if (i == loop_count - 1) {
+                break;
+            }
+            // Test for change muxer type and enable sink again
+            file_end_slice = -1;
+            ts_muxer_config_t ts_cfg = {
+                .base_config = {
+                    .muxer_type = ESP_MUXER_TYPE_TS,
+                    .url_pattern = storage_slice_hdlr,
+                },
+            };
+            esp_capture_muxer_cfg_t ts_muxer_cfg = {
+                .base_config = &ts_cfg.base_config,
+                .cfg_size = sizeof(ts_cfg),
+            };
+            ret = esp_capture_sink_add_muxer(capture_sys.capture_sink[0], (i & 1) ? &muxer_cfg : &ts_muxer_cfg);
+            BREAK_ON_FAIL(ret);
+            esp_capture_sink_enable_muxer(capture_sys.capture_sink[0], true);
+            esp_capture_sink_disable_stream(capture_sys.capture_sink[0], ESP_CAPTURE_STREAM_TYPE_AUDIO);
+            esp_capture_sink_disable_stream(capture_sys.capture_sink[0], ESP_CAPTURE_STREAM_TYPE_VIDEO);
+            esp_capture_sink_enable_muxer(capture_sys.capture_sink[0], true);
+            esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_ALWAYS);
+        }
+        BREAK_ON_FAIL(ret);
     } while (0);
     destroy_capture_sys(&capture_sys);
     return ret;

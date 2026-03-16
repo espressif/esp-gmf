@@ -5,6 +5,7 @@
 ### Bug Fixes
 
 - Fixed setting crash for audio encoder and video encoder after stop
+- Fixed dynamic enable muxer and sink setup streaming output not as expected
 
 ## v0.7.11
 

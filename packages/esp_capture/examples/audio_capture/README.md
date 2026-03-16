@@ -1,86 +1,108 @@
 # ESP Audio Capture Example
 
-This example demonstrates various audio capture capabilities using the ESP Capture framework. It showcases different audio capture scenarios including basic capture, AEC (Acoustic Echo Cancellation), file recording, and customized audio processing.
+- [中文版](./README_CN.md)
+- Regular Example: ⭐⭐
 
-## Use Cases
+## Example Brief
 
-- Basic audio capture with configurable duration
-- Audio capture with AEC support (ESP32-S3 and ESP32-P4 only)
-- Audio capture with MP4 file recording
-- Audio capture with customized processing pipeline (including ALC - Automatic Level Control)
+- This example demonstrates common audio capture pipelines using `esp_capture`.
+- It includes basic capture, AEC capture, MP4 recording, and customized processing pipelines.
 
-## Hardware Requirements
+### Typical Scenarios
 
-- Recommend to use [ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) or [esp32-p4-function-ev-board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) development board
+- Capture microphone audio for fixed duration.
+- Improve duplex capture quality with AEC.
+- Record captured audio slices to SD card as MP4.
+- Extend capture graph with custom processing elements (for example ALC).
 
-## Software Requirements
+## Environment Setup
 
-- ESP-IDF v5.4 or later
-- esp_capture
-- ESP GMF framework
+### Hardware Required
 
-## Building and Flash
-List available boards and select the corresponding board, taking `ESP32-S3-Korvo-2` as an example:
-> For detailed usage refer to [Quick Start](https://github.com/espressif/esp-gmf/tree/main/packages/esp_board_manager#quick-start)
+- Recommended board: [ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) or [ESP32-P4-Function-EV-Board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
+- Audio input device (ADC microphone)
+- SD card (optional, required for muxer recording case)
 
-```
+### Default IDF Branch
+
+This example supports IDF `release/v5.4` (>= v5.4.3) and `release/v5.5` (>= v5.5.2).
+
+## Build and Flash
+
+### Build Preparation
+
+```bash
+cd $YOUR_GMF_PATH/packages/esp_capture/examples/audio_capture
 idf.py gen-bmgr-config -l
 idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
-- Building and flash
-```bash
-idf.py build
-idf.py -p /dev/XXXXX flash monitor
-```
 
 > [!NOTE]
-> For other supported boards (via `esp_board_manager`), follow the same steps above.
-> For customer board refer to the [Custom Board Guide](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board.md) for details.
+> For other supported boards, use the same command flow with the corresponding board name.
+> For custom boards, see [Custom Board Guide](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board.md).
 
-## Usage Examples
+### Build and Flash Commands
 
-### Basic Audio Capture
-
-The basic audio capture example demonstrates simple audio capture functionality. It captures audio for a specified duration and processes the frames.
-
-```c
-audio_capture_run(duration_ms);
+```bash
+idf.py build
+idf.py -p PORT flash monitor
 ```
 
-### Audio Capture with AEC
+## How to Use the Example
 
-This example enables Acoustic Echo Cancellation (AEC) for better audio quality in scenarios where both microphone and speaker are active. AEC is only supported on ESP32-S3 and ESP32-P4.
+### Flow Introduction
 
-```c
-audio_capture_run_with_aec(duration_ms);
+```mermaid
+flowchart LR
+  MIC[ADC microphone] --> CAP[esp_capture audio source]
+  CAP --> PROC[Optional process / AEC / custom elements]
+  PROC --> ENC[Audio encoder]
+  ENC --> USE[Frame callback or sink]
+  ENC --> MUX[MP4 muxer optional]
+  MUX --> SD[/sdcard/cap_X.mp4]
 ```
 
-### Audio Capture with File Recording
+### Functionality and Usage
 
-This example demonstrates how to capture audio and save it to MP4 files on an SD card. The recording is automatically sliced into multiple files based on the configured duration.
+`app_main()` runs the following cases sequentially with a 10-second duration:
 
-```c
-audio_capture_run_with_muxer(duration_ms);
-```
+1. `audio_capture_run`
+2. `audio_capture_run_with_aec`
+3. `audio_capture_run_with_muxer` (only when SD card mount succeeds)
+4. `audio_capture_run_with_customized_process`
 
-The recorded files will be saved as `/sdcard/cap_X.mp4` where X is the slice index.
+Additional behavior:
 
-### Audio Capture with Customized Processing
+- Registers default audio encoders (`esp_audio_enc_register_default`)
+- Registers MP4 muxer (`mp4_muxer_register`)
+- Applies custom thread scheduler through `esp_capture_set_thread_scheduler`
 
-This example shows how to customize the audio processing pipeline by adding additional elements like ALC (Automatic Level Control). It demonstrates:
+### Configuration
 
-1. Adding custom elements to the capture pipeline
-2. Configuring element parameters
-3. Building a custom processing pipeline through connection-ship
+Main configurable items in `main/settings.h`:
 
-```c
-audio_capture_run_with_customized_process(duration_ms);
-```
+- `AUDIO_CAPTURE_FORMAT` (default: `ESP_CAPTURE_FMT_ID_AAC`)
+- `AUDIO_CAPTURE_SAMPLE_RATE` (default: `16000`)
+- `AUDIO_CAPTURE_CHANNEL` (default: `2`)
 
-## Configuration
+## Troubleshooting
 
-The example can be configured through the following settings in [settings.h](main/settings.h):
+### Capture start fails
 
-- `AUDIO_CAPTURE_FORMAT`: Audio format (e.g., AAC, OPUS)
-- `AUDIO_CAPTURE_SAMPLE_RATE`: Sample rate (e.g., 16000 Hz)
-- `AUDIO_CAPTURE_CHANNEL`: Number of audio channels
+- Confirm audio ADC device init succeeds
+- Confirm board audio input hardware is connected and available
+
+### Recording file not generated
+
+- Confirm SD card mount succeeds in `app_main()`
+- Check SD card free space
+
+### AEC case not available or poor effect
+
+- AEC support is target dependent (mainly ESP32-S3/ESP32-P4)
+- Confirm both playback and record paths are correctly configured for the board
+
+## Technical Support
+
+- Technical support forum: [esp32.com](https://esp32.com/viewforum.php?f=20)
+- Issues and feature requests: [GitHub issue](https://github.com/espressif/esp-gmf/issues)

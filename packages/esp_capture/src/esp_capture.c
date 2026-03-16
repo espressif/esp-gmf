@@ -270,7 +270,8 @@ static esp_capture_err_t prepare_audio_share_queue(capture_path_t *path)
     }
     if (path->audio_q) {
         share_q_set_external(path->audio_share_q, CAPTURE_SHARED_BY_USER, path->audio_q);
-        share_q_enable(path->audio_share_q, CAPTURE_SHARED_BY_USER, path->enable);
+        bool enable = !path->audio_stream_disabled && path->enable;
+        share_q_enable(path->audio_share_q, CAPTURE_SHARED_BY_USER, enable);
     }
     if (muxer_q) {
         bool muxer_enable = capture_muxer_stream_prepared(path->muxer, ESP_CAPTURE_STREAM_TYPE_AUDIO);
@@ -314,7 +315,8 @@ static esp_capture_err_t prepare_video_share_queue(capture_path_t *path)
     }
     if (path->video_q) {
         share_q_set_external(path->video_share_q, CAPTURE_SHARED_BY_USER, path->video_q);
-        share_q_enable(path->video_share_q, CAPTURE_SHARED_BY_USER, path->enable);
+        bool enable = !path->video_stream_disabled && path->enable;
+        share_q_enable(path->video_share_q, CAPTURE_SHARED_BY_USER, enable);
     }
     if (muxer_q) {
         bool muxer_enable = capture_muxer_stream_prepared(path->muxer, ESP_CAPTURE_STREAM_TYPE_VIDEO);
@@ -412,11 +414,11 @@ static esp_capture_err_t start_path(capture_path_t *path)
         CAPTURE_RETURN_ON_FAIL(ret);
     });
     if (path->muxer) {
+        enable_muxer_input(path, true);
         CAPTURE_PERF_MON(path->path_type, "Start Muxer", {
             ret = capture_muxer_start(path->muxer);
             CAPTURE_RETURN_ON_FAIL(ret);
         });
-        enable_muxer_input(path, true);
     }
     return ret;
 }
@@ -747,6 +749,11 @@ static void capture_reset_sink(capture_path_t *path)
     path->video_path_disabled = false;
 }
 
+static inline bool capture_path_is_running(capture_path_t *path)
+{
+    return path->enable && path->parent->started;
+}
+
 esp_capture_err_t esp_capture_sink_setup(esp_capture_handle_t h, uint8_t type, esp_capture_sink_cfg_t *sink_info,
                                          esp_capture_sink_handle_t *path)
 {
@@ -764,20 +771,23 @@ esp_capture_err_t esp_capture_sink_setup(esp_capture_handle_t h, uint8_t type, e
             if (cur && capture_same_sink_cfg(&cur->sink_cfg, sink_info)) {
                 // Allow get sink handle use same setup
                 *path = (esp_capture_sink_handle_t)cur;
+                if (!capture_path_is_running(cur)) {
+                    capture_reset_sink(cur);
+                }
                 ret = ESP_CAPTURE_ERR_OK;
                 break;
             }
-            ESP_LOGE(TAG, "Not support add path after started");
+            ESP_LOGE(TAG, "Not support setup sink after started");
             CAPTURE_BREAK_SET_RETURN(ret, ESP_CAPTURE_ERR_INVALID_STATE);
         }
         if (capture->cfg.audio_path == NULL && capture->cfg.video_path == NULL) {
-            ESP_LOGE(TAG, "Only support add sink for no path manager");
+            ESP_LOGE(TAG, "Not support setup sink for no path manager");
             CAPTURE_BREAK_SET_RETURN(ret, ESP_CAPTURE_ERR_NOT_SUPPORTED);
         }
         // Path already added
         if (cur) {
-            if (cur->enable && capture->started) {
-                ESP_LOGW(TAG, "Not allowed to change sink during running");
+            if (capture_path_is_running(cur)) {
+                ESP_LOGW(TAG, "Not allowed to change sink setting during running");
                 CAPTURE_BREAK_SET_RETURN(ret, ESP_CAPTURE_ERR_INVALID_STATE);
             }
             cur->sink_cfg = *sink_info;
@@ -788,7 +798,7 @@ esp_capture_err_t esp_capture_sink_setup(esp_capture_handle_t h, uint8_t type, e
             break;
         }
         if (capture->path_num >= CAPTURE_MAX_PATH_NUM) {
-            ESP_LOGE(TAG, "Only support max path %d", CAPTURE_MAX_PATH_NUM);
+            ESP_LOGE(TAG, "Maximum sink %d reached", CAPTURE_MAX_PATH_NUM);
             CAPTURE_BREAK_SET_RETURN(ret, ESP_CAPTURE_ERR_NOT_ENOUGH);
         }
         capture->path[capture->path_num] = (capture_path_t *)capture_calloc(1, sizeof(capture_path_t));
@@ -823,12 +833,12 @@ esp_capture_err_t esp_capture_sink_add_muxer(esp_capture_sink_handle_t h, esp_ca
     int ret = ESP_CAPTURE_ERR_OK;
     capture_mutex_lock(capture->api_lock, CAPTURE_MAX_LOCK_TIME);
     do {
-        if (capture->started) {
-            ESP_LOGE(TAG, "Not support add muxer after started");
+        if (capture_path_is_running(path)) {
+            ESP_LOGE(TAG, "Not support add muxer after running");
             CAPTURE_BREAK_SET_RETURN(ret, ESP_CAPTURE_ERR_INVALID_STATE);
         }
         if (path->muxer) {
-            // Allower reset muxer type when stopped
+            // Allow reset muxer type when stopped
             ESP_LOGW(TAG, "Muxer already added");
         }
         ret = capture_muxer_open(path, muxer_cfg, &path->muxer);
@@ -865,9 +875,27 @@ esp_capture_err_t esp_capture_sink_enable_muxer(esp_capture_sink_handle_t h, boo
     }
     capture_mutex_lock(path->parent->api_lock, CAPTURE_MAX_LOCK_TIME);
     esp_capture_err_t ret = ESP_CAPTURE_ERR_NOT_SUPPORTED;
-    if (path->muxer) {
-        ret = capture_muxer_enable(path->muxer, enable);
-    }
+    do {
+        if (path->muxer == NULL) {
+            break;
+        }
+        capture_muxer_enable(path->muxer, enable);
+        if (capture_path_is_running(path)) {
+            if (enable) {
+                ret = capture_muxer_prepare(path->muxer);
+                if (ret != ESP_CAPTURE_ERR_OK) {
+                    ESP_LOGE(TAG, "Failed to prepare muxer path %d ret %d", path->path_type, ret);
+                    break;
+                }
+            }
+            enable_muxer_input(path, enable);
+            if (enable) {
+                ret = capture_muxer_start(path->muxer);
+            } else {
+               ret = capture_muxer_stop(path->muxer);
+            }
+        }
+    } while (0);
     capture_mutex_unlock(path->parent->api_lock);
     return ret;
 }
@@ -1023,7 +1051,7 @@ esp_capture_err_t esp_capture_sink_disable_stream(esp_capture_sink_handle_t h, e
     esp_capture_err_t ret = ESP_CAPTURE_ERR_OK;
     capture_mutex_lock(capture->api_lock, CAPTURE_MAX_LOCK_TIME);
     do {
-        if (capture->started) {
+        if (capture_path_is_running(path)) {
             ret = ESP_CAPTURE_ERR_INVALID_STATE;
             break;
         }

@@ -1,160 +1,121 @@
 # ESP 视频采集示例
 
-本示例展示了使用 ESP Capture 框架的各种视频采集功能。它包含了多种视频采集场景，包括基础采集、单帧采集、文件录制、叠加层和双路采集等。
+- [English Version](./README.md)
+- 例程难度：⭐⭐⭐
 
-## 功能特性
+## 例程简介
 
-- 可配置时长的基础视频采集
-- 单帧视频采集模式
-- 支持 MP4 文件录制的视频采集
-- 支持文本叠加的视频采集
-- 双路视频采集（多格式输出）
-- 自定义处理流水线
-- 可配置的任务调度
+- 本例程演示基于 `esp_capture` 的多场景视频采集能力
+- 覆盖基础采集、单帧采集、叠加层、MP4 录制、自定义处理和双路输出等能力
 
-## 硬件要求
+### 典型场景
 
-- 推荐使用 [ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) 或 [esp32-p4-function-ev-board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) 开发板
+- 验证摄像头和麦克风同步采集
+- 将音视频流分片录制到 SD 卡 MP4 文件
+- 在视频流上动态添加文字叠加
+- 同时输出两路不同格式视频用于录制与预览等场景
 
-## 软件要求
+## 环境配置
 
-- ESP-IDF v5.4 或更高版本
-- ESP Capture 框架
-- ESP GMF 框架
+### 硬件要求
 
-## 构建和烧录
+- 推荐开发板：[ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) 或 [ESP32-P4-Function-EV-Board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
+- 摄像头模块和音频输入设备
+- SD 卡（可选，保存录制文件需要）
 
-- 选择编译芯片，以 esp32s3 为例：
+### 默认 IDF 分支
 
-```
-idf.py set-target esp32s3
-```
+本例程支持 IDF `release/v5.4` (>= v5.4.3) 和 `release/v5.5` (>= v5.5.2)。
 
-- 列举可用板子并选择对应板子，以 `ESP32-S3-Korvo-2` 为例：
-> 详细命令和使用方式参考 [快速开始](https://github.com/espressif/esp-gmf/tree/main/packages/esp_board_manager#quick-start) 文档。
-```
+## 编译和下载
+
+### 编译准备
+
+```bash
+cd $YOUR_GMF_PATH/packages/esp_capture/examples/video_capture
 idf.py gen-bmgr-config -l
 idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
 
-- 编译并下载
+> [!NOTE]
+> 如果切换为其他 `esp_board_manager` 支持的开发板，请按相同步骤执行并替换板型名称。
+> 自定义开发板请参考 [自定义开发板指南](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board_cn.md)。
+
+### 编译与烧录
+
 ```bash
-idf.py -p /dev/XXXXX flash monitor
-```
-> [!NOTE]
-> 如果切换为其他 `esp_board_manager` 支持的开发板重复上述步骤.
-> 如果需要定制板子，请参阅 [自定义开发板指南](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board_cn.md) 获取详细信息。
-
-## 使用示例
-
-### 基础视频采集
-
-基础视频采集示例展示了简单的视频采集功能。它可以同时采集指定时长的视频和音频。
-
-```c
-video_capture_run(duration_ms);
+idf.py build
+idf.py -p PORT flash monitor
 ```
 
-### 单帧视频采集
+## 如何使用例程
 
-本示例展示了如何在单帧模式下采集视频，适用于需要以特定间隔采集帧的场景。它每 500ms 采集一帧。
+### 流程介绍
 
-```c
-video_capture_run_one_shot(duration_ms);
+```mermaid
+flowchart LR
+  CAM[Camera 输入] --> VSRC[视频采集源]
+  MIC[ADC 麦克风] --> ASRC[音频采集源]
+  VSRC --> VPROC[叠加层 / 自定义处理]
+  VPROC --> VENC[视频编码]
+  ASRC --> AENC[音频编码]
+  VENC --> SINK0[主视频输出]
+  AENC --> SINKA[主音频输出]
+  VENC --> SINK1[第二路视频输出 可选]
+  SINK0 --> MUX[可选 MP4 复用]
+  SINKA --> MUX
+  MUX --> SD[/sdcard/vid_X.mp4]
 ```
 
-### 带文件录制的视频采集
+### 功能和用法
 
-本示例展示了如何采集视频和音频，并将其保存为 SD 卡上的 MP4 文件。录制会根据配置的时长自动分片。
+`app_main()` 会按顺序执行以下 case（每个 10 秒）：
 
-```c
-video_capture_run_with_muxer(duration_ms);
-```
+1. `video_capture_run`
+2. `video_capture_run_one_shot`
+3. `video_capture_run_with_overlay`
+4. `video_capture_run_with_muxer`（仅在 SD 卡挂载成功时执行）
+5. `video_capture_run_with_customized_process`
+6. `video_capture_run_dual_path`
 
-录制的文件将保存为 `/sdcard/vid_X.mp4`，其中 X 为分片索引。
+其他关键行为：
 
-### 带叠加层的视频采集
+- 注册默认音频/视频编码器和 MP4 复用器
+- 通过 `esp_capture_set_thread_scheduler` 设置线程调度参数
 
-本示例展示了如何为视频流添加文本叠加层。它演示了：
-1. 创建和配置文本叠加层
-2. 动态更新叠加层内容
-3. 管理叠加层区域和颜色
+### 配置说明
 
-```c
-video_capture_run_with_overlay(duration_ms);
-```
+`main/settings.h` 主要配置项：
 
-### 双路视频采集
-
-本示例展示了如何同时以两种不同格式采集视频。适用于需要多种输出格式的场景（例如，一个用于录制，一个用于流媒体）。
-
-```c
-video_capture_run_dual_path(duration_ms);
-```
-
-### 自定义处理流水线
-
-本示例展示了如何通过以下方式自定义视频处理流水线：
-1. 向采集流水线添加自定义元素
-2. 配置元素参数
-3. 通过连接关系构建自定义处理流水线
-
-```c
-video_capture_run_with_customized_process(duration_ms);
-```
-
-## 任务调度配置
-
-本示例包含可配置的任务调度器，允许您优化不同采集组件的性能。[main.c](main/main.c) 中的 `capture_test_scheduler` 调度器配置演示了如何：
-
-1. 为不同任务设置栈大小
-2. 将任务分配到特定的 CPU 核心
-3. 设置任务优先级
-4. 优化资源使用
-
-## 配置说明
-
-本示例可以通过 [settings.h](main/settings.h) 中的以下设置进行配置：
-
-- 视频格式和分辨率设置：
-  - `VIDEO_SINK0_FMT`：主视频格式
-  - `VIDEO_SINK0_WIDTH`：主视频宽度
-  - `VIDEO_SINK0_HEIGHT`：主视频高度
-  - `VIDEO_SINK0_FPS`：主视频帧率
-- 音频设置：
-  - `AUDIO_SINK0_FMT`：主音频格式
-  - `AUDIO_SINK0_SAMPLE_RATE`：主音频采样率
-  - `AUDIO_SINK0_CHANNEL`：主音频通道数
-- 第二路设置（用于双路采集）：
-  - `VIDEO_SINK1_FMT`：第二路视频格式
-  - `VIDEO_SINK1_WIDTH`：第二路视频宽度
-  - `VIDEO_SINK1_HEIGHT`：第二路视频高度
-  - `VIDEO_SINK1_FPS`：第二路视频帧率
-
-> [!NOTE]
-> **当前设置仅用于演示**
-> - 支持多路输出，但性能可能因配置而异
-> - 优化建议：
->   - 若相机支持JPEG，请直接配置输出JPEG（降低CPU负载）
->   - 检查相机分辨率、帧率及采集流水线设置
+- 主视频输出：`VIDEO_SINK0_FMT`、`VIDEO_SINK0_WIDTH`、`VIDEO_SINK0_HEIGHT`、`VIDEO_SINK0_FPS`
+- 主音频输出：`AUDIO_SINK0_FMT`、`AUDIO_SINK0_SAMPLE_RATE`、`AUDIO_SINK0_CHANNEL`
+- 双路视频输出：`VIDEO_SINK1_FMT`、`VIDEO_SINK1_WIDTH`、`VIDEO_SINK1_HEIGHT`、`VIDEO_SINK1_FPS`
+- 可选第二路音频：`AUDIO_SINK1_FMT`、`AUDIO_SINK1_SAMPLE_RATE`、`AUDIO_SINK1_CHANNEL`
 
 ## 故障排除
 
-1. 如果视频采集无法启动：
-   - 检查摄像头是否正确初始化
-   - 验证摄像头连接
-   - 检查视频格式和分辨率设置
+### 视频采集无法启动
 
-2. 如果音频采集失败：
-   - 检查音频编解码器是否正确初始化
-   - 验证麦克风连接
-   - 检查音频格式和采样率设置
+- 确认摄像头设备初始化成功
+- 检查摄像头硬件连接与传感器可用性
+- 检查格式、分辨率和帧率组合是否匹配
 
-3. 如果文件录制失败：
-   - 验证 SD 卡是否正确挂载
-   - 检查 SD 卡是否有足够的可用空间
+### 音视频模式下音频失败
 
-4. 如果出现性能问题：
-   - 检查任务调度器配置
-   - 调整任务优先级和核心分配
-   - 监控栈使用情况并在必要时调整
+- 确认音频 ADC 初始化成功
+- 检查麦克风路径和音频 sink 参数
+
+### 未生成 MP4 文件
+
+- 确认 SD 卡挂载成功
+- 检查存储空间和写权限
+
+### 性能不稳定
+
+- 在 `capture_test_scheduler` 中调整线程调度参数
+- 适当降低分辨率/帧率或使用更轻量编码格式
+
+## 技术支持
+
+- 技术支持论坛：[esp32.com](https://esp32.com/viewforum.php?f=20)
+- 问题反馈与功能建议：[GitHub issue](https://github.com/espressif/esp-gmf/issues)

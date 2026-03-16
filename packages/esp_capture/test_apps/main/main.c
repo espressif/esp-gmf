@@ -246,6 +246,17 @@ TEST_CASE("Storage for one path", "[esp_capture]")
 {
     TEST_ESP_OK(demo_capture_to_storage(5000, true));
 }
+
+TEST_CASE("Dynamic enable muxer after start", "[esp_capture]")
+{
+    TEST_ESP_OK(dynamic_enable_muxer_after_start(5000, true));
+}
+
+TEST_CASE("Dynamic setup sink after start", "[esp_capture]")
+{
+    TEST_ESP_OK(dynamic_setup_after_start(5000, true));
+}
+
 #endif  /* TEST_USE_UNITY */
 
 void app_main(void)
