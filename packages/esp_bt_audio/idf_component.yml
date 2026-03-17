@@ -19,12 +19,12 @@ dependencies:
     version: "^2.4"
   espressif/gmf_core:
     require: "public"
-    version: "^0.7"
+    version: "^0.8"
     matches:
       - if: "$CONFIG{ESP_BT_AUDIO_GMF_IO_SUPPORT} == True"
   espressif/gmf_io:
     require: "public"
-    version: "^0.7"
+    version: "^0.8"
     matches:
       - if: "$CONFIG{ESP_BT_AUDIO_GMF_IO_SUPPORT} == True"
 

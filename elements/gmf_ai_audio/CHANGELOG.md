@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.0
+
+### Features
+
+- Updated dependency components to v0.8.0.
+
 ## v0.7.5
 
 ### Features

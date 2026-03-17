@@ -1,6 +1,6 @@
 # Changelog
 
-## unreleased
+## v0.8.0
 
 ### Features
 
@@ -14,7 +14,7 @@
 
 ### Bug Fixes
 
-- Fixed audio_dec element failed to propagate is_done payload flag 
+- Fixed audio_dec element failed to propagate is_done payload flag
 - Fixed memory leak in `audio_dec` element's `audio_dec_reconfig_dec_by_sound_info` function
 - Fixed `audio_enc` not updating input/output buffer size after bitrate change
 - Fixed bitrate set before audio encoder handle is created not taking effect

@@ -1,15 +1,15 @@
 dependencies:
   espressif/gmf_core:
-    version: "~0.7"
+    version: "~0.8"
     override_path: ../../../../../gmf_core
   espressif/gmf_audio:
-    version: "~0.7"
+    version: "~0.8"
     override_path: ../../../../../elements/gmf_audio
   espressif/gmf_video:
-    version: "~0.7"
+    version: "~0.8"
     override_path: ../../../../../elements/gmf_video
   espressif/esp_capture:
-    version: "~0.7.0"
+    version: "~0.8.0"
     override_path: ../../../../esp_capture
   espressif/esp_video:
     version: "^1.0"
