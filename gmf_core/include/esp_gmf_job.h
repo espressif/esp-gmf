@@ -19,6 +19,7 @@ extern "C" {
 #define ESP_GMF_JOB_STR_OPEN      ("_open")
 #define ESP_GMF_JOB_STR_PROCESS   ("_proc")
 #define ESP_GMF_JOB_STR_CLOSE     ("_close")
+#define ESP_GMF_JOB_STR_RESET     ("_reset")
 
 /**
  * @brief  This enumeration defines different states that a GMF job can be in
@@ -42,11 +43,12 @@ typedef enum {
  * @brief  This enumeration specifies the error status of a GMF job
  */
 typedef enum {
-    ESP_GMF_JOB_ERR_TRUNCATE = 3,        /*!< The job has been truncated */
-    ESP_GMF_JOB_ERR_DONE     = 2,        /*!< The job has been completed */
-    ESP_GMF_JOB_ERR_CONTINUE = 1,        /*!< The job should continue */
-    ESP_GMF_JOB_ERR_OK       = ESP_OK,   /*!< The job has executed successfully */
-    ESP_GMF_JOB_ERR_FAIL     = ESP_FAIL  /*!< The job has failed to execute */
+    ESP_GMF_JOB_ERR_TRUNCATE = 3,                 /*!< The job has been truncated */
+    ESP_GMF_JOB_ERR_DONE     = 2,                 /*!< The job has been completed */
+    ESP_GMF_JOB_ERR_CONTINUE = 1,                 /*!< The job should continue */
+    ESP_GMF_JOB_ERR_OK       = ESP_OK,            /*!< The job has executed successfully */
+    ESP_GMF_JOB_ERR_FAIL     = ESP_FAIL,          /*!< The job has failed to execute */
+    ESP_GMF_JOB_ERR_ABORT    = ESP_GMF_IO_ABORT,  /*!< The job has been aborted */
 } esp_gmf_job_err_t;
 
 /**
@@ -65,18 +67,22 @@ typedef esp_gmf_job_err_t (*esp_gmf_job_func)(void *self, void *para);
  *         A job encapsulates a function to be executed, along with its context and other properties
  */
 typedef struct _esp_gmf_job_t {
-    struct _esp_gmf_job_t *prev;   /*!< Pointer to the previous job in the linked list */
-    struct _esp_gmf_job_t *next;   /*!< Pointer to the next job in the linked list */
-    const char            *label;  /*!< Label identifying the job */
-    esp_gmf_job_func       func;   /*!< Function pointer to the job's function */
-    void                  *ctx;    /*!< Context pointer to be passed to the job's function */
-    void                  *para;   /*!< Parameter pointer to be passed to the job's function */
-    esp_gmf_job_times_t    times;  /*!< Times the job should be executed */
-    esp_gmf_job_err_t      ret;    /*!< Return value of the job function */
+    struct _esp_gmf_job_t *prev;            /*!< Pointer to the previous job in the linked list */
+    struct _esp_gmf_job_t *next;            /*!< Pointer to the next job in the linked list */
+    const char            *label;           /*!< Label identifying the job */
+    esp_gmf_job_func       func;            /*!< Function pointer to the job's function */
+    void                  *ctx;             /*!< Context pointer to be passed to the job's function */
+    void                  *para;            /*!< Parameter pointer to be passed to the job's function */
+    esp_gmf_job_times_t    times;           /*!< Times the job should be executed */
+    esp_gmf_job_err_t      ret;             /*!< Return value of the job function */
+    uint8_t                is_deleted : 1;  /*!< Flag indicating the job is marked for deletion (for infinite jobs only) */
 } esp_gmf_job_t;
 
 /**
  * @brief  Concatenate two strings into the target string
+ *
+ * @note   The src1 and src2 will be truncated if the target buffer is not large enough
+ *         If the src1 + src2 is longer than the target buffer, the src2 will be truncated only
  *
  * @param[in,out]  target       Pointer to the target buffer where the concatenated string will be stored
  * @param[in]      target_size  Size of the target buffer
@@ -87,9 +93,21 @@ typedef struct _esp_gmf_job_t {
 static inline void esp_gmf_job_str_cat(char *target, int target_size,
                                        const char *src1, const char *src2, int src2_len)
 {
-    memset(target, 0, target_size);
-    snprintf(target, target_size - 1 - src2_len, "%s", src1);
-    strcat(target, src2);
+    if (!target || !src1 || !src2 || target_size <= 0 || src2_len < 0) {
+        return;
+    }
+    target[0] = '\0';
+    int len = strlen(src1);
+    int remaining_space = target_size - 1;
+    int copied_len = len <= remaining_space ? len : remaining_space;
+    memcpy(target, src1, copied_len);
+    remaining_space = target_size - copied_len - 1;
+    if (remaining_space > 0) {
+        len = (src2_len < remaining_space) ? src2_len : remaining_space;
+        memcpy(target + copied_len, src2, len);
+        copied_len += len;
+    }
+    target[copied_len] = '\0';
 }
 
 typedef struct esp_gmf_job_node {
@@ -206,7 +224,12 @@ static inline void esp_gmf_job_stack_show(const esp_gmf_job_stack_t *stack, int 
     printf("Job Stack [line:%d] (top -> bottom): ", line);
     while (cur) {
         esp_gmf_job_t *job = (esp_gmf_job_t *)cur->node_addr;
-        printf("%s(%p) ", job->label, job->func);
+        // Add NULL check to avoid use-after-free if job was already freed
+        if (job) {
+            printf("%s(%p) ", job->label ? job->label : "NULL", job->func);
+        } else {
+            printf("(freed)(%p) ", (void *)cur->node_addr);
+        }
         cur = cur->next;
     }
     printf("\n");

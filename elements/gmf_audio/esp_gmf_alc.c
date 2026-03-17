@@ -84,13 +84,13 @@ static esp_gmf_job_err_t esp_gmf_alc_open(esp_gmf_element_handle_t self, void *p
     alc->bytes_per_sample = (config->bits_per_sample >> 3) * config->channel;
     esp_ae_alc_open(config, &alc->alc_hd);
     ESP_GMF_CHECK(TAG, alc->alc_hd, { return ESP_GMF_JOB_ERR_FAIL;}, "Failed to create alc handle");
-    GMF_AUDIO_UPDATE_SND_INFO(self, config->sample_rate, config->bits_per_sample, config->channel);
     for (size_t i = 0; i < config->channel; i++) {
         esp_ae_err_t ret = esp_ae_alc_set_gain(alc->alc_hd, i, alc->gain[i]);
         if (ret != ESP_AE_ERR_OK) {
             return ESP_GMF_JOB_ERR_FAIL;
         }
     }
+    GMF_AUDIO_UPDATE_SND_INFO(self, config->sample_rate, config->bits_per_sample, config->channel);
     alc->need_reopen = false;
     ESP_LOGD(TAG, "Open, %p", self);
     return ESP_GMF_JOB_ERR_OK;
@@ -129,6 +129,10 @@ static esp_gmf_job_err_t esp_gmf_alc_process(esp_gmf_element_handle_t self, void
     samples_num = in_load->valid_size / (alc->bytes_per_sample);
     bytes = samples_num * alc->bytes_per_sample;
     if ((bytes != in_load->valid_size) || (load_ret < ESP_GMF_IO_OK)) {
+        if (load_ret == ESP_GMF_IO_ABORT) {
+            out_len = ESP_GMF_JOB_ERR_ABORT;
+            goto __alc_release;
+        }
         ESP_LOGE(TAG, "Invalid in load size %d, ret %d", in_load->valid_size, load_ret);
         out_len = ESP_GMF_JOB_ERR_FAIL;
         goto __alc_release;
@@ -304,6 +308,20 @@ esp_gmf_err_t esp_gmf_alc_get_gain(esp_gmf_element_handle_t handle, uint8_t idx,
     return ESP_GMF_JOB_ERR_OK;
 }
 
+static esp_gmf_job_err_t esp_gmf_alc_reset(esp_gmf_element_handle_t handle, void *para)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_gmf_alc_t *alc = (esp_gmf_alc_t *)handle;
+    if (alc->alc_hd) {
+        esp_ae_err_t ret = esp_ae_alc_reset(alc->alc_hd);
+        if (ret != ESP_AE_ERR_OK) {
+            return ESP_GMF_ERR_FAIL;
+        }
+    }
+    ESP_LOGD(TAG, "ALC reset");
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_alc_init(esp_ae_alc_cfg_t *config, esp_gmf_element_handle_t *handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
@@ -344,6 +362,7 @@ esp_gmf_err_t esp_gmf_alc_init(esp_ae_alc_cfg_t *config, esp_gmf_element_handle_
     ESP_GMF_ELEMENT_GET(alc)->ops.event_receiver = alc_received_event_handler;
     ESP_GMF_ELEMENT_GET(alc)->ops.load_caps = _load_alc_caps_func;
     ESP_GMF_ELEMENT_GET(alc)->ops.load_methods = _load_alc_methods_func;
+    ESP_GMF_ELEMENT_GET(alc)->ops.reset = esp_gmf_alc_reset;
     *handle = obj;
     ESP_LOGD(TAG, "Initialization, %s-%p", OBJ_GET_TAG(obj), obj);
     return ESP_GMF_ERR_OK;

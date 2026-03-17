@@ -1,89 +1,108 @@
 # ESP Audio Render Example
 
 - [中文版](./README_CN.md)
+- Regular Example: ⭐⭐
 
-This example demonstrates how to use `esp_audio_render` to render PCM audio with or without processing, and how to mix multiple inputs into one output. It shows end‑to‑end flow: fetch compressed audio (e.g., MP3) over network, decode it using `esp_audio_codec` decoder, feed PCM into the render API, and finally output to `esp_codec_dev` (I2S codec).
+## Example Brief
 
-## Hardware Requirements
+- This example shows how to use `esp_audio_render` for single-stream playback and multi-stream mixing.
+- It demonstrates the full GMF audio path: HTTP source -> decoder -> `esp_audio_render` stream(s) -> optional processors -> codec output.
 
-- Recommended: [ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) or [ESP32‑P4‑Function‑EV‑Board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
-- Other boards are supported; see [Other Board Support](#other-board-support)
+### Typical Scenarios
 
-## Software Requirements
+- Validate audio render stream open/write/close lifecycle
+- Verify multi-stream mixing with unified output format
+- Evaluate ALC processing both per-stream and post-mix
 
-- ESP‑IDF v5.4 or later
-- `esp_audio_render` component
-- ESP‑GMF framework (to provide format converters and optional processors)
-- `esp_audio_codec` (for decoding MP3/others)
-- `esp_codec_dev` (for actual audio output)
+## Environment Setup
 
-## Features Demonstrated
+### Hardware Required
 
-- **Single‑stream playback**: MP3/AAC (HTTP) → decode to PCM → render → codec
-- **Multi‑stream mixing**: Decode multiple independent MP3/AAC sources and mix to one sink
-- **Fixed output format configuration**: 16 kHz, 16‑bit, stereo output
-- **Per‑stream processing**: ALC (Automatic Level Control) on each stream
-- **Post‑mix processing**: ALC processing after mixing
-- **Network audio streaming**: HTTP-based MP3/AAC file download and playback
+- Recommended board: [ESP32-S3-Korvo2](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) or [ESP32-P4-Function-EV-Board](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
+- Audio playback device available on board (`ESP_BOARD_DEVICE_NAME_AUDIO_DAC`)
+- Wi-Fi connection for downloading test audio files
 
-## How it works
+### Default IDF Branch
 
-### Overall flow
-```mermaid
-flowchart LR
-  NET[HTTP MP3/AAC] --> DEC[esp_audio_codec Decoder]
-  DEC -- PCM --> STRM[esp_audio_render Stream]
-  STRM --> MIX[Mixer Thread]
-  MIX --> POST[Post Pipeline: ALC]
-  POST --> SINK[esp_codec_dev]
-```
+This example supports IDF `release/v5.4` (>= v5.4.3) and `release/v5.5` (>= v5.5.2).
 
-### Processor pipeline placement
-```mermaid
-flowchart LR
-  subgraph Per-Stream Path
-    IN[PCM from Decoder]
-    P1[Optional: CH/BIT/RATE Convert]
-    P2[Per-Stream ALC]
-  end
-  IN --> P1 --> P2 --> OUTQ[RingBuffer]
+## Build and Flash
 
-  subgraph Mixer Thread
-    OUTQ --> M[ESP Audio Effects Mixer]
-    M --> PM[Post Pipeline: ALC]
-  end
+### Build Preparation
 
-  PM --> WR[esp_codec_dev]
-```
+Go to the example directory:
 
-- **Per‑stream processing** runs inline in the `esp_audio_render_stream_write()` caller
-- **When `stream_num > 1`**, the mixer thread consumes per‑stream ring buffer and runs a post‑mix pipeline
-- **ALC processing** is applied both per-stream and post-mix for demonstrating audio processor capabilities
-
-## Running the example
-
-1. Configure Wi‑Fi and board audio codec initialization in the example's `app_main()` (or corresponding helper), then build and flash:
 ```bash
-idf.py -p /dev/XXXXX flash monitor
+cd $YOUR_GMF_PATH/packages/esp_audio_render/examples/audio_render
 ```
 
-2. The example automatically runs two test scenarios:
-   - **Single stream test**: Downloads and plays one MP3 file for 30 seconds
-   - **Multi-stream mixing test**: Downloads and mixes 8 different audio sources simultaneously
+Select board configuration:
 
-### Typical API calls
-- `esp_audio_render_create()` - Creates renderer with mutex initialization
-- `esp_audio_render_set_out_sample_info()` - Sets output format
-- `esp_audio_render_stream_open()` - Opens stream with mutex protection
-- `esp_audio_render_stream_add_procs()` - Adds processors to streams
-- `esp_audio_render_stream_write()` - Writes PCM data
-- `esp_audio_render_stream_close()` - Closes stream with mutex protection
-- `esp_audio_render_destroy()` - Cleans up with mutex destruction
+```bash
+idf.py gen-bmgr-config -l
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+```
 
+> [!NOTE]
+> For other supported boards, use the same command flow with the corresponding board name.
+> For custom boards, see [Custom Board Guide](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/docs/how_to_customize_board.md).
 
-## Other Board Support
+### Build and Flash Commands
 
-This example can leverage `gmf_app_utils` for quick board bring‑up. Check board compatibility in menuconfig under "GMF APP Configuration." For details, see the `gmf_app_utils` README.
+```bash
+idf.py build
+idf.py -p PORT flash monitor
+```
 
-Alternatively, you can use [esp-bsp](https://github.com/espressif/esp-bsp/tree/master) APIs:
-- Use `bsp_audio_codec_microphone_init()` to replace `esp_gmf_app_get_record_handle()`
+## How to Use the Example
+
+### Flow Introduction
+
+```mermaid
+flowchart LR
+  NET[HTTP MP3/AAC URL] --> DEC[esp_audio_codec decode]
+  DEC --> STRM[esp_audio_render stream write]
+  STRM --> MIX{stream_num > 1}
+  MIX -- no --> OUT[Direct render output]
+  MIX -- yes --> MX[Mixer + post ALC]
+  OUT --> SINK[esp_codec_dev output]
+  MX --> SINK
+```
+
+### Functionality and Usage
+
+After startup, the example runs two test stages automatically:
+
+1. Single stream render test (`simple_audio_render_run`)
+   - Downloads one remote file and plays it for 30 seconds.
+2. Multi-stream mixing test (`audio_render_with_mixer_run`)
+   - Starts 8 decode/render streams and mixes them to one output sink
+
+Key settings used by the example:
+
+- Fixed output format: 16 kHz / 16 bit / 2 channels
+- Per-stream processing: `ESP_AUDIO_RENDER_PROC_ALC`
+- Post-mix processing: `ESP_AUDIO_RENDER_PROC_ALC`
+
+### References
+
+- API reference: `esp_audio_render`, `esp_audio_codec`, `esp_codec_dev`
+- Board guide: `esp_board_manager` quick start and custom board docs
+
+## Troubleshooting
+
+### No audio output
+
+- Check board audio codec init (`ESP_BOARD_DEVICE_NAME_AUDIO_DAC`)
+- Check volume setting in `app_main()` (`esp_codec_dev_set_out_vol`)
+- Confirm speaker/headphone is connected correctly
+
+### Network source playback fails
+
+- Confirm Wi-Fi is connected successfully before playback
+- Verify target URL is reachable from your network environment
+
+## Technical Support
+
+- Technical support forum: [esp32.com](https://esp32.com/viewforum.php?f=20)
+- Issues and feature requests: [GitHub issue](https://github.com/espressif/esp-gmf/issues)

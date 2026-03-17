@@ -90,6 +90,28 @@ static inline esp_gmf_err_t esp_gmf_cache_delete(esp_gmf_cache_t *handle)
 }
 
 /**
+ * @brief  Reset a GMF cache instance to its initial state
+ *         This function clears all cached data and resets the cache state,
+ *         but preserves the allocated buffer memory
+ *
+ * @param[in]  handle  Pointer to the cache handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Success, cache is reset
+ *       - ESP_GMF_ERR_INVALID_ARG  If `handle` is NULL
+ */
+static inline esp_gmf_err_t esp_gmf_cache_reset(esp_gmf_cache_t *handle)
+{
+    if (handle == NULL) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    handle->buf_filled = 0;
+    memset(&handle->origin_load, 0, sizeof(esp_gmf_payload_t));
+    memset(&handle->load, 0, sizeof(esp_gmf_payload_t));
+    return ESP_GMF_ERR_OK;
+}
+
+/**
  * @brief  Check if the cache is ready to load new data
  *         If the return `is_ready` is true, `esp_gmf_cache_load` can be called to load a new payload
  *

@@ -164,6 +164,17 @@ esp_gmf_err_t esp_gmf_db_abort(esp_gmf_db_handle_t handle)
     return ret;
 }
 
+esp_gmf_err_t esp_gmf_db_clear_abort(esp_gmf_db_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_data_bus_t *db = (esp_gmf_data_bus_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    if (db->op.clear_abort) {
+        ret = db->op.clear_abort(db->child);
+    }
+    return ret;
+}
+
 esp_gmf_err_t esp_gmf_db_get_total_size(esp_gmf_db_handle_t handle, uint32_t *buff_size)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);

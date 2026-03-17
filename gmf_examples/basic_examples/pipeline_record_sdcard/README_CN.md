@@ -1,41 +1,56 @@
 # 录制音频存储 microSD 卡
 
-- [English](./README.md)
+- [English Version](./README.md)
+- 例程难度：⭐
 
 ## 例程简介
 
-本例程介绍了通过 CODEC_DEV_RX IO 获取 codec 录制的声音，经 encoder 元素编码后，通过 File IO 将编码数据保存 microSD 卡。
+本示例展示了通过 CODEC_DEV_RX IO 采集 codec 录音，经 encoder 编码后通过 File IO 将数据保存到 microSD 卡。
 
-本例支持将录音编码为 AAC、G711A、G711U、AMRNB、AMRWB、OPUS、ADPCM 和 PCM 音频格式，默认使用 AAC 格式。
+- 示例使用单管道架构：`io_codec_dev` → `aud_enc` → `io_file`。
+- 支持 AAC、G711A、G711U、AMRNB、AMRWB、OPUS、ADPCM、PCM 等编码格式，默认 AAC。
+- 例程通过固定较低 CPU 频率从而降低整体功耗，适用于低功耗录音笔等场景。
 
-## 示例创建
+> [!NOTE]
+> 1. 可修改 `DEFAULT_CPU_FREQ_MHZ` 实现不同 CPU 频率，实际支持的频率参考对应芯片中 `rtc_clk_cpu_freq_mhz_to_config` 可选频率。
+> 2. 不同频率下的功耗差异可参考对应芯片数据手册中「其他功耗模式下的功耗」，如 [ESP32-S3 数据手册](https://documentation.espressif.com/esp32-s3_datasheet_cn.pdf)。
+> 3. 若不采用固定 CPU 频率，可参考 [ESP32 电源管理](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32/api-reference/system/power_management.html#esp32) 实现默认电源管理策略。
 
-### IDF 默认分支
+### 典型场景
 
-本例程支持 IDF release/v5.3 及以后的分支。
+- 本地录音并保存为文件，如低功耗录音笔、会议记录等。
 
-### 配置
+## 环境配置
 
-本例程需要准备一张 microSD 卡。录音编码后的音频会自动存入 microSD 卡，用户可通过 `esp_gmf_audio_helper_reconfig_enc_by_type ` 函数修改编码格式及音频参数配置。
+### 硬件要求
 
-### 编译和下载
+- **开发板**：默认以 ESP32-S3-Korvo V3 为例，其他 ESP 音频板同样适用。
+- **资源要求**：microSD 卡、麦克风、Audio ADC。
 
-编译本例程前需要先确保已配置 ESP-IDF 的环境，如果已配置可跳到下一项配置，如果未配置需要先在 ESP-IDF 根目录运行下面脚本设置编译环境，有关配置和使用 ESP-IDF 完整步骤，请参阅 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)：
+### 默认 IDF 分支
+
+本例程支持 IDF release/v5.4 (>= v5.4.3) 与 release/v5.5 (>= v5.5.2) 分支。
+
+## 编译和下载
+
+### 编译准备
+
+编译本例程前需先确保已配置 ESP-IDF 环境；若已配置可跳过本段，直接进入工程目录并运行相关预编译脚本。若未配置，请在 ESP-IDF 根目录运行以下脚本完成环境设置，完整步骤请参阅 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)。
 
 ```
 ./install.sh
 . ./export.sh
 ```
 
-下面是简略编译步骤：
+下面是简略步骤：
 
-- 进入录制音频存储 microSD 卡测试工程存放位置
+- 进入本例程工程目录：
 
 ```
 cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_record_sdcard
 ```
 
-- 执行预编译脚本，根据提示选择编译芯片，自动设置 IDF Action 扩展，通过 `esp_board_manager` 选择支持的开发板或自定义开发板
+- 执行预编译脚本，根据提示选择编译芯片，自动设置 IDF Action 扩展，通过 `esp_board_manager` 选择支持的开发板，如需选择自定义开发板，详情参考：[自定义板子](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board)
 
 在 Linux / macOS 中运行以下命令：
 ```bash/zsh
@@ -47,7 +62,20 @@ source prebuild.sh
 .\prebuild.ps1
 ```
 
-- 编译例子程序
+### 项目配置
+
+本例程可以修改源文件中以下定义完成相关配置：
+
+- `DEFAULT_RECORD_OUTPUT_URL`：音频存储 URL
+- `DEFAULT_RECORD_SAMPLE_RATE`：采样率（如 16000 Hz）
+- `DEFAULT_RECORD_BITS`：采样位数（如 16 bits）
+- `DEFAULT_RECORD_CHANNEL`：音频通道数
+- `DEFAULT_MICROPHONE_GAIN`：录制麦克风增益
+- `DEFAULT_RECORD_DURATION_MS`：录制时长（如 10000 ms）
+
+### 编译与烧录
+
+- 编译示例程序
 
 ```
 idf.py build
@@ -59,78 +87,76 @@ idf.py build
 idf.py -p PORT flash monitor
 ```
 
-- 退出调试界面使用 ``Ctrl-]``
+- 退出调试界面使用 `Ctrl-]`
 
 ## 如何使用例程
 
 ### 功能和用法
 
-- 例程开始运行后，录音数据经过编码后将自动存入 microSD 卡，录制完成后停止退出，打印如下：
+- 上电后例程会挂载 microSD 卡并初始化录音 codec，开始录制。
+- 录制一段时间后自动停止并将编码数据写入 microSD 卡（如 `/sdcard/esp_gmf_rec001.aac`），最后释放资源。
+
+### 日志输出
+
+- 正常流程会依次打印外设初始化、注册元素、创建 pipeline、设置录音 url、绑定任务、监听事件、启动 pipeline、等待结束并销毁资源。
+- 可关注不同 CPU 频率下的 loading 情况，确认是否可以在该频率下正常编码。
 
 ```c
-I (1020) REC_SDCARD: [ 1 ] Mount sdcard
-I (1025) gpio: GPIO[15]| InputEn: 0| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0
-I (1034) gpio: GPIO[7]| InputEn: 0| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0
-I (1044) gpio: GPIO[4]| InputEn: 0| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0
-I (1093) REC_SDCARD: [ 2 ] Register all the elements and set audio information to record codec device
-I (1097) ES7210: Work in Slave mode
-I (1104) ES7210: Enable ES7210_INPUT_MIC1
-I (1107) ES7210: Enable ES7210_INPUT_MIC2
-I (1111) ES7210: Enable ES7210_INPUT_MIC3
-I (1114) ES7210: Enable TDM mode
-E (1120) i2s_common: i2s_channel_disable(1107): the channel has not been enabled yet
-I (1123) I2S_IF: channel mode 0 bits:16/16 channel:2 mask:1
-I (1129) I2S_IF: STD Mode 0 bits:16/16 channel:2 sample_rate:16000 mask:1
-I (1137) ES7210: Bits 8
-I (1147) ES7210: Enable ES7210_INPUT_MIC1
-I (1150) ES7210: Enable ES7210_INPUT_MIC2
-I (1153) ES7210: Enable ES7210_INPUT_MIC3
-I (1157) ES7210: Enable TDM mode
-I (1163) ES7210: Unmuted
-I (1163) Adev_Codec: Open codec device OK
-I (1166) ESP_GMF_POOL: Registered items on pool:0x3c1a7640, app_main-51
-I (1173) ESP_GMF_POOL: IO, Item:0x3c1a78e0, H:0x3c1a7850, TAG:io_codec_dev
-I (1180) ESP_GMF_POOL: IO, Item:0x3c1a79b0, H:0x3c1a78f0, TAG:io_http
-I (1187) ESP_GMF_POOL: IO, Item:0x3c1a7a80, H:0x3c1a79c0, TAG:io_http
-I (1194) ESP_GMF_POOL: IO, Item:0x3c1a7b1c, H:0x3c1a7a90, TAG:io_file
-I (1201) ESP_GMF_POOL: IO, Item:0x3c1a7bb8, H:0x3c1a7b2c, TAG:io_file
-I (1208) ESP_GMF_POOL: IO, Item:0x3c1a7ce8, H:0x3c1a7c54, TAG:io_embed_flash
-I (1215) ESP_GMF_POOL: EL, Item:0x3c1a7c44, H:0x3c1a7bc8, TAG:copier
-I (1222) ESP_GMF_POOL: EL, Item:0x3c1a7dfc, H:0x3c1a7cf8, TAG:aud_enc
-I (1229) ESP_GMF_POOL: EL, Item:0x3c1a7ef0, H:0x3c1a7e0c, TAG:decoder
-I (1237) ESP_GMF_POOL: EL, Item:0x3c1a7fcc, H:0x3c1a7f00, TAG:aud_alc
-I (1243) ESP_GMF_POOL: EL, Item:0x3c1a8090, H:0x3c1a7fdc, TAG:aud_eqd_eqd_eqd_eq
-I (1250) ESP_GMF_POOL: EL, Item:0x3c1a80c4, H:0x3c1a81f8, TAG:aud_ch_cvt
-I (1257) ESP_GMF_POOL: EL, Item:0x3c1a80f4, H:0x3c1a829c, TAG:aud_bit_cvt
-I (1264) ESP_GMF_POOL: EL, Item:0x3c1a83dc, H:0x3c1a8340, TAG:aud_rate_cvt
-I (1271) ESP_GMF_POOL: EL, Item:0x3c1a84b8, H:0x3c1a83ec, TAG:aud_fade
-I (1278) ESP_GMF_POOL: EL, Item:0x3c1a85b4, H:0x3c1a84c8, TAG:aud_sonic
-I (1285) ESP_GMF_POOL: EL, Item:0x3c1a8694, H:0x3c1a85c4, TAG:aud_deintlv
-I (1293) ESP_GMF_POOL: EL, Item:0x3c1a8770, H:0x3c1a86a4, TAG:aud_intlv
-I (1300) ESP_GMF_POOL: EL, Item:0x3c1a8870, H:0x3c1a8780, TAG:aud_mixer
-I (1307) REC_SDCARD: [ 3 ] Create audio pipeline, add all elements to pipeline
-I (1315) REC_SDCARD: [ 3.1 ] Set audio url to record
-I (1321) REC_SDCARD: [ 3.2 ] Reconfig audio encoder type by url and audio information and report information to the record pipeline
-W (1333) ESP_GMF_PIPELINE: There is no thread for add jobs, pipe:0x3c1a8880, tsk:0x0, [el:aud_enc-0x3c1a88b8]
-I (1344) REC_SDCARD: [ 3.3 ] Create gmf task, bind task to pipeline and load linked element jobs to the bind task
-I (1355) ESP_GMF_TASK: Waiting to run... [tsk:TSK_0x3fcb1260-0x3fcb1260, wk:0x0, run:0]
-I (1363) ESP_GMF_THREAD: The TSK_0x3fcb1260 created on internal memory
-I (1370) ESP_GMF_TASK: Waiting to run... [tsk:TSK_0x3fcb1260-0x3fcb1260, wk:0x3c1a8ba8, run:0]
-I (1380) REC_SDCARD: [ 3.4 ] Create envent group and listening event from pipeline
-I (1388) REC_SDCARD: [ 4 ] Start audio_pipeline
-I (1393) FILE_IO: Open, dir:2, uri:/sdcard/esp_gmf_rec001.aac
-I (1409) REC_SDCARD: CB: RECV Pipeline EVT: el:OBJ_GET_TAG(event->from)-0x3c1a8880, type:8192, sub:ESP_GMF_EVENT_STATE_OPENING, payload:0x0, size:0,0x0
-I (1416) REC_SDCARD: CB: RECV Pipeline EVT: el:OBJ_GET_TAG(event->from)-0x3c1a88b8, type:8192, sub:ESP_GMF_EVENT_STATE_RUNNING, payload:0x0, size:0,0x0
-I (1428) ESP_GMF_TASK: One times job is complete, del[wk:0x3c1a8ba8,ctx:0x3c1a88b8, label:encoder_open]
-I (1438) ESP_GMF_PORT: ACQ IN, new self payload:0x3c1a8ba8, port:0x3c1a8a50, el:0x3c1a88b8-aud_enc
-I (1448) ESP_GMF_PORT: ACQ OUT, new self payload:0x3c1b6220, port:0x3c1a8b20, el:0x3c1a88b8-aud_enc
-I (1461) REC_SDCARD: [ 5 ] Wait for a while to stop record pipeline
-I (11494) ESP_GMF_CODEC_IO: CLose, 0x3c1a89e4, pos = 323584/0
-I (11494) FILE_IO: CLose, 0x3c1a8a94, pos = 80896/0
-I (11495) ESP_GMF_TASK: One times job is complete, del[wk:0x3c1a8bcc,ctx:0x3c1a88b8, label:encoder_close]
-I (11505) REC_SDCARD: CB: RECV Pipeline EVT: el:OBJ_GET_TAG(event->from)-0x3c1a8880, type:8192, sub:ESP_GMF_EVENT_STATE_STOPPED, payload:0x0, size:0,0x0
-I (11519) ESP_GMF_TASK: Waiting to run... [tsk:TSK_0x3fcb1260-0x3fcb1260, wk:0x0, run:0]
-I (11528) ESP_GMF_TASK: Waiting to run... [tsk:TSK_0x3fcb1260-0x3fcb1260, wk:0x0, run:0]
-I (11537) REC_SDCARD: [ 6 ] Destroy all the resources
-E (11546) i2s_common: i2s_channel_disable(1107): the channel has not been enabled yet
+I (853) main_task: Calling app_main()
+I (855) pm: Frequency switching config: CPU_MAX: 80, APB_MAX: 80, APB_MIN: 80, Light sleep: DISABLED
+I (864) REC_SDCARD: [ 1 ] Setup peripheral
+I (1089) REC_SDCARD: [ 2 ] Register all the elements and set audio information to record codec device
+I (1118) REC_SDCARD: [ 3 ] Create audio pipeline
+I (1123) REC_SDCARD: [ 3.1 ] Set audio url to record
+I (1127) REC_SDCARD: [ 3.2 ] Reconfig audio encoder type by url and audio information and report information to the record pipeline
+I (1149) REC_SDCARD: [ 3.3 ] Create gmf task, bind task to pipeline and load linked element jobs to the bind task
+I (1174) REC_SDCARD: [ 3.4 ] Create envent group and listening event from pipeline
+I (1181) REC_SDCARD: [ 4 ] Start audio_pipeline
+I (1185) ESP_GMF_FILE: Open, dir:2, uri:/sdcard/esp_gmf_rec001.aac
+I (1263) REC_SDCARD: [ 5 ] Wait for a while to stop record pipeline
+I (6872) : ┌───────────────────┬──────────┬─────────────┬─────────┬──────────┬───────────┬────────────┬───────┐
+I (6888) : │ Task              │ Core ID  │ Run Time    │ CPU     │ Priority │ Stack HWM │ State      │ Stack │
+I (6905) : ├───────────────────┼──────────┼─────────────┼─────────┼──────────┼───────────┼────────────┼───────┤
+I (6927) : │ IDLE0             │ 0        │ 506963      │  25.26% │ 0        │ 720       │ Ready      │ Intr  │
+I (6940) : │ gmf_rec           │ 0        │ 492176      │  24.52% │ 5        │ 37072     │ Blocked    │ Extr  │
+I (6950) : │ sys_monitor       │ 0        │ 4469        │   0.22% │ 1        │ 3180      │ Running    │ Extr  │
+I (6963) : │ main              │ 0        │ 0           │   0.00% │ 1        │ 1368      │ Blocked    │ Intr  │
+I (6972) : │ ipc0              │ 0        │ 0           │   0.00% │ 24       │ 528       │ Suspended  │ Intr  │
+I (6984) : ├───────────────────┼──────────┼─────────────┼─────────┼──────────┼───────────┼────────────┼───────┤
+I (7011) : │ IDLE1             │ 1        │ 1004007     │  50.02% │ 0        │ 792       │ Ready      │ Intr  │
+I (7024) : │ ipc1              │ 1        │ 0           │   0.00% │ 24       │ 536       │ Suspended  │ Intr  │
+I (7034) : ├───────────────────┼──────────┼─────────────┼─────────┼──────────┼───────────┼────────────┼───────┤
+I (7062) : │ Tmr Svc           │ 7fffffff │ 0           │   0.00% │ 1        │ 1360      │ Blocked    │ Intr  │
+I (7072) : └───────────────────┴──────────┴─────────────┴─────────┴──────────┴───────────┴────────────┴───────┘
+I (7105) MONITOR: Func:sys_monitor_task, Line:25, MEM Total:7349652 Bytes, Inter:318963 Bytes, Dram:318963 Bytes
+
+I (11283) ESP_GMF_FILE: CLose, 0x3c12b2c8, pos = 120509/0
+I (11292) REC_SDCARD: CB: RECV Pipeline EVT: el:OBJ_GET_TAG(event->from)-0x3c12b0b0, type:8192, sub:ESP_GMF_EVENT_STATE_STOPPED, payload:0x0, size:0,0x0
+I (11320) REC_SDCARD: [ 6 ] Destroy all the resources
+I (11416) main_task: Returned from app_main()
 ```
+
+## 故障排除
+
+### microSD 卡未挂载或无法写入
+
+- 确认 microSD 卡已正确插入且格式为 FAT32。
+- 若日志提示打开文件失败，请检查卡容量与写保护状态。
+
+### 无录音或编码失败
+
+- 确认板级已正确配置录音 codec（如 ES7210）与 I2S。
+- 若出现编码器初始化失败，请检查 menuconfig 中对应编码格式是否已启用。
+
+### 相关参考
+
+- 如需支持封装更多音频容器或获取视频支持，请参考 [esp_capture](../../../packages/esp_capture/README_CN.md)
+
+## 技术支持
+
+请按照下面的链接获取技术支持：
+
+- 技术支持参见 [esp32.com](https://esp32.com/viewforum.php?f=20) 论坛
+- 问题反馈与功能需求，请创建 [GitHub issue](https://github.com/espressif/esp-gmf/issues)
+
+我们会尽快回复。

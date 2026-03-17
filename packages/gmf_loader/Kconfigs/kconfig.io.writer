@@ -5,6 +5,57 @@ menu "GMF IO Writer"
         help
             Initialize GMF codec device writer
 
+        menu "CODEC Device Writer Configuration"
+            depends on GMF_IO_INIT_CODEC_DEV_TX
+
+            config GMF_IO_CODEC_DEV_TX_TASK_STACK
+                int "CODEC Device Writer Task Stack Size"
+                default 0
+                range 0 16384
+                help
+                    Configure the task stack size for the GMF CODEC Device Writer.
+
+            config GMF_IO_CODEC_DEV_TX_TASK_CORE
+                int "CODEC Device Writer Task Core"
+                default 0
+                range 0 1
+                help
+                    Configure the core on which the GMF CODEC Device Writer task will run.
+
+            config GMF_IO_CODEC_DEV_TX_TASK_PRIORITY
+                int "CODEC Device Writer Task Priority"
+                default 5
+                range 1 10
+                help
+                    Configure the task priority for the GMF CODEC Device Writer.
+
+            config GMF_IO_CODEC_DEV_TX_STACK_IN_EXT
+                bool "CODEC Device Writer Stack in External Memory"
+                default n
+                help
+                    Enable this option to allocate the CODEC Device Writer stack in external memory.
+
+            config GMF_IO_CODEC_DEV_TX_IO_SIZE
+                int "CODEC Device Writer IO Size"
+                default 3072
+                range 1024 20480
+                help
+                    Configure the size of the io for the GMF CODEC Device Writer.
+
+            config GMF_IO_CODEC_DEV_TX_OUT_BUF_SIZE
+                int "CODEC Device Writer Output Buffer Size"
+                default 16384
+                range 8192 65536
+                help
+                    Configure the size of the output buffer for the GMF CODEC Device Writer.
+
+            config GMF_IO_CODEC_DEV_TX_SPEED_MONITOR
+                bool "CODEC Device Writer Speed Monitor Enable"
+                default n
+                help
+                    Configure the speed monitor enable for the GMF CODEC Device Writer.
+        endmenu
+
     config GMF_IO_INIT_FILE_WRITER
         bool "Initialize GMF File Writer"
         default y
@@ -23,6 +74,53 @@ menu "GMF IO Writer"
                     This setting affects the performance of file writing operations.
                     Larger buffer sizes may improve write performance but consume more memory.
                     If the SOC does not have the SOC_SDMMC_PSRAM_DMA_CAPABLE capability, internal memory will be used.
+
+            config GMF_IO_FILE_WRITER_TASK_STACK
+                int "File Writer Task Stack Size"
+                default 0
+                range 0 16384
+                help
+                    Configure the task stack size for the GMF File Writer.
+
+            config GMF_IO_FILE_WRITER_TASK_CORE
+                int "File Writer Task Core"
+                default 0
+                range 0 1
+                help
+                    Configure the core on which the GMF File Writer task will run.
+
+            config GMF_IO_FILE_WRITER_TASK_PRIORITY
+                int "File Writer Task Priority"
+                default 5
+                range 1 10
+                help
+                    Configure the task priority for the GMF File Writer.
+
+            config GMF_IO_FILE_WRITER_STACK_IN_EXT
+                bool "File Writer Stack in External Memory"
+                default n
+                help
+                    Enable this option to allocate the File Writer stack in external memory.
+
+            config GMF_IO_FILE_WRITER_IO_SIZE
+                int "File Writer IO Size"
+                default 3072
+                range 1024 20480
+                help
+                    Configure the size of the io for the GMF File Writer.
+
+            config GMF_IO_FILE_WRITER_OUT_BUF_SIZE
+                int "File Writer Output Buffer Size"
+                default 16384
+                range 8192 65536
+                help
+                    Configure the size of the output buffer for the GMF File Writer.
+
+            config GMF_IO_FILE_WRITER_SPEED_MONITOR
+                bool "File Writer Speed Monitor Enable"
+                default n
+                help
+                    Configure the speed monitor enable for the GMF File Writer.
         endmenu
 
     config GMF_IO_INIT_HTTP_WRITER
@@ -61,12 +159,25 @@ menu "GMF IO Writer"
                 help
                     Enable this option to allocate the HTTP Writer stack in external memory.
 
+            config GMF_IO_HTTP_WRITER_IO_SIZE
+                int "HTTP Writer IO Size"
+                default 3072
+                range 1024 20480
+                help
+                    Configure the size of the io for the GMF HTTP Writer.
+
             config GMF_IO_HTTP_WRITER_OUT_BUF_SIZE
                 int "HTTP Writer Output Buffer Size"
-                default 8192
-                range 1024 131072
+                default 65536
+                range 16384 1048576
                 help
                     Configure the size of the output buffer for the GMF HTTP Writer.
+
+            config GMF_IO_HTTP_WRITER_SPEED_MONITOR
+                bool "HTTP Writer Speed Monitor Enable"
+                default n
+                help
+                    Configure the speed monitor enable for the GMF HTTP Writer.
 
             config GMF_IO_HTTP_WRITER_CERT_PEM
                 string "HTTP Writer SSL Certificate (PEM)"

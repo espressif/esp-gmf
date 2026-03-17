@@ -1,0 +1,35 @@
+version: "0.8.0"
+description: Espressif Bluetooth Audio Module
+url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_bt_audio
+documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_bt_audio/README.md"
+issues: "https://github.com/espressif/esp-gmf/issues"
+
+tags:
+   - "Bluetooth"
+   - "Classic"
+   - "GMF"
+   - "A2DP"
+   - "HFP"
+   - "AVRC"
+
+dependencies:
+  idf : ">=5.5"
+  espressif/esp_audio_codec:
+    require: "public"
+    version: "^2.4"
+  espressif/gmf_core:
+    require: "public"
+    version: "^0.8"
+    matches:
+      - if: "$CONFIG{ESP_BT_AUDIO_GMF_IO_SUPPORT} == True"
+  espressif/gmf_io:
+    require: "public"
+    version: "^0.8"
+    matches:
+      - if: "$CONFIG{ESP_BT_AUDIO_GMF_IO_SUPPORT} == True"
+
+targets:
+  - esp32
+
+examples:
+  - path: "./examples/bt_audio"

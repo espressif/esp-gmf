@@ -1,0 +1,1 @@
+set(COMPONENT_EMBED_TXTFILES alarm.mp3 dingdong.mp3 haode.mp3 new_message.mp3)

@@ -117,6 +117,10 @@ static esp_gmf_job_err_t esp_gmf_deinterleave_process(esp_gmf_element_handle_t s
     samples_num = deinterleave->in_load->valid_size / (deinterleave->bytes_per_sample * deinterleave->channel);
     bytes = samples_num * deinterleave->bytes_per_sample;
     if (((bytes * deinterleave->channel) != deinterleave->in_load->valid_size) || (load_ret < ESP_GMF_IO_OK)) {
+        if (load_ret == ESP_GMF_IO_ABORT) {
+            out_len = ESP_GMF_JOB_ERR_ABORT;
+            goto __deintlv_release;
+        }
         ESP_LOGE(TAG, "Invalid in load size %d, ret %d", deinterleave->in_load->valid_size, load_ret);
         out_len = ESP_GMF_JOB_ERR_FAIL;
         goto __deintlv_release;

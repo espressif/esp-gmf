@@ -95,6 +95,10 @@ static esp_gmf_job_err_t esp_gmf_rate_cvt_process(esp_gmf_element_handle_t self,
     samples_num = in_load->valid_size / (rate_cvt->bytes_per_sample);
     bytes = samples_num * rate_cvt->bytes_per_sample;
     if((bytes != in_load->valid_size) || (load_ret < ESP_GMF_IO_OK)) {
+        if (load_ret == ESP_GMF_IO_ABORT) {
+            out_len = ESP_GMF_JOB_ERR_ABORT;
+            goto __rate_release;
+        }
         ESP_LOGE(TAG, "Invalid in load size %d, ret %d", in_load->valid_size, load_ret);
         out_len = ESP_GMF_JOB_ERR_FAIL;
         goto __rate_release;
@@ -232,6 +236,20 @@ esp_gmf_err_t esp_gmf_rate_cvt_set_dest_rate(esp_gmf_element_handle_t handle, ui
     return ESP_GMF_ERR_OK;
 }
 
+static esp_gmf_job_err_t esp_gmf_rate_cvt_reset(esp_gmf_element_handle_t handle, void *para)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_rate_cvt_t *rate_cvt = (esp_gmf_rate_cvt_t *)handle;
+    if (rate_cvt->rate_hd) {
+        esp_ae_err_t ret = esp_ae_rate_cvt_reset(rate_cvt->rate_hd);
+        if (ret != ESP_AE_ERR_OK) {
+            return ESP_GMF_ERR_FAIL;
+        }
+    }
+    ESP_LOGD(TAG, "Rate converter reset");
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_rate_cvt_init(esp_ae_rate_cvt_cfg_t *config, esp_gmf_element_handle_t *handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
@@ -267,6 +285,7 @@ esp_gmf_err_t esp_gmf_rate_cvt_init(esp_ae_rate_cvt_cfg_t *config, esp_gmf_eleme
     ESP_GMF_ELEMENT_GET(rate_cvt)->ops.event_receiver = rate_cvt_received_event_handler;
     ESP_GMF_ELEMENT_GET(rate_cvt)->ops.load_caps = _load_rate_cvt_caps_func;
     ESP_GMF_ELEMENT_GET(rate_cvt)->ops.load_methods = _load_rate_cvt_methods_func;
+    ESP_GMF_ELEMENT_GET(rate_cvt)->ops.reset = esp_gmf_rate_cvt_reset;
     *handle = obj;
     ESP_LOGD(TAG, "Initialization, %s-%p", OBJ_GET_TAG(obj), obj);
     return ESP_GMF_ERR_OK;

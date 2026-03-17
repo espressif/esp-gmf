@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -70,6 +70,9 @@ typedef struct {
     EventGroupHandle_t        pipe_sync_evt;
     void                      (*config_func)(esp_gmf_element_handle_t, void *);
     bool                      is_end;
+    bool                      is_first_open;
+    bool                      is_do_open_set;
+    int32_t                   cfg_task_prio;
 } audio_el_res_t;
 
 void eq_config_callback(esp_gmf_element_handle_t self, void *ctx);
@@ -91,6 +94,10 @@ void bit_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx);
 void ch_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx);
 
 void rate_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx);
+
+void drc_config_callback(esp_gmf_element_handle_t self, void *ctx);
+
+void mbc_config_callback(esp_gmf_element_handle_t self, void *ctx);
 
 #ifdef __cplusplus
 }

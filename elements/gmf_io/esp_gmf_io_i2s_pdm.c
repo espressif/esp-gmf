@@ -13,15 +13,15 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 
-#define PDM_TX_DONE_BIT BIT(0)
+#define PDM_TX_DONE_BIT  BIT(0)
 
 /**
- * @brief I2S pdm io context in GMF
+ * @brief  I2S pdm io context in GMF
  */
 typedef struct {
-    esp_gmf_io_t       base;      /*!< The GMF i2s pdm io handle */
-    bool               is_open;   /*!< The flag of whether opened */
-    EventGroupHandle_t pdm_event; /*!< The event group handle of i2s pdm */
+    esp_gmf_io_t        base;       /*!< The GMF i2s pdm io handle */
+    bool                is_open;    /*!< The flag of whether opened */
+    EventGroupHandle_t  pdm_event;  /*!< The event group handle of i2s pdm */
 } i2s_pdm_io_stream_t;
 
 static const char *TAG = "ESP_GMF_IIS_PDM";
@@ -82,12 +82,6 @@ static esp_gmf_err_io_t _i2s_pdm_acquire_read(esp_gmf_io_handle_t handle, void *
 
 static esp_gmf_err_io_t _i2s_pdm_release_read(esp_gmf_io_handle_t handle, void *payload, int block_ticks)
 {
-    i2s_pdm_io_stream_t *i2s_pdm_io = (i2s_pdm_io_stream_t *)handle;
-    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)i2s_pdm_io, &info);
-    ESP_LOGD(TAG, "Update len = %d, pos = %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, pload->valid_size);
     return ESP_GMF_IO_OK;
 }
 
@@ -107,16 +101,10 @@ static esp_gmf_err_io_t _i2s_pdm_release_write(esp_gmf_io_handle_t handle, void 
         ESP_LOGE(TAG, "I2S write failed, valid: %d", pload->valid_size);
         return ESP_GMF_IO_FAIL;
     }
-    esp_gmf_info_file_t info = {0};
     if (pload->is_done && i2s_pdm_io->pdm_event) {
         ESP_LOGE(TAG, "Clear the PDM_TX_DONE_BIT, len = %d", pload->valid_size);
         xEventGroupClearBits(i2s_pdm_io->pdm_event, PDM_TX_DONE_BIT);
     }
-    if (wlen > 0) {
-        esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, wlen);
-    }
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)i2s_pdm_io, &info);
-    ESP_LOGD(TAG, "Write len = %d, pos = %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
     return ESP_GMF_IO_OK;
 }
 
@@ -173,16 +161,14 @@ esp_gmf_err_t esp_gmf_io_i2s_pdm_init(i2s_pdm_io_cfg_t *config, esp_gmf_io_handl
     *io = NULL;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     i2s_pdm_io_stream_t *i2s_pdm_io = esp_gmf_oal_calloc(1, sizeof(i2s_pdm_io_stream_t));
-    ESP_GMF_MEM_VERIFY(TAG, i2s_pdm_io, {return ESP_GMF_ERR_MEMORY_LACK;},
-                       "I2s pdm stream", sizeof(i2s_pdm_io_stream_t));
+    ESP_GMF_MEM_VERIFY(TAG, i2s_pdm_io, {return ESP_GMF_ERR_MEMORY_LACK;}, "I2s pdm stream", sizeof(i2s_pdm_io_stream_t));
     i2s_pdm_io->base.dir = config->dir;
     i2s_pdm_io->base.type = ESP_GMF_IO_TYPE_BYTE;
     esp_gmf_obj_t *obj = (esp_gmf_obj_t *)i2s_pdm_io;
     obj->new_obj = _i2s_pdm_new;
     obj->del_obj = _i2s_pdm_delete;
     i2s_pdm_io_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(*config));
-    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _i2s_pdm_fail;},
-                       "I2s pdm stream configuration", sizeof(*config));
+    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _i2s_pdm_fail;}, "I2s pdm stream configuration", sizeof(*config));
     memcpy(cfg, config, sizeof(*config));
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
     ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_i2s_pdm" : config->name));
@@ -191,7 +177,6 @@ esp_gmf_err_t esp_gmf_io_i2s_pdm_init(i2s_pdm_io_cfg_t *config, esp_gmf_io_handl
     i2s_pdm_io->base.open = _i2s_pdm_open;
     i2s_pdm_io->base.seek = _i2s_pdm_seek;
     i2s_pdm_io->base.reset = _i2s_pdm_reset;
-    esp_gmf_io_init(obj, NULL);
     if (cfg->dir == ESP_GMF_IO_DIR_WRITER) {
         i2s_pdm_io->base.acquire_write = _i2s_pdm_acquire_write;
         i2s_pdm_io->base.release_write = _i2s_pdm_release_write;
@@ -201,6 +186,23 @@ esp_gmf_err_t esp_gmf_io_i2s_pdm_init(i2s_pdm_io_cfg_t *config, esp_gmf_io_handl
     } else {
         ESP_LOGW(TAG, "Does not set read or write function");
         ret = ESP_GMF_ERR_NOT_SUPPORT;
+        goto _i2s_pdm_fail;
+    }
+    esp_gmf_io_cfg_t io_cfg = {
+        .thread = {
+            .stack = config->io_cfg.thread.stack,
+            .prio = config->io_cfg.thread.prio,
+            .core = config->io_cfg.thread.core,
+            .stack_in_ext = config->io_cfg.thread.stack_in_ext,
+        },
+        .buffer_cfg = {
+            .io_size = config->io_cfg.buffer_cfg.io_size,
+            .buffer_size = config->io_cfg.buffer_cfg.buffer_size,
+        },
+        .enable_speed_monitor = config->io_cfg.enable_speed_monitor,
+    };
+    ret = esp_gmf_io_init(obj, &io_cfg);
+    if (ret != ESP_GMF_ERR_OK) {
         goto _i2s_pdm_fail;
     }
     *io = obj;

@@ -1,16 +1,22 @@
 dependencies:
   espressif/gmf_core:
-    version: "^0.7"
+    version: "^0.8"
     override_path:  ../../../../../gmf_core
+  espressif/gmf_io:
+    version: "^0.8"
+    override_path:  ../../../../../elements/gmf_io
   espressif/gmf_audio:
-    version: "^0.7"
+    version: "^0.8"
     override_path: ../../../../../elements/gmf_audio
   espressif/esp_audio_render:
-    version: "^0.7.0"
+    version: "^0.8.0"
     override_path: ../../../../esp_audio_render
   espressif/gmf_app_utils:
-    version: "^0.7.0"
+    version: "^0.8.0"
     override_path: ../../../../gmf_app_utils
   espressif/esp_audio_simple_player:
     version: "^0.9"
     override_path: ../../../../esp_audio_simple_player
+  espressif/esp_board_manager:
+    version: "*"
+    override_path: ../../../../esp_board_manager

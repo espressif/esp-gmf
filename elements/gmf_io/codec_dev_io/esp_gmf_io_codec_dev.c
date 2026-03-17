@@ -12,11 +12,11 @@
 #include "esp_log.h"
 
 /**
- * @brief Codec device io context in GMF
+ * @brief  Codec device io context in GMF
  */
 typedef struct {
-    esp_gmf_io_t base;    /*!< The GMF codec dev io handle */
-    bool         is_open; /*!< The flag of whether opened */
+    esp_gmf_io_t  base;     /*!< The GMF codec dev io handle */
+    bool          is_open;  /*!< The flag of whether opened */
 } codec_dev_io_stream_t;
 
 static const char *TAG = "ESP_GMF_CODEC_DEV";
@@ -52,12 +52,6 @@ static esp_gmf_err_io_t _codec_dev_acquire_read(esp_gmf_io_handle_t handle, void
 
 static esp_gmf_err_io_t _codec_dev_release_read(esp_gmf_io_handle_t handle, void *payload, int block_ticks)
 {
-    codec_dev_io_stream_t *codec_dev_io = (codec_dev_io_stream_t *)handle;
-    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)codec_dev_io, &info);
-    ESP_LOGD(TAG, "Update len = %d, pos = %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, pload->valid_size);
     return ESP_GMF_IO_OK;
 }
 
@@ -72,17 +66,10 @@ static esp_gmf_err_io_t _codec_dev_release_write(esp_gmf_io_handle_t handle, voi
     esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
     codec_dev_io_cfg_t *cfg = (codec_dev_io_cfg_t *)OBJ_GET_CFG(codec_dev_io);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_IO_FAIL;);
-    size_t wlen = pload->valid_size;
     if (esp_codec_dev_write(cfg->dev, pload->buf, pload->valid_size) != ESP_GMF_ERR_OK) {
         ESP_LOGE(TAG, "Write failed, valid: %d", pload->valid_size);
         return ESP_GMF_IO_FAIL;
     }
-    esp_gmf_info_file_t info = {0};
-    if (wlen > 0) {
-        esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, wlen);
-    }
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)codec_dev_io, &info);
-    ESP_LOGD(TAG, "Write len: %d, pos: %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
     return ESP_GMF_IO_OK;
 }
 
@@ -131,8 +118,7 @@ esp_gmf_err_t esp_gmf_io_codec_dev_init(codec_dev_io_cfg_t *config, esp_gmf_io_h
     obj->new_obj = esp_gmf_io_codec_dev_new;
     obj->del_obj = _codec_dev_delete;
     codec_dev_io_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(*config));
-    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _codec_dev_fail;},
-                       "codec device configuration", sizeof(*config));
+    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _codec_dev_fail;}, "codec device configuration", sizeof(*config));
     memcpy(cfg, config, sizeof(*config));
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
     ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_codec_dev" : config->name));
@@ -141,7 +127,6 @@ esp_gmf_err_t esp_gmf_io_codec_dev_init(codec_dev_io_cfg_t *config, esp_gmf_io_h
     codec_dev_io->base.open = _codec_dev_open;
     codec_dev_io->base.seek = _codec_dev_seek;
     codec_dev_io->base.reset = NULL;
-    esp_gmf_io_init(obj, NULL);
     if (codec_dev_io->base.dir == ESP_GMF_IO_DIR_WRITER) {
         codec_dev_io->base.acquire_write = _codec_dev_acquire_write;
         codec_dev_io->base.release_write = _codec_dev_release_write;
@@ -151,6 +136,23 @@ esp_gmf_err_t esp_gmf_io_codec_dev_init(codec_dev_io_cfg_t *config, esp_gmf_io_h
     } else {
         ESP_LOGE(TAG, "Does not set read or write function");
         ret = ESP_GMF_ERR_NOT_SUPPORT;
+        goto _codec_dev_fail;
+    }
+    esp_gmf_io_cfg_t io_cfg = {
+        .thread = {
+            .stack = config->io_cfg.thread.stack,
+            .prio = config->io_cfg.thread.prio,
+            .core = config->io_cfg.thread.core,
+            .stack_in_ext = config->io_cfg.thread.stack_in_ext,
+        },
+        .buffer_cfg = {
+            .io_size = config->io_cfg.buffer_cfg.io_size,
+            .buffer_size = config->io_cfg.buffer_cfg.buffer_size,
+        },
+        .enable_speed_monitor = config->io_cfg.enable_speed_monitor,
+    };
+    ret = esp_gmf_io_init(obj, &io_cfg);
+    if (ret != ESP_GMF_ERR_OK) {
         goto _codec_dev_fail;
     }
     *io = obj;

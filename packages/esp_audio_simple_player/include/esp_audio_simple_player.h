@@ -6,6 +6,8 @@
  */
 
 #pragma once
+
+#include <stdbool.h>
 #include "esp_gmf_err.h"
 
 #ifdef __cplusplus

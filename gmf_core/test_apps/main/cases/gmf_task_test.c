@@ -13,13 +13,15 @@
 static const char *TAG = "TEST_ESP_GMF_TASK";
 
 typedef struct {
-    uint32_t prepare : 8;
-    uint32_t working : 16;
-    uint32_t cleanup : 8;
-    esp_gmf_job_err_t prepare_return;
-    esp_gmf_job_err_t working_return;
-    esp_gmf_job_err_t cleanup_return;
-}test_gmf_task_count_t;
+    uint32_t           prepare : 5;
+    uint32_t           working : 16;
+    uint32_t           cleanup : 5;
+    uint32_t           reset   : 6;
+    esp_gmf_job_err_t  prepare_return;
+    esp_gmf_job_err_t  working_return;
+    esp_gmf_job_err_t  cleanup_return;
+    esp_gmf_job_err_t  reset_return;
+} test_gmf_task_count_t;
 
 test_gmf_task_count_t test_gmf_task1_count = {0};
 test_gmf_task_count_t test_gmf_task2_count = {0};
@@ -36,21 +38,21 @@ esp_gmf_job_err_t prepare2(void *self, void *para)
 {
     printf("%s,%p,%p\r\n", __func__, self, para);
     test_gmf_task2_count.prepare++;
-    return test_gmf_task2_count.prepare_return;;
+    return test_gmf_task2_count.prepare_return;
 }
 esp_gmf_job_err_t prepare3(void *self, void *para)
 {
     printf("%s,%p,%p\r\n", __func__, self, para);
     test_gmf_task3_count.prepare++;
-    return test_gmf_task3_count.prepare_return;;
+    return test_gmf_task3_count.prepare_return;
 }
 esp_gmf_job_err_t prepare4(void *self, void *para)
 {
     printf("%s,%p,%p\r\n", __func__, self, para);
     test_gmf_task4_count.prepare++;
-    return test_gmf_task4_count.prepare_return;;
+    return test_gmf_task4_count.prepare_return;
+    ;
 }
-
 esp_gmf_job_err_t working1(void *self, void *para)
 {
     vTaskDelay(50 / portTICK_PERIOD_MS);
@@ -79,7 +81,6 @@ esp_gmf_job_err_t working4(void *self, void *para)
     test_gmf_task4_count.working++;
     return test_gmf_task4_count.working_return;
 }
-
 esp_gmf_job_err_t cleanup1(void *self, void *para)
 {
     vTaskDelay(200 / portTICK_PERIOD_MS);
@@ -108,6 +109,31 @@ esp_gmf_job_err_t cleanup4(void *self, void *para)
     test_gmf_task4_count.cleanup++;
     return test_gmf_task4_count.cleanup_return;
 }
+esp_gmf_job_err_t reset1(void *self, void *para)
+{
+    printf("%s,%p,%p\r\n", __func__, self, para);
+    test_gmf_task1_count.reset++;
+    return test_gmf_task1_count.reset_return;
+}
+esp_gmf_job_err_t reset2(void *self, void *para)
+{
+    printf("%s,%p,%p\r\n", __func__, self, para);
+    test_gmf_task2_count.reset++;
+    return test_gmf_task2_count.reset_return;
+}
+esp_gmf_job_err_t reset3(void *self, void *para)
+{
+    printf("%s,%p,%p\r\n", __func__, self, para);
+    test_gmf_task3_count.reset++;
+    return test_gmf_task3_count.reset_return;
+}
+esp_gmf_job_err_t reset4(void *self, void *para)
+{
+    printf("%s,%p,%p\r\n", __func__, self, para);
+    test_gmf_task4_count.reset++;
+    return test_gmf_task4_count.reset_return;
+}
+
 static void clear_test_gmf_task_count(void)
 {
     memset(&test_gmf_task4_count, 0, sizeof(test_gmf_task4_count));
@@ -116,22 +142,88 @@ static void clear_test_gmf_task_count(void)
     memset(&test_gmf_task1_count, 0, sizeof(test_gmf_task1_count));
 }
 
+// Register standard prepare and working jobs for testing
+static void register_standard_test_jobs(esp_gmf_task_handle_t hd)
+{
+    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+
+    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, true);
+}
+
+static const char *get_strategy_action_str(int action)
+{
+    switch (action) {
+        case GMF_TASK_STRATEGY_ACTION_DEFAULT:
+            return "DEFAULT";
+        case GMF_TASK_STRATEGY_ACTION_RESET:
+            return "RESET";
+        case GMF_TASK_STRATEGY_ACTION_STOP:
+            return "STOP";
+        default:
+            return "UNKNOWN";
+    }
+}
+
 static esp_gmf_err_t esp_gmf_task_evt(esp_gmf_event_pkt_t *evt, void *ctx)
 {
     esp_gmf_task_handle_t tsk = evt->from;
-    ESP_LOGI(TAG, "TASK EVT, tsk:%s-%p, t:%x, sub:%s, pld:%p, sz:%d",
-             OBJ_GET_TAG(tsk), evt->from, evt->type, esp_gmf_event_get_state_str(evt->sub), evt->payload, evt->payload_size);
     if (evt->type == ESP_GMF_EVT_TYPE_LOADING_JOB) {
+        ESP_LOGI(TAG, "TASK EVT, LOADING_JOB, tsk:%s, action:%s, pld:%p, sz:%d",
+                 OBJ_GET_TAG(tsk), get_strategy_action_str(evt->sub), evt->payload, evt->payload_size);
         switch (evt->sub) {
-            case ESP_GMF_EVENT_STATE_ERROR:
-            case ESP_GMF_EVENT_STATE_STOPPED:
-            case ESP_GMF_EVENT_STATE_FINISHED:
-                esp_gmf_task_register_ready_job(tsk, NULL, cleanup1, ESP_GMF_JOB_TIMES_ONCE, NULL, true);
-                esp_gmf_task_register_ready_job(tsk, NULL, cleanup2, ESP_GMF_JOB_TIMES_ONCE, NULL, true);
-                esp_gmf_task_register_ready_job(tsk, NULL, cleanup3, ESP_GMF_JOB_TIMES_ONCE, NULL, true);
+            case GMF_TASK_STRATEGY_ACTION_STOP:
+                esp_gmf_task_register_ready_job(tsk, NULL, cleanup1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+                esp_gmf_task_register_ready_job(tsk, NULL, cleanup2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
+                esp_gmf_task_register_ready_job(tsk, NULL, cleanup3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
                 esp_gmf_task_register_ready_job(tsk, NULL, cleanup4, ESP_GMF_JOB_TIMES_ONCE, NULL, true);
                 break;
+            case GMF_TASK_STRATEGY_ACTION_RESET:
+                esp_gmf_task_insert_head_job(tsk, NULL, reset1, ESP_GMF_JOB_TIMES_ONCE, NULL);
+                esp_gmf_task_insert_head_job(tsk, NULL, reset2, ESP_GMF_JOB_TIMES_ONCE, NULL);
+                esp_gmf_task_insert_head_job(tsk, NULL, reset3, ESP_GMF_JOB_TIMES_ONCE, NULL);
+                esp_gmf_task_insert_head_job(tsk, NULL, reset4, ESP_GMF_JOB_TIMES_ONCE, NULL);
+
+                // Reset the working_return to OK
+                test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_OK;
+                test_gmf_task2_count.working_return = ESP_GMF_JOB_ERR_OK;
+                test_gmf_task3_count.working_return = ESP_GMF_JOB_ERR_OK;
+                test_gmf_task4_count.working_return = ESP_GMF_JOB_ERR_OK;
+                break;
         }
+    } else if (evt->type == ESP_GMF_EVT_TYPE_CHANGE_STATE) {
+        ESP_LOGI(TAG, "TASK EVT, STATE CHANGE, tsk:%s, state:%s, pld:%p, sz:%d",
+                 OBJ_GET_TAG(tsk), esp_gmf_event_get_state_str(evt->sub), evt->payload, evt->payload_size);
+    } else if (evt->type == ESP_GMF_EVT_TYPE_REPORT_INFO) {
+        ESP_LOGI(TAG, "TASK EVT, REPORT_INFO, tsk:%s, pld:%p, sz:%d",
+                 OBJ_GET_TAG(tsk), evt->payload, evt->payload_size);
+    } else {
+        ESP_LOGW(TAG, "TASK EVT, UNKNOWN, tsk:%s, t:%x, pld:%p, sz:%d",
+                 OBJ_GET_TAG(tsk), evt->type, evt->payload, evt->payload_size);
+    }
+    return ESP_GMF_ERR_OK;
+}
+
+// Strategy function context to store action for abort/finish
+typedef struct {
+    uint8_t abort_action;
+    uint8_t finish_action;
+} test_strategy_ctx_t;
+
+static esp_gmf_err_t task_strategy_func(esp_gmf_task_handle_t handle, uint8_t strategy_type, void *ctx, uint8_t *out_action)
+{
+    test_strategy_ctx_t *strategy_ctx = (test_strategy_ctx_t *)ctx;
+    if (strategy_type == GMF_TASK_STRATEGY_TYPE_ABORT) {
+        *out_action = strategy_ctx->abort_action;
+    } else if (strategy_type == GMF_TASK_STRATEGY_TYPE_FINISH) {
+        *out_action = strategy_ctx->finish_action;
+    } else {
+        *out_action = GMF_TASK_STRATEGY_ACTION_DEFAULT;
     }
     return ESP_GMF_ERR_OK;
 }
@@ -144,9 +236,7 @@ TEST_CASE("Deinit after init directly", "[ESP_GMF_TASK]")
     esp_gmf_task_init(&cfg, &hd);
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_NOT_SUPPORT, esp_gmf_task_pause(hd));
-
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_NOT_SUPPORT, esp_gmf_task_resume(hd));
-
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
 
@@ -164,15 +254,7 @@ TEST_CASE("Working to done with manual register cleanup", "[ESP_GMF_TASK]")
     esp_gmf_task_handle_t hd = NULL;
 
     esp_gmf_task_init(&cfg, &hd);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-
-    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    register_standard_test_jobs(hd);
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
     vTaskDelay(2000 / portTICK_PERIOD_MS);
@@ -208,7 +290,7 @@ TEST_CASE("Working to done with manual register cleanup", "[ESP_GMF_TASK]")
     TEST_ASSERT_NOT_EQUAL(0, test_gmf_task3_count.working);
 
     ESP_LOGI(TAG, "task1: %d, task2: %d, task3: %d, task4: %d", test_gmf_task1_count.working,
-            test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
+             test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
     if ((test_gmf_task1_count.working == test_gmf_task2_count.working) && test_gmf_task1_count.working == test_gmf_task3_count.working) {
         // OK
         TEST_ASSERT_TRUE(true);
@@ -229,15 +311,7 @@ TEST_CASE("Working to done with auto register cleanup", "[ESP_GMF_TASK]")
 
     esp_gmf_task_init(&cfg, &hd);
     esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-
-    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    register_standard_test_jobs(hd);
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
     vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -271,7 +345,7 @@ TEST_CASE("Working to done with auto register cleanup", "[ESP_GMF_TASK]")
     TEST_ASSERT_NOT_EQUAL(0, test_gmf_task4_count.working);
 
     ESP_LOGI(TAG, "task1: %d, task2: %d, task3: %d, task4: %d", test_gmf_task1_count.working,
-            test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
+             test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
 }
 
 TEST_CASE("Working with CONTINUE", "[ESP_GMF_TASK]")
@@ -293,15 +367,7 @@ TEST_CASE("Working with CONTINUE", "[ESP_GMF_TASK]")
 
     esp_gmf_task_init(&cfg, &hd);
     esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-
-    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    register_standard_test_jobs(hd);
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
     vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -344,7 +410,7 @@ TEST_CASE("Working with CONTINUE", "[ESP_GMF_TASK]")
     TEST_ASSERT_NOT_EQUAL(0, test_gmf_task4_count.working);
 
     ESP_LOGI(TAG, "task1: %d, task2: %d, task3: %d, task4: %d", test_gmf_task1_count.working,
-            test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
+             test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
     if ((test_gmf_task1_count.working >= test_gmf_task2_count.working)
         && (test_gmf_task2_count.working > test_gmf_task3_count.working)
         && (test_gmf_task3_count.working > test_gmf_task4_count.working)) {
@@ -375,15 +441,7 @@ TEST_CASE("Working with TRUNCATE", "[ESP_GMF_TASK]")
 
     esp_gmf_task_init(&cfg, &hd);
     esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-
-    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    register_standard_test_jobs(hd);
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
     vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -426,7 +484,7 @@ TEST_CASE("Working with TRUNCATE", "[ESP_GMF_TASK]")
     TEST_ASSERT_NOT_EQUAL(0, test_gmf_task4_count.working);
 
     ESP_LOGI(TAG, "task1: %d, task2: %d, task3: %d, task4: %d", test_gmf_task1_count.working,
-            test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
+             test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
     if ((test_gmf_task1_count.working < test_gmf_task2_count.working)
         && (test_gmf_task2_count.working < test_gmf_task3_count.working)
         && (test_gmf_task3_count.working <= test_gmf_task4_count.working)) {
@@ -435,10 +493,7 @@ TEST_CASE("Working with TRUNCATE", "[ESP_GMF_TASK]")
     } else {
         TEST_ASSERT_FALSE(true);
     }
-
 }
-
-
 TEST_CASE("Stopped by stop API", "[ESP_GMF_TASK]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
@@ -452,15 +507,7 @@ TEST_CASE("Stopped by stop API", "[ESP_GMF_TASK]")
 
     esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
 
-    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-
-    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    register_standard_test_jobs(hd);
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
     vTaskDelay(200 / portTICK_PERIOD_MS);
@@ -492,21 +539,12 @@ TEST_CASE("Stopped by stop API", "[ESP_GMF_TASK]")
     TEST_ASSERT_NOT_EQUAL(0, test_gmf_task4_count.working);
 
     ESP_LOGI(TAG, "task1: %d, task2: %d, task3: %d, task4: %d", test_gmf_task1_count.working,
-            test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
-    // if ((test_gmf_task1_count.working == test_gmf_task2_count.working)
-    //     && (test_gmf_task2_count.working > test_gmf_task3_count.working)
-    //     && (test_gmf_task3_count.working >= test_gmf_task4_count.working)) {
-    //     // OK
-    //     TEST_ASSERT_TRUE(true);
-    // } else {
-    //     TEST_ASSERT_FALSE(true);
-    // }
+             test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
 }
 
 TEST_CASE("Return error on the PREPARE stage", "[ESP_GMF_TASK]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-
     clear_test_gmf_task_count();
 
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
@@ -517,16 +555,7 @@ TEST_CASE("Return error on the PREPARE stage", "[ESP_GMF_TASK]")
     esp_gmf_task_init(&cfg, &hd);
     esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
 
-    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-
-    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-
+    register_standard_test_jobs(hd);
     test_gmf_task3_count.prepare_return = ESP_GMF_JOB_ERR_FAIL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
 
@@ -557,14 +586,13 @@ TEST_CASE("Return error on the PREPARE stage", "[ESP_GMF_TASK]")
     TEST_ASSERT_EQUAL(0, test_gmf_task4_count.working);
 
     ESP_LOGI(TAG, "task1: %d, task2: %d, task3: %d, task4: %d", test_gmf_task1_count.working,
-            test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
+             test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
 TEST_CASE("Return error on the WORKING stage", "[ESP_GMF_TASK]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-    // esp_log_level_set("ESP_GMF_TASK", ESP_LOG_DEBUG);
     clear_test_gmf_task_count();
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
@@ -574,16 +602,7 @@ TEST_CASE("Return error on the WORKING stage", "[ESP_GMF_TASK]")
     esp_gmf_task_init(&cfg, &hd);
     esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
 
-    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-
-    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-
+    register_standard_test_jobs(hd);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
     vTaskDelay(200 / portTICK_PERIOD_MS);
 
@@ -603,19 +622,17 @@ TEST_CASE("Return error on the WORKING stage", "[ESP_GMF_TASK]")
     TEST_ASSERT_EQUAL(1, test_gmf_task2_count.cleanup);
     TEST_ASSERT_EQUAL(1, test_gmf_task3_count.cleanup);
     TEST_ASSERT_EQUAL(1, test_gmf_task4_count.cleanup);
-
     TEST_ASSERT_EQUAL(1, test_gmf_task1_count.prepare);
     TEST_ASSERT_EQUAL(1, test_gmf_task2_count.prepare);
     TEST_ASSERT_EQUAL(1, test_gmf_task3_count.prepare);
     TEST_ASSERT_EQUAL(1, test_gmf_task4_count.prepare);
 
     TEST_ASSERT_NOT_EQUAL(0, test_gmf_task1_count.working);
-    TEST_ASSERT_NOT_EQUAL(0, test_gmf_task2_count.working);
     TEST_ASSERT_EQUAL(0, test_gmf_task3_count.working);
     TEST_ASSERT_EQUAL(0, test_gmf_task4_count.working);
 
     ESP_LOGI(TAG, "task1: %d, task2: %d, task3: %d, task4: %d", test_gmf_task1_count.working,
-            test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
+             test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
 
     ESP_GMF_MEM_SHOW(TAG);
 }
@@ -623,7 +640,6 @@ TEST_CASE("Return error on the WORKING stage", "[ESP_GMF_TASK]")
 TEST_CASE("Return error on the CLEANUP stage", "[ESP_GMF_TASK]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-
     clear_test_gmf_task_count();
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
@@ -633,18 +649,10 @@ TEST_CASE("Return error on the CLEANUP stage", "[ESP_GMF_TASK]")
     esp_gmf_task_init(&cfg, &hd);
     esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
 
-    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-
-    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    register_standard_test_jobs(hd);
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
-    vTaskDelay(200 / portTICK_PERIOD_MS);
+    vTaskDelay(250 / portTICK_PERIOD_MS);
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_pause(hd));
     vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -679,9 +687,8 @@ TEST_CASE("Return error on the CLEANUP stage", "[ESP_GMF_TASK]")
     TEST_ASSERT_NOT_EQUAL(0, test_gmf_task4_count.working);
 
     ESP_LOGI(TAG, "task1: %d, task2: %d, task3: %d, task4: %d", test_gmf_task1_count.working,
-            test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
-    if ((test_gmf_task1_count.working > test_gmf_task2_count.working)
-        && (test_gmf_task2_count.working == test_gmf_task3_count.working)
+             test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
+    if ((test_gmf_task1_count.working > test_gmf_task3_count.working)
         && (test_gmf_task3_count.working == test_gmf_task4_count.working)) {
         // OK
         TEST_ASSERT_TRUE(true);
@@ -705,15 +712,7 @@ TEST_CASE("Finished state return error on the CLEANUP", "[ESP_GMF_TASK]")
     esp_gmf_task_init(&cfg, &hd);
     esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
 
-    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-
-    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    register_standard_test_jobs(hd);
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
     // Let all job to be finished
@@ -723,11 +722,15 @@ TEST_CASE("Finished state return error on the CLEANUP", "[ESP_GMF_TASK]")
     test_gmf_task4_count.working_return = ESP_GMF_JOB_ERR_DONE;
     test_gmf_task2_count.cleanup_return = ESP_GMF_JOB_ERR_FAIL;
     vTaskDelay(200 / portTICK_PERIOD_MS);
-
+    // When element is finished, pause and resume are supported
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_pause(hd));
     vTaskDelay(100 / portTICK_PERIOD_MS);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_resume(hd));
+    vTaskDelay(300 / portTICK_PERIOD_MS);
+    // When all elements are finished, pause is supported, resume is not supported
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_pause(hd));
+    vTaskDelay(500 / portTICK_PERIOD_MS);
 
-    // When resume for finished return not supported
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_NOT_SUPPORT, esp_gmf_task_resume(hd));
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
@@ -754,7 +757,7 @@ TEST_CASE("Finished state return error on the CLEANUP", "[ESP_GMF_TASK]")
     TEST_ASSERT_NOT_EQUAL(0, test_gmf_task4_count.working);
 
     ESP_LOGI(TAG, "task1: %d, task2: %d, task3: %d, task4: %d", test_gmf_task1_count.working,
-            test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
+             test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
     if ((test_gmf_task1_count.working == test_gmf_task2_count.working) && test_gmf_task1_count.working == test_gmf_task3_count.working) {
         // OK
         TEST_ASSERT_TRUE(true);
@@ -778,15 +781,7 @@ TEST_CASE("Return error after call STOP", "[ESP_GMF_TASK]")
     esp_gmf_task_init(&cfg, &hd);
     esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
 
-    esp_gmf_task_register_ready_job(hd, NULL, prepare1, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare2, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare3, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, prepare4, ESP_GMF_JOB_TIMES_ONCE, NULL, false);
-
-    esp_gmf_task_register_ready_job(hd, NULL, working1, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working2, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working3, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
-    esp_gmf_task_register_ready_job(hd, NULL, working4, ESP_GMF_JOB_TIMES_INFINITE, NULL, false);
+    register_standard_test_jobs(hd);
 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
     vTaskDelay(200 / portTICK_PERIOD_MS);
@@ -799,7 +794,6 @@ TEST_CASE("Return error after call STOP", "[ESP_GMF_TASK]")
 
     test_gmf_task2_count.cleanup_return = ESP_GMF_JOB_ERR_FAIL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
-
     esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
     esp_gmf_task_get_state(hd, &state);
     TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_ERROR, state);
@@ -822,16 +816,7 @@ TEST_CASE("Return error after call STOP", "[ESP_GMF_TASK]")
     TEST_ASSERT_NOT_EQUAL(0, test_gmf_task4_count.working);
 
     ESP_LOGI(TAG, "task1: %d, task2: %d, task3: %d, task4: %d", test_gmf_task1_count.working,
-            test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
-    // if ((test_gmf_task1_count.working > test_gmf_task2_count.working)
-    //     && (test_gmf_task2_count.working > test_gmf_task3_count.working)
-    //     && (test_gmf_task3_count.working >= test_gmf_task4_count.working)) {
-    //     // OK
-    //     TEST_ASSERT_TRUE(true);
-    // } else {
-    //     TEST_ASSERT_FALSE(true);
-    // }
-
+             test_gmf_task2_count.working, test_gmf_task3_count.working, test_gmf_task4_count.working);
     ESP_GMF_MEM_SHOW(TAG);
 }
 
@@ -892,6 +877,364 @@ TEST_CASE("Once job return TRUNCATE", "[ESP_GMF_TASK]")
     TEST_ASSERT_NOT_EQUAL(0, test_gmf_task3_count.working);
     // Test4 should not run for task3 error
     TEST_ASSERT_EQUAL(0, test_gmf_task4_count.working);
+
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Strategy finish with DEFAULT action", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    clear_test_gmf_task_count();
+
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    esp_gmf_task_init(&cfg, &hd);
+    esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
+    test_strategy_ctx_t strategy_ctx = {
+        .abort_action = GMF_TASK_STRATEGY_ACTION_DEFAULT,
+        .finish_action = GMF_TASK_STRATEGY_ACTION_DEFAULT,
+    };
+    esp_gmf_task_set_strategy_func(hd, task_strategy_func, &strategy_ctx);
+
+    register_standard_test_jobs(hd);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    // Set all jobs to DONE to trigger finish strategy
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task2_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task3_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task4_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    // Verify task state is FINISHED
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_FINISHED, state);
+
+    vTaskDelay(300 / portTICK_PERIOD_MS);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+
+    // Verify job execution counts
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.prepare);
+    TEST_ASSERT_NOT_EQUAL(0, test_gmf_task1_count.working);
+    TEST_ASSERT_NOT_EQUAL(0, test_gmf_task2_count.working);
+    TEST_ASSERT_NOT_EQUAL(0, test_gmf_task3_count.working);
+    TEST_ASSERT_NOT_EQUAL(0, test_gmf_task4_count.working);
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.cleanup);
+
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Strategy finish with RESET action", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("ESP_GMF_TASK", ESP_LOG_DEBUG);
+    clear_test_gmf_task_count();
+
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    esp_gmf_task_init(&cfg, &hd);
+    esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
+
+    test_strategy_ctx_t strategy_ctx = {
+        .abort_action = GMF_TASK_STRATEGY_ACTION_DEFAULT,
+        .finish_action = GMF_TASK_STRATEGY_ACTION_RESET,
+    };
+    esp_gmf_task_set_strategy_func(hd, task_strategy_func, &strategy_ctx);
+
+    register_standard_test_jobs(hd);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    // Set all jobs to DONE to trigger finish strategy with RESET
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task2_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task3_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task4_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    // After RESET, new jobs should be registered and running
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_RUNNING, state);
+
+    // Verify reset jobs were called once
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.reset);
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.cleanup);
+
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Strategy abort with DEFAULT action", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    clear_test_gmf_task_count();
+
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    esp_gmf_task_init(&cfg, &hd);
+    esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
+
+    test_strategy_ctx_t strategy_ctx = {
+        .abort_action = GMF_TASK_STRATEGY_ACTION_DEFAULT,
+        .finish_action = GMF_TASK_STRATEGY_ACTION_DEFAULT,
+    };
+    esp_gmf_task_set_strategy_func(hd, task_strategy_func, &strategy_ctx);
+
+    register_standard_test_jobs(hd);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    // Set job1 to ABORT to trigger abort strategy
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_ABORT;
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    // Verify task state is STOPPED
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_STOPPED, state);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+
+    // Verify job execution counts
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.prepare);
+
+    TEST_ASSERT_GREATER_THAN_UINT32(test_gmf_task2_count.working, test_gmf_task1_count.working);
+    TEST_ASSERT_LESS_THAN_UINT32(test_gmf_task1_count.working, test_gmf_task2_count.working);
+    TEST_ASSERT_LESS_THAN_UINT32(test_gmf_task1_count.working, test_gmf_task3_count.working);
+    TEST_ASSERT_LESS_THAN_UINT32(test_gmf_task1_count.working, test_gmf_task4_count.working);
+
+    // Cleanup should be called when task stops
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.cleanup);
+
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Strategy abort with RESET action", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    clear_test_gmf_task_count();
+
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    esp_gmf_task_init(&cfg, &hd);
+    esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
+
+    test_strategy_ctx_t strategy_ctx = {
+        .abort_action = GMF_TASK_STRATEGY_ACTION_RESET,
+        .finish_action = GMF_TASK_STRATEGY_ACTION_DEFAULT,
+    };
+    esp_gmf_task_set_strategy_func(hd, task_strategy_func, &strategy_ctx);
+
+    register_standard_test_jobs(hd);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    // Set job1 to ABORT to trigger abort strategy with RESET
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_ABORT;
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    // After RESET, new jobs should be registered and running
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_RUNNING, state);
+
+    // Verify reset jobs were called once
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.reset);
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.cleanup);
+
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Strategy multiple RESET cycles", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    clear_test_gmf_task_count();
+
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    esp_gmf_task_init(&cfg, &hd);
+    esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
+
+    test_strategy_ctx_t strategy_ctx = {
+        .abort_action = GMF_TASK_STRATEGY_ACTION_DEFAULT,
+        .finish_action = GMF_TASK_STRATEGY_ACTION_RESET,
+    };
+    esp_gmf_task_set_strategy_func(hd, task_strategy_func, &strategy_ctx);
+
+    register_standard_test_jobs(hd);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    // First RESET cycle: set all jobs to DONE
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task2_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task3_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task4_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    // Verify first reset happened
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_RUNNING, state);
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.reset);
+
+    vTaskDelay(300 / portTICK_PERIOD_MS);
+
+    // Second RESET cycle: set all jobs to DONE again
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task2_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task3_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task4_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    // Verify second reset happened
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_RUNNING, state);
+    TEST_ASSERT_EQUAL(2, test_gmf_task1_count.reset);
+    TEST_ASSERT_EQUAL(2, test_gmf_task2_count.reset);
+    TEST_ASSERT_EQUAL(2, test_gmf_task3_count.reset);
+    TEST_ASSERT_EQUAL(2, test_gmf_task4_count.reset);
+
+    // Verify prepare was only called once (initial registration)
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.prepare);
+
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_stop(hd));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+
+    // Verify cleanup was called
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.cleanup);
+
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Strategy RESET then finish with DEFAULT", "[ESP_GMF_TASK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    clear_test_gmf_task_count();
+
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    esp_gmf_task_handle_t hd = NULL;
+
+    esp_gmf_task_init(&cfg, &hd);
+    esp_gmf_task_set_event_func(hd, esp_gmf_task_evt, NULL);
+
+    test_strategy_ctx_t strategy_ctx = {
+        .abort_action = GMF_TASK_STRATEGY_ACTION_DEFAULT,
+        .finish_action = GMF_TASK_STRATEGY_ACTION_RESET,
+    };
+    esp_gmf_task_set_strategy_func(hd, task_strategy_func, &strategy_ctx);
+
+    register_standard_test_jobs(hd);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_run(hd));
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+
+    // First finish: trigger RESET
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task2_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task3_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task4_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    // Verify first reset happened
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_RUNNING, state);
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.reset);
+
+    // Change strategy to DEFAULT for second finish
+    strategy_ctx.finish_action = GMF_TASK_STRATEGY_ACTION_DEFAULT;
+    esp_gmf_task_set_strategy_func(hd, task_strategy_func, &strategy_ctx);
+    // Second finish: trigger DEFAULT (should finish)
+    test_gmf_task1_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task2_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task3_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    test_gmf_task4_count.working_return = ESP_GMF_JOB_ERR_DONE;
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    // Verify task state is FINISHED
+    esp_gmf_task_get_state(hd, &state);
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_FINISHED, state);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(hd));
+
+    // Verify job execution counts
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.prepare);
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.reset);
+    TEST_ASSERT_EQUAL(1, test_gmf_task1_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task2_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task3_count.cleanup);
+    TEST_ASSERT_EQUAL(1, test_gmf_task4_count.cleanup);
 
     ESP_GMF_MEM_SHOW(TAG);
 }

@@ -11,27 +11,41 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
+#endif  /* __cplusplus */
 
 /**
  * @brief  Espressif embed flash configurations, if any entry is zero then the configuration will be set to default values
  */
 typedef struct {
-    int         max_files; /*!< IO direction, reader or writer */
-    const char *name;      /*!< Name for this instance */
+    int               max_files;  /*!< IO direction, reader or writer */
+    const char       *name;       /*!< Name for this instance */
+    esp_gmf_io_cfg_t  io_cfg;     /*!< IO configuration for task and buffer */
 } embed_flash_io_cfg_t;
 
-#define EMBED_FLASH_CFG_DEFAULT() {  \
-    .max_files = 200,                \
-    .name      = NULL,               \
+#define EMBED_FLASH_CFG_DEFAULT()  {    \
+    .max_files = 200,                   \
+    .name      = NULL,                  \
+    .io_cfg    = {                      \
+        .thread = {                     \
+            .stack        = 0,          \
+            .prio         = 0,          \
+            .core         = 0,          \
+            .stack_in_ext = false,      \
+        },                              \
+        .buffer_cfg = {                 \
+            .io_size     = 0,           \
+            .buffer_size = 0,           \
+        },                              \
+        .enable_speed_monitor = false,  \
+    },                                  \
 }
 
 /**
  * @brief  Embed information in flash
  */
 typedef struct embed_item_info {
-    const uint8_t *address; /*!< The corresponding address in flash */
-    int            size;    /*!< Size of corresponding data */
+    const uint8_t *address;  /*!< The corresponding address in flash */
+    int            size;     /*!< Size of corresponding data */
 } embed_item_info_t;
 
 /**
@@ -63,4 +77,4 @@ esp_gmf_err_t esp_gmf_io_embed_flash_set_context(esp_gmf_io_handle_t io, const e
 
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif  /* __cplusplus */

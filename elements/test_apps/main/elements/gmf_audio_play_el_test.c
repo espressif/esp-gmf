@@ -296,6 +296,7 @@ TEST_CASE("Audio Play, multiple file with One Pipe, [FILE->dec->resample->IIS]",
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
     cfg.cb = NULL;
+    cfg.thread.stack = 6 * 1024;
     esp_gmf_task_handle_t work_task = NULL;
     esp_gmf_task_init(&cfg, &work_task);
     TEST_ASSERT_NOT_NULL(work_task);

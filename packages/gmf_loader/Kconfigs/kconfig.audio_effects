@@ -1064,6 +1064,443 @@ menu "GMF Audio Effects"
         endmenu
     endif
 
+    config GMF_AUDIO_EFFECT_INIT_DRC
+        bool "Initialize GMF Audio Effect DRC"
+        default n
+        help
+            Initialize GMF Audio effect Dynamic Range Compressor
+
+    if GMF_AUDIO_EFFECT_INIT_DRC
+        config GMF_AUDIO_EFFECT_DRC_SAMPLE_RATE
+            int "DRC Sample Rate (Hz)"
+            range 8000 192000
+            default 48000
+            help
+                Target sample rate for the DRC element.
+
+        config GMF_AUDIO_EFFECT_DRC_CHANNEL
+            int "DRC Channel Count"
+            range 1 8
+            default 2
+            help
+                Number of audio channels processed by the DRC element.
+
+        config GMF_AUDIO_EFFECT_DRC_BITS_PER_SAMPLE
+            int "DRC Bits Per Sample"
+            default 16
+            help
+                Sample resolution for the DRC element. Recommended values: 16, 24 or 32.
+
+        config GMF_AUDIO_EFFECT_DRC_ATTACK_TIME
+            int "DRC Attack Time (ms)"
+            range 0 500
+            default 10
+            help
+                Response time for gain attenuation.
+
+        config GMF_AUDIO_EFFECT_DRC_RELEASE_TIME
+            int "DRC Release Time (ms)"
+            range 0 500
+            default 80
+            help
+                Response time for gain recovery.
+
+        config GMF_AUDIO_EFFECT_DRC_HOLD_TIME
+            int "DRC Hold Time (ms)"
+            range 0 100
+            default 3
+            help
+                Delay applied before the gain is allowed to change.
+
+        config GMF_AUDIO_EFFECT_DRC_MAKEUP_X10
+            int "DRC Makeup Gain × 10 (dB)"
+            range -100 100
+            default 0
+            help
+                Makeup gain applied after compression. The real value equals the configured number divided by 10.
+
+        config GMF_AUDIO_EFFECT_DRC_KNEE_X10
+            int "DRC Knee Width × 10 (dB)"
+            range 0 100
+            default 10
+            help
+                Knee width around curve break points. The real value equals the configured number divided by 10.
+
+        config GMF_AUDIO_EFFECT_DRC_POINT_NUM
+            int "Number of DRC Curve Points"
+            range 2 6
+            default 3
+            help
+                Total number of points that define the static curve. The x-axis must include 0.0 dB and -100.0 dB.
+
+        menu "Curve Point1 Parameters"
+            depends on GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 1
+            visible if GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 1
+
+            config GMF_AUDIO_EFFECT_DRC_POINT1_X10
+                int "Point1 X × 10 (dB)"
+                range -1000 0
+                default 0
+                help
+                    Input level in dB (×10). Default keeps the upper bound at 0 dB.
+
+            config GMF_AUDIO_EFFECT_DRC_POINT1_Y10
+                int "Point1 Y × 10 (dB)"
+                range -1000 0
+                default -200
+                help
+                    Output level in dB (×10) for Point1.
+        endmenu
+
+        menu "Curve Point2 Parameters"
+            depends on GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 2
+            visible if GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 2
+
+            config GMF_AUDIO_EFFECT_DRC_POINT2_X10
+                int "Point2 X × 10 (dB)"
+                range -1000 0
+                default -400
+                help
+                    Input level in dB (×10) for Point2.
+
+            config GMF_AUDIO_EFFECT_DRC_POINT2_Y10
+                int "Point2 Y × 10 (dB)"
+                range -1000 0
+                default -400
+                help
+                    Output level in dB (×10) for Point2.
+        endmenu
+
+        menu "Curve Point3 Parameters"
+            depends on GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 3
+            visible if GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 3
+
+            config GMF_AUDIO_EFFECT_DRC_POINT3_X10
+                int "Point3 X × 10 (dB)"
+                range -1000 0
+                default -1000
+                help
+                    Input level in dB (×10) for Point3.
+
+            config GMF_AUDIO_EFFECT_DRC_POINT3_Y10
+                int "Point3 Y × 10 (dB)"
+                range -1000 0
+                default -1000
+                help
+                    Output level in dB (×10) for Point3.
+        endmenu
+
+        menu "Curve Point4 Parameters"
+            depends on GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 4
+            visible if GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 4
+
+            config GMF_AUDIO_EFFECT_DRC_POINT4_X10
+                int "Point4 X × 10 (dB)"
+                range -1000 0
+                default -1000
+                help
+                    Input level in dB (×10) for Point4.
+
+            config GMF_AUDIO_EFFECT_DRC_POINT4_Y10
+                int "Point4 Y × 10 (dB)"
+                range -1000 0
+                default -1000
+                help
+                    Output level in dB (×10) for Point4.
+        endmenu
+
+        menu "Curve Point5 Parameters"
+            depends on GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 5
+            visible if GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 5
+
+            config GMF_AUDIO_EFFECT_DRC_POINT5_X10
+                int "Point5 X × 10 (dB)"
+                range -1000 0
+                default -1000
+                help
+                    Input level in dB (×10) for Point5.
+
+            config GMF_AUDIO_EFFECT_DRC_POINT5_Y10
+                int "Point5 Y × 10 (dB)"
+                range -1000 0
+                default -1000
+                help
+                    Output level in dB (×10) for Point5.
+        endmenu
+
+        menu "Curve Point6 Parameters"
+            depends on GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 6
+            visible if GMF_AUDIO_EFFECT_DRC_POINT_NUM >= 6
+
+            config GMF_AUDIO_EFFECT_DRC_POINT6_X10
+                int "Point6 X × 10 (dB)"
+                range -1000 0
+                default -1000
+                help
+                    Input level in dB (×10) for Point6.
+
+            config GMF_AUDIO_EFFECT_DRC_POINT6_Y10
+                int "Point6 Y × 10 (dB)"
+                range -1000 0
+                default -1000
+                help
+                    Output level in dB (×10) for Point6.
+        endmenu
+    endif
+
+    config GMF_AUDIO_EFFECT_INIT_MBC
+        bool "Initialize GMF Audio Effect MBC"
+        default n
+        help
+            Initialize GMF Audio effect Multi-Band Compressor
+
+    if GMF_AUDIO_EFFECT_INIT_MBC
+        config GMF_AUDIO_EFFECT_MBC_SAMPLE_RATE
+            int "MBC Sample Rate (Hz)"
+            range 8000 192000
+            default 16000
+            help
+                Target sample rate for the MBC element.
+
+        config GMF_AUDIO_EFFECT_MBC_CHANNEL
+            int "MBC Channel Count"
+            range 1 8
+            default 2
+            help
+                Number of audio channels processed by the MBC element.
+
+        config GMF_AUDIO_EFFECT_MBC_BITS_PER_SAMPLE
+            int "MBC Bits Per Sample"
+            default 16
+            help
+                Sample resolution for the MBC element. Recommended values: 16, 24 or 32.
+
+        config GMF_AUDIO_EFFECT_MBC_FC_LOW
+            int "Low Band Crossover Frequency (Hz)"
+            range 20 20000
+            default 400
+            help
+                Crossover point between low and low-mid bands.
+
+        config GMF_AUDIO_EFFECT_MBC_FC_MID
+            int "Mid Band Crossover Frequency (Hz)"
+            range 20 20000
+            default 2100
+            help
+                Crossover point between low-mid and high-mid bands.
+
+        config GMF_AUDIO_EFFECT_MBC_FC_HIGH
+            int "High Band Crossover Frequency (Hz)"
+            range 20 20000
+            default 6000
+            help
+                Crossover point between high-mid and high bands.
+
+        menu "Band1 Parameters"
+            config GMF_AUDIO_EFFECT_MBC_BAND1_THRESHOLD_X10
+                int "Band1 Threshold × 10 (dB)"
+                range -1000 0
+                default -1
+                help
+                    Compression threshold in dB (×10).
+
+            config GMF_AUDIO_EFFECT_MBC_BAND1_RATIO_X10
+                int "Band1 Ratio × 10"
+                range 10 200
+                default 10
+                help
+                    Compression ratio. The real value equals the configured number divided by 10.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND1_MAKEUP_X10
+                int "Band1 Makeup Gain × 10 (dB)"
+                range -100 100
+                default 0
+                help
+                    Makeup gain applied after compression. Real value equals configured number divided by 10.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND1_ATTACK_TIME
+                int "Band1 Attack Time (ms)"
+                range 0 500
+                default 10
+                help
+                    Attack time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND1_RELEASE_TIME
+                int "Band1 Release Time (ms)"
+                range 0 500
+                default 100
+                help
+                    Release time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND1_HOLD_TIME
+                int "Band1 Hold Time (ms)"
+                range 0 100
+                default 0
+                help
+                    Hold time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND1_KNEE_X10
+                int "Band1 Knee Width × 10 (dB)"
+                range 0 100
+                default 0
+                help
+                    Knee width around the threshold. Real value equals configured number divided by 10.
+        endmenu
+
+        menu "Band2 Parameters"
+            config GMF_AUDIO_EFFECT_MBC_BAND2_THRESHOLD_X10
+                int "Band2 Threshold × 10 (dB)"
+                range -1000 0
+                default -180
+                help
+                    Compression threshold in dB (×10).
+
+            config GMF_AUDIO_EFFECT_MBC_BAND2_RATIO_X10
+                int "Band2 Ratio × 10"
+                range 10 400
+                default 40
+                help
+                    Compression ratio. The real value equals the configured number divided by 10.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND2_MAKEUP_X10
+                int "Band2 Makeup Gain × 10 (dB)"
+                range -100 100
+                default 60
+                help
+                    Makeup gain applied after compression. Real value equals configured number divided by 10.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND2_ATTACK_TIME
+                int "Band2 Attack Time (ms)"
+                range 0 500
+                default 1
+                help
+                    Attack time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND2_RELEASE_TIME
+                int "Band2 Release Time (ms)"
+                range 0 500
+                default 200
+                help
+                    Release time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND2_HOLD_TIME
+                int "Band2 Hold Time (ms)"
+                range 0 100
+                default 0
+                help
+                    Hold time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND2_KNEE_X10
+                int "Band2 Knee Width × 10 (dB)"
+                range 0 100
+                default 50
+                help
+                    Knee width around the threshold. Real value equals configured number divided by 10.
+        endmenu
+
+        menu "Band3 Parameters"
+            config GMF_AUDIO_EFFECT_MBC_BAND3_THRESHOLD_X10
+                int "Band3 Threshold × 10 (dB)"
+                range -1000 0
+                default -200
+                help
+                    Compression threshold in dB (×10).
+
+            config GMF_AUDIO_EFFECT_MBC_BAND3_RATIO_X10
+                int "Band3 Ratio × 10"
+                range 10 400
+                default 40
+                help
+                    Compression ratio. The real value equals the configured number divided by 10.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND3_MAKEUP_X10
+                int "Band3 Makeup Gain × 10 (dB)"
+                range -100 100
+                default 70
+                help
+                    Makeup gain applied after compression. Real value equals configured number divided by 10.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND3_ATTACK_TIME
+                int "Band3 Attack Time (ms)"
+                range 0 500
+                default 1
+                help
+                    Attack time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND3_RELEASE_TIME
+                int "Band3 Release Time (ms)"
+                range 0 500
+                default 200
+                help
+                    Release time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND3_HOLD_TIME
+                int "Band3 Hold Time (ms)"
+                range 0 100
+                default 0
+                help
+                    Hold time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND3_KNEE_X10
+                int "Band3 Knee Width × 10 (dB)"
+                range 0 100
+                default 50
+                help
+                    Knee width around the threshold. Real value equals configured number divided by 10.
+        endmenu
+
+        menu "Band4 Parameters"
+            config GMF_AUDIO_EFFECT_MBC_BAND4_THRESHOLD_X10
+                int "Band4 Threshold × 10 (dB)"
+                range -1000 0
+                default -1
+                help
+                    Compression threshold in dB (×10).
+
+            config GMF_AUDIO_EFFECT_MBC_BAND4_RATIO_X10
+                int "Band4 Ratio × 10"
+                range 10 200
+                default 10
+                help
+                    Compression ratio. The real value equals the configured number divided by 10.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND4_MAKEUP_X10
+                int "Band4 Makeup Gain × 10 (dB)"
+                range -100 100
+                default 0
+                help
+                    Makeup gain applied after compression. Real value equals configured number divided by 10.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND4_ATTACK_TIME
+                int "Band4 Attack Time (ms)"
+                range 0 500
+                default 10
+                help
+                    Attack time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND4_RELEASE_TIME
+                int "Band4 Release Time (ms)"
+                range 0 500
+                default 100
+                help
+                    Release time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND4_HOLD_TIME
+                int "Band4 Hold Time (ms)"
+                range 0 100
+                default 0
+                help
+                    Hold time in milliseconds.
+
+            config GMF_AUDIO_EFFECT_MBC_BAND4_KNEE_X10
+                int "Band4 Knee Width × 10 (dB)"
+                range 0 100
+                default 0
+                help
+                    Knee width around the threshold. Real value equals configured number divided by 10.
+        endmenu
+    endif
+
     config GMF_AUDIO_EFFECT_INIT_SONIC
         bool "Initialize GMF Audio Effect SONIC"
         default n

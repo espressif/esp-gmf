@@ -460,3 +460,163 @@ TEST_CASE("Abort when read and write with FIXED SIZE + RANDOM DELAY", "[ESP_GMF_
     esp_gmf_block_destroy(bk);
     esp_gmf_ut_teardown_sdmmc(card);
 }
+
+TEST_CASE("Wrap Check", "[ESP_GMF_BLOCK]")
+{
+    esp_log_level_set("ESP_GMF_BLOCK", ESP_LOG_DEBUG);
+    esp_gmf_block_handle_t bk = NULL;
+    esp_gmf_block_create(1000, 2, &bk); // 2000 bytes total
+    esp_gmf_data_bus_block_t blk_w = {0}, blk_r = {0};
+
+    // 1. Write 1500 bytes. p_wr = 1500.
+    esp_gmf_block_acquire_write(bk, &blk_w, 1500, 0);
+    memset(blk_w.buf, 'A', 1500);
+    blk_w.valid_size = 1500;
+    esp_gmf_block_release_write(bk, &blk_w, 0);
+
+    // 2. Read 1200 bytes. p_rd = 1200. fill_size = 300 (NOT EMPTY!)
+    esp_gmf_block_acquire_read(bk, &blk_r, 1200, 0);
+    esp_gmf_block_release_read(bk, &blk_r, 0);
+
+    // 3. Write 600 bytes. WRAPS! p_wr_end = 1500, p_wr = 600.
+    esp_gmf_block_acquire_write(bk, &blk_w, 600, 0);
+    memset(blk_w.buf, 'B', 600);
+    blk_w.valid_size = 600;
+    esp_gmf_block_release_write(bk, &blk_w, 0);
+
+    // 4. Read remaining 300 bytes of the tail. p_rd reaches 1500 (p_wr_end).
+    esp_gmf_block_acquire_read(bk, &blk_r, 300, 0);
+    for (int i = 0; i < 300; i++) TEST_ASSERT_EQUAL('A', blk_r.buf[i]);
+    esp_gmf_block_release_read(bk, &blk_r, 0);
+
+    // 5. Request 100 bytes.
+    esp_gmf_block_acquire_read(bk, &blk_r, 100, 0);
+
+    for (int i = 0; i < 100; i++) {
+        TEST_ASSERT_EQUAL('B', blk_r.buf[i]);
+    }
+    esp_gmf_block_release_read(bk, &blk_r, 0);
+
+    esp_gmf_block_destroy(bk);
+}
+
+TEST_CASE("Write Wrap Read only Valid", "[ESP_GMF_BLOCK]")
+{
+    esp_log_level_set("ESP_GMF_BLOCK", ESP_LOG_DEBUG);
+    esp_gmf_block_handle_t bk = NULL;
+    esp_gmf_block_create(1000, 2, &bk); // 2000 bytes total
+    esp_gmf_data_bus_block_t blk_w = {0}, blk_r = {0};
+
+    esp_gmf_block_acquire_write(bk, &blk_w, 100, 0);
+    memset(blk_w.buf, 'A', 100);
+    blk_w.valid_size = 100;
+    esp_gmf_block_release_write(bk, &blk_w, 0);
+    // 1. Write 1500 bytes of 'A'. p_wr = 1500.
+    esp_gmf_block_acquire_write(bk, &blk_w, 1500, 0);
+    memset(blk_w.buf, 'A', 1500);
+    blk_w.valid_size = 1500;
+    esp_gmf_block_release_write(bk, &blk_w, 0);
+
+    // 2. Read 1300 bytes. p_rd = 1300. fill_size = 300.
+    esp_gmf_block_acquire_read(bk, &blk_r, 1300, 0);
+    esp_gmf_block_release_read(bk, &blk_r, 0);
+
+    // 3. Write 600 bytes of 'B'. WRAPS! p_wr_end = 1500, p_wr = 600.
+    esp_gmf_block_acquire_write(bk, &blk_w, 600, 0);
+    memset(blk_w.buf, 'B', 600);
+    blk_w.valid_size = 600;
+    esp_gmf_block_release_write(bk, &blk_w, 0);
+
+    // 4. Request 500 bytes.
+    esp_gmf_block_acquire_read(bk, &blk_r, 500, 0);
+
+    // If the fix is missing, valid_size will be 500 (incorrectly capped by buf_end instead of p_wr_end)
+    TEST_ASSERT_EQUAL(300, blk_r.valid_size);
+    for (int i = 0; i < blk_r.valid_size; i++) {
+        TEST_ASSERT_EQUAL('A', blk_r.buf[i]);
+    }
+    esp_gmf_block_release_read(bk, &blk_r, 0);
+
+    // 5. Next read should correctly jump to head and get 'B's
+    esp_gmf_block_acquire_read(bk, &blk_r, 600, 0);
+    TEST_ASSERT_EQUAL(600, blk_r.valid_size);
+    for (int i = 0; i < 600; i++) {
+        TEST_ASSERT_EQUAL('B', blk_r.buf[i]);
+    }
+    esp_gmf_block_release_read(bk, &blk_r, 0);
+
+    esp_gmf_block_destroy(bk);
+}
+
+TEST_CASE("RP WP reset check", "[ESP_GMF_BLOCK]")
+{
+    esp_log_level_set("ESP_GMF_BLOCK", ESP_LOG_DEBUG);
+    esp_gmf_block_handle_t bk = NULL;
+    esp_gmf_block_create(1000, 2, &bk); // 2000 bytes total
+    esp_gmf_data_bus_block_t blk_w = {0}, blk_r = {0};
+
+    // 1. Write 1500 bytes then read 1500 bytes.
+    esp_gmf_block_acquire_write(bk, &blk_w, 1500, 0);
+    blk_w.valid_size = 1500;
+    esp_gmf_block_release_write(bk, &blk_w, 0);
+    esp_gmf_block_acquire_read(bk, &blk_r, 1500, 0);
+    esp_gmf_block_release_read(bk, &blk_r, 0);
+
+    // 2. Buffer is empty. Request 1200 bytes.
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_OK, esp_gmf_block_acquire_write(bk, &blk_w, 1200, 100));
+
+    esp_gmf_block_destroy(bk);
+}
+
+TEST_CASE("Abort and clear abort function", "[ESP_GMF_BLOCK]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+
+    esp_gmf_block_handle_t bk = NULL;
+    esp_gmf_block_create(64, 2, &bk);
+    TEST_ASSERT_NOT_NULL(bk);
+    esp_gmf_data_bus_block_t blk = {0};
+    uint8_t test_data[64];
+    memset(test_data, 0x11, sizeof(test_data));
+
+    int ret = esp_gmf_block_acquire_write(bk, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_block_release_write(bk, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_block_abort(bk);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_block_acquire_read(bk, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+
+    ret = esp_gmf_block_acquire_write(bk, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+
+    ret = esp_gmf_block_clear_abort(bk);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_block_acquire_read(bk, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+    TEST_ASSERT_EQUAL(sizeof(test_data), blk.valid_size);
+
+    for (int i = 0; i < sizeof(test_data); i++) {
+        TEST_ASSERT_EQUAL(0x11, ((uint8_t *)blk.buf)[i]);
+    }
+
+    ret = esp_gmf_block_release_read(bk, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_block_acquire_write(bk, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_block_release_write(bk, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    esp_gmf_block_destroy(bk);
+}

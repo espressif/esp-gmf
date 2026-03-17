@@ -59,6 +59,15 @@ static esp_gmf_err_t _file_new(void *cfg, esp_gmf_obj_handle_t *io)
     return esp_gmf_io_file_init(cfg, io);
 }
 
+static esp_gmf_err_t _file_get_score(esp_gmf_io_handle_t handle, const char *url, int *score)
+{
+    *score = ESP_GMF_IO_SCORE_NONE;
+    if (url[0] == '/' || strncasecmp(url, "file://", 7) == 0) {
+        *score = ESP_GMF_IO_SCORE_STANDARD;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
 static esp_gmf_err_t _file_open(esp_gmf_io_handle_t io)
 {
     file_io_stream_t *file_io = (file_io_stream_t *)io;
@@ -108,8 +117,7 @@ static esp_gmf_err_t _file_open(esp_gmf_io_handle_t io)
     }
     if (file_io->cache_size > 0) {
         file_io->cache = heap_caps_malloc(file_io->cache_size, file_io->cache_caps);
-        ESP_GMF_MEM_VERIFY(TAG, file_io->cache, { fclose(file_io->file); return ESP_GMF_ERR_MEMORY_LACK;},
-                            "file stream cache", file_io->cache_size);
+        ESP_GMF_MEM_VERIFY(TAG, file_io->cache, { fclose(file_io->file); return ESP_GMF_ERR_MEMORY_LACK;}, "file stream cache", file_io->cache_size);
         setvbuf(file_io->file, (char *)file_io->cache, _IOFBF, file_io->cache_size);
         ESP_LOGD(TAG, "File_io cache: %p, size: %d, caps: 0x%x", file_io->cache, file_io->cache_size, file_io->cache_caps);
     }
@@ -143,12 +151,6 @@ static esp_gmf_err_io_t _file_acquire_read(esp_gmf_io_handle_t handle, void *pay
 
 static esp_gmf_err_io_t _file_release_read(esp_gmf_io_handle_t handle, void *payload, int block_ticks)
 {
-    file_io_stream_t *file_io = (file_io_stream_t *)handle;
-    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)file_io, &info);
-    ESP_LOGD(TAG, "Update len = %d, pos = %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, pload->valid_size);
     return ESP_GMF_IO_OK;
 }
 
@@ -180,25 +182,12 @@ static esp_gmf_err_io_t _file_release_write(esp_gmf_io_handle_t handle, void *pa
         ESP_LOGE(TAG, "The error is happened in writing data, error msg:%s", strerror(errno));
         return ESP_GMF_IO_FAIL;
     }
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)file_io, &info);
-    ESP_LOGD(TAG, "Write len = %zu, pos = %d/%d", wlen_total, (int)info.pos, (int)info.size);
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)handle, wlen_total);
     return ESP_GMF_IO_OK;
 }
 
 static esp_gmf_err_t _file_seek(esp_gmf_io_handle_t io, uint64_t seek_byte_pos)
 {
     file_io_stream_t *file_io = (file_io_stream_t *)io;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)file_io, &info);
-    ESP_LOGI(TAG, "Seek position, total_bytes: %lld, seek: %lld",
-             info.size, seek_byte_pos);
-    if (seek_byte_pos > info.size) {
-        ESP_LOGE(TAG, "Seek position is out of range, total_bytes: %lld, seek: %lld",
-                 info.size, seek_byte_pos);
-        return ESP_GMF_ERR_OUT_OF_RANGE;
-    }
     if (fseek(file_io->file, seek_byte_pos, SEEK_SET) != 0) {
         ESP_LOGE(TAG, "Error seek file, error message: %s, line: %d", strerror(errno), __LINE__);
         return ESP_GMF_ERR_FAIL;
@@ -267,21 +256,37 @@ esp_gmf_err_t esp_gmf_io_file_init(file_io_cfg_t *config, esp_gmf_io_handle_t *i
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
     ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_file" : config->name));
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _file_fail, "Failed to set obj tag");
+    file_io->base.get_score = _file_get_score;
     file_io->base.close = _file_close;
     file_io->base.open = _file_open;
     file_io->base.seek = _file_seek;
     file_io->base.reset = _file_reset;
-    file_io_cfg_t *fat_cfg = (file_io_cfg_t *)config;
-    esp_gmf_io_init(obj, NULL);
-    if (fat_cfg->dir == ESP_GMF_IO_DIR_WRITER) {
+    if (config->dir == ESP_GMF_IO_DIR_WRITER) {
         file_io->base.acquire_write = _file_acquire_write;
         file_io->base.release_write = _file_release_write;
-    } else if (fat_cfg->dir == ESP_GMF_IO_DIR_READER) {
+    } else if (config->dir == ESP_GMF_IO_DIR_READER) {
         file_io->base.acquire_read = _file_acquire_read;
         file_io->base.release_read = _file_release_read;
     } else {
         ESP_LOGW(TAG, "Does not set read or write function");
         ret = ESP_GMF_ERR_NOT_SUPPORT;
+        goto _file_fail;
+    }
+    esp_gmf_io_cfg_t io_cfg = {
+        .thread = {
+            .stack = config->io_cfg.thread.stack,
+            .prio = config->io_cfg.thread.prio,
+            .core = config->io_cfg.thread.core,
+            .stack_in_ext = config->io_cfg.thread.stack_in_ext,
+        },
+        .buffer_cfg = {
+            .io_size = config->io_cfg.buffer_cfg.io_size,
+            .buffer_size = config->io_cfg.buffer_cfg.buffer_size,
+        },
+        .enable_speed_monitor = config->io_cfg.enable_speed_monitor,
+    };
+    ret = esp_gmf_io_init(obj, &io_cfg);
+    if (ret != ESP_GMF_ERR_OK) {
         goto _file_fail;
     }
     *io = obj;

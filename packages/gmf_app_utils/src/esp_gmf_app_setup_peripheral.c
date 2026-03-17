@@ -95,6 +95,8 @@ void *esp_gmf_app_get_playback_handle(void)
     esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&device_handle);
     if (device_handle) {
         playback_handle = device_handle->codec_dev;
+    } else {
+        ESP_LOGE(TAG, "Get playback handle failed");
     }
     return playback_handle;
 }
@@ -106,6 +108,8 @@ void *esp_gmf_app_get_record_handle(void)
     esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&device_handle);
     if (device_handle) {
         record_handle = device_handle->codec_dev;
+    } else {
+        ESP_LOGE(TAG, "Get record handle failed");
     }
     return record_handle;
 }

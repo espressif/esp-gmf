@@ -7,29 +7,42 @@ config GMF_AUDIO_CODEC_INIT_ENCODER
         prompt "Select Default GMF CODEC Encoder Type"
         default GMF_AUDIO_CODEC_ENCODER_TYPE_AAC
         depends on GMF_AUDIO_CODEC_INIT_ENCODER
+        help
+            Please select the audio encoder types to register in the "Audio Encoder Configuration" menu under "Audio Codec Configuration"
 
         config GMF_AUDIO_CODEC_ENCODER_TYPE_AAC
             bool "AAC Encoder"
+            depends on AUDIO_ENCODER_AAC_SUPPORT
         config GMF_AUDIO_CODEC_ENCODER_TYPE_AMRNB
             bool "AMR-NB Encoder"
+            depends on AUDIO_ENCODER_AMRNB_SUPPORT
         config GMF_AUDIO_CODEC_ENCODER_TYPE_AMRWB
             bool "AMR-WB Encoder"
+            depends on AUDIO_ENCODER_AMRWB_SUPPORT
         config GMF_AUDIO_CODEC_ENCODER_TYPE_G711A
             bool "G711A Encoder"
+            depends on AUDIO_ENCODER_G711_SUPPORT
         config GMF_AUDIO_CODEC_ENCODER_TYPE_G711U
             bool "G711U Encoder"
+            depends on AUDIO_ENCODER_G711_SUPPORT
         config GMF_AUDIO_CODEC_ENCODER_TYPE_OPUS
             bool "Opus Encoder"
+            depends on AUDIO_ENCODER_OPUS_SUPPORT
         config GMF_AUDIO_CODEC_ENCODER_TYPE_ADPCM
             bool "ADPCM Encoder"
+            depends on AUDIO_ENCODER_ADPCM_SUPPORT
         config GMF_AUDIO_CODEC_ENCODER_TYPE_PCM
             bool "PCM Encoder"
+            depends on AUDIO_ENCODER_PCM_SUPPORT
         config GMF_AUDIO_CODEC_ENCODER_TYPE_ALAC
             bool "ALAC Encoder"
+            depends on AUDIO_ENCODER_ALAC_SUPPORT
         config GMF_AUDIO_CODEC_ENCODER_TYPE_SBC
             bool "SBC Encoder"
+            depends on AUDIO_ENCODER_SBC_SUPPORT
         config GMF_AUDIO_CODEC_ENCODER_TYPE_LC3
             bool "LC3 Encoder"
+            depends on AUDIO_ENCODER_LC3_SUPPORT
     endchoice
 
     menu "AMR-NB Encoder Configuration"

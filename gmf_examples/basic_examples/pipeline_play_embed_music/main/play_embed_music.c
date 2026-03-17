@@ -3,17 +3,19 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+
 #include <string.h>
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "esp_log.h"
+#include "esp_board_manager_includes.h"
+#include "esp_codec_dev.h"
 #include "esp_gmf_element.h"
 #include "esp_gmf_pipeline.h"
 #include "esp_gmf_pool.h"
 #include "esp_embed_tone.h"
 #include "esp_gmf_io_embed_flash.h"
-#include "esp_gmf_app_setup_peripheral.h"
 #include "esp_gmf_audio_helper.h"
 #include "esp_gmf_audio_dec.h"
 #include "gmf_loader_setup_defaults.h"
@@ -21,19 +23,60 @@
 
 static const char *TAG = "PLAY_EMBED_MUSIC";
 
-#define PIPELINE_BLOCK_BIT BIT(0)
+#define PIPELINE_BLOCK_BIT       BIT(0)
+#define PLAYBACK_DEFAULT_VOLUME  80
 
 esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
     ESP_LOGI(TAG, "CB: RECV Pipeline EVT: el: %s-%p, type: %x, sub: %s, payload: %p, size: %d, %p",
-             "OBJ_GET_TAG(event->from)", event->from, event->type, esp_gmf_event_get_state_str(event->sub),
+             OBJ_GET_TAG(event->from), event->from, event->type, esp_gmf_event_get_state_str(event->sub),
              event->payload, event->payload_size, ctx);
     if ((event->sub == ESP_GMF_EVENT_STATE_STOPPED)
         || (event->sub == ESP_GMF_EVENT_STATE_FINISHED)
         || (event->sub == ESP_GMF_EVENT_STATE_ERROR)) {
         xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_BLOCK_BIT);
     }
-    return 0;
+    return ESP_GMF_ERR_OK;
+}
+
+static int playback_peripheral_init(esp_codec_dev_handle_t *out_handle)
+{
+    int ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to init audio DAC");
+        return ret;
+    }
+    dev_audio_codec_handles_t *play_dev_handle = NULL;
+    esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&play_dev_handle);
+    if (play_dev_handle == NULL || play_dev_handle->codec_dev == NULL) {
+        ESP_LOGE(TAG, "Failed to get playback handle");
+        return ESP_ERR_NOT_FOUND;
+    }
+    *out_handle = play_dev_handle->codec_dev;
+    ret = esp_codec_dev_set_out_vol(*out_handle, PLAYBACK_DEFAULT_VOLUME);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set output volume");
+        return ret;
+    }
+    esp_codec_dev_sample_info_t fs = {
+        .sample_rate = CONFIG_GMF_AUDIO_EFFECT_RATE_CVT_DEST_RATE,
+        .channel = CONFIG_GMF_AUDIO_EFFECT_CH_CVT_DEST_CH,
+        .bits_per_sample = CONFIG_GMF_AUDIO_EFFECT_BIT_CVT_DEST_BITS,
+    };
+    ret = esp_codec_dev_open(*out_handle, &fs);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open playback codec");
+        return ret;
+    }
+    return ESP_OK;
+}
+
+static void playback_peripheral_deinit(esp_codec_dev_handle_t handle)
+{
+    if (handle != NULL) {
+        esp_codec_dev_close(handle);
+    }
+    esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
 }
 
 void app_main(void)
@@ -41,17 +84,12 @@ void app_main(void)
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
     int ret;
+    esp_codec_dev_handle_t playback_handle = NULL;
     ESP_LOGI(TAG, "[ 1 ] Mount peripheral");
-    // Configuration of codec to be aligned with audio pipeline output
-    esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
-    codec_info.play_info.sample_rate = CONFIG_GMF_AUDIO_EFFECT_RATE_CVT_DEST_RATE;
-    codec_info.play_info.channel = CONFIG_GMF_AUDIO_EFFECT_CH_CVT_DEST_CH;
-    codec_info.play_info.bits_per_sample = CONFIG_GMF_AUDIO_EFFECT_BIT_CVT_DEST_BITS;
-    codec_info.record_info = codec_info.play_info;
-    esp_gmf_app_setup_codec_dev(&codec_info);
-
-    // Set default output volume range from [0, 100]
-    esp_codec_dev_set_out_vol((esp_codec_dev_handle_t)esp_gmf_app_get_playback_handle() , 80);
+    ret = playback_peripheral_init(&playback_handle);
+    if (ret != ESP_OK) {
+        return;
+    }
 
     ESP_LOGI(TAG, "[ 2 ] Register all the elements and set audio information to play codec device");
     esp_gmf_pool_handle_t pool = NULL;
@@ -65,9 +103,9 @@ void app_main(void)
     esp_gmf_pipeline_handle_t pipe = NULL;
     const char *name[] = {"aud_dec", "aud_bit_cvt", "aud_rate_cvt", "aud_ch_cvt"};
     ret = esp_gmf_pool_new_pipeline(pool, "io_embed_flash", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, { return; }, "Failed to new pipeline");
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to new pipeline");
 
-    esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(pipe), esp_gmf_app_get_playback_handle());
+    esp_gmf_io_codec_dev_set_dev(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(pipe), playback_handle);
 
     ESP_LOGI(TAG, "[ 3.1 ] Set audio url to play");
     esp_gmf_pipeline_set_in_uri(pipe, esp_embed_tone_url[ESP_EMBED_TONE_FF_16B_1C_44100HZ_MP3]);
@@ -82,11 +120,10 @@ void app_main(void)
 
     ESP_LOGI(TAG, "[ 3.2 ] Create gmf task, bind task to pipeline and load linked element jobs to the bind task");
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
-    cfg.ctx = NULL;
-    cfg.cb = NULL;
+    cfg.name = "pipe_embed";
     esp_gmf_task_handle_t work_task = NULL;
     ret = esp_gmf_task_init(&cfg, &work_task);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, { return; }, "Failed to create pipeline task");
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to create pipeline task");
     esp_gmf_pipeline_bind_task(pipe, work_task);
     esp_gmf_pipeline_loading_jobs(pipe);
 
@@ -110,6 +147,6 @@ void app_main(void)
     gmf_loader_teardown_audio_codec_default(pool);
     gmf_loader_teardown_io_default(pool);
     esp_gmf_pool_deinit(pool);
-    esp_gmf_app_teardown_codec_dev();
+    playback_peripheral_deinit(playback_handle);
     ESP_GMF_MEM_SHOW(TAG);
 }

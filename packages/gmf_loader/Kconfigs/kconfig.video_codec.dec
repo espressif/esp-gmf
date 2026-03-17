@@ -12,6 +12,7 @@ choice
     default GMF_VIDEO_DEC_CODEC_TYPE_AUTO
     help
         Select the video decoder codec type.
+        Please select the video decoder types to register in the "Video Decoder Configuration" menu under "Video Codec Configuration"
 
     config GMF_VIDEO_DEC_CODEC_TYPE_AUTO
         bool "Auto"
@@ -20,16 +21,19 @@ choice
 
     config GMF_VIDEO_DEC_CODEC_TYPE_SW_H264
         bool "Software H264"
+        depends on VIDEO_DECODER_SW_H264_SUPPORT
         help
             Software H264 video decoder.
 
     config GMF_VIDEO_DEC_CODEC_TYPE_SW_MJPEG
         bool "Software MJPEG"
+        depends on VIDEO_DECODER_SW_MJPEG_SUPPORT
         help
             Software MJPEG video decoder.
 
     config GMF_VIDEO_DEC_CODEC_TYPE_HW_MJPEG
         bool "Hardware MJPEG"
+        depends on VIDEO_DECODER_HW_MJPEG_SUPPORT
         help
             Hardware MJPEG video decoder.
 endchoice

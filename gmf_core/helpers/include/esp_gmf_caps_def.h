@@ -65,6 +65,8 @@ static inline void gmf_eightcc_to_str(uint64_t eightcc, char out[9])
 #define ESP_GMF_CAPS_AUDIO_VAD                  STR_2_EIGHTCC("AUDVAD")
 #define ESP_GMF_CAPS_AUDIO_WWE                  STR_2_EIGHTCC("AUDWWE")
 #define ESP_GMF_CAPS_AUDIO_VCMD                 STR_2_EIGHTCC("AUDVCMD")
+#define ESP_GMF_CAPS_AUDIO_DRC                  STR_2_EIGHTCC("AUDDRC")
+#define ESP_GMF_CAPS_AUDIO_MBC                  STR_2_EIGHTCC("AUDMBC")
 
 
 /***************************************************************************/

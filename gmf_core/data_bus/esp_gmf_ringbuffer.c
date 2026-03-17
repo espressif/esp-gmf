@@ -324,6 +324,25 @@ esp_gmf_err_t esp_gmf_rb_abort(esp_gmf_rb_handle_t handle)
     return ESP_GMF_ERR_OK;
 }
 
+esp_gmf_err_t esp_gmf_rb_clear_abort(esp_gmf_rb_handle_t handle)
+{
+    struct esp_gmf_ringbuffer *rb = (struct esp_gmf_ringbuffer *)handle;
+    if (rb == NULL) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    rb->abort_read = 0;
+    rb->abort_write = 0;
+    xSemaphoreTake(rb->can_read, 0);
+    xSemaphoreTake(rb->can_write, 0);
+    if (rb->fill_cnt > 0) {
+        xSemaphoreGive(rb->can_read);
+    }
+    if (rb->fill_cnt < rb->size) {
+        xSemaphoreGive(rb->can_write);
+    }
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_rb_done_write(esp_gmf_rb_handle_t handle)
 {
     struct esp_gmf_ringbuffer *rb = (struct esp_gmf_ringbuffer *)handle;

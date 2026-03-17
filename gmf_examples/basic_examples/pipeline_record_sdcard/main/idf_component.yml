@@ -1,10 +1,4 @@
 dependencies:
-  espressif/gmf_loader:
-    override_path: ../../../../packages/gmf_loader
-    version: "^0.7"
-  espressif/gmf_app_utils:
-    override_path: ../../../../packages/gmf_app_utils
-    version: "^0.7"
   espressif/gmf_core:
     override_path: ../../../../gmf_core
   espressif/gmf_io:
@@ -17,11 +11,12 @@ dependencies:
     override_path: ../../../../elements/gmf_video
   espressif/gmf_misc:
     override_path: ../../../../elements/gmf_misc
-  espressif/esp_wifi_remote:
-    version: '*'
-    rules:
-      - if: "target in [esp32p4]"
-  espressif/esp_hosted:
-    version: '*'
-    rules:
-      - if: "target in [esp32p4]"
+  espressif/gmf_loader:
+    override_path: ../../../../packages/gmf_loader
+    version: "^0.8"
+  espressif/esp_board_manager:
+    version: "*"
+    override_path: ../../../../packages/esp_board_manager
+  espressif/gmf_app_utils:
+    override_path: ../../../../packages/gmf_app_utils
+    version: "^0.8"

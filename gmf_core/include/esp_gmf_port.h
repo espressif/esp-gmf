@@ -22,7 +22,7 @@ extern "C" {
             ESP_LOGE(log_tag, "%s(%d): " format, __FUNCTION__, __LINE__ __VA_OPT__(, ) __VA_ARGS__);    \
             ret_value = ESP_GMF_ERR_FAIL;                                                               \
         } else {                                                                                        \
-            ret_value = ESP_GMF_ERR_OK;                                                                 \
+            ret_value = ESP_GMF_ERR_ABORT;                                                              \
         }                                                                                               \
         action;                                                                                         \
     }                                                                                                   \

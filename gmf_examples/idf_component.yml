@@ -1,4 +1,4 @@
-version: "0.7.2~1"
+version: "0.8.0"
 description: Espressif GMF Related Examples
 url: https://github.com/espressif/esp-gmf/tree/main/gmf_examples
 documentation: "https://github.com/espressif/esp-gmf/blob/main/gmf_examples/README.md"
@@ -13,3 +13,9 @@ examples:
    - path: "./basic_examples/pipeline_play_embed_music"
    - path: "./basic_examples/pipeline_play_sdcard_music"
    - path: "./basic_examples/pipeline_record_sdcard"
+   - path: "./basic_examples/pipeline_play_http_music"
+   - path: "./basic_examples/pipeline_http_download_to_sdcard"
+   - path: "./basic_examples/pipeline_record_http"
+   - path: "./basic_examples/pipeline_audio_effects"
+   - path: "./basic_examples/pipeline_loop_play_no_gap"
+   - path: "./basic_examples/pipeline_play_multi_source_music"

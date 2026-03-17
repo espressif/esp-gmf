@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.0
+
+### Features
+
+- Added `pipeline_play_http_music` example for playing online music via HTTP
+- Added `pipeline_http_download_to_sdcard` example for HTTP file downloads to SD card
+- Added `pipeline_record_http` example for uploading the recorded audio to HTTP server
+- Added power manage support for recording example `pipeline_record_sdcard`
+- Added `pipeline_audio_effects` example demonstrating audio effects (ALC, EQ, FADE, SONIC, DRC, MBC) usage in GMF pipeline
+- Added `pipeline_loop_play_no_gap` example for seamless playback of music file
+- Added `pipeline_play_multi_source_music` example - multi-source music player supporting HTTP, SD card, and Flash audio sources
+
 ## v0.7.2~1
 
 ### Bug Fixes

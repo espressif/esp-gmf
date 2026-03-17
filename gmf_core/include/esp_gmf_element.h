@@ -88,6 +88,7 @@ typedef struct {
     esp_gmf_job_func          open;            /*!< Function to open the element */
     esp_gmf_job_func          process;         /*!< Function to process the element */
     esp_gmf_job_func          close;           /*!< Function to close the element */
+    esp_gmf_job_func          reset;           /*!< Function to reset the element */
     esp_gmf_load_caps_func    load_caps;       /*!< Function to load element capability description */
     esp_gmf_load_method_func  load_methods;    /*!< Function to load element methods */
     esp_gmf_event_cb          event_receiver;  /*!< Event receiver function */
@@ -301,6 +302,20 @@ esp_gmf_job_err_t esp_gmf_element_process_close(esp_gmf_element_handle_t handle,
  *       - ESP_GMF_JOB_ERR_FAIL      Indicating the job has failed to execute
  */
 esp_gmf_job_err_t esp_gmf_element_process_running(esp_gmf_element_handle_t handle, void *para);
+
+/**
+ * @brief  Process the reset phase for the specific element
+ *
+ * @param[in]  handle  GMF element handle
+ * @param[in]  para    Pointer to the parameters for processing
+ *
+ * @return
+ *       - ESP_GMF_JOB_ERR_DONE      Indicating the job has been completed
+ *       - ESP_GMF_JOB_ERR_CONTINUE  Indicating the job should continue
+ *       - ESP_GMF_JOB_ERR_OK        Indicating the job has executed successfully
+ *       - ESP_GMF_JOB_ERR_FAIL      Indicating the job has failed to execute
+ */
+esp_gmf_job_err_t esp_gmf_element_process_reset(esp_gmf_element_handle_t handle, void *para);
 
 /**
  * @brief  Set the state of the specific element

@@ -12,12 +12,13 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
+#endif  /* __cplusplus */
 
-#define DEFAULT_ESP_GMF_AUDIO_DEC_CONFIG() {    \
-    .dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_NONE, \
-    .dec_cfg  = NULL,                           \
-    .cfg_size = 0,                              \
+#define DEFAULT_ESP_GMF_AUDIO_DEC_CONFIG() {          \
+    .dec_type      = ESP_AUDIO_SIMPLE_DEC_TYPE_NONE,  \
+    .dec_cfg       = NULL,                            \
+    .cfg_size      = 0,                               \
+    .use_frame_dec = false,                           \
 }
 
 /**
@@ -36,7 +37,10 @@ esp_gmf_err_t esp_gmf_audio_dec_init(esp_audio_simple_dec_cfg_t *config, esp_gmf
 /**
  * @brief  Reconfigure the GMF audio decoder and filled into provided configuration
  *
- * @note  Only allowed when not running, i.e., in the `ESP_GMF_EVENT_STATE_NONE` or `ESP_GMF_EVENT_STATE_INITIALIZED` state
+ * @note  This function can be called in any state
+ *        It is recommended to call it before the pipeline run or when the pipeline is paused
+ *        If called during runtime, ensure the input IO data and the configured decode format are timing-aligned
+
  *
  * @param[in]  handle  Audio decoder handle to be reconfigured
  * @param[in]  config  Pointer to the new simple decoder configuration
@@ -51,17 +55,10 @@ esp_gmf_err_t esp_gmf_audio_dec_reconfig(esp_gmf_element_handle_t handle, esp_au
 /**
  * @brief  Reconfigures the GMF audio decoder with default configuration based on provided sound information
  *
- * @note  1. Only allowed when not running, i.e., in the `ESP_GMF_EVENT_STATE_NONE` or `ESP_GMF_EVENT_STATE_INITIALIZED` state
- *        2. The actual reconfiguration behavior depends on the relationship between the provided `sound info` and
- *           the current decoder configuration (`cfg`):
- *             - If the `format_id` in `sound info` matches the decoder's current `type`, and the decoder's sub-config (`sub cfg`) is not NULL,
- *               only the basic fields in the sub-config will be updated with information from `sound info` (e.g., sample rate, channel count).
- *             - If the `format_id` differs from the current `type`, or if the sub-config is NULL,
- *               the decoder will be reconfigured using the **default configuration** for the specified `format_id`,
- *               and the current decoder `type` will be updated accordingly.
+ * @note  The call timing is same as `esp_gmf_audio_dec_reconfig` function
  *
- * @param[in]  handle   Audio decoder handle to be reconfigured
- * @param[in]  info     Sound information to be configured
+ * @param[in]  handle  Audio decoder handle to be reconfigured
+ * @param[in]  info    Sound information to be configured
  *
  * @return
  *       - ESP_GMF_ERR_OK           Success
@@ -72,4 +69,4 @@ esp_gmf_err_t esp_gmf_audio_dec_reconfig_by_sound_info(esp_gmf_element_handle_t 
 
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif  /* __cplusplus */

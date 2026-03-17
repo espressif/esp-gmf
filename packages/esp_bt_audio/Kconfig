@@ -1,0 +1,8 @@
+menu "ESP Bluetooth Audio"
+
+config ESP_BT_AUDIO_GMF_IO_SUPPORT
+    bool "Enable GMF IO Support"
+    default n
+    help
+        Enable GMF IO support for ESP Bluetooth Audio.
+endmenu

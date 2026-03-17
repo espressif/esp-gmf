@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.8.0
+
+### Features
+
+- Added abort support for GMF task
+- Added API esp_gmf_task_set_abort_strategy to control state transition after abort
+- Unified runtime state handling macro: `GMF_TASK_HANDLE_PAUSE_AND_STOP` for pause/stop
+- New job error: `ESP_GMF_JOB_ERR_ABORT = ESP_GMF_IO_ABORT`
+- Added `DRC` and `MBC` capability definition
+- Enhanced `esp_gmf_task_run`: Optimized to return immediately before time-consuming IO operations, enabling users to abort ongoing IO via `esp_gmf_task_stop`
+- Enhanced `esp_gmf_task_stop`: Enhanced with retry logic to ensure task termination, adds a warning if user-specified timeout is shorter than the actual execution time
+- Enhanced gmf_io
+  - Added async buffer logic for gmf_io
+  - Added configuration of gmf_io buffering task scheduler
+  - Added speed measurement for gmf_io
+  - Added done and abort capability for gmf_io
+  - Added `read_filter` callback to support custom payload processing
+- Added API esp_gmf_db_clear_abort for condition which no need reset after abort
+- Added API esp_gmf_db_reset_done_write for `block`, `fifo` and `pbuf`
+- Added API esp_gmf_io_reload with new uri
+- Added API esp_gmf_pipeline_set_pause_on_start and esp_gmf_task_set_pause_on_start for pausing the pipeline task before processing jobs
+- Added `esp_gmf_pool_get_io_tag_by_url` to support dynamic IO selection based on URL
+- Added `get_score` callback to `esp_gmf_io_t` to support URL-based scoring mechanism
+
+### Bug Fixes
+
+- `esp_gmf_element_process_open`: allows the first element's IN port to be NULL, still checks that non-last elements have a non-NULL OUT port
+- `esp_gmf_task_run`: clears any left-over PAUSE/STOP event bits before running to prevent issues for the current run
+- Fixed block data bus read data wrong in corner case
+- Fixed reuse pipeline crash if task stop timeout
+
 ## v0.7.10
 
 ### Features

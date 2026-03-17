@@ -9,16 +9,16 @@
 #include "esp_gmf_oal_mem.h"
 #include "esp_log.h"
 
-#define MAX_FILES_INDEX 1000
+#define MAX_FILES_INDEX  1000
 
 /**
- * @brief Embed flash io context in GMF
+ * @brief  Embed flash io context in GMF
  */
 typedef struct {
-    esp_gmf_io_t       base;      /*!< The GMF embed flash io handle */
-    int                cur;       /*!< The current stream pos */
-    int                max_files; /*!< The max file number */
-    embed_item_info_t *items;     /*!< The embed flash stream item */
+    esp_gmf_io_t       base;       /*!< The GMF embed flash io handle */
+    int                cur;        /*!< The current stream pos */
+    int                max_files;  /*!< The max file number */
+    embed_item_info_t *items;      /*!< The embed flash stream item */
 } embed_flash_io_t;
 
 static const char *const TAG = "ESP_GMF_EMBED_FLASH";
@@ -26,6 +26,15 @@ static const char *const TAG = "ESP_GMF_EMBED_FLASH";
 static esp_gmf_err_t _embed_flash_new(void *cfg, esp_gmf_obj_handle_t *io)
 {
     return esp_gmf_io_embed_flash_init(cfg, io);
+}
+
+static esp_gmf_err_t _embed_get_score(esp_gmf_io_handle_t handle, const char *url, int *score)
+{
+    *score = ESP_GMF_IO_SCORE_NONE;
+    if (strncasecmp(url, "embed://", 8) == 0) {
+        *score = ESP_GMF_IO_SCORE_STANDARD;
+    }
+    return ESP_GMF_ERR_OK;
 }
 
 static esp_gmf_err_t _embed_flash_open(esp_gmf_io_handle_t io)
@@ -76,9 +85,9 @@ static esp_gmf_err_io_t _embed_flash_acquire_read(esp_gmf_io_handle_t io, void *
     if ((info.pos + wanted_size) > info.size) {
         wanted_size = info.size - info.pos;
     }
-    ESP_LOGD(TAG, "Embed read data, ret:%ld, pos: %llu/%llu", wanted_size, info.pos, info.size);
+    ESP_LOGD(TAG, "Embed read data, ret:%ld", wanted_size);
     if (wanted_size == 0) {
-        ESP_LOGW(TAG, "No more data, ret:%ld, pos: %llu/%llu", wanted_size, info.pos, info.size);
+        ESP_LOGW(TAG, "No more data, ret:%ld", wanted_size);
         pload->is_done = true;
     }
     memcpy(pload->buf, embed_flash->items[embed_flash->cur].address + info.pos, wanted_size);
@@ -88,12 +97,6 @@ static esp_gmf_err_io_t _embed_flash_acquire_read(esp_gmf_io_handle_t io, void *
 
 static esp_gmf_err_io_t _embed_flash_release_read(esp_gmf_io_handle_t io, void *payload, int block_ticks)
 {
-    embed_flash_io_t *embed_flash = (embed_flash_io_t *)io;
-    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)embed_flash, &info);
-    ESP_LOGD(TAG, "Update len = %d, pos = %d/%d", pload->valid_size, (int)info.pos, (int)info.size);
-    esp_gmf_io_update_pos((esp_gmf_io_handle_t)embed_flash, pload->valid_size);
     return ESP_GMF_IO_OK;
 }
 
@@ -138,23 +141,39 @@ esp_gmf_err_t esp_gmf_io_embed_flash_init(embed_flash_io_cfg_t *config, esp_gmf_
     obj->new_obj = _embed_flash_new;
     obj->del_obj = _embed_flash_destroy;
     embed_flash_io_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(*config));
-    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _embed_fail;},
-                       "embed flash stream configuration", sizeof(*config));
+    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _embed_fail;}, "embed flash stream configuration", sizeof(*config));
     memcpy(cfg, config, sizeof(*config));
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
     ret = esp_gmf_obj_set_tag(obj, (config->name == NULL ? "io_embed_flash" : config->name));
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _embed_fail, "Failed to set obj tag");
+    embed_flash->base.get_score = _embed_get_score;
     embed_flash->base.open = _embed_flash_open;
     embed_flash->base.close = _embed_flash_close;
     embed_flash->base.seek = NULL;
     embed_flash->base.reset = NULL;
-    esp_gmf_io_init(obj, NULL);
     if (embed_flash->base.dir == ESP_GMF_IO_DIR_READER) {
         embed_flash->base.acquire_read = _embed_flash_acquire_read;
         embed_flash->base.release_read = _embed_flash_release_read;
     } else {
         ESP_LOGE(TAG, "Does not support this operation, %d", embed_flash->base.dir);
         ret = ESP_GMF_ERR_NOT_SUPPORT;
+        goto _embed_fail;
+    }
+    esp_gmf_io_cfg_t io_cfg = {
+        .thread = {
+            .stack = 0,
+            .prio = 0,
+            .core = 0,
+            .stack_in_ext = false,
+        },
+        .buffer_cfg = {
+            .io_size = 0,
+            .buffer_size = 0,
+        },
+        .enable_speed_monitor = config->io_cfg.enable_speed_monitor,
+    };
+    ret = esp_gmf_io_init(obj, &io_cfg);
+    if (ret != ESP_GMF_ERR_OK) {
         goto _embed_fail;
     }
     *io = obj;

@@ -3,42 +3,75 @@ config GMF_AUDIO_CODEC_INIT_DECODER
         default y
         help
             Initialize GMF audio codec decoder
+
     choice
         prompt "Select Default GMF Audio Codec Decoder Type"
         default GMF_AUDIO_CODEC_DECODER_TYPE_AAC
         depends on GMF_AUDIO_CODEC_INIT_DECODER
+        help
+            Please select the audio decoder types to register in the "Audio Decoder Configuration" and "Audio Simple Decoder Configuration" menus under "Audio Codec Configuration"
 
         config GMF_AUDIO_CODEC_DECODER_TYPE_AAC
             bool "AAC Decoder"
+            depends on AUDIO_DECODER_AAC_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_MP3
             bool "MP3 Decoder"
+            depends on AUDIO_DECODER_MP3_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_AMRNB
             bool "AMR-NB Decoder"
+            depends on AUDIO_DECODER_AMRNB_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_AMRWB
             bool "AMR-WB Decoder"
+            depends on AUDIO_DECODER_AMRWB_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_FLAC
             bool "FLAC Decoder"
+            depends on AUDIO_DECODER_FLAC_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_WAV
             bool "WAV Decoder"
+            depends on AUDIO_SIMPLE_DEC_WAV_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_M4A
             bool "M4A Decoder"
+            depends on AUDIO_SIMPLE_DEC_M4A_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_TS
             bool "TS Decoder"
+            depends on AUDIO_SIMPLE_DEC_TS_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_RAW_OPUS
             bool "Raw Opus Decoder"
+            depends on AUDIO_DECODER_OPUS_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_G711A
             bool "G711A Decoder"
+            depends on AUDIO_DECODER_G711_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_G711U
             bool "G711U Decoder"
+            depends on AUDIO_DECODER_G711_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_PCM
             bool "PCM Decoder"
+            depends on AUDIO_DECODER_PCM_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_ADPCM
             bool "ADPCM Decoder"
+            depends on AUDIO_DECODER_ADPCM_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_SBC
             bool "SBC Decoder"
+            depends on AUDIO_DECODER_SBC_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_LC3
             bool "LC3 Decoder"
+            depends on AUDIO_DECODER_LC3_SUPPORT
+        config GMF_AUDIO_CODEC_DECODER_TYPE_VORBIS
+            bool "VORBIS Decoder"
+            depends on AUDIO_DECODER_VORBIS_SUPPORT
+        config GMF_AUDIO_CODEC_DECODER_TYPE_ALAC
+            bool "ALAC Decoder"
+            depends on AUDIO_DECODER_ALAC_SUPPORT
     endchoice
+
+    config GMF_AUDIO_CODEC_DEC_USE_FRAME_DEC
+        bool "Use Frame Decoder Without Parse"
+        default n
+        depends on GMF_AUDIO_CODEC_INIT_DECODER
+        help
+            Enable this option to use frame decoder without parse.
+            If set to true, means that the input data is a complete frame and can be decoded directly.
+            If set to false, for decoders with parser, will parse to obtain the complete frame and then decode it.
 
     menu "AAC Decoder Configuration"
         depends on GMF_AUDIO_CODEC_DECODER_TYPE_AAC

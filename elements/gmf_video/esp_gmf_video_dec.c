@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
  * See LICENSE file for details.
@@ -114,9 +114,6 @@ static esp_gmf_job_err_t vdec_el_open(esp_gmf_video_element_handle_t self, void 
     esp_video_dec_get_frame_align(vdec->dec_handle, &in_frame_align, &out_frame_align);
     ESP_GMF_ELEMENT_GET(vdec)->in_attr.port.buf_addr_aligned = in_frame_align;
     ESP_GMF_ELEMENT_GET(vdec)->out_attr.port.buf_addr_aligned = out_frame_align;
-    esp_gmf_info_video_t out_info = vdec->parent.src_info;
-    out_info.format_id = vdec->out_format;
-    esp_gmf_element_notify_vid_info(self, &out_info);
     return ESP_GMF_JOB_ERR_OK;
 }
 
@@ -125,18 +122,11 @@ static int vdec_bypass(vdec_t *vdec, esp_gmf_port_t *in, esp_gmf_port_t *out)
     esp_gmf_payload_t *in_load = NULL;
     esp_gmf_payload_t *out_load = NULL;
     esp_gmf_err_io_t ret = esp_gmf_port_acquire_in(in, &in_load, ESP_GMF_ELEMENT_GET(vdec)->in_attr.data_size, ESP_GMF_MAX_DELAY);
-    if (ret < 0) {
-        ESP_LOGE(TAG, "Acquire on in port, ret:%d", ret);
-        return ret == ESP_GMF_IO_ABORT ? ESP_GMF_JOB_ERR_OK : ESP_GMF_JOB_ERR_FAIL;
-    }
+    ESP_GMF_PORT_ACQUIRE_IN_CHECK(TAG, ret, ret, return ret);
     bool is_done = in_load->is_done;
     out_load = in_load;
     ret = esp_gmf_port_acquire_out(out, &out_load, out_load->valid_size, -1);
-    // Not release out if error
-    if (ret < 0) {
-        esp_gmf_port_release_in(in, in_load, 0);
-        return ret;
-    }
+    ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, ret, ret, esp_gmf_port_release_in(in, in_load, 0); return ret);
     esp_gmf_port_release_out(out, out_load, 0);
     esp_gmf_port_release_in(in, in_load, 0);
     if (is_done) {
@@ -159,10 +149,7 @@ static esp_gmf_job_err_t vdec_el_process(esp_gmf_video_element_handle_t self, vo
     }
     // TODO make sure input frame alignment meet request
     int ret = esp_gmf_port_acquire_in(in, &in_load, ESP_GMF_ELEMENT_GET(vdec)->in_attr.data_size, -1);
-    if (ret < 0) {
-        ESP_LOGE(TAG, "Acquire in port error ret:%d", ret);
-        return ret == ESP_GMF_IO_ABORT ? ESP_GMF_JOB_ERR_OK : ESP_GMF_JOB_ERR_FAIL;
-    }
+    ESP_GMF_PORT_ACQUIRE_IN_CHECK(TAG, ret, ret, goto __vid_proc_release;);
 
     // Suppose input data must be frame boundary
     esp_video_dec_in_frame_t in_frame = {
@@ -174,8 +161,12 @@ static esp_gmf_job_err_t vdec_el_process(esp_gmf_video_element_handle_t self, vo
     ret = ESP_GMF_JOB_ERR_FAIL;
     do {
         // Check whether done
-        if (in_load->valid_size == 0 && in_load->is_done) {
-            ret = ESP_GMF_JOB_ERR_DONE;
+        if (in_load->valid_size == 0) {
+            ret = esp_gmf_port_acquire_out(out, &out_load, ESP_GMF_ELEMENT_GET(vdec)->out_attr.data_size, ESP_GMF_MAX_DELAY);
+            ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, ret, ret, break;);
+            out_load->is_done = in_load->is_done;
+            out_load->valid_size = 0;
+            out_load->pts = in_load->pts;
             break;
         }
         // Check alignment
@@ -240,10 +231,17 @@ static esp_gmf_job_err_t vdec_el_process(esp_gmf_video_element_handle_t self, vo
         out_load->pts = in_load->pts;
         ret = ESP_GMF_JOB_ERR_OK;
     } while (0);
+ __vid_proc_release:
     if (out_load) {
+        out_load->is_done = in_load->is_done;
         esp_gmf_port_release_out(out, out_load, 0);
     }
-    esp_gmf_port_release_in(in, in_load, 0);
+    if (in_load != NULL) {
+        esp_gmf_port_release_in(in, in_load, 0);
+    }
+    if (in_load->is_done) {
+        ret = ESP_GMF_JOB_ERR_DONE;
+    }
     return ret;
 }
 

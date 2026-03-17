@@ -47,8 +47,8 @@ esp_gmf_err_t esp_gmf_fifo_create(int block_cnt, int block_size, esp_gmf_fifo_ha
  *
  * @note  Should call this API before `esp_gmf_fifo_acquire_write` to get aligned buffer
  *
- * @param[in]   handle  FIFO handle
- * @param[in]   align   Alignment for FIFO buffer to get (power of 2, 0=default)
+ * @param[in]  handle  FIFO handle
+ * @param[in]  align   Alignment for FIFO buffer to get (power of 2, 0=default)
  *
  * @return
  *       - ESP_GMF_ERR_OK           Success
@@ -161,6 +161,17 @@ esp_gmf_err_io_t esp_gmf_fifo_release_write(esp_gmf_fifo_handle_t handle, esp_gm
 esp_gmf_err_t esp_gmf_fifo_done_write(esp_gmf_fifo_handle_t handle);
 
 /**
+ * @brief  Reset the status of writing to the FIFO as not done
+ *
+ * @param[in]  handle  FIFO handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid handle
+ */
+esp_gmf_err_t esp_gmf_fifo_reset_done_write(esp_gmf_fifo_handle_t handle);
+
+/**
  * @brief  Abort all operations on the FIFO
  *
  * @param[in]  handle  FIFO handle
@@ -170,6 +181,20 @@ esp_gmf_err_t esp_gmf_fifo_done_write(esp_gmf_fifo_handle_t handle);
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid handle
  */
 esp_gmf_err_t esp_gmf_fifo_abort(esp_gmf_fifo_handle_t handle);
+
+/**
+ * @brief  Clear the abort flag and drain semaphores for recovery after abort
+ *
+ * @note  This function should be called when recovering from an abort state
+ *        It clears the abort_read and abort_write flags, then drains and restores semaphore signals based on actual buffer state
+ *
+ * @param[in]  handle  The FIFO handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_fifo_clear_abort(esp_gmf_fifo_handle_t handle);
 
 /**
  * @brief  Reset the FIFO to its initial state

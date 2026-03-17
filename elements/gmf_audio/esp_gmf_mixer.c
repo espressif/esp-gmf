@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
  * See LICENSE file for details.
@@ -381,6 +381,19 @@ esp_gmf_err_t esp_gmf_mixer_set_audio_info(esp_gmf_element_handle_t handle, uint
     return ESP_GMF_ERR_OK;
 }
 
+esp_gmf_err_t esp_gmf_mixer_reset(esp_gmf_element_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_gmf_mixer_t *mixer = (esp_gmf_mixer_t *)handle;
+    if (mixer->mixer_hd) {
+        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+        esp_ae_err_t ret = esp_ae_mixer_reset(mixer->mixer_hd);
+        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "Mixer reset error %d", ret);
+    }
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_mixer_init(esp_ae_mixer_cfg_t *config, esp_gmf_element_handle_t *handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
@@ -428,6 +441,7 @@ esp_gmf_err_t esp_gmf_mixer_init(esp_ae_mixer_cfg_t *config, esp_gmf_element_han
     ESP_GMF_ELEMENT_GET(mixer)->ops.event_receiver = mixer_received_event_handler;
     ESP_GMF_ELEMENT_GET(mixer)->ops.load_caps = _load_mixer_caps_func;
     ESP_GMF_ELEMENT_GET(mixer)->ops.load_methods = _load_mixer_methods_func;
+    ESP_GMF_ELEMENT_GET(mixer)->ops.reset = NULL;
     *handle = obj;
     ESP_LOGD(TAG, "Initialization, %s-%p", OBJ_GET_TAG(obj), obj);
     return ESP_GMF_ERR_OK;

@@ -120,7 +120,7 @@ static esp_gmf_job_err_t esp_gmf_interleave_process(esp_gmf_element_handle_t sel
     int bytes = samples_num * interleave->bytes_per_sample;
     while (in_port != NULL) {
         load_ret = esp_gmf_port_acquire_in(in_port, &(interleave->in_load[i]), bytes, in_port->wait_ticks);
-        ESP_GMF_PORT_CHECK(TAG, load_ret, out_len, {out_len = ESP_GMF_JOB_ERR_FAIL; goto __intlv_release;}, "Failed to acquire in, idx:%d, ret: %d", i, load_ret);
+        ESP_GMF_PORT_CHECK(TAG, load_ret, out_len, {goto __intlv_release;}, "Failed to acquire in, idx:%d, ret: %d", i, load_ret);
         interleave->in_arr[i] = interleave->in_load[i]->buf;
         in_port = in_port->next;
         // if one load is done means interleave need to done

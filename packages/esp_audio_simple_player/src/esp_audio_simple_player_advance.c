@@ -11,6 +11,15 @@
 
 static const char *TAG = "ASP_ADVANCE";
 
+esp_gmf_err_t esp_audio_simple_player_get_pool(esp_asp_handle_t handle, esp_gmf_pool_handle_t *pool)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, pool, { return ESP_GMF_ERR_INVALID_ARG;});
+    esp_audio_simple_player_t *player = (esp_audio_simple_player_t *)handle;
+    *pool = player->pool;
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_audio_simple_player_register_io(esp_asp_handle_t handle, esp_gmf_io_handle_t io)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});

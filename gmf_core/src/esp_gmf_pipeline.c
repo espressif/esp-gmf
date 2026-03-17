@@ -33,6 +33,19 @@ static inline void register_close_jobs_to_task(esp_gmf_pipeline_handle_t pipelin
     } while ((next_el = (esp_gmf_element_handle_t)esp_gmf_node_for_next(node)));
 }
 
+static inline void __register_insert_reset_jobs_to_task(esp_gmf_pipeline_handle_t pipeline)
+{
+    esp_gmf_node_t *node = (esp_gmf_node_t *)pipeline->head_el;
+    esp_gmf_element_handle_t next_el = pipeline->head_el;
+    do {
+        ESP_LOGD(TAG, "Add the reset job to the head of the job list, p:%p, tsk:%p, [el:%s-%p]", pipeline, pipeline->thread, OBJ_GET_TAG(next_el), next_el);
+        char name[ESP_GMF_JOB_LABLE_MAX_LEN] = "";
+        esp_gmf_job_str_cat(name, ESP_GMF_JOB_LABLE_MAX_LEN, OBJ_GET_TAG(next_el), ESP_GMF_JOB_STR_RESET, strlen(ESP_GMF_JOB_STR_RESET));
+        esp_gmf_task_insert_head_job(pipeline->thread, name, esp_gmf_element_process_reset, ESP_GMF_JOB_TIMES_ONCE, next_el);
+        node = (esp_gmf_node_t *)next_el;
+    } while ((next_el = (esp_gmf_element_handle_t)esp_gmf_node_for_next(node)));
+}
+
 static inline esp_gmf_err_t register_working_jobs_to_task(esp_gmf_pipeline_handle_t pipeline, esp_gmf_element_handle_t el)
 {
     esp_gmf_oal_mutex_lock(pipeline->lock);
@@ -85,14 +98,13 @@ static esp_gmf_err_t esp_gmf_task_evt(esp_gmf_event_pkt_t *evt, void *ctx)
 {
     esp_gmf_pipeline_handle_t pipeline = (esp_gmf_pipeline_handle_t)ctx;
     esp_gmf_task_handle_t tsk = evt->from;
-    ESP_LOGD(TAG, "TASK EVT, p:%p tsk:%s-%p, t:%x, sub:%s, pld:%p, sz:%d", pipeline,
-             OBJ_GET_TAG(tsk), evt->from, evt->type, esp_gmf_event_get_state_str(evt->sub), evt->payload, evt->payload_size);
     int ret_val = ESP_GMF_ERR_OK;
     if (evt->type == ESP_GMF_EVT_TYPE_LOADING_JOB) {
+        ESP_LOGD(TAG, "TASK EVT, LOADING JOB, pipe:%p, tsk:%s, action:%s, pld:%p, sz:%d", pipeline,
+                 OBJ_GET_TAG(tsk), evt->sub == GMF_TASK_STRATEGY_ACTION_STOP ? "STOP" : (evt->sub == GMF_TASK_STRATEGY_ACTION_RESET ? "RESET" : "UNKNOWN"),
+                 evt->payload, evt->payload_size);
         switch (evt->sub) {
-            case ESP_GMF_EVENT_STATE_ERROR:
-            case ESP_GMF_EVENT_STATE_STOPPED:
-            case ESP_GMF_EVENT_STATE_FINISHED: {
+            case GMF_TASK_STRATEGY_ACTION_STOP: {
                 register_close_jobs_to_task(pipeline);
                 if (pipeline->in) {
                     esp_gmf_io_close(pipeline->in);
@@ -101,8 +113,16 @@ static esp_gmf_err_t esp_gmf_task_evt(esp_gmf_event_pkt_t *evt, void *ctx)
                     esp_gmf_io_close(pipeline->out);
                 }
             } break;
+            case GMF_TASK_STRATEGY_ACTION_RESET:
+                __register_insert_reset_jobs_to_task(pipeline);
+                break;
+            default:
+                ESP_LOGE(TAG, "Loading job not supported action: %d, [p:%p, tsk:%p-%s]", evt->sub, pipeline, tsk, OBJ_GET_TAG(tsk));
+                break;
         }
     } else if (evt->type == ESP_GMF_EVT_TYPE_CHANGE_STATE) {
+        ESP_LOGD(TAG, "TASK EVT, STATE CHANGE, pipe:%p, tsk:%s, state:%s, pld:%p, sz:%d", pipeline,
+                 OBJ_GET_TAG(tsk), esp_gmf_event_get_state_str(evt->sub), evt->payload, evt->payload_size);
         switch (evt->sub) {
             case ESP_GMF_EVENT_STATE_ERROR:
             case ESP_GMF_EVENT_STATE_STOPPED:
@@ -153,6 +173,8 @@ static esp_gmf_err_t esp_gmf_task_evt(esp_gmf_event_pkt_t *evt, void *ctx)
             default:
                 break;
         }
+    } else if (evt->type == ESP_GMF_EVT_TYPE_REPORT_INFO) {
+        ESP_LOGD(TAG, "TASK EVT, REPORT_INFO, pipe:%p, from:%s, pld:%p, sz:%d", pipeline, OBJ_GET_TAG(tsk), evt->payload, evt->payload_size);
     } else {
         ESP_LOGW(TAG, "Not supported event type(%d), [p:%p, tsk:%s-%p]", evt->type, pipeline, OBJ_GET_TAG(tsk), tsk);
     }
@@ -491,11 +513,21 @@ esp_gmf_err_t esp_gmf_pipeline_prev_stop(esp_gmf_pipeline_handle_t pipeline)
     return ESP_GMF_ERR_OK;
 }
 
+esp_gmf_err_t esp_gmf_pipeline_set_pause_on_start(esp_gmf_pipeline_handle_t pipeline, bool enable)
+{
+    ESP_GMF_NULL_CHECK(TAG, pipeline, return ESP_GMF_ERR_INVALID_ARG);
+    pipeline->pause_on_start = enable ? 1 : 0;
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_pipeline_run(esp_gmf_pipeline_handle_t pipeline)
 {
     ESP_GMF_NULL_CHECK(TAG, pipeline, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_err_t ret = esp_gmf_pipeline_prev_run(pipeline);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Fail to prev run for %p", pipeline);
+    if (pipeline->pause_on_start && pipeline->thread) {
+        esp_gmf_task_set_pause_on_start(pipeline->thread);
+    }
     return esp_gmf_task_run(pipeline->thread);
 }
 

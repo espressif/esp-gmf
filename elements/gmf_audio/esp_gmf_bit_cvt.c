@@ -96,6 +96,10 @@ static esp_gmf_job_err_t esp_gmf_bit_cvt_process(esp_gmf_element_handle_t self, 
     samples_num = in_load->valid_size / (bit_cvt->in_bytes_per_sample);
     bytes = samples_num * bit_cvt->out_bytes_per_sample;
     if ((bit_cvt->in_bytes_per_sample * samples_num != in_load->valid_size) || (load_ret < ESP_GMF_IO_OK)) {
+        if (load_ret == ESP_GMF_IO_ABORT) {
+            out_len = ESP_GMF_JOB_ERR_ABORT;
+            goto __bit_release;
+        }
         ESP_LOGE(TAG, "Invalid in load size %d, ret %d", in_load->valid_size, load_ret);
         out_len = ESP_GMF_JOB_ERR_FAIL;
         goto __bit_release;
@@ -266,6 +270,7 @@ esp_gmf_err_t esp_gmf_bit_cvt_init(esp_ae_bit_cvt_cfg_t *config, esp_gmf_element
     ESP_GMF_ELEMENT_GET(bit_cvt)->ops.event_receiver = bit_cvt_received_event_handler;
     ESP_GMF_ELEMENT_GET(bit_cvt)->ops.load_caps = _load_bit_cvt_caps_func;
     ESP_GMF_ELEMENT_GET(bit_cvt)->ops.load_methods = _load_bit_cvt_methods_func;
+    ESP_GMF_ELEMENT_GET(bit_cvt)->ops.reset = NULL;
     *handle = obj;
     ESP_LOGD(TAG, "Initialization, %s-%p", OBJ_GET_TAG(obj), obj);
     return ESP_GMF_ERR_OK;

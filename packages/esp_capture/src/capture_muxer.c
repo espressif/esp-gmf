@@ -424,13 +424,7 @@ esp_capture_err_t capture_muxer_enable(capture_muxer_path_handle_t muxer_path, b
         return ESP_CAPTURE_ERR_OK;
     }
     muxer_path->enabled = enable;
-    esp_capture_err_t ret;
-    if (enable) {
-        ret = capture_muxer_start(muxer_path);
-    } else {
-        ret = capture_muxer_stop(muxer_path);
-    }
-    return ret;
+    return ESP_CAPTURE_ERR_OK;
 }
 
 esp_capture_err_t capture_muxer_disable_streaming(capture_muxer_path_handle_t muxer_path)

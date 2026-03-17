@@ -1,0 +1,44 @@
+menu "Pipeline Audio Effects Example"
+
+config GMF_AUDIO_EFFECT_INIT_MIXER
+    bool "Mixer"
+    default y
+    help
+        Enable mixer demo mode
+
+config GMF_AUDIO_EFFECT_INIT_ALC
+    bool "ALC"
+    default y
+    help
+        Enable ALC (Automatic Level Control) effect demo
+
+config GMF_AUDIO_EFFECT_INIT_SONIC
+    bool "Sonic"
+    default y
+    help
+        Enable Sonic (pitch and speed shifting) effect demo
+
+config GMF_AUDIO_EFFECT_INIT_EQ
+    bool "EQ"
+    default y
+    help
+        Enable EQ (Equalizer) effect demo
+
+config GMF_AUDIO_EFFECT_INIT_FADE
+    bool "Fade"
+    default y
+    help
+        Enable Fade (fade-in/fade-out) effect demo
+
+config GMF_AUDIO_EFFECT_INIT_DRC
+    bool "DRC"
+    default y
+    help
+        Enable DRC (Dynamic Range Control) effect demo
+
+config GMF_AUDIO_EFFECT_INIT_MBC
+    bool "MBC"
+    default y
+    help
+        Enable MBC (Multi-Band Compressor) effect demo
+endmenu

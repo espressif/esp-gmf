@@ -1,0 +1,1 @@
+set(COMPONENT_EMBED_TXTFILES manloud_48000_2_16_10.wav tone.mp3)

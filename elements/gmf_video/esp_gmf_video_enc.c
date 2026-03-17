@@ -197,10 +197,7 @@ static esp_gmf_job_err_t venc_el_process(esp_gmf_video_element_handle_t self, vo
     esp_gmf_payload_t *out_load = NULL;
 
     int ret = esp_gmf_port_acquire_in(in, &in_load, ESP_GMF_ELEMENT_GET(venc)->in_attr.data_size, ESP_GMF_MAX_DELAY);
-    if (ret < 0) {
-        ESP_LOGE(TAG, "Acquire size:%d on in port, ret:%d", ESP_GMF_ELEMENT_GET(venc)->in_attr.data_size, ret);
-        return (ret == ESP_GMF_IO_ABORT) ? ESP_GMF_JOB_ERR_OK : ESP_GMF_JOB_ERR_FAIL;
-    }
+    ESP_GMF_PORT_ACQUIRE_IN_CHECK(TAG, ret, ret, return ret);
     if (in_load->is_done && in_load->valid_size == 0) {
         esp_gmf_port_release_in(in, in_load, 0);
         return ESP_GMF_JOB_ERR_DONE;
@@ -210,11 +207,7 @@ static esp_gmf_job_err_t venc_el_process(esp_gmf_video_element_handle_t self, vo
     }
     int out_frame_size = ESP_GMF_ELEMENT_GET(venc)->out_attr.data_size;
     ret = esp_gmf_port_acquire_out(out, &out_load, out_frame_size, -1);
-    if (ret < 0) {
-        esp_gmf_port_release_in(in, in_load, 0);
-        ESP_LOGE(TAG, "Acquire size:%d on out port, ret:%d", out_frame_size, ret);
-        return ret;
-    }
+    ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, ret, ret, esp_gmf_port_release_in(in, in_load, 0); return ret);
     do {
         if (venc->venc_bypass) {
             break;
@@ -245,6 +238,7 @@ static esp_gmf_job_err_t venc_el_process(esp_gmf_video_element_handle_t self, vo
         out_load->valid_size = out_frame.encoded_size;
         ret = out_load->valid_size;
     } while (0);
+    out_load->is_done = in_load->is_done;
     esp_gmf_port_release_in(in, in_load, 0);
     esp_gmf_port_release_out(out, out_load, 0);
     if (in_load->is_done) {

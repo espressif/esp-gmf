@@ -6,6 +6,7 @@
 
 #include <sys/stat.h>
 #include "unity.h"
+#include "string.h"
 #include "freertos/FreeRTOS.h"
 #include "esp_private/esp_clk.h"
 #include "driver/sdmmc_host.h"
@@ -24,7 +25,7 @@ static bool        read_run;
 static bool        write_run;
 
 static const char *file_name  = "/sdcard/gmf_ut_test.mp3";
-static const char *file2_name = "/sdcard/gmf_ut_test2.mp3";
+static const char *file2_name = "/sdcard/gmf_ut_test_out.mp3";
 
 static void read_task(void *param)
 {
@@ -123,7 +124,7 @@ write_task_err:
 TEST_CASE("FIFO read and write on different task", "[ESP_GMF_FIFO]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-    esp_log_level_set("ESP_GMF_FIFO", ESP_LOG_VERBOSE);
+    // esp_log_level_set("ESP_GMF_FIFO", ESP_LOG_VERBOSE);
 
     sdmmc_card_t *card = NULL;
     esp_gmf_ut_setup_sdmmc(&card);
@@ -132,7 +133,7 @@ TEST_CASE("FIFO read and write on different task", "[ESP_GMF_FIFO]")
     esp_gmf_fifo_create(10, 1, &fifo);
     ESP_LOGI(TAG, "TEST Create GMF FIFO, %p", fifo);
     TEST_ASSERT_NOT_NULL(fifo);
-    uint8_t priority[][2] = { {5, 5}, {0,10,}, {10, 0}};
+    uint8_t priority[][2] = {{5, 5}, {0, 10}, {10, 0}};
 
     for (size_t i = 0; i < sizeof(priority) / sizeof(priority[0]); i++) {
         ESP_LOGW(TAG, "Test FIFO with priority %d, %d\r\n", priority[i][0], priority[i][1]);
@@ -160,7 +161,7 @@ TEST_CASE("FIFO read and write on different task", "[ESP_GMF_FIFO]")
 TEST_CASE("Abort when FIFO read and write on different task", "[ESP_GMF_FIFO]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-    esp_log_level_set("ESP_GMF_FIFO", ESP_LOG_VERBOSE);
+    // esp_log_level_set("ESP_GMF_FIFO", ESP_LOG_VERBOSE);
 
     sdmmc_card_t *card = NULL;
     esp_gmf_ut_setup_sdmmc(&card);
@@ -169,7 +170,7 @@ TEST_CASE("Abort when FIFO read and write on different task", "[ESP_GMF_FIFO]")
     esp_gmf_fifo_create(10, 1, &fifo);
     ESP_LOGI(TAG, "TEST Create GMF FIFO, %p", fifo);
     TEST_ASSERT_NOT_NULL(fifo);
-    uint8_t priority[][2] = { {5, 5}, {0,10,}, {10, 0}};
+    uint8_t priority[][2] = {{5, 5}, {0, 10}, {10, 0}};
 
     for (size_t i = 0; i < sizeof(priority) / sizeof(priority[0]); i++) {
         ESP_LOGW(TAG, "Test FIFO with priority %d, %d\r\n", priority[i][0], priority[i][1]);
@@ -204,4 +205,57 @@ TEST_CASE("Abort when FIFO read and write on different task", "[ESP_GMF_FIFO]")
 
     esp_gmf_ut_teardown_sdmmc(card);
     vTaskDelay(10 / portTICK_PERIOD_MS);
+}
+
+TEST_CASE("Abort and clear abort function", "[ESP_GMF_FIFO]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+
+    esp_gmf_fifo_handle_t fifo = NULL;
+    esp_gmf_fifo_create(4, 1024, &fifo);
+    TEST_ASSERT_NOT_NULL(fifo);
+    esp_gmf_data_bus_block_t blk = {0};
+    uint8_t test_data[1024];
+    memset(test_data, 0xAA, sizeof(test_data));
+
+    int ret = esp_gmf_fifo_acquire_write(fifo, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_fifo_release_write(fifo, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_fifo_abort(fifo);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_fifo_acquire_read(fifo, &blk, sizeof(test_data), 0);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+
+    ret = esp_gmf_fifo_acquire_write(fifo, &blk, sizeof(test_data), 0);
+    TEST_ASSERT_EQUAL(ESP_GMF_IO_ABORT, ret);
+
+    ret = esp_gmf_fifo_clear_abort(fifo);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_fifo_acquire_read(fifo, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+    TEST_ASSERT_EQUAL(sizeof(test_data), blk.valid_size);
+
+    for (int i = 0; i < sizeof(test_data); i++) {
+        TEST_ASSERT_EQUAL(0xAA, ((uint8_t *)blk.buf)[i]);
+    }
+
+    ret = esp_gmf_fifo_release_read(fifo, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = esp_gmf_fifo_acquire_write(fifo, &blk, sizeof(test_data), portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    memcpy(blk.buf, test_data, sizeof(test_data));
+    blk.valid_size = sizeof(test_data);
+    ret = esp_gmf_fifo_release_write(fifo, &blk, portMAX_DELAY);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    esp_gmf_fifo_destroy(fifo);
 }

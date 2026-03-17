@@ -11,6 +11,7 @@
 #include "esp_gmf_io_http.h"
 #include "esp_gmf_io_embed_flash.h"
 #include "esp_gmf_io_i2s_pdm.h"
+#include "esp_gmf_io_codec_dev.h"
 
 extern "C" void test_cxx_build(void)
 {
@@ -25,4 +26,7 @@ extern "C" void test_cxx_build(void)
 
     i2s_pdm_io_cfg_t i2s_pdm_config = ESP_GMF_IO_I2S_PDM_CFG_DEFAULT();
     TEST_ASSERT_EQUAL(esp_gmf_io_i2s_pdm_init(&i2s_pdm_config, NULL), ESP_GMF_ERR_INVALID_ARG);
+
+    codec_dev_io_cfg_t codec_dev_config = ESP_GMF_IO_CODEC_DEV_CFG_DEFAULT();
+    TEST_ASSERT_EQUAL(esp_gmf_io_codec_dev_init(&codec_dev_config, NULL), ESP_GMF_ERR_INVALID_ARG);
 }

@@ -7,6 +7,9 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "esp_gmf_app_setup_peripheral.h"
+#include "esp_board_device.h"
+#include "esp_board_manager_defs.h"
+#include "dev_audio_codec.h"
 #include "esp_log.h"
 #include "esp_gmf_pool.h"
 #include "esp_codec_dev.h"
@@ -267,14 +270,20 @@ void app_main(void)
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     // Prepare for codec device and wifi
-    esp_gmf_app_setup_codec_dev(NULL);
-    esp_codec_dev_set_out_vol(esp_gmf_app_get_playback_handle(), 70);
-    esp_codec_dev_close(esp_gmf_app_get_playback_handle());
-    esp_codec_dev_close(esp_gmf_app_get_record_handle());
+    esp_err_t ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Fail to init play codec device");
+    }
+    esp_codec_dev_handle_t play_codec_handle = NULL;
+    dev_audio_codec_handles_t *codec_handle = NULL;
+    esp_board_device_get_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&codec_handle);
+    play_codec_handle = codec_handle->codec_dev;
+    esp_codec_dev_set_out_vol(play_codec_handle, 70);
     esp_gmf_app_wifi_connect();
-    esp_audio_dec_register_default();
 
-    simple_audio_render_run(AUDIO_RENDER_FIRST_URL, esp_gmf_app_get_playback_handle(), AUDIO_RENDER_TEST_DURATION);
+    // Register for decoders
+    esp_audio_dec_register_default();
+    simple_audio_render_run(AUDIO_RENDER_FIRST_URL, play_codec_handle, AUDIO_RENDER_TEST_DURATION);
 
     const char *mixed_urls[] = {
         AUDIO_RENDER_FIRST_URL,
@@ -287,7 +296,7 @@ void app_main(void)
         AUDIO_RENDER_FOURTH_URL,
     };
     audio_render_with_mixer_run(mixed_urls, sizeof(mixed_urls)/sizeof(mixed_urls[0]),
-                                esp_gmf_app_get_playback_handle(), AUDIO_RENDER_TEST_DURATION);
+                                play_codec_handle, AUDIO_RENDER_TEST_DURATION);
     esp_audio_dec_unregister_default();
     ESP_LOGI(TAG, "Audio render test finished");
 }

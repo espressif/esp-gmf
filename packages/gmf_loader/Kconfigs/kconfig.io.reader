@@ -4,6 +4,58 @@ menu "GMF IO Reader"
         default y
         help
             Initialize GMF codec device reader
+
+        menu "CODEC Device Reader Configuration"
+            depends on GMF_IO_INIT_CODEC_DEV_RX
+
+            config GMF_IO_CODEC_DEV_RX_TASK_STACK
+                int "CODEC Device Reader Task Stack Size"
+                default 0
+                range 0 16384
+                help
+                    Configure the task stack size for the GMF CODEC Device Reader.
+
+            config GMF_IO_CODEC_DEV_RX_TASK_CORE
+                int "CODEC Device Reader Task Core"
+                default 0
+                range 0 1
+                help
+                    Configure the core on which the GMF CODEC Device Reader task will run.
+
+            config GMF_IO_CODEC_DEV_RX_TASK_PRIORITY
+                int "CODEC Device Reader Task Priority"
+                default 5
+                range 1 10
+                help
+                    Configure the task priority for the GMF CODEC Device Reader.
+
+            config GMF_IO_CODEC_DEV_RX_STACK_IN_EXT
+                bool "CODEC Device Reader Stack in External Memory"
+                default n
+                help
+                    Enable this option to allocate the CODEC Device Reader stack in external memory.
+
+            config GMF_IO_CODEC_DEV_RX_IO_SIZE
+                int "CODEC Device Reader IO Size"
+                default 3072
+                range 1024 20480
+                help
+                    Configure the size of the io for the GMF CODEC Device Reader.
+
+            config GMF_IO_CODEC_DEV_RX_OUT_BUF_SIZE
+                int "CODEC Device Reader Output Buffer Size"
+                default 16384
+                range 8192 65536
+                help
+                    Configure the size of the output buffer for the GMF CODEC Device Reader.
+
+            config GMF_IO_CODEC_DEV_RX_SPEED_MONITOR
+                bool "CODEC Device Reader Speed Monitor Enable"
+                default n
+                help
+                    Configure the speed monitor enable for the GMF CODEC Device Reader.
+        endmenu
+
     config GMF_IO_INIT_FILE_READER
         bool "Initialize GMF File Reader"
         default y
@@ -22,6 +74,53 @@ menu "GMF IO Reader"
                     This setting affects the performance of file reading operations.
                     Larger buffer sizes may improve read performance but consume more memory.
                     If the SOC does not have the SOC_SDMMC_PSRAM_DMA_CAPABLE capability, internal memory will be used.
+
+            config GMF_IO_FILE_READER_TASK_STACK
+                int "File Reader Task Stack Size"
+                default 0
+                range 0 16384
+                help
+                    Configure the task stack size for the GMF File Reader.
+
+            config GMF_IO_FILE_READER_TASK_CORE
+                int "File Reader Task Core"
+                default 0
+                range 0 1
+                help
+                    Configure the core on which the GMF File Reader task will run.
+
+            config GMF_IO_FILE_READER_TASK_PRIORITY
+                int "File Reader Task Priority"
+                default 5
+                range 1 10
+                help
+                    Configure the task priority for the GMF File Reader.
+
+            config GMF_IO_FILE_READER_STACK_IN_EXT
+                bool "File Reader Stack in External Memory"
+                default n
+                help
+                    Enable this option to allocate the File Reader stack in external memory.
+
+            config GMF_IO_FILE_READER_IO_SIZE
+                int "File Reader IO Size"
+                default 3072
+                range 1024 20480
+                help
+                    Configure the size of the io for the GMF File Reader.
+
+            config GMF_IO_FILE_READER_OUT_BUF_SIZE
+                int "File Reader Output Buffer Size"
+                default 16384
+                range 8192 65536
+                help
+                    Configure the size of the output buffer for the GMF File Reader.
+
+            config GMF_IO_FILE_READER_SPEED_MONITOR
+                bool "File Reader Speed Monitor Enable"
+                default n
+                help
+                    Configure the speed monitor enable for the GMF File Reader.
         endmenu
 
     config GMF_IO_INIT_HTTP_READER
@@ -60,12 +159,25 @@ menu "GMF IO Reader"
                 help
                     Enable this option to allocate the HTTP Reader stack in external memory.
 
+            config GMF_IO_HTTP_READER_IO_SIZE
+                int "HTTP Reader IO Size"
+                default 3072
+                range 1024 20480
+                help
+                    Configure the size of the io for the GMF HTTP Reader.
+
             config GMF_IO_HTTP_READER_OUT_BUF_SIZE
                 int "HTTP Reader Output Buffer Size"
-                default 8192
-                range 1024 131072
+                default 65536
+                range 16384 1048576
                 help
                     Configure the size of the output buffer for the GMF HTTP Reader.
+
+            config GMF_IO_HTTP_READER_SPEED_MONITOR
+                bool "HTTP Reader Speed Monitor Enable"
+                default n
+                help
+                    Configure the speed monitor enable for the GMF HTTP Reader.
 
             config GMF_IO_HTTP_READER_CERT_PEM
                 string "HTTP Reader SSL Certificate (PEM)"
@@ -79,4 +191,14 @@ menu "GMF IO Reader"
         default y
         help
             Initialize GMF Flash Reader
+
+        menu "Flash Reader Configuration"
+            depends on GMF_IO_INIT_FLASH_READER
+
+            config GMF_IO_FLASH_READER_SPEED_MONITOR
+                bool "Flash Reader Speed Monitor Enable"
+                default n
+                help
+                    Configure the speed monitor enable for the GMF Flash Reader.
+        endmenu
 endmenu

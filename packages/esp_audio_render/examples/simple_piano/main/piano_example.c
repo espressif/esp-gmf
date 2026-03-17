@@ -9,7 +9,6 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_gmf_app_setup_peripheral.h"
 #include "esp_gmf_pool.h"
 #include "esp_codec_dev.h"
 #include "esp_audio_render.h"
@@ -18,7 +17,9 @@
 #include "esp_gmf_ch_cvt.h"
 #include "esp_gmf_bit_cvt.h"
 #include "esp_gmf_rate_cvt.h"
-#include "esp_gmf_app_setup_peripheral.h"
+#include "esp_board_device.h"
+#include "esp_board_manager_defs.h"
+#include "dev_audio_codec.h"
 #include "driver/uart.h"
 
 #define TAG "PIANO_EXAMPLE"
@@ -316,10 +317,16 @@ void app_main(void)
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     // Prepare for codec device
-    esp_gmf_app_setup_codec_dev(NULL);
-    esp_codec_dev_set_out_vol(esp_gmf_app_get_playback_handle(), 70);
-    esp_codec_dev_close(esp_gmf_app_get_playback_handle());
-    esp_codec_dev_close(esp_gmf_app_get_record_handle());
-    run_piano_example(esp_gmf_app_get_playback_handle());
+    esp_err_t ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Fail to init play codec device");
+    }
+    esp_codec_dev_handle_t play_codec_handle = NULL;
+    dev_audio_codec_handles_t *codec_handle = NULL;
+    esp_board_device_get_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&codec_handle);
+    play_codec_handle = codec_handle->codec_dev;
+    esp_codec_dev_set_out_vol(play_codec_handle, 70);
+
+    run_piano_example(play_codec_handle);
     ESP_LOGI(TAG, "Simple piano run finished");
 }

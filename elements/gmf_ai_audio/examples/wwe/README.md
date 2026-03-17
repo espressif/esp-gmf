@@ -1,24 +1,23 @@
-# Speech Recognition
+# Speech Recognition Example
 
 - [中文版](./README_CN.md)
+- Regular Example: ⭐⭐
 
 ## Example Brief
 
-This example demonstrates how to use the `AFE element` for wake word detection, voice activity detection (VAD), and command word recognition. It allows configuring features through the following macro definitions in [main.c](./main/main.c) to achieve different application combinations:
+This example demonstrates how to use the `AFE element` for wake word detection, voice activity detection (VAD), and command word recognition. Features are configured via macro definitions in [main.c](./main/main.c) to achieve different application combinations.
 
-```c
-#define VOICE2FILE     (true)
-#define WAKENET_ENABLE (true)
-#define VAD_ENABLE     (true)
-#define VCMD_ENABLE    (true)
-```
+### Typical Scenarios
 
-- `VOICE2FILE`: Save the audio between VAD start and VAD end as a file
-- `WAKENET_ENABLE`: Enable wake word recognition
-- `VAD_ENABLE`: Enable voice activity detection
-- `VCMD_ENABLE`: Enable command word recognition
+- Offline wake word and command word: say the wake word then the command, or disable wake word and use commands directly
+- Voice event recording: use VAD to save voice segments to files (e.g. `VOICE2FILE`) for later analysis
 
-## GMF Pipeline
+### Prerequisites
+
+- Voice wake word and command word detection are from `esp-sr`; see [esp-sr](https://github.com/espressif/esp-sr/blob/master/README.md) for configuration and usage
+- Familiarity with the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html) is recommended
+
+### GMF Pipeline
 
 ```mermaid
 graph
@@ -27,44 +26,61 @@ graph
     end
 ```
 
-## Example Set Up
+## Environment Setup
+
+### Hardware Required
+
+- **Board**: Default example is ESP32-S3-Korvo V3; other ESP audio boards are also applicable
+- **Peripherals**: Microphone, Audio ADC, Audio DAC, I2S; SDCard required when `VOICE2FILE` is enabled
 
 ### Default IDF Branch
 
-This example supports IDF release/v5.3 and later branches
+This example supports IDF release/v5.4 (>= v5.4.3) and release/v5.5 (>= v5.5.2).
 
-### Prerequisites
+### Software Requirements
 
-The voice wake word and command word detection used in this example are derived from `esp-sr`. Please familiarize yourself with its configuration and usage: [README](https://github.com/espressif/esp-sr/blob/master/README.md)
+- When `VOICE2FILE` is enabled, ensure the SD card is correctly installed; when `WAKENET_ENABLE` is enabled, say the wake word first then the command word
 
-### Build and Flash
+## Build and Flash
 
-Before compiling this example, ensure that the ESP-IDF environment is properly configured. If it is already set up, you can proceed to the next configuration step. If not, run the following script in the root directory of ESP-IDF to set up the build environment. For detailed steps on configuring and using ESP-IDF, please refer to the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html)
+### Build Preparation
+
+Before building this example, ensure the ESP-IDF environment is set up. If it is already set up, skip to the project directory. If not, run the following in the ESP-IDF root directory to complete the environment setup. For full steps, see the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html).
 
 ```
 ./install.sh
 . ./export.sh
 ```
 
-Here are the summarized steps for compilation:
+Short steps:
 
-- Enter the location where the example project is stored:
-
-```
-cd gmf_ai_audio/examples/wwe
-```
-
-- Select the target chip for compilation. For example, to use the ESP32S3:
+- Go to this example's project directory (example path below; replace with your actual path):
 
 ```
+cd $YOUR_GMF_PATH/elements/gmf_ai_audio/examples/wwe
+```
+
+- This example uses `esp_board_manager` for board-level resources; add board support first
+
+On Linux / macOS:
+
+```bash
 idf.py set-target esp32s3
+export IDF_EXTRA_ACTIONS_PATH=./managed_components/esp_board_manager
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
-- Select the compilation board, taking ESP32-S3-Korvo V2 as an example:
 
+On Windows:
+
+```powershell
+idf.py set-target esp32s3
+$env:IDF_EXTRA_ACTIONS_PATH = ".\managed_components\esp_board_manager"
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
-idf.py menuconfig
-In 'menuconfig', select 'GMF APP Configuration' -> 'Audio Board' -> 'ESP32-S3-Korvo V2', and then save and exit
-```
+
+For a custom board, see [Custom board](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board).
+
+### Build and Flash Commands
 
 - Build the example:
 
@@ -72,24 +88,29 @@ In 'menuconfig', select 'GMF APP Configuration' -> 'Audio Board' -> 'ESP32-S3-Ko
 idf.py build
 ```
 
-- Flash the program and run the monitor tool to view serial output (replace PORT with the port name):
+- Flash the firmware and run the serial monitor (replace PORT with your port name):
 
 ```
 idf.py -p PORT flash monitor
 ```
 
-- Exit the debugging interface using `Ctrl-]`
+Exit the monitor with `Ctrl-]`.
 
-## How to use the Example
+## How to Use the Example
 
-- Before compiling the program, confirm whether wake word detection is enabled by checking the value of `WAKENET_ENABLE` in `main.c`. Also, confirm whether the `afe` output needs to be saved as a file by checking the value of `VOICE2FILE`
-- If `VOICE2FILE` is set to `true`, ensure that the SDCard is correctly installed on the development board before running the example
-- During the example's execution, if `WAKENET_ENABLE` is set to `true`, first say the wake word, then say the command word to verify the effects of wake word detection, voice activity detection, and command word detection. If `WAKENET_ENABLE` is set to `false`, you can directly use command words. Pay attention to the corresponding event prompts in the `log`
-- If `VOICE2FILE` is set to `true`, after the example finishes running, you can export the files from the SDCard and use software to check the recording content. The recording file names are `16k_16bit_1ch_{idx}.pcm`, where `{idx}` increments. The PCM format is 16K sampling rate, 16-bit width, and 1 channel
+### Functionality and Usage
 
-### Example Functionality
+- **Macros**: In `main.c`, enable or disable features via the following macros to choose the application scenario:
+  - `VOICE2FILE`: Save audio between VAD start and VAD end as a file
+  - `WAKENET_ENABLE`: Enable wake word recognition
+  - `VAD_ENABLE`: Enable voice activity detection
+  - `VCMD_ENABLE`: Enable command word recognition
+- **Run requirements**: When `VOICE2FILE` is enabled ensure the SD card is correctly installed; when `WAKENET_ENABLE` is enabled say the wake word first then the command word, or disable wake word to use commands directly
+- **Results**: The serial console prints detected events; when `VOICE2FILE` is enabled, recordings are saved to the SD card with filenames `16k_16bit_1ch_{idx}.pcm`
 
-- After the example starts running, you can say wake words and command words to the development board. The following will be printed:
+### Log Output
+
+The following is a sample of key log lines during run (AFE init, pipeline ready, wake and command events):
 
 ```c
 I (1547) AFE: AFE Version: (2MIC_V250113)
@@ -133,18 +154,35 @@ I (10111) AFE_manager: VAD ctrl ret 1
 I (10118) AI_AUDIO_WWE: WAKEUP_END
 ```
 
-### Troubleshooting
+### References
 
-1. **Wake Word Not Detected**:
-   - Ensure `WAKENET_ENABLE` is set to `true`
-   - Verify that the model files are correctly loaded
-   - Check if the channel configuration matches the hardware setup
+- [esp-sr](https://github.com/espressif/esp-sr/blob/master/README.md)
+- [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html)
 
-2. **Recording File Not Generated**:
-   - Ensure the SD card is correctly installed
-   - Verify that `VOICE2FILE` is set to `true`
-   - Confirm that speech is detected after wakeup
+## Troubleshooting
 
-3. **Task Watchdog Timeout**:
-   - Ensure `esp_afe_manager_cfg_t.feed_task_setting.core` and `esp_afe_manager_cfg_t.fetch_task_setting.core` are configured on different CPU cores
-   - Properly allocate tasks on the core where the timeout occurs
+### Wake Word Not Detected
+
+- Ensure `WAKENET_ENABLE` is set to `true`
+- Verify that the model files are correctly loaded
+- Check if the channel configuration matches the hardware
+
+### Recording File Not Generated
+
+- Ensure the SD card is correctly installed
+- Verify that `VOICE2FILE` is set to `true`
+- Confirm that speech is detected after wakeup
+
+### Task Watchdog Timeout
+
+- Ensure `esp_afe_manager_cfg_t.feed_task_setting.core` and `esp_afe_manager_cfg_t.fetch_task_setting.core` are set to different CPU cores
+- Allocate tasks on the core where the timeout occurs appropriately
+
+## Technical Support
+
+For technical support, use the links below:
+
+- Technical support: [esp32.com](https://esp32.com/viewforum.php?f=20) forum
+- Issue reports and feature requests: [GitHub issue](https://github.com/espressif/esp-gmf/issues)
+
+We will reply as soon as possible.

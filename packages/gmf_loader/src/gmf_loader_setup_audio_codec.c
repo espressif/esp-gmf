@@ -170,6 +170,11 @@ static esp_gmf_err_t gmf_loader_setup_default_dec(esp_gmf_pool_handle_t pool)
     ret = esp_audio_simple_dec_register_default();
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register audio simple decoders");
     esp_audio_simple_dec_cfg_t dec_cfg = DEFAULT_ESP_GMF_AUDIO_DEC_CONFIG();
+#ifdef CONFIG_GMF_AUDIO_CODEC_DEC_USE_FRAME_DEC
+    dec_cfg.use_frame_dec = true;
+#else
+    dec_cfg.use_frame_dec = false;
+#endif  /* CONFIG_GMF_AUDIO_CODEC_DEC_USE_FRAME_DEC */
 #ifdef CONFIG_GMF_AUDIO_CODEC_DECODER_TYPE_AAC
     dec_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_AAC;
     esp_aac_dec_cfg_t aac_dec_cfg = {0};
@@ -269,6 +274,16 @@ static esp_gmf_err_t gmf_loader_setup_default_dec(esp_gmf_pool_handle_t pool)
 #endif  /* CONFIG_GMF_AUDIO_CODEC_DEC_SBC_ENABLE_PLC */
     dec_cfg.dec_cfg = &sbc_dec_cfg;
     dec_cfg.cfg_size = sizeof(esp_sbc_dec_cfg_t);
+#elif defined(CONFIG_GMF_AUDIO_CODEC_DECODER_TYPE_VORBIS)
+    dec_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_VORBIS;
+    esp_vorbis_dec_cfg_t vorbis_dec_cfg = ESP_VORBIS_DEC_CONFIG_DEFAULT();
+    dec_cfg.dec_cfg = &vorbis_dec_cfg;
+    dec_cfg.cfg_size = sizeof(esp_vorbis_dec_cfg_t);
+#elif defined(CONFIG_GMF_AUDIO_CODEC_DECODER_TYPE_ALAC)
+    dec_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_ALAC;
+    esp_alac_dec_cfg_t alac_dec_cfg = ESP_ALAC_DEC_CONFIG_DEFAULT();
+    dec_cfg.dec_cfg = &alac_dec_cfg;
+    dec_cfg.cfg_size = sizeof(esp_alac_dec_cfg_t);
 #else
     dec_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_NONE;
     dec_cfg.dec_cfg = NULL;

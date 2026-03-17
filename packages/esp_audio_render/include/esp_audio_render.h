@@ -376,6 +376,22 @@ esp_audio_render_err_t esp_audio_render_stream_flush(esp_audio_render_stream_han
 esp_audio_render_err_t esp_audio_render_stream_set_speed(esp_audio_render_stream_handle_t stream, float speed);
 
 /**
+ * @brief  Get current latency for audio render stream
+ *
+ * @note  Latency will only take effect in multiple stream cases
+ *
+ * @param[in]  stream      Stream handle
+ * @param[out] latency_ms  Latency in milliseconds
+ *
+ * @return
+ *       - ESP_AUDIO_RENDER_ERR_OK           On success
+ *       - ESP_AUDIO_RENDER_ERR_INVALID_ARG  Invalid input argument
+ */
+
+esp_audio_render_err_t esp_audio_render_stream_get_latency(esp_audio_render_stream_handle_t stream_handle,
+                                                           uint32_t *latency_ms);
+
+/**
  * @brief  Close audio render stream
  *
  * @param[in]  stream  Stream handle

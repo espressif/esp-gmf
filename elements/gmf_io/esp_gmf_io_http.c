@@ -7,6 +7,7 @@
 
 #include <stdbool.h>
 #include <errno.h>
+#include "esp_idf_version.h"
 #include "esp_log.h"
 #include "esp_http_client.h"
 #include "gzip_miniz.h"
@@ -15,21 +16,19 @@
 #include "esp_gmf_io_http.h"
 #include "esp_gmf_oal_mem.h"
 
-#define HTTP_STREAM_BUFFER_SIZE (3 * 1024)
 #define HTTP_MAX_CONNECT_TIMES  (5)
 
 /**
- * @brief Http io context in GMF
+ * @brief  Http io context in GMF
  */
 typedef struct http_io {
-    esp_gmf_io_t             base;          /*!< The GMF http io handle */
-    bool                     is_open;       /*!< The flag of whether opened */
-    esp_http_client_handle_t client;        /*!< The http client handle */
-    int                      _errno;        /*!< Errno code for http */
-    int                      connect_times; /*!< Max reconnect times */
-    bool                     gzip_encoding; /*!< Content is encoded */
-    gzip_miniz_handle_t      gzip;          /*!< GZIP instance */
-    esp_gmf_db_handle_t      data_bus;      /*!< The data bus handle */
+    esp_gmf_io_t              base;           /*!< The GMF http io handle */
+    bool                      is_open;        /*!< The flag of whether opened */
+    esp_http_client_handle_t  client;         /*!< The http client handle */
+    int                       _errno;         /*!< Errno code for http */
+    int                       connect_times;  /*!< Max reconnect times */
+    bool                      gzip_encoding;  /*!< Content is encoded */
+    gzip_miniz_handle_t       gzip;           /*!< GZIP instance */
 } http_stream_t;
 
 static const char *TAG = "ESP_GMF_HTTP";
@@ -96,6 +95,15 @@ static esp_gmf_err_t _http_new(void *cfg, esp_gmf_obj_handle_t *io)
     return esp_gmf_io_http_init(cfg, io);
 }
 
+static esp_gmf_err_t _http_get_score(esp_gmf_io_handle_t handle, const char *url, int *score)
+{
+    *score = ESP_GMF_IO_SCORE_NONE;
+    if (strncasecmp(url, "http://", 7) == 0 || strncasecmp(url, "https://", 8) == 0) {
+        *score = ESP_GMF_IO_SCORE_STANDARD;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
 static esp_gmf_err_t _http_open(esp_gmf_io_handle_t self)
 {
     http_stream_t *http = (http_stream_t *)self;
@@ -112,13 +120,7 @@ static esp_gmf_err_t _http_open(esp_gmf_io_handle_t self)
         ESP_LOGE(TAG, "Error open connection, uri = NULL");
         return ESP_GMF_ERR_FAIL;
     }
-    char *hls_type = strrchr(uri, '/');
-    if (hls_type && strstr(hls_type, ".m3u")) {
-        ESP_LOGE(TAG, "The HTTP stream does not support HTTP Live Streaming. URI:%s", uri);
-        return ESP_GMF_ERR_FAIL;
-    }
 
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)http, &info);
     http_io_cfg_t *http_io_cfg = (http_io_cfg_t *)OBJ_GET_CFG(http);
     ESP_LOGI(TAG, "HTTP Open, URI = %s", uri);
     if (http->client == NULL) {
@@ -151,17 +153,6 @@ static esp_gmf_err_t _http_open(esp_gmf_io_handle_t self)
     if (dispatch_hook(self, HTTP_STREAM_PRE_REQUEST, NULL, 0) != ESP_GMF_ERR_OK) {
         ESP_LOGE(TAG, "Failed to process user callback:%d", __LINE__);
         return ESP_GMF_ERR_FAIL;
-    }
-
-    if (http->data_bus == NULL) {
-        err = esp_gmf_db_new_block(1, http_io_cfg->out_buf_size, &http->data_bus);
-        if (err != ESP_GMF_ERR_OK) {
-            ESP_LOGE(TAG, "Failed to create the buffer for %d, sz: %d, %s-%p", http_io_cfg->dir, http_io_cfg->out_buf_size, OBJ_GET_TAG(http), http);
-            return err;
-        }
-        esp_gmf_data_bus_type_t db_type = 0;
-        esp_gmf_db_get_type(http->data_bus, &db_type);
-        http->base.type = db_type;
     }
 
     if (http_io_cfg->dir == ESP_GMF_IO_DIR_WRITER) {
@@ -217,12 +208,12 @@ _stream_redirect:
         esp_http_client_set_redirection(http->client);
         goto _stream_redirect;
     }
-    if (status_code != 200
-        && (esp_http_client_get_status_code(http->client) != 206)) {
+    if (status_code != 200 && (esp_http_client_get_status_code(http->client) != 206)) {
         ESP_LOGE(TAG, "Invalid HTTP stream, status code = %d", status_code);
         return ESP_GMF_ERR_FAIL;
     }
     esp_gmf_io_set_size(self, info.size);
+    http->is_open = true;
 
     return ESP_GMF_ERR_OK;
 }
@@ -230,16 +221,7 @@ _stream_redirect:
 static esp_gmf_err_t _http_prev_close(esp_gmf_io_handle_t self)
 {
     http_stream_t *http = (http_stream_t *)self;
-    esp_gmf_db_abort(http->data_bus);
-    return ESP_GMF_ERR_OK;
-}
-
-static esp_gmf_err_t _http_close(esp_gmf_io_handle_t self)
-{
-    http_stream_t *http = (http_stream_t *)self;
-    ESP_LOGD(TAG, "_http_close, %p", http);
-    http_io_cfg_t *http_io_cfg = (http_io_cfg_t *)OBJ_GET_CFG(http);
-    if (http->is_open && (http_io_cfg->dir == ESP_GMF_IO_DIR_WRITER)) {
+    if (http->is_open && (http->base.dir == ESP_GMF_IO_DIR_WRITER)) {
         do {
             if (dispatch_hook(self, HTTP_STREAM_POST_REQUEST, NULL, 0) < 0) {
                 break;
@@ -252,6 +234,21 @@ static esp_gmf_err_t _http_close(esp_gmf_io_handle_t self)
             }
         } while (0);
     }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
+    if (http->client) {
+        int fd = esp_http_client_get_socket(http->client);
+        if (fd) {
+            shutdown(fd, SHUT_RDWR);
+        }
+    }
+#endif  /* ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3) */
+    return ESP_GMF_ERR_OK;
+}
+
+static esp_gmf_err_t _http_close(esp_gmf_io_handle_t self)
+{
+    http_stream_t *http = (http_stream_t *)self;
+    ESP_LOGD(TAG, "_http_close, %p", http);
     http->is_open = false;
     if (http->gzip) {
         gzip_miniz_deinit(http->gzip);
@@ -269,10 +266,7 @@ static esp_gmf_err_t _http_reconnect(esp_gmf_io_handle_t self)
 {
     esp_gmf_err_t err = ESP_GMF_ERR_OK;
     ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_FAIL);
-    esp_gmf_info_file_t info = {0};
-    err |= esp_gmf_io_get_info((esp_gmf_io_handle_t)self, &info);
     err |= _http_close(self);
-    err |= esp_gmf_io_update_pos(self, info.pos);
     err |= _http_open(self);
     return err;
 }
@@ -280,8 +274,6 @@ static esp_gmf_err_t _http_reconnect(esp_gmf_io_handle_t self)
 static int _http_read(esp_gmf_io_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
     http_stream_t *http = (http_stream_t *)self;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)http, &info);
     int wrlen = dispatch_hook(self, HTTP_STREAM_ON_RESPONSE, buffer, len);
     int rlen = wrlen;
     if (rlen == 0) {
@@ -289,16 +281,12 @@ static int _http_read(esp_gmf_io_handle_t self, char *buffer, int len, TickType_
     }
     if (rlen <= 0) {
         http->_errno = esp_http_client_get_errno(http->client);
-        ESP_LOGW(TAG, "No more data, errno: %d, read bytes: %llu, rlen = %d", http->_errno, info.pos, rlen);
+        ESP_LOGW(TAG, "No more data, errno: %d, rlen = %d", http->_errno, rlen);
         if (http->_errno != 0) {  // Error occuered, reset connection
-            ESP_LOGW(TAG, "Got %d errno(%s)", http->_errno, strerror(http->_errno));
-            return http->_errno;
+            ESP_LOGE(TAG, "Got %d errno(%s)", http->_errno, strerror(http->_errno));
         }
-        return ESP_GMF_ERR_OK;
-    } else {
-        esp_gmf_io_update_pos(self, rlen);
     }
-    ESP_LOGD(TAG, "req length = %d, read = %d, pos = %d/%d", len, rlen, (int)info.pos, (int)info.size);
+    ESP_LOGD(TAG, "req length = %d, read = %d", len, rlen);
     return rlen;
 }
 
@@ -320,79 +308,15 @@ static int _http_write(esp_gmf_io_handle_t self, char *buffer, int len, TickType
     return wrlen;
 }
 
-static esp_gmf_job_err_t _http_process(esp_gmf_io_handle_t self, void *params)
-{
-    int r_size = 0;
-    http_stream_t *http = (http_stream_t *)self;
-    esp_gmf_data_bus_block_t blk = {0};
-    esp_gmf_job_err_t job_err = ESP_GMF_JOB_ERR_OK;
-    http->is_open = true;
-    http_io_cfg_t *http_io_cfg = (http_io_cfg_t *)OBJ_GET_CFG(http);
-    if (http_io_cfg->dir == ESP_GMF_IO_DIR_READER) {
-        esp_gmf_db_acquire_write(http->data_bus, &blk, HTTP_STREAM_BUFFER_SIZE, portMAX_DELAY);
-        r_size = _http_read(self, (char *)blk.buf, blk.buf_length, portMAX_DELAY, NULL);
-        blk.valid_size = r_size;
-        ESP_LOGD(TAG, "Read: %d, len: %d", r_size, blk.buf_length);
-        if (r_size > 0) {
-            if (http->_errno != 0) {
-                esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-                if (http->connect_times > HTTP_MAX_CONNECT_TIMES) {
-                    ESP_LOGE(TAG, "Reconnect times more than %d, disconnect http stream", HTTP_MAX_CONNECT_TIMES);
-                    return ESP_GMF_ERR_FAIL;
-                };
-                http->connect_times++;
-                ret = _http_reconnect(self);
-                if (ret != ESP_GMF_ERR_OK) {
-                    ESP_LOGE(TAG, "Failed to reset connection");
-                    return ret;
-                }
-                ESP_LOGW(TAG, "Reconnect to peer successful");
-                return ESP_GMF_ERR_INVALID_STATE;
-            } else {
-                http->connect_times = 0;
-                if (http_io_cfg->dir == ESP_GMF_IO_DIR_READER) {
-                    esp_gmf_db_release_write(http->data_bus, &blk, portMAX_DELAY);
-                }
-            }
-        } else if (r_size == 0) {
-            esp_gmf_db_done_write(http->data_bus);
-            esp_gmf_db_release_write(http->data_bus, &blk, portMAX_DELAY);
-            job_err = ESP_GMF_JOB_ERR_DONE;
-        } else {
-            job_err = r_size;
-            esp_gmf_db_abort(http->data_bus);
-        }
-    } else {
-        r_size = esp_gmf_db_acquire_read(http->data_bus, &blk, HTTP_STREAM_BUFFER_SIZE, portMAX_DELAY);
-        ESP_LOGD(TAG, "ACQ, read: %d, vld: %d, buf_len: %d", r_size, blk.valid_size, blk.buf_length);
-        if (blk.valid_size > 0) {
-            int w_size = _http_write(self, (char *)blk.buf, blk.valid_size, portMAX_DELAY, NULL);
-            if (w_size <= 0) {
-                job_err = ESP_GMF_JOB_ERR_FAIL;
-            }
-        } else if (r_size == ESP_GMF_IO_OK || r_size == ESP_GMF_IO_ABORT) {
-            job_err = ESP_GMF_JOB_ERR_DONE;
-        } else {
-            job_err = r_size;
-        }
-        esp_gmf_db_release_read(http->data_bus, &blk, portMAX_DELAY);
-    }
-    return job_err;
-}
-
 static esp_gmf_err_t _http_destroy(esp_gmf_io_handle_t self)
 {
     http_stream_t *http = (http_stream_t *)self;
     ESP_LOGD(TAG, "%s-%p", __FUNCTION__, http);
-    if (http->data_bus) {
-        esp_gmf_db_deinit(http->data_bus);
-        http->data_bus = NULL;
-    }
     void *cfg = OBJ_GET_CFG(self);
     if (cfg) {
         esp_gmf_oal_free(cfg);
     }
-    esp_gmf_io_deinit(http);
+    esp_gmf_io_deinit(self);
     esp_gmf_oal_free(http);
     return ESP_GMF_ERR_OK;
 }
@@ -400,17 +324,8 @@ static esp_gmf_err_t _http_destroy(esp_gmf_io_handle_t self)
 static esp_gmf_err_t _http_seek(esp_gmf_io_handle_t handle, uint64_t pos)
 {
     http_stream_t *http = (http_stream_t *)handle;
-    esp_gmf_info_file_t info = {0};
-    esp_gmf_io_get_info((esp_gmf_io_handle_t)handle, &info);
-    if (pos > info.size) {
-        ESP_LOGE(TAG, "The seek position is out of range, pos %llu > %llu, http: %p", pos, info.size, http);
-        return ESP_GMF_ERR_OUT_OF_RANGE;
-    }
     ESP_LOGD(TAG, "HTTP Seek to: %lld, %p", pos, http);
     _http_close(handle);
-
-    esp_gmf_io_set_pos(http, pos);
-    esp_gmf_db_reset(http->data_bus);
     _http_open(handle);
 
     return ESP_GMF_ERR_OK;
@@ -419,44 +334,73 @@ static esp_gmf_err_t _http_seek(esp_gmf_io_handle_t handle, uint64_t pos)
 static esp_gmf_err_io_t _http_acquire_read(esp_gmf_io_handle_t handle, void *payload, uint32_t wanted_size, int block_ticks)
 {
     http_stream_t *http = (http_stream_t *)handle;
-    esp_gmf_data_bus_block_t *blk = (esp_gmf_data_bus_block_t *)payload;
-    esp_gmf_err_io_t ret = esp_gmf_db_acquire_read(http->data_bus, payload, wanted_size, block_ticks);
-    ESP_LOGD(TAG, "acq_rd: %ld, vld: %d, done: %d, %p, %d", wanted_size, blk->valid_size, blk->is_last, blk->buf, blk->buf_length);
-    return ret;
+    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
+    int rlen = _http_read(handle, (char *)pload->buf, wanted_size, block_ticks, NULL);
+    ESP_LOGD(TAG, "Read len: %d-%ld", rlen, wanted_size);
+    if (rlen > 0) {
+        pload->valid_size = rlen;
+        http->connect_times = 0;
+    } else if (rlen == 0) {
+        pload->valid_size = 0;
+        pload->is_done = true;
+        ESP_LOGI(TAG, "No more data, ret: %d", rlen);
+    } else {
+        pload->valid_size = 0;
+        ESP_LOGE(TAG, "The error is happened in reading data, return value: %d, error msg: %s", rlen, strerror(http->_errno));
+        if (http->connect_times > HTTP_MAX_CONNECT_TIMES) {
+            ESP_LOGE(TAG, "Reconnect times more than %d, disconnect http stream", http->connect_times);
+            return ESP_GMF_IO_FAIL;
+        }
+        http->connect_times++;
+        esp_gmf_err_t ret = _http_reconnect(handle);
+        if (ret != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to reset http connection");
+            return ESP_GMF_IO_FAIL;
+        } else {
+            ESP_LOGW(TAG, "Reconnect to peer successful");
+        }
+    }
+    return ESP_GMF_IO_OK;
 }
 
 static esp_gmf_err_io_t _http_release_read(esp_gmf_io_handle_t handle, void *payload, int block_ticks)
 {
-    http_stream_t *http = (http_stream_t *)handle;
-    esp_gmf_data_bus_block_t *blk = (esp_gmf_data_bus_block_t *)payload;
-    ESP_LOGD(TAG, "rel_rd: %p, vld: %d, len: %d done: %d", blk->buf, blk->valid_size, blk->buf_length, blk->is_last);
-    return esp_gmf_db_release_read(http->data_bus, payload, block_ticks);
+    return ESP_GMF_IO_OK;
 }
 
 static esp_gmf_err_io_t _http_acquire_write(esp_gmf_io_handle_t handle, void *payload, uint32_t wanted_size, int block_ticks)
 {
-    http_stream_t *http = (http_stream_t *)handle;
-    esp_gmf_data_bus_block_t *blk = (esp_gmf_data_bus_block_t *)payload;
-    ESP_LOGD(TAG, "acq_wr: %ld, vld: %d, done: %d, %p, %d", wanted_size, blk->valid_size, blk->is_last, blk->buf, blk->buf_length);
-    return esp_gmf_db_acquire_write(http->data_bus, payload, wanted_size, block_ticks);
+    return ESP_GMF_IO_OK;
 }
 
 static esp_gmf_err_io_t _http_release_write(esp_gmf_io_handle_t handle, void *payload, int block_ticks)
 {
     http_stream_t *http = (http_stream_t *)handle;
-    esp_gmf_data_bus_block_t *blk = (esp_gmf_data_bus_block_t *)payload;
-    ESP_LOGD(TAG, "rel_wr: %p, vld: %d, len: %d, done: %d", blk->buf, blk->valid_size, blk->buf_length, blk->is_last);
-    return esp_gmf_db_release_write(http->data_bus, payload, block_ticks);
+    esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
+    size_t wlen_total = _http_write(handle, (char *)pload->buf, pload->valid_size, block_ticks, NULL);
+    if (wlen_total <= 0) {
+        ESP_LOGE(TAG, "The error is happened in writing data, error msg:%s", strerror(http->_errno));
+        return ESP_GMF_IO_FAIL;
+    }
+    return ESP_GMF_IO_OK;
+}
+
+static esp_gmf_err_t _http_reload(esp_gmf_io_handle_t handle, const char *new_uri)
+{
+    http_stream_t *http = (http_stream_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    http->is_open = false;
+    esp_gmf_io_set_uri(handle, new_uri);
+    ret = _http_open(handle);
+    if (ret != ESP_GMF_ERR_OK) {
+        ret = _http_reconnect(handle);
+    }
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_io_http_reset(esp_gmf_io_handle_t handle)
 {
-    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG;);
-    http_stream_t *http = (http_stream_t *)handle;
-    if (http->data_bus) {
-        esp_gmf_db_reset(http->data_bus);
-    }
-    ESP_LOGD(TAG, "Reset, %p", http);
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     return ESP_GMF_ERR_OK;
 }
 
@@ -490,20 +434,20 @@ esp_gmf_err_t esp_gmf_io_http_init(http_io_cfg_t *config, esp_gmf_io_handle_t *i
     obj->new_obj = _http_new;
     obj->del_obj = _http_destroy;
     http_io_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(*config));
-    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _http_init_fail;},
-                       "http stream configuration", sizeof(*config));
+    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto _http_init_fail;}, "http stream configuration", sizeof(*config));
     memcpy(cfg, config, sizeof(*config));
     esp_gmf_obj_set_config(obj, cfg, sizeof(*config));
     ret = esp_gmf_obj_set_tag(obj, "io_http");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _http_init_fail, "Failed to set obj tag");
     http->base.dir = config->dir;
     http->base.type = ESP_GMF_IO_TYPE_BLOCK;
+    http->base.get_score = _http_get_score;
     http->base.open = _http_open;
-    http->base.process = _http_process;
     http->base.seek = _http_seek;
     http->base.prev_close = _http_prev_close;
     http->base.close = _http_close;
     http->base.reset = esp_gmf_io_http_reset;
+    http->base.reload = _http_reload;
     if (config->dir == ESP_GMF_IO_DIR_WRITER) {
         http->base.acquire_write = _http_acquire_write;
         http->base.release_write = _http_release_write;
@@ -516,13 +460,20 @@ esp_gmf_err_t esp_gmf_io_http_init(http_io_cfg_t *config, esp_gmf_io_handle_t *i
         goto _http_init_fail;
     }
     esp_gmf_io_cfg_t io_cfg = {
-        .thread.stack = config->task_stack,
-        .thread.prio = config->task_prio,
-        .thread.core = config->task_core,
-        .thread.stack_in_ext = config->stack_in_ext,
+        .thread = {
+            .stack = config->io_cfg.thread.stack,
+            .prio = config->io_cfg.thread.prio,
+            .core = config->io_cfg.thread.core,
+            .stack_in_ext = config->io_cfg.thread.stack_in_ext,
+        },
+        .buffer_cfg = {
+            .io_size = config->io_cfg.buffer_cfg.io_size,
+            .buffer_size = config->io_cfg.buffer_cfg.buffer_size,
+        },
+        .enable_speed_monitor = config->io_cfg.enable_speed_monitor,
     };
     ret = esp_gmf_io_init(&http->base, &io_cfg);
-    if(ret != ESP_GMF_ERR_OK) {
+    if (ret != ESP_GMF_ERR_OK) {
         goto _http_init_fail;
     }
     *io = obj;

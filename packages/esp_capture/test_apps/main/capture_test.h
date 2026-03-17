@@ -46,6 +46,10 @@ int auto_av_muxer_path_test(int timeout, bool dual);
 
 int advance_av_muxer_path_test(int timeout, bool dual);
 
+int dynamic_enable_muxer_after_start(int timeout, bool dual_path);
+
+int dynamic_setup_after_start(int timeout, bool dual_path);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */
