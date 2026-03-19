@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.6
+
+### Modifications
+
+- Upgrade dependency `esp_video` to v2.0.0
+
 ## 0.5.5
 
 ### Modifications

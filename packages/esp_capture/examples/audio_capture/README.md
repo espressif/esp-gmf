@@ -59,7 +59,7 @@ flowchart LR
   PROC --> ENC[Audio encoder]
   ENC --> USE[Frame callback or sink]
   ENC --> MUX[MP4 muxer optional]
-  MUX --> SD[/sdcard/cap_X.mp4]
+  MUX --> SD["/sdcard/cap_X.mp4"]
 ```
 
 ### Functionality and Usage

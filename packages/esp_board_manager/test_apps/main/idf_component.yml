@@ -3,6 +3,6 @@ dependencies:
   espressif/esp_lvgl_port: '*'
   espressif/esp_new_jpeg: "*"
   espressif/esp_video:
-    version: "^1.2.0"
+    version: "^2.0.0"
     rules:
       - if: "$CONFIG{ESP_BOARD_DEV_CAMERA_SUPPORT} == True"

@@ -19,9 +19,9 @@
 
 #define TAG "MAIN"
 
-#define RUN_CASE(case, duration) {                        \
+#define RUN_CASE(case, ...) {                             \
     printf("--------Start to run " #case "--------\n");   \
-    case(duration);                                       \
+    case(__VA_ARGS__);                                    \
     printf("--------End to run " #case "--------\n\n");   \
 }
 
@@ -51,7 +51,6 @@ static void capture_test_scheduler(const char *thread_name, esp_capture_thread_s
         schedule_cfg->priority = 15;
     }
 }
-
 
 void app_main(void)
 {
@@ -84,9 +83,10 @@ void app_main(void)
     // Run video capture typical cases
     RUN_CASE(video_capture_run, 10000);
     RUN_CASE(video_capture_run_one_shot, 10000);
-    RUN_CASE(video_capture_run_with_overlay, 10000);
+    RUN_CASE(video_capture_run_with_overlay, 10000, mount_success);
     if (mount_success) {
-        RUN_CASE(video_capture_run_with_muxer, 10000);
+        RUN_CASE(video_capture_run_with_muxer, 10000, false);
+        RUN_CASE(video_capture_run_with_muxer, 10000, true);
     }
     RUN_CASE(video_capture_run_with_customized_process, 10000);
     RUN_CASE(video_capture_run_dual_path, 10000);

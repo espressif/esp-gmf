@@ -135,7 +135,7 @@ devices:
     version: default
     sub_type: "dvp"        # The bus type: dvp
     dependencies:
-      espressif/esp_video: "^1.2.0"
+      espressif/esp_video: "^2.0.0"
     config:
       dvp_config:
         reset_io: -1

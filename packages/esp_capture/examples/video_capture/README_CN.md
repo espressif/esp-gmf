@@ -64,7 +64,7 @@ flowchart LR
   VENC --> SINK1[第二路视频输出 可选]
   SINK0 --> MUX[可选 MP4 复用]
   SINKA --> MUX
-  MUX --> SD[/sdcard/vid_X.mp4]
+  MUX --> SD["/sdcard/vid_X.mp4"]
 ```
 
 ### 功能和用法

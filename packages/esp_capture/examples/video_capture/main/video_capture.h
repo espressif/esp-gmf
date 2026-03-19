@@ -41,13 +41,14 @@ int video_capture_run_one_shot(int duration);
  *
  * @note  It use the internally supported text overlay to add test on to video stream
  *
- * @param[in]  duration  Capture duration (unit ms)
+ * @param[in]  duration      Capture duration (unit ms)
+ * @param[in]  with_storage  Whether save into storage
  *
  * @return
  *       - 0       On success
  *       - Others  Fail to run
  */
-int video_capture_run_with_overlay(int duration);
+int video_capture_run_with_overlay(int duration, bool with_storage);
 
 /**
  * @brief  Run video capture with muxer for configured duration
@@ -55,12 +56,13 @@ int video_capture_run_with_overlay(int duration);
  * @note  In this case it will capture video data and stored into MP4 file
  *
  * @param[in]  duration  Capture duration (unit ms)
+ * @param[in]  is_jpeg   Whether encoded with MJPEG codec
  *
  * @return
  *       - 0       On success
  *       - Others  Fail to run
  */
-int video_capture_run_with_muxer(int duration);
+int video_capture_run_with_muxer(int duration, bool is_jpeg);
 
 /**
  * @brief  Run video capture with customized processor for configured duration
