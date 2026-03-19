@@ -23,6 +23,15 @@ extern "C" {
  */
 
 /**
+ * @brief  Cover art image data
+ */
+typedef struct {
+    uint32_t  format_fourcc;  /*!< Image format fourcc */
+    uint32_t  size;           /*!< Image size in bytes */
+    uint8_t  *data;           /*!< Image data */
+} esp_bt_audio_playback_cover_art_t;
+
+/**
  * @brief  Enumeration for Bluetooth audio metadata masks
  */
 typedef enum {
@@ -33,7 +42,7 @@ typedef enum {
     ESP_BT_AUDIO_PLAYBACK_METADATA_NUM_TRACKS   = 0x10,  /*!< number of tracks on the album */
     ESP_BT_AUDIO_PLAYBACK_METADATA_GENRE        = 0x20,  /*!< track genre */
     ESP_BT_AUDIO_PLAYBACK_METADATA_PLAYING_TIME = 0x40,  /*!< total album playing time in milliseconds */
-    ESP_BT_AUDIO_PLAYBACK_METADATA_COVER_ART    = 0x80,  /*!< cover art image handle */
+    ESP_BT_AUDIO_PLAYBACK_METADATA_COVER_ART    = 0x80,  /*!< cover art image: `esp_bt_audio_playback_cover_art_t` */
 } esp_bt_audio_playback_metadata_mask_t;
 
 /**

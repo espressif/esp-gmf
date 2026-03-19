@@ -39,6 +39,13 @@ menu "BT Audio Basic Example (GMF)"
             default y
             help
                 Enable AVRC Target role
+
+        config GMF_EXAMPLE_PBAP_PCE
+            depends on BT_PBAC_ENABLED && GMF_EXAMPLE_HFP_HF
+            bool "Phone book client equipment"
+            default n
+            help
+                Enable phone book client equipment role
     endmenu
 
 endmenu

@@ -23,12 +23,14 @@ In addition, `esp_bt_audio` provides flexible data access methods:
   - **A2DP Source**: send local audio to a remote sink (speaker/headset)
   - **HFP Hands-Free (HF)**: conversational audio use cases
   - **AVRCP Controller/Target**: playback control, metadata, notifications
+  - **PBAP Client Equipment**: fetch phonebook and call history from the phone
 - **Event callback model** (`esp_bt_audio_event_cb_t`)
   - connection/discovery state, device discovery
   - stream allocation/start/stop/release
   - media control commands, playback status/metadata
   - absolute/relative volume events
   - call state and telephony status
+  - phonebook and call-history entries
 - **Stream abstraction** (`esp_bt_audio_stream_handle_t`)
   - query codec info, direction, context
   - acquire/release read and write packets
@@ -45,7 +47,7 @@ flowchart TB
   evt["esp_bt_audio events"]
   core["esp_bt_audio<br/>(init + role management)"]
   stream["Audio streams"]
-  classic["Classic profiles<br/>A2DP / HFP / AVRCP"]
+  classic["Classic profiles<br/>A2DP / HFP / AVRCP / PBAP"]
   host["BT host<br/>Bluedroid / NimBLE"]
   ctrl["BT controller"]
   gmf["Optional: GMF IO"]
@@ -76,7 +78,8 @@ flowchart TB
 | `esp_bt_audio_playback.h` | playback controller commands + metadata/notification helpers |
 | `esp_bt_audio_vol.h` | absolute/relative volume control + notifications |
 | `esp_bt_audio_tel.h` | telephony: call state, tel status, call control |
-| `gmf_io/esp_gmf_io_bt.h` | optional GMF I/O adapter (`CONFIG_ESP_BT_AUDIO_GMF_IO_SUPPORT=y`) |
+| `esp_bt_audio_pb.h` | phonebook and call history |
+| `io/esp_gmf_io_bt.h` | optional GMF I/O adapter (`CONFIG_ESP_BT_AUDIO_GMF_IO_SUPPORT=y`) |
 
 ### Event types
 
@@ -95,6 +98,9 @@ flowchart TB
 | `ESP_BT_AUDIO_EVENT_VOL_RELATIVE` | `esp_bt_audio_event_vol_relative_t` | step volume up/down |
 | `ESP_BT_AUDIO_EVENT_CALL_STATE_CHG` | `esp_bt_audio_event_call_state_t` | call state/direction/URI per call index |
 | `ESP_BT_AUDIO_EVENT_TEL_STATUS_CHG` | `esp_bt_audio_event_tel_status_chg_t` | battery, signal, roaming, network, operator name |
+| `ESP_BT_AUDIO_EVENT_PHONEBOOK_COUNT` | `uint16_t` | total phonebook entry count |
+| `ESP_BT_AUDIO_EVENT_PHONEBOOK_ENTRY` | `esp_bt_audio_pb_entry_t` | one phonebook record: names and number list |
+| `ESP_BT_AUDIO_EVENT_PHONEBOOK_HISTORY` | `esp_bt_audio_pb_history_t` | one call-history record: contact, type, timestamp |
 
 #### Typical event flow
 
@@ -228,6 +234,7 @@ Classic profile–related source code is compiled only when the corresponding ES
 - `CONFIG_BT_HFP_AUDIO_DATA_PATH_HCI`
 - `CONFIG_BT_HFP_USE_EXTERNAL_CODEC`
 - `CONFIG_BT_AVRCP_ENABLED`
+- `CONFIG_BT_PBAC_ENABLED`
 
 #### Enable GMF I/O adapter (optional)
 
@@ -332,6 +339,21 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
         // Handle tel status (type + data: battery, signal_strength, roaming, network, operator_name)
         break;
     }
+    case ESP_BT_AUDIO_EVENT_PHONEBOOK_COUNT: {
+        // uint16_t count = *(uint16_t *)event_data;
+        // Total entry count for the phone book
+        break;
+    }
+    case ESP_BT_AUDIO_EVENT_PHONEBOOK_ENTRY: {
+        // esp_bt_audio_pb_entry_t *entry = event_data;
+        // Parse fullname, name fields, and tel[] (type + number, up to ESP_BT_AUDIO_PB_TEL_LIST_MAX)
+        break;
+    }
+    case ESP_BT_AUDIO_EVENT_PHONEBOOK_HISTORY: {
+        // esp_bt_audio_pb_history_t *history = event_data;
+        // Call log: entry, property (e.g. RECEIVED/DIALED/MISSED), timestamp (e.g. YYYYMMDDTHHMMSSZ)
+        break;
+    }
     default:
         break;
     }
@@ -379,6 +401,11 @@ esp_gmf_pool_new_pipeline(pool, "io_file", el, sizeof(el) / sizeof(char *), "io_
 - **Call control**: answer (`esp_bt_audio_call_answer`), reject/hang up (`esp_bt_audio_call_reject`), dial (`esp_bt_audio_call_dial`).
 - **Call state**: delivered via `ESP_BT_AUDIO_EVENT_CALL_STATE_CHG`; covers incoming, dialing, active, held, etc.
 - **Telephony status**: delivered via `ESP_BT_AUDIO_EVENT_TEL_STATUS_CHG`; covers battery, signal, roaming, network, operator name, etc.
+
+### Phonebook and call history
+
+- **Connection**: This feature uses Classic Bluetooth. After the phone is paired, call `esp_bt_audio_classic_connect(ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE, addr)` with the peer address to establish the session.
+- **Fetch**: Call `esp_bt_audio_pb_fetch()` to retrieve part or all of the phonebook and call history.
 
 ### Classic helper APIs
 

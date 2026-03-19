@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "esp_err.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_bt.h"
 
@@ -21,6 +24,7 @@
 #include "esp_bt_audio_playback.h"
 #include "esp_bt_audio_tel.h"
 #include "esp_bt_audio_classic.h"
+#include "esp_bt_audio_pb.h"
 #include "esp_bt_audio.h"
 
 #include "esp_board_manager.h"
@@ -37,6 +41,8 @@
 #define A2DP_SRC_SEND_TASK_PRIO        10
 #define A2DP_SRC_SEND_TASK_STACK_SIZE  4096
 #endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+
+#define PHONEBOOK_ENTRY_LOG_BUF_SIZE  512
 
 static const char *TAG = "BT_AUD_EXAMPLE";
 static const char *media_ctrl_cmd_str[] = {
@@ -125,6 +131,9 @@ static uint32_t get_classic_roles()
 #ifdef CONFIG_GMF_EXAMPLE_AVRC_TG
     roles |= ESP_BT_AUDIO_CLASSIC_ROLE_AVRC_TG;
 #endif  /* CONFIG_GMF_EXAMPLE_AVRC_TG */
+#ifdef CONFIG_GMF_EXAMPLE_PBAP_PCE
+    roles |= ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE;
+#endif  /* CONFIG_GMF_EXAMPLE_PBAP_PCE */
     return roles;
 }
 
@@ -186,8 +195,13 @@ static void playback_status_chg_proc(esp_bt_audio_event_playback_st_t *event_dat
 
 static void playback_metadata_proc(esp_bt_audio_event_playback_metadata_t *event_data)
 {
-    ESP_LOGI(TAG, "Metadata: %s:\t%s",
-             playback_metadata_type_to_str(event_data->type), event_data->length > 0 ? (const char *)event_data->value : "");
+    if (event_data->type == ESP_BT_AUDIO_PLAYBACK_METADATA_COVER_ART) {
+        esp_bt_audio_playback_cover_art_t *cover_art = (esp_bt_audio_playback_cover_art_t *)event_data->value;
+        ESP_LOGI(TAG, "Cover art: size %d, format 0x%04X", cover_art->size, cover_art->format_fourcc);
+    } else {
+        ESP_LOGI(TAG, "Metadata: %s:\t%s",
+                 playback_metadata_type_to_str(event_data->type), event_data->length > 0 ? (const char *)event_data->value : "");
+    }
 }
 
 static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void *user_data)
@@ -223,6 +237,9 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
 #if defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)
                 esp_bt_audio_classic_set_scan_mode(false, false);
 #endif  /* defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK) */
+#ifdef CONFIG_GMF_EXAMPLE_PBAP_PCE
+                esp_bt_audio_classic_connect(ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE, conn_st->addr);
+#endif  /* CONFIG_GMF_EXAMPLE_PBAP_PCE */
             } else {
 #if defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
                 esp_bt_audio_classic_set_scan_mode(true, false);
@@ -316,6 +333,42 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
                      call_state->dir == ESP_BT_AUDIO_CALL_DIR_INCOMING ? "INCOMING" : "OUTGOING",
                      call_state_to_str(call_state->state),
                      call_state->uri[0] ? call_state->uri : "(none)");
+            break;
+        }
+        case ESP_BT_AUDIO_EVENT_PHONEBOOK_COUNT: {
+            uint16_t count = *(uint16_t *)event_data;
+            ESP_LOGI(TAG, "Phonebook count: %u", count);
+            break;
+        }
+        case ESP_BT_AUDIO_EVENT_PHONEBOOK_ENTRY: {
+            esp_bt_audio_pb_entry_t *entry = (esp_bt_audio_pb_entry_t *)event_data;
+            char *buf = heap_caps_calloc_prefer(1, PHONEBOOK_ENTRY_LOG_BUF_SIZE, 2,
+                                                MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
+            if (buf) {
+                int n = snprintf(buf, PHONEBOOK_ENTRY_LOG_BUF_SIZE,
+                                 "Phonebook entry: Fullname [%s], Last [%s], First [%s], Middle [%s]",
+                                 entry->fullname ? entry->fullname : "",
+                                 entry->name.last_name ? entry->name.last_name : "",
+                                 entry->name.first_name ? entry->name.first_name : "",
+                                 entry->name.middle_name ? entry->name.middle_name : "");
+                for (size_t i = 0; i < entry->tel_count && n > 0 && (size_t)n < PHONEBOOK_ENTRY_LOG_BUF_SIZE; i++) {
+                    if (entry->tel[i].number) {
+                        n += snprintf(buf + n, PHONEBOOK_ENTRY_LOG_BUF_SIZE - (size_t)n, " | Tel [%s] (%s)",
+                                      entry->tel[i].number, entry->tel[i].type ? entry->tel[i].type : "");
+                    }
+                }
+                ESP_LOGI(TAG, "%s", buf);
+                free(buf);
+            }
+            break;
+        }
+        case ESP_BT_AUDIO_EVENT_PHONEBOOK_HISTORY: {
+            esp_bt_audio_pb_history_t *history = (esp_bt_audio_pb_history_t *)event_data;
+            ESP_LOGI(TAG, "Phonebook history: Full name [%s], Property [%s], Tel [%s], Timestamp [%s]",
+                     history->entry.fullname ? history->entry.fullname : "",
+                     history->property ? history->property : "",
+                     (history->entry.tel_count > 0 && history->entry.tel[0].number) ? history->entry.tel[0].number : "",
+                     history->timestamp ? history->timestamp : "");
             break;
         }
         default:

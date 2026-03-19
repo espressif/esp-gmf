@@ -1,4 +1,4 @@
-version: "0.8.0"
+version: "0.8.1"
 description: Espressif Bluetooth Audio Module
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_bt_audio
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_bt_audio/README.md"
@@ -11,6 +11,7 @@ tags:
    - "A2DP"
    - "HFP"
    - "AVRC"
+   - "PBAC"
 
 dependencies:
   idf : ">=5.5"

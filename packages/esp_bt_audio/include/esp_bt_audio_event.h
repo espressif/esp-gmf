@@ -29,6 +29,9 @@ typedef enum {
     ESP_BT_AUDIO_EVENT_VOL_RELATIVE,          /*!< Relative volume set event, the event data is esp_bt_audio_event_vol_relative_t */
     ESP_BT_AUDIO_EVENT_TEL_STATUS_CHG,        /*!< Telephony status changed event, the event data is esp_bt_audio_event_tel_status_chg_t */
     ESP_BT_AUDIO_EVENT_CALL_STATE_CHG,        /*!< Call state changed event, the event data is esp_bt_audio_event_call_state_t */
+    ESP_BT_AUDIO_EVENT_PHONEBOOK_COUNT,       /*!< Phonebook count event, the event data is uint16_t */
+    ESP_BT_AUDIO_EVENT_PHONEBOOK_ENTRY,       /*!< Phonebook entry event, the event data is esp_bt_audio_pb_entry_t */
+    ESP_BT_AUDIO_EVENT_PHONEBOOK_HISTORY,     /*!< Phonebook history event, the event data is esp_bt_audio_pb_history_t */
 } esp_bt_audio_event_t;
 
 /**

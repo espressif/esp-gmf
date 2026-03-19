@@ -6,6 +6,7 @@
  */
 
 #include <stdint.h>
+#include <string.h>
 #include <sys/queue.h>
 
 #include "esp_log.h"
@@ -34,12 +35,36 @@ typedef struct avrcp_ct_key_evt {
 
 STAILQ_HEAD(avrcp_ct_key_evt_q, avrcp_ct_key_evt);
 
+#define COVER_ART_HANDLE_LEN         (ESP_AVRC_CA_IMAGE_HANDLE_LEN)
+#define COVER_ART_MTU_MAX            (512)
+#define COVER_ART_IMG_INIT_SIZE      (32 * 1024)
+#define COVER_ART_IMG_INCREASE_STEP  (8 * 1024)
+
+/**
+ * @brief  Cover art context
+ */
 typedef struct {
-    bool                        is_connected;
-    esp_avrc_rn_evt_cap_mask_t  remote_capabilities;
-    uint32_t                    rn_mask;
-    uint8_t                     tl;
-    struct avrcp_ct_key_evt_q   key_evt_q;
+    esp_avrc_cover_art_conn_state_t  connected;                           /**< Cover art connection state */
+    uint8_t                          image_handle[COVER_ART_HANDLE_LEN];  /**< Current image handle from remote */
+    bool                             transmitting;                        /**< True while a cover art transfer is in progress */
+    uint8_t                         *image_buf;                           /**< Allocated buffer for received image data */
+    uint32_t                         image_buf_size;                      /**< Allocated size of image_buf (bytes) */
+    uint32_t                         image_size;                          /**< Actual image size received (bytes) */
+} cover_art_ctx_t;
+
+/**
+ * @brief  AVRCP Controller profile runtime context
+ */
+typedef struct {
+    bool                        is_connected;                /**< True when AVRCP CT is connected to a remote device */
+    esp_avrc_rn_evt_cap_mask_t  remote_capabilities;         /**< Remote target's supported RN events */
+    uint32_t                    register_notification_mask;  /**< Bitmask of events the app registered */
+    uint32_t                    remote_feature_mask;         /**< Remote TG feature flags */
+    uint8_t                     transaction_label;           /**< Transaction label for outgoing commands */
+    struct avrcp_ct_key_evt_q   key_evt_q;                   /**< Passthrough key press/release timers awaiting release */
+#if CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED
+    cover_art_ctx_t             cover_art;                   /**< Cover art context */
+#endif /* CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED */
 } avrcp_ct_ctx_t;
 
 static const char *TAG = "BT_AUD_AVRC_CT";
@@ -70,7 +95,9 @@ static uint8_t convt_mask_to_avrcp_md_attr_mask(uint32_t mask)
     if (mask & ESP_BT_AUDIO_PLAYBACK_METADATA_PLAYING_TIME) {
         attr_mask |= ESP_AVRC_MD_ATTR_PLAYING_TIME;
     }
-
+    if (mask & ESP_BT_AUDIO_PLAYBACK_METADATA_COVER_ART) {
+        attr_mask |= ESP_AVRC_MD_ATTR_COVER_ART;
+    }
     return attr_mask;
 }
 
@@ -91,6 +118,8 @@ static uint32_t convt_avrcp_md_attr_to_mask(uint8_t attr_id)
             return ESP_BT_AUDIO_PLAYBACK_METADATA_GENRE;
         case ESP_AVRC_MD_ATTR_PLAYING_TIME:
             return ESP_BT_AUDIO_PLAYBACK_METADATA_PLAYING_TIME;
+        case ESP_AVRC_MD_ATTR_COVER_ART:
+            return ESP_BT_AUDIO_PLAYBACK_METADATA_COVER_ART;
         default:
             ESP_LOGW(TAG, "CT metadata rsp evt: unsupported attr_id %u", attr_id);
             return 0;
@@ -110,7 +139,7 @@ static inline uint8_t vol_to_avrc(uint8_t app_vol)
 static uint8_t avrcp_ct_tl_acquire()
 {
     if (avrcp_ct != NULL) {
-        return (avrcp_ct->tl++) & 0x0F;
+        return (avrcp_ct->transaction_label++) & 0x0F;
     } else {
         ESP_LOGW(TAG, "CT not initialized");
         return 0;
@@ -235,7 +264,7 @@ static esp_err_t avrcp_ct_prev()
 
 static esp_err_t avrcp_ct_request_metadata(uint32_t mask)
 {
-    ESP_LOGI(TAG, "CT: Request metadata");
+    ESP_LOGD(TAG, "CT: Request metadata");
     if (!avrcp_ct || !avrcp_ct->is_connected) {
         ESP_LOGW(TAG, "CT not connected");
         return ESP_ERR_INVALID_STATE;
@@ -307,8 +336,8 @@ static esp_err_t avrcp_ct_register_notifications(uint32_t mask)
         ESP_LOGW(TAG, "CT not initialized");
         return ESP_ERR_INVALID_STATE;
     }
-    avrcp_ct->rn_mask = mask;
-    return avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, avrcp_ct->rn_mask);
+    avrcp_ct->register_notification_mask = mask;
+    return avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, avrcp_ct->register_notification_mask);
 }
 
 static esp_err_t avrcp_ct_set_absolute_volume(uint32_t vol)
@@ -358,7 +387,7 @@ static void avrcp_ct_handle_rn_event(esp_avrc_rn_event_ids_t event, esp_avrc_rn_
             event_data.event = ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_STATUS_CHANGE;
             event_data.evt_param.play_status = (uint32_t)param->playback;
             bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_PLAYBACK_STATUS_CHG, &event_data);
-            if (avrcp_ct && (avrcp_ct->rn_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_STATUS_CHANGE)) {
+            if (avrcp_ct && (avrcp_ct->register_notification_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_STATUS_CHANGE)) {
                 avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_STATUS_CHANGE);
             }
             break;
@@ -368,7 +397,7 @@ static void avrcp_ct_handle_rn_event(esp_avrc_rn_event_ids_t event, esp_avrc_rn_
             esp_bt_audio_event_playback_st_t event_data = {0};
             event_data.event = ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_CHANGE;
             bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_PLAYBACK_STATUS_CHG, &event_data);
-            if (avrcp_ct && (avrcp_ct->rn_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_CHANGE)) {
+            if (avrcp_ct && (avrcp_ct->register_notification_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_CHANGE)) {
                 avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_CHANGE);
             }
             break;
@@ -378,7 +407,7 @@ static void avrcp_ct_handle_rn_event(esp_avrc_rn_event_ids_t event, esp_avrc_rn_
             esp_bt_audio_event_playback_st_t event_data = {0};
             event_data.event = ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_END;
             bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_PLAYBACK_STATUS_CHG, &event_data);
-            if (avrcp_ct && (avrcp_ct->rn_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_END)) {
+            if (avrcp_ct && (avrcp_ct->register_notification_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_END)) {
                 avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_END);
             }
             break;
@@ -388,7 +417,7 @@ static void avrcp_ct_handle_rn_event(esp_avrc_rn_event_ids_t event, esp_avrc_rn_
             esp_bt_audio_event_playback_st_t event_data = {0};
             event_data.event = ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_START;
             bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_PLAYBACK_STATUS_CHG, &event_data);
-            if (avrcp_ct && (avrcp_ct->rn_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_START)) {
+            if (avrcp_ct && (avrcp_ct->register_notification_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_START)) {
                 avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_START);
             }
             break;
@@ -399,7 +428,7 @@ static void avrcp_ct_handle_rn_event(esp_avrc_rn_event_ids_t event, esp_avrc_rn_
             event_data.event = ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_POS_CHANGED;
             event_data.evt_param.position = param->play_pos;
             bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_PLAYBACK_STATUS_CHG, &event_data);
-            if (avrcp_ct && (avrcp_ct->rn_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_POS_CHANGED)) {
+            if (avrcp_ct && (avrcp_ct->register_notification_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_POS_CHANGED)) {
                 avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_POS_CHANGED);
             }
             break;
@@ -409,7 +438,7 @@ static void avrcp_ct_handle_rn_event(esp_avrc_rn_event_ids_t event, esp_avrc_rn_
             esp_bt_audio_event_playback_st_t event_data = {0};
             event_data.event = ESP_BT_AUDIO_PLAYBACK_EVENT_NOW_PLAYING_CHANGE;
             bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_PLAYBACK_STATUS_CHG, &event_data);
-            if (avrcp_ct && (avrcp_ct->rn_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_NOW_PLAYING_CHANGE)) {
+            if (avrcp_ct && (avrcp_ct->register_notification_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_NOW_PLAYING_CHANGE)) {
                 avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, ESP_BT_AUDIO_PLAYBACK_EVENT_NOW_PLAYING_CHANGE);
             }
             break;
@@ -419,7 +448,7 @@ static void avrcp_ct_handle_rn_event(esp_avrc_rn_event_ids_t event, esp_avrc_rn_
             esp_bt_audio_event_playback_st_t event_data = {0};
             event_data.event = ESP_BT_AUDIO_PLAYBACK_EVENT_AVAILABLE_PLAYERS_CHANGE;
             bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_PLAYBACK_STATUS_CHG, &event_data);
-            if (avrcp_ct && (avrcp_ct->rn_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_AVAILABLE_PLAYERS_CHANGE)) {
+            if (avrcp_ct && (avrcp_ct->register_notification_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_AVAILABLE_PLAYERS_CHANGE)) {
                 avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, ESP_BT_AUDIO_PLAYBACK_EVENT_AVAILABLE_PLAYERS_CHANGE);
             }
             break;
@@ -429,7 +458,7 @@ static void avrcp_ct_handle_rn_event(esp_avrc_rn_event_ids_t event, esp_avrc_rn_
             esp_bt_audio_event_playback_st_t event_data = {0};
             event_data.event = ESP_BT_AUDIO_PLAYBACK_EVENT_ADDRESSED_PLAYER_CHANGE;
             bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_PLAYBACK_STATUS_CHG, &event_data);
-            if (avrcp_ct && (avrcp_ct->rn_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_ADDRESSED_PLAYER_CHANGE)) {
+            if (avrcp_ct && (avrcp_ct->register_notification_mask & ESP_BT_AUDIO_PLAYBACK_EVENT_ADDRESSED_PLAYER_CHANGE)) {
                 avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, ESP_BT_AUDIO_PLAYBACK_EVENT_ADDRESSED_PLAYER_CHANGE);
             }
             break;
@@ -440,6 +469,94 @@ static void avrcp_ct_handle_rn_event(esp_avrc_rn_event_ids_t event, esp_avrc_rn_
         }
     }
 }
+
+#if CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED
+static void avrcp_ct_handle_cover_art_state(esp_avrc_cover_art_conn_state_t state)
+{
+    if (!avrcp_ct) {
+        return;
+    }
+    avrcp_ct->cover_art.connected = state;
+    if (avrcp_ct->cover_art.connected == ESP_AVRC_COVER_ART_DISCONNECTED) {
+        if (avrcp_ct->cover_art.image_buf) {
+            heap_caps_free(avrcp_ct->cover_art.image_buf);
+            avrcp_ct->cover_art.image_buf = NULL;
+            avrcp_ct->cover_art.image_size = 0;
+        }
+        if (avrcp_ct->remote_feature_mask & ESP_AVRC_FEAT_FLAG_TG_COVER_ART) {
+            esp_err_t ret = esp_avrc_ct_cover_art_connect(COVER_ART_MTU_MAX);
+            if (ret != ESP_OK) {
+                ESP_LOGW(TAG, "CT cover art reconnect failed: %s", esp_err_to_name(ret));
+            }
+        }
+    } else {
+        avrcp_ct->cover_art.image_buf = heap_caps_calloc_prefer(1, COVER_ART_IMG_INIT_SIZE, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
+        if (!avrcp_ct->cover_art.image_buf) {
+            ESP_LOGW(TAG, "CT cover art: no memory to allocate buffer");
+            return;
+        }
+        avrcp_ct->cover_art.image_size = 0;
+        avrcp_ct->cover_art.image_buf_size = COVER_ART_IMG_INIT_SIZE;
+        esp_avrc_ct_send_metadata_cmd(avrcp_ct_tl_acquire(), ESP_AVRC_MD_ATTR_COVER_ART);
+    }
+}
+
+static void avrcp_ct_handle_cover_art_data(esp_avrc_ct_cb_param_t *rc)
+{
+    if (!avrcp_ct) {
+        return;
+    }
+    if (rc->cover_art_data.status != ESP_BT_STATUS_SUCCESS ||
+        rc->cover_art_data.p_data == NULL ||
+        avrcp_ct->cover_art.transmitting == false) {
+        return;
+    }
+
+    uint16_t chunk_len = rc->cover_art_data.data_len;
+    if (chunk_len > 0) {
+        uint32_t new_size = avrcp_ct->cover_art.image_size + chunk_len;
+        if (new_size > avrcp_ct->cover_art.image_buf_size) {
+            uint32_t alloc_size = avrcp_ct->cover_art.image_buf_size;
+            while (alloc_size < new_size) {
+                alloc_size += COVER_ART_IMG_INCREASE_STEP;
+            }
+            uint8_t *new_buf = heap_caps_realloc_prefer(avrcp_ct->cover_art.image_buf,
+                                                        alloc_size,
+                                                        2,
+                                                        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
+            if (!new_buf) {
+                ESP_LOGW(TAG, "CT cover art: no memory to reallocate buffer");
+                avrcp_ct->cover_art.image_size = 0;
+                avrcp_ct->cover_art.transmitting = false;
+                return;
+            }
+            avrcp_ct->cover_art.image_buf = new_buf;
+            avrcp_ct->cover_art.image_buf_size = alloc_size;
+        }
+        memcpy(avrcp_ct->cover_art.image_buf + avrcp_ct->cover_art.image_size, rc->cover_art_data.p_data, chunk_len);
+        avrcp_ct->cover_art.image_size += chunk_len;
+    }
+
+    if (rc->cover_art_data.final) {
+        ESP_LOGI(TAG, "CT cover art final data event, image size: %lu bytes", avrcp_ct->cover_art.image_size);
+        if (avrcp_ct->cover_art.image_size > 0) {
+            esp_bt_audio_playback_cover_art_t cover_art = {
+                .format_fourcc = ESP_BT_AUDIO_FOURCC_JPEG,
+                .size = avrcp_ct->cover_art.image_size,
+                .data = avrcp_ct->cover_art.image_buf,
+            };
+            esp_bt_audio_event_playback_metadata_t event_data = {
+                .type = ESP_BT_AUDIO_PLAYBACK_METADATA_COVER_ART,
+                .length = sizeof(esp_bt_audio_playback_cover_art_t),
+                .value = (uint8_t *)&cover_art,
+            };
+            bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_PLAYBACK_METADATA, &event_data);
+        }
+        avrcp_ct->cover_art.transmitting = false;
+        avrcp_ct->cover_art.image_size = 0;
+    }
+}
+#endif  /* CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED */
 
 static void bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param)
 {
@@ -485,7 +602,7 @@ static void bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t
             break;
         }
         case ESP_AVRC_CT_PASSTHROUGH_RSP_EVT: {
-            ESP_LOGI(TAG, "CT passthrough rsp evt: key_code 0x%x, key_state %d", rc->psth_rsp.key_code, rc->psth_rsp.key_state);
+            ESP_LOGD(TAG, "CT passthrough rsp evt: key_code 0x%x, key_state %d", rc->psth_rsp.key_code, rc->psth_rsp.key_state);
             break;
         }
         case ESP_AVRC_CT_METADATA_RSP_EVT: {
@@ -493,6 +610,23 @@ static void bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t
                      rc->meta_rsp.attr_id,
                      rc->meta_rsp.attr_length,
                      rc->meta_rsp.attr_length > 0 && rc->meta_rsp.attr_text ? (const char *)rc->meta_rsp.attr_text : "");
+#if CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED
+            if (rc->meta_rsp.attr_id == ESP_AVRC_MD_ATTR_COVER_ART) {
+                if (avrcp_ct->cover_art.connected == ESP_AVRC_COVER_ART_CONNECTED && avrcp_ct->cover_art.transmitting == false) {
+                    if (rc->meta_rsp.attr_text != NULL && rc->meta_rsp.attr_length == COVER_ART_HANDLE_LEN && memcmp(avrcp_ct->cover_art.image_handle, rc->meta_rsp.attr_text, COVER_ART_HANDLE_LEN) != 0) {
+                        ESP_LOGI(TAG, "CT metadata rsp evt: cover art handle changed, new handle: %.7s", rc->meta_rsp.attr_text ? (const char *)rc->meta_rsp.attr_text : "");
+                        memcpy(avrcp_ct->cover_art.image_handle, rc->meta_rsp.attr_text, COVER_ART_HANDLE_LEN);
+                        esp_avrc_ct_cover_art_get_linked_thumbnail(avrcp_ct->cover_art.image_handle);
+                        avrcp_ct->cover_art.transmitting = true;
+                        avrcp_ct->cover_art.image_size = 0;
+                    }
+                } else {
+                    ESP_LOGW(TAG, "CT metadata rsp evt: cover art not connected or transmitting: connected %d, transmitting %d",
+                             avrcp_ct->cover_art.connected, avrcp_ct->cover_art.transmitting);
+                }
+                break;
+            }
+#endif  /* CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED */
             esp_bt_audio_event_playback_metadata_t event_data = {0};
             event_data.type = convt_avrcp_md_attr_to_mask(rc->meta_rsp.attr_id);
             event_data.length = rc->meta_rsp.attr_length;
@@ -505,12 +639,22 @@ static void bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t
             break;
         }
         case ESP_AVRC_CT_CHANGE_NOTIFY_EVT: {
-            ESP_LOGI(TAG, "CT change notify evt: change_notify %d", rc->change_ntf.event_id);
+            ESP_LOGD(TAG, "CT change notify evt: change_notify %d", rc->change_ntf.event_id);
             avrcp_ct_handle_rn_event(rc->change_ntf.event_id, &rc->change_ntf.event_parameter);
             break;
         }
         case ESP_AVRC_CT_REMOTE_FEATURES_EVT: {
             ESP_LOGI(TAG, "CT remote features evt: remote_features %d", rc->rmt_feats.feat_mask);
+            avrcp_ct->remote_feature_mask = rc->rmt_feats.feat_mask;
+#if CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED
+            if (rc->rmt_feats.tg_feat_flag & ESP_AVRC_FEAT_FLAG_TG_COVER_ART) {
+                ESP_LOGI(TAG, "CT remote supports Cover Art, start cover art connection");
+                esp_err_t ret = esp_avrc_ct_cover_art_connect(COVER_ART_MTU_MAX);
+                if (ret != ESP_OK) {
+                    ESP_LOGW(TAG, "CT cover art connect failed: %s", esp_err_to_name(ret));
+                }
+            }
+#endif  /* CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED */
             break;
         }
         case ESP_AVRC_CT_GET_RN_CAPABILITIES_RSP_EVT: {
@@ -520,7 +664,7 @@ static void bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t
                 ESP_LOGI(TAG, "CT: register volume change notification");
                 esp_avrc_ct_send_register_notification_cmd(avrcp_ct_tl_acquire(), ESP_AVRC_RN_VOLUME_CHANGE, 0);
             }
-            avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, avrcp_ct->rn_mask);
+            avrcp_ct_do_register_rn_event(&avrcp_ct->remote_capabilities, avrcp_ct->register_notification_mask);
             break;
         }
         case ESP_AVRC_CT_SET_ABSOLUTE_VOLUME_RSP_EVT: {
@@ -529,10 +673,17 @@ static void bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t
         }
         case ESP_AVRC_CT_COVER_ART_STATE_EVT: {
             ESP_LOGI(TAG, "CT cover art state evt: cover_art_state %d", rc->cover_art_state.state);
+#if CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED
+            avrcp_ct_handle_cover_art_state(rc->cover_art_state.state);
+#endif  /* CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED */
             break;
         }
         case ESP_AVRC_CT_COVER_ART_DATA_EVT: {
-            ESP_LOGI(TAG, "CT cover art data evt: cover_art_data %s", rc->cover_art_data.p_data);
+#if CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED
+            avrcp_ct_handle_cover_art_data(rc);
+#else
+            ESP_LOGI(TAG, "CT cover art not enabled");
+#endif  /* CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED */
             break;
         }
         case ESP_AVRC_CT_PROF_STATE_EVT: {
@@ -570,6 +721,14 @@ esp_err_t bt_audio_avrcp_ct_deinit()
     if (!avrcp_ct) {
         return ESP_ERR_INVALID_STATE;
     }
+#if CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED
+    if (avrcp_ct->cover_art.image_buf) {
+        free(avrcp_ct->cover_art.image_buf);
+        avrcp_ct->cover_art.image_buf = NULL;
+    }
+    avrcp_ct->cover_art.image_size = 0;
+    avrcp_ct->cover_art.image_buf_size = 0;
+#endif  /* CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED */
     avrcp_ct_key_evt_t *evt;
     while ((evt = STAILQ_FIRST(&avrcp_ct->key_evt_q)) != NULL) {
         if (evt->timer) {

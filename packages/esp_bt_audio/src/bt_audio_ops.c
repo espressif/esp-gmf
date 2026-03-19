@@ -12,6 +12,7 @@
 
 #include "esp_bt_audio_defs.h"
 #include "esp_bt_audio_tel.h"
+#include "esp_bt_audio_pb.h"
 #include "bt_audio_ops.h"
 
 typedef struct {
@@ -20,6 +21,7 @@ typedef struct {
     esp_bt_audio_vol_ops_t       vol_ops;
     esp_bt_audio_classic_ops_t   classic_ops;
     esp_bt_audio_call_ops_t      call_ops;
+    esp_bt_audio_pb_ops_t        pb_ops;
 } gmf_bt_ops_t;
 
 static gmf_bt_ops_t *bt_ops;
@@ -169,6 +171,28 @@ esp_err_t bt_audio_ops_set_call(esp_bt_audio_call_ops_t *call_ops)
     return ESP_OK;
 }
 
+esp_err_t bt_audio_ops_get_pb(esp_bt_audio_pb_ops_t *pb_ops)
+{
+    if (!pb_ops) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    *pb_ops = bt_ops->pb_ops;
+    return ESP_OK;
+}
+
+esp_err_t bt_audio_ops_set_pb(esp_bt_audio_pb_ops_t *pb_ops)
+{
+    if (!bt_ops) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (pb_ops) {
+        memcpy(&bt_ops->pb_ops, pb_ops, sizeof(esp_bt_audio_pb_ops_t));
+    } else {
+        bt_ops->pb_ops = (esp_bt_audio_pb_ops_t) {0};
+    }
+    return ESP_OK;
+}
+
 esp_err_t esp_bt_audio_playback_play(void)
 {
     if (bt_ops && bt_ops->playback_ops.play) {
@@ -277,6 +301,15 @@ esp_err_t esp_bt_audio_vol_set_relative(bool up_down)
     }
 }
 
+esp_err_t esp_bt_audio_pb_fetch(esp_bt_audio_pb_fetch_target_t target, uint16_t start_idx, uint16_t count)
+{
+    if (bt_ops && bt_ops->pb_ops.fetch) {
+        return bt_ops->pb_ops.fetch(target, start_idx, count);
+    } else {
+        return ESP_ERR_INVALID_STATE;
+    }
+}
+
 esp_err_t esp_bt_audio_classic_discovery_start(void)
 {
     if (bt_ops && bt_ops->classic_ops.start_discovery) {
@@ -304,6 +337,8 @@ esp_err_t esp_bt_audio_classic_connect(uint32_t role, uint8_t *bt_dev_addr)
             return bt_ops->classic_ops.a2d_sink_connect(bt_dev_addr);
         } else if (role == ESP_BT_AUDIO_CLASSIC_ROLE_HFP_HF && bt_ops->classic_ops.hfp_hf_connect) {
             return bt_ops->classic_ops.hfp_hf_connect(bt_dev_addr);
+        } else if (role == ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE && bt_ops->classic_ops.pbac_connect) {
+            return bt_ops->classic_ops.pbac_connect(bt_dev_addr);
         } else {
             return ESP_ERR_INVALID_ARG;
         }
@@ -320,6 +355,8 @@ esp_err_t esp_bt_audio_classic_disconnect(uint32_t role, uint8_t *bt_dev_addr)
             return bt_ops->classic_ops.a2d_sink_disconnect(bt_dev_addr);
         } else if (role == ESP_BT_AUDIO_CLASSIC_ROLE_HFP_HF && bt_ops->classic_ops.hfp_hf_disconnect) {
             return bt_ops->classic_ops.hfp_hf_disconnect(bt_dev_addr);
+        } else if (role == ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE && bt_ops->classic_ops.pbac_disconnect) {
+            return bt_ops->classic_ops.pbac_disconnect(bt_dev_addr);
         } else {
             return ESP_ERR_INVALID_ARG;
         }

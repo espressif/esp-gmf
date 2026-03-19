@@ -21,6 +21,7 @@
 #include "esp_bt_audio_playback.h"
 #include "esp_gmf_oal_sys.h"
 #include "esp_bt_audio_tel.h"
+#include "esp_bt_audio_pb.h"
 
 #include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
@@ -345,6 +346,60 @@ static int cmd_call_dial(int argc, char **argv)
     return ret == ESP_OK ? 0 : 1;
 }
 
+static int cmd_pb_fetch(int argc, char **argv)
+{
+    if (argc < 2) {
+        printf("Usage: pb_fetch <target> [start_idx] [count]\n");
+        printf("  target (1-5 only):\n");
+        printf("    1  Main phonebook\n");
+        printf("    2  Incoming call history\n");
+        printf("    3  Outgoing call history\n");
+        printf("    4  Missed call history\n");
+        printf("    5  Combined call history\n");
+        printf("  start_idx: Start index (default 0)\n");
+        printf("  count:     Number of entries, 0 = fetch all (default 0)\n");
+        return 1;
+    }
+
+    char *endptr = NULL;
+    unsigned long tv = strtoul(argv[1], &endptr, 0);
+    if (argv[1][0] == '\0' || (endptr && *endptr != '\0') || tv < 1 || tv > 5) {
+        printf("Invalid target: %s (use 1-5, see pb_fetch with no args)\n", argv[1]);
+        return 1;
+    }
+    uint8_t target = (uint8_t)tv;
+
+    uint16_t start_idx = 0;
+    uint16_t count = 0;
+    if (argc >= 3) {
+        char *endptr = NULL;
+        unsigned long v = strtoul(argv[2], &endptr, 0);
+        if (argv[2][0] == '\0' || (endptr && *endptr != '\0') || v > 0xFFFF) {
+            printf("Invalid start_idx: %s\n", argv[2]);
+            return 1;
+        }
+        start_idx = (uint16_t)v;
+    }
+    if (argc >= 4) {
+        char *endptr = NULL;
+        unsigned long v = strtoul(argv[3], &endptr, 0);
+        if (argv[3][0] == '\0' || (endptr && *endptr != '\0') || v > 0xFFFF) {
+            printf("Invalid count: %s\n", argv[3]);
+            return 1;
+        }
+        count = (uint16_t)v;
+    }
+
+    esp_err_t ret = esp_bt_audio_pb_fetch(target, start_idx, count);
+    if (ret == ESP_OK) {
+        printf("Phonebook/call history fetch request sent (target=%u, start=%u, count=%u)\n",
+               (unsigned)target, (unsigned)start_idx, (unsigned)count);
+    } else {
+        printf("Failed to send pb_fetch: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
+}
+
 #ifdef CONFIG_GMF_EXAMPLE_A2DP_SOURCE
 static int cmd_start_discovery(int argc, char **argv)
 {
@@ -536,6 +591,14 @@ void cli_register_bt(void)
         .func = &cmd_call_dial,
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&call_dial_cmd));
+
+    const esp_console_cmd_t pb_fetch_cmd = {
+        .command = "pb_fetch",
+        .help = "Fetch phonebook or call history, target 1-5 = main_pb/incoming/outgoing/missed/combined",
+        .hint = "<target> [start_idx] [count]",
+        .func = &cmd_pb_fetch,
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&pb_fetch_cmd));
 
 #ifdef CONFIG_GMF_EXAMPLE_A2DP_SOURCE
     const esp_console_cmd_t start_discovery_cmd = {
