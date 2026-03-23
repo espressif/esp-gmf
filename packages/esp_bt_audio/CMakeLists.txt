@@ -29,6 +29,9 @@ if (CONFIG_BT_CLASSIC_ENABLED)
         list(APPEND srcs "src/classic/profiles/bt_audio_avrcp_ct.c"
                          "src/classic/profiles/bt_audio_avrcp_tg.c")
     endif()
+    if (CONFIG_BT_PBAC_ENABLED)
+        list(APPEND srcs "src/classic/profiles/bt_audio_pbac.c")
+    endif()
 endif()
 
 if (CONFIG_ESP_BT_AUDIO_GMF_IO_SUPPORT)

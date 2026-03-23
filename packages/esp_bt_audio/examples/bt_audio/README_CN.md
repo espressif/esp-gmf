@@ -12,7 +12,7 @@
 
 - 蓝牙音箱（A2DP Sink）：手机连接设备后播放音乐，支持播放/暂停/上下曲、音量与元数据
 - 蓝牙音源（A2DP Source）：设备发现并连接蓝牙耳机/音响，将本地或 microSD 音频推送到远端播放
-- 蓝牙通话（HFP HF）：接听/拒接来电、拨号，使用 AEC 提升清晰度
+- 蓝牙通话（HFP HF/PBAP Client）：接听/拒接来电、拨号，使用 AEC 提升清晰度，获取通讯录与通话记录
 
 ### 预备知识
 
@@ -118,6 +118,7 @@ idf.py -p PORT flash monitor
 - **A2DP Sink**：设备等待手机等连接，连接后可通过串口指令控制播放：`play`、`pause`、`stop`、`next`、`prev`，以及 `vol_set <0-100>` 设置音量
 - **A2DP Source**：通过 `start_discovery`、`connect <mac>` 发现并连接蓝牙音响/耳机，使用 `start_media`、`stop_media` 控制推流启停
 - **HFP HF**：支持来电接听/拒接、拨号，以及通话状态与话务状态上报；通话场景下通过 GMF 管道中的 AEC 元件进行回声消除
+- **PBAP Client**: 通过 `pb_fetch` 指令获取通讯录和通话记录
 - **配合设备**：A2DP Sink 需手机或其它 A2DP Source；A2DP Source 需蓝牙耳机或音响；HFP 需支持 HFP AG 的手机
 
 ### 日志输出
@@ -245,6 +246,10 @@ BTAudio >
 
 - 确认已执行 `idf.py set-target esp32` 且 `IDF_EXTRA_ACTIONS_PATH` 已指向 `esp_board_manager`，并已运行 `idf.py gen-bmgr-config -b <board>`
 - 若使用自定义板，请参考 [自定义板子](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board) 配置板型
+
+### 无法获取通讯录或通话记录
+
+- 经典蓝牙配对时，部分手机需允许设备获取通讯录，可在蓝牙设置中确认是否授权
 
 ## 技术支持
 

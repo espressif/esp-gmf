@@ -15,6 +15,7 @@
 #include "bt_audio_a2dp.h"
 #include "bt_audio_hfp.h"
 #include "bt_audio_avrcp.h"
+#include "bt_audio_pbac.h"
 
 static bool is_inited = false;
 static const char *TAG = "BT_AUD_CLASSIC";
@@ -53,6 +54,11 @@ esp_err_t bt_audio_classic_init(esp_bt_audio_classic_cfg_t *classic_config)
         ESP_RETURN_ON_ERROR(bt_audio_hfp_hf_init(), TAG, "Failed to init HFP HF");
     }
 #endif  /* CONFIG_BT_HFP_ENABLE */
+#ifdef CONFIG_BT_PBAC_ENABLED
+    if (classic_config->roles & ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE) {
+        ESP_RETURN_ON_ERROR(bt_audio_pbac_init(), TAG, "Failed to init PBAC");
+    }
+#endif  /* CONFIG_BT_PBAC_ENABLED */
     is_inited = true;
 
     return ESP_OK;
@@ -75,6 +81,9 @@ esp_err_t bt_audio_classic_deinit()
 #ifdef CONFIG_BT_HFP_ENABLE
     bt_audio_hfp_hf_deinit();
 #endif  /* CONFIG_BT_HFP_ENABLE */
+#ifdef CONFIG_BT_PBAC_ENABLED
+    bt_audio_pbac_deinit();
+#endif  /* CONFIG_BT_PBAC_ENABLED */
 
     is_inited = false;
     return ESP_OK;

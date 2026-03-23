@@ -54,6 +54,13 @@ typedef struct {
 } esp_bt_audio_call_ops_t;
 
 /**
+ * @brief  Phonebook operations
+ */
+typedef struct {
+    esp_err_t (*fetch)(uint8_t target, uint16_t start_idx, uint16_t count);  /*!< Fetch phonebook entries */
+} esp_bt_audio_pb_ops_t;
+
+/**
  * @brief  Classic Bluetooth operations
  */
 typedef struct {
@@ -66,6 +73,8 @@ typedef struct {
     esp_err_t (*a2d_sink_disconnect)(uint8_t *bda);                   /*!< Disconnect from A2DP sink */
     esp_err_t (*hfp_hf_connect)(uint8_t *bda);                        /*!< Connect to HFP HF */
     esp_err_t (*hfp_hf_disconnect)(uint8_t *bda);                     /*!< Disconnect from HFP HF */
+    esp_err_t (*pbac_connect)(uint8_t *bda);                          /*!< Connect to PBAC */
+    esp_err_t (*pbac_disconnect)(uint8_t *bda);                       /*!< Disconnect from PBAC */
 } esp_bt_audio_classic_ops_t;
 
 /**
@@ -168,6 +177,20 @@ esp_err_t bt_audio_ops_get_call(esp_bt_audio_call_ops_t *call_ops);
  * @param[in]  call_ops  Pointer to call operations
  */
 esp_err_t bt_audio_ops_set_call(esp_bt_audio_call_ops_t *call_ops);
+
+/**
+ * @brief  Get phonebook operations
+ *
+ * @param[out]  pb_ops  Pointer to store phonebook operations
+ */
+esp_err_t bt_audio_ops_get_pb(esp_bt_audio_pb_ops_t *pb_ops);
+
+/**
+ * @brief  Set phonebook operations
+ *
+ * @param[in]  pb_ops  Pointer to phonebook operations
+ */
+esp_err_t bt_audio_ops_set_pb(esp_bt_audio_pb_ops_t *pb_ops);
 
 /**
  * @brief  Get classic operations

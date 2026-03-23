@@ -12,6 +12,14 @@
 extern "C" {
 #endif  /* __cplusplus */
 
+#define ESP_BT_AUDIO_FOURCC_TO_INT(a, b, c, d)  ((uint32_t)(a) | ((uint32_t)(b) << 8) | ((uint32_t)(c) << 16) | ((uint32_t)(d) << 24))
+
+#define ESP_BT_AUDIO_FOURCC_PNG   ESP_BT_AUDIO_FOURCC_TO_INT('P', 'N', 'G', ' ')  /* Portable Network Graphics */
+#define ESP_BT_AUDIO_FOURCC_JPEG  ESP_BT_AUDIO_FOURCC_TO_INT('J', 'P', 'E', 'G')  /* JPEG File Interchange Format (JFIF) */
+#define ESP_BT_AUDIO_FOURCC_GIF   ESP_BT_AUDIO_FOURCC_TO_INT('G', 'I', 'F', ' ')  /* Graphics Interchange Format */
+#define ESP_BT_AUDIO_FOURCC_WEBP  ESP_BT_AUDIO_FOURCC_TO_INT('W', 'E', 'B', 'P')  /* WebP */
+#define ESP_BT_AUDIO_FOURCC_BMP   ESP_BT_AUDIO_FOURCC_TO_INT('B', 'M', 'P', ' ')  /* Bitmap */
+
 #define ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT   (0x01)
 #define ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT  (0x02)
 
@@ -46,6 +54,7 @@ typedef enum {
     ESP_BT_AUDIO_CLASSIC_ROLE_HFP_AG   = 0x0008,  /*!< HFP Audio Gateway role */
     ESP_BT_AUDIO_CLASSIC_ROLE_AVRC_CT  = 0x0010,  /*!< AVRCP Controller role */
     ESP_BT_AUDIO_CLASSIC_ROLE_AVRC_TG  = 0x0020,  /*!< AVRCP Target role */
+    ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE = 0x0040,  /*!< Phone book client equipment role */
 } esp_bt_audio_role_t;
 
 /**
