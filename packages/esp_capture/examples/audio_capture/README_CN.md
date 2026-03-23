@@ -59,7 +59,7 @@ flowchart LR
   PROC --> ENC[音频编码器]
   ENC --> USE[回调或输出 sink]
   ENC --> MUX[可选 MP4 复用]
-  MUX --> SD[/sdcard/cap_X.mp4]
+  MUX --> SD["/sdcard/cap_X.mp4"]
 ```
 
 ### 功能和用法

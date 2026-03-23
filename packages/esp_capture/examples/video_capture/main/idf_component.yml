@@ -9,10 +9,9 @@ dependencies:
     version: "~0.8"
     override_path: ../../../../../elements/gmf_video
   espressif/esp_capture:
-    version: "~0.8.0"
     override_path: ../../../../esp_capture
   espressif/esp_video:
-    version: "^1.0"
+    version: "^2.0"
     rules:
       - if: "target in [esp32p4]"
   espressif/esp_video_codec:

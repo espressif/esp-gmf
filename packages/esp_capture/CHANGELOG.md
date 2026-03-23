@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.8.1
+
+### Features
+
+- Updated dependency `esp_video` to v2.0
+- Supported RGB565BE and RGB565LE convert in `v4l2` video source
+- Added storage support for overlay in `video_render` example
+
+### Bug Fixes
+
+- Fixed map of `v4l2` format and `esp_capture` format
+- Fixed `README` format error
+
 ## v0.8.0
 
 ### Bug Fixes

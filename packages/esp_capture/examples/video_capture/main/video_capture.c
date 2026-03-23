@@ -275,12 +275,21 @@ int video_capture_run_one_shot(int duration)
     return 0;
 }
 
-#define FILE_SLICE_STORAGE_PATTERN "/sdcard/vid_%d.mp4"
+#define MP4_FILE_SLICE_STORAGE_PATTERN   "/sdcard/vid_%d.mp4"
+#define MP4_FILE_JPEG_STORAGE_PATTERN    "/sdcard/jpeg_%d.mp4"
+#define MP4_FILE_OVERLAY_STORAGE_PATTERN "/sdcard/overlay_%d.mp4"
+
+static char *storage_pattern = MP4_FILE_SLICE_STORAGE_PATTERN;
+
+static void set_storage_pattern(char *pattern)
+{
+    storage_pattern = pattern;
+}
 
 static int check_file_size(int slice_idx)
 {
     char file_path[64] = {0};
-    snprintf(file_path, sizeof(file_path), FILE_SLICE_STORAGE_PATTERN, slice_idx);
+    snprintf(file_path, sizeof(file_path), storage_pattern, slice_idx);
     FILE *fp = fopen(file_path, "r");
     if (fp == NULL) {
         return 0;
@@ -294,13 +303,13 @@ static int check_file_size(int slice_idx)
 
 static int storage_slice_hdlr(esp_muxer_slice_info_t *info, void* ctx)
 {
-    snprintf(info->file_path, info->len, FILE_SLICE_STORAGE_PATTERN, info->slice_index);
+    snprintf(info->file_path, info->len, storage_pattern, info->slice_index);
     esp_capture_sink_cfg_t *sink_cfg = (esp_capture_sink_cfg_t *)ctx;
     ESP_LOGI(TAG, "Start to write to file %s %dx%d", info->file_path, sink_cfg->video_info.width, sink_cfg->video_info.height);
     return 0;
 }
 
-int video_capture_run_with_muxer(int duration)
+int video_capture_run_with_muxer(int duration, bool is_jpeg)
 {
     video_capture_sys_t capture_sys = {0};
     int ret = 0;
@@ -326,6 +335,11 @@ int video_capture_run_with_muxer(int duration)
                 .bits_per_sample = 16,
             },
         };
+        set_storage_pattern(MP4_FILE_SLICE_STORAGE_PATTERN);
+        if (is_jpeg) {
+            sink_cfg.video_info.format_id = ESP_CAPTURE_FMT_ID_MJPEG;
+            set_storage_pattern(MP4_FILE_JPEG_STORAGE_PATTERN);
+        }
         ret = esp_capture_sink_setup(capture_sys.capture, 0, &sink_cfg, &sink);
         if (ret != ESP_CAPTURE_ERR_OK) {
             ESP_LOGE(TAG, "Fail to setup sink");
@@ -389,7 +403,7 @@ static int read_overlay_frames(esp_capture_sink_handle_t sink, esp_capture_overl
         if (cur_time > last_update + 200) {
             // Update overlay text
             esp_capture_text_overlay_draw_info_t font_info = {
-                .color = COLOR_RGB565_RED,
+                .color = COLOR_RGB565_WHITE,
                 .font_size = 12,
             };
             esp_capture_text_overlay_draw_start(text_overlay);
@@ -405,7 +419,7 @@ static int read_overlay_frames(esp_capture_sink_handle_t sink, esp_capture_overl
     return 0;
 }
 
-int video_capture_run_with_overlay(int duration)
+int video_capture_run_with_overlay(int duration, bool with_storage)
 {
     video_capture_sys_t capture_sys = {0};
     esp_capture_overlay_if_t *text_overlay = NULL;
@@ -446,6 +460,29 @@ int video_capture_run_with_overlay(int duration)
             ESP_LOGE(TAG, "Fail to setup sink");
             break;
         }
+        if (with_storage) {
+            set_storage_pattern(MP4_FILE_OVERLAY_STORAGE_PATTERN);
+            // Add muxer to sink and enable it
+            mp4_muxer_config_t mp4_cfg = {
+                .base_config = {
+                    .muxer_type = ESP_MUXER_TYPE_MP4,
+                    .url_pattern_ex = storage_slice_hdlr,
+                    .slice_duration = 60000,
+                    .ctx = &sink_cfg,
+                },
+            };
+            esp_capture_muxer_cfg_t muxer_cfg = {
+                .base_config = &mp4_cfg.base_config,
+                .cfg_size = sizeof(mp4_cfg),
+            };
+            ret = esp_capture_sink_add_muxer(sink, &muxer_cfg);
+            // Streaming while muxer no need special settings
+            if (ret != ESP_CAPTURE_ERR_OK) {
+                ESP_LOGE(TAG, "Fail to add muxer return %d", ret);
+                break;
+            }
+            esp_capture_sink_enable_muxer(sink, true);
+        }
         // Enable sink and start
         esp_capture_sink_enable(sink, ESP_CAPTURE_RUN_MODE_ALWAYS);
         // Create overlay, add overlay and enable it
@@ -461,6 +498,8 @@ int video_capture_run_with_overlay(int duration)
             break;
         }
         text_overlay->open(text_overlay);
+        // Opaque
+        text_overlay->set_alpha(text_overlay, 0xFF);
         // Fill background
         esp_capture_text_overlay_draw_start(text_overlay);
         text_rgn.x = text_rgn.y = 0;
@@ -580,7 +619,7 @@ int video_capture_run_dual_path(int duration)
 #ifndef CONFIG_IDF_TARGET_ESP32P4
         if (capture_sys.vid_src) {
             esp_capture_video_info_t fixed_caps = {
-                .format_id = ESP_CAPTURE_FMT_ID_RGB565,
+                .format_id = ESP_CAPTURE_FMT_ID_RGB565_BE,
                 .width = VIDEO_SINK0_WIDTH,
                 .height = VIDEO_SINK0_HEIGHT,
                 .fps = VIDEO_SINK0_FPS,

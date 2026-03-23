@@ -64,7 +64,7 @@ flowchart LR
   VENC --> SINK1[Secondary video sink optional]
   SINK0 --> MUX[MP4 muxer optional]
   SINKA --> MUX
-  MUX --> SD[/sdcard/vid_X.mp4]
+  MUX --> SD["/sdcard/vid_X.mp4"]
 ```
 
 ### Functionality and Usage
