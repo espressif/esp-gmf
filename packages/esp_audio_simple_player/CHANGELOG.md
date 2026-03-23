@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.9.6~1
+
+### Bug Fixes
+
+- Set `espressif/gmf_audio` and `espressif/gmf_io` dependencies to `public`
+
 ## v0.9.6
 
 ### Features
