@@ -1,7 +1,7 @@
 menu "GMF AI Audio"
     config GMF_AI_AUDIO_INIT_AEC
         bool "Initialize GMF AI Audio AEC"
-        depends on (IDF_TARGET="esp32" || IDF_TARGET="esp32s3" || IDF_TARGET="esp32p4")
+        depends on (IDF_TARGET="esp32" || IDF_TARGET="esp32s2" || IDF_TARGET="esp32s3" || IDF_TARGET="esp32c3" || IDF_TARGET="esp32c5" || IDF_TARGET="esp32c6" || IDF_TARGET="esp32p4")
         default y
         help
             Enable initialization of the GMF AEC (Automatic Echo Cancellation) element and its insertion into the user pool
@@ -72,6 +72,7 @@ menu "GMF AI Audio"
 
     config GMF_AI_AUDIO_INIT_WN
         bool "Initialize GMF AI Audio Wakenet"
+        depends on (IDF_TARGET="esp32" || IDF_TARGET="esp32s2" || IDF_TARGET="esp32s3" || IDF_TARGET="esp32c3" || IDF_TARGET="esp32c5" || IDF_TARGET="esp32c6" || IDF_TARGET="esp32p4")
         default n
         help
             Enable initialization of the GMF WN (Wake Word) element and its insertion into the user pool
@@ -135,7 +136,7 @@ menu "GMF AI Audio"
 
     config GMF_AI_AUDIO_INIT_AFE
         bool "Initialize GMF AI Audio AFE"
-        depends on (IDF_TARGET="esp32" || IDF_TARGET="esp32s3" || IDF_TARGET="esp32p4")
+        depends on (IDF_TARGET="esp32" || IDF_TARGET="esp32s2" || IDF_TARGET="esp32s3" || IDF_TARGET="esp32c3" || IDF_TARGET="esp32c5" || IDF_TARGET="esp32c6" || IDF_TARGET="esp32p4")
         default n
         help
             Enable initialization of the GMF AFE (Automatic Front-End) element and its insertion into the user pool

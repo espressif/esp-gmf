@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.1
+
+### Features
+
+- Aligned ai audio supported target with `esp_sr`
+- Update `esp-dsp` dependency to v1.7.0
+
 ## v0.8.0
 
 ### Features

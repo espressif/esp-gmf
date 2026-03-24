@@ -31,7 +31,7 @@
 #if SOC_SDMMC_HOST_SUPPORTED == 1
 #define VOICE2FILE  (false)
 #endif  /* SOC_SDMMC_HOST_SUPPORTED == 1 */
-#ifdef CONFIG_GMF_AI_AUDIO_WAKEUP_ENABLE
+#if CONFIG_GMF_AI_AUDIO_WAKEUP_ENABLE == true || CONFIG_GMF_AI_AUDIO_INIT_WN == true
 #define WAKENET_ENABLE  (true)
 #else
 #define WAKENET_ENABLE  (false)
@@ -49,20 +49,17 @@
 #define BOARD_ESP_SPOT   (3)
 #define BOARD_P4_FUN_EV  (4)
 
+#define WITH_AFE    (CONFIG_GMF_AI_AUDIO_INIT_AFE)
+
 #if defined CONFIG_IDF_TARGET_ESP32S3
-#define WITH_AFE    (true)
 #define AUDIO_BOARD (BOARD_KORVO_2)
 #elif defined CONFIG_IDF_TARGET_ESP32
-#define WITH_AFE    (true)
 #define AUDIO_BOARD (BOARD_LYRAT_MINI)
 #elif defined CONFIG_IDF_TARGET_ESP32C3
-#define WITH_AFE    (false)
 #define AUDIO_BOARD (BOARD_XD_AIOT_C3)
 #elif defined CONFIG_IDF_TARGET_ESP32C5
-#define WITH_AFE    (false)
 #define AUDIO_BOARD (BOARD_ESP_SPOT)
 #elif defined CONFIG_IDF_TARGET_ESP32P4
-#define WITH_AFE    (true)
 #define AUDIO_BOARD (BOARD_P4_FUN_EV)
 #endif  /* defined CONFIG_IDF_TARGET_ESP32S3 */
 
