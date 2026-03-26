@@ -1501,6 +1501,49 @@ menu "GMF Audio Effects"
         endmenu
     endif
 
+    config GMF_AUDIO_EFFECT_INIT_HOWL
+        bool "Initialize GMF Audio Effect HOWL (Howling Suppression)"
+        default n
+        help
+            Register the GMF howling-suppression element (esp_gmf_howl) in the default pool.
+
+    if GMF_AUDIO_EFFECT_INIT_HOWL
+        config GMF_AUDIO_EFFECT_HOWL_PAPR_X10
+            int "HOWL PAPR Threshold × 10"
+            range -100 200
+            default 100
+            help
+                PAPR threshold; valid range [-10.0, 20.0]. Configured value is threshold × 10 (e.g. 100 = 10.0).
+
+        config GMF_AUDIO_EFFECT_HOWL_PHPR_X10
+            int "HOWL PHPR Threshold × 10"
+            range 0 1000
+            default 450
+            help
+                PHPR threshold; valid range [0.0, 100.0]. Configured value is × 10 (e.g. 450 = 45.0).
+
+        config GMF_AUDIO_EFFECT_HOWL_PNPR_X10
+            int "HOWL PNPR Threshold × 10"
+            range 0 1000
+            default 450
+            help
+                PNPR threshold; valid range [0.0, 100.0]. Configured value is × 10 (e.g. 450 = 45.0).
+
+        config GMF_AUDIO_EFFECT_HOWL_IMSD_X10
+            int "HOWL IMSD Threshold × 10"
+            range 0 200
+            default 100
+            help
+                IMSD threshold when IMSD is enabled; valid range [0.0, 20.0]. Value is × 10 (e.g. 100 = 10.0).
+
+        config GMF_AUDIO_EFFECT_HOWL_ENABLE_IMSD
+            bool "Enable HOWL IMSD"
+            default y
+            help
+                Enable IMSD for spectral stability (higher memory and CPU), suitable for music or mixed content;
+                disable for speech-only use to save cost.
+    endif
+
     config GMF_AUDIO_EFFECT_INIT_SONIC
         bool "Initialize GMF Audio Effect SONIC"
         default n

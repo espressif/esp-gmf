@@ -62,6 +62,7 @@
 #include "esp_gmf_deinterleave.h"
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_audio_dec.h"
+#include "esp_gmf_howl.h"
 #include "esp_gmf_audio_muxer.h"
 #include "esp_gmf_audio_methods_def.h"
 #include "gmf_audio_el_com.h"
@@ -939,6 +940,39 @@ TEST_CASE("Audio ALC Element Test", "[ESP_GMF_AUDIO]")
     test_element_run_with_multi_task(&cfg, alc_config_callback);
     // Test for config task with different priorities
     test_element_cfg_task_priority(&cfg, alc_config_callback);
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Audio HOWL Element Test", "[ESP_GMF_AUDIO]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+    audio_el_res_cfg_t cfg = DEFAULT_SINGLE_IN_SINGLE_OUT_CONFIG();
+    cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_HOWL};
+    audio_el_res_t *res = NULL;
+    audio_el_res_init(&cfg, &res);
+    res->config_func = NULL;
+    // Test for run and stop
+    audio_el_set_audio_info(res);
+    test_element_run_stop(res);
+    // Test for run and finish
+    audio_el_set_audio_info(res);
+    test_element_run_finish(res);
+    // Test for run and reopen
+    audio_el_set_audio_info(res);
+    test_element_reopen_parameter_persistence(res);
+    // Test for run on open error
+    audio_el_set_audio_info(res);
+    res->in_inst[0].src_info.sample_rates = 0;
+    test_element_run_error_open(res);
+    // Test for run on process error
+    audio_el_set_audio_info(res);
+    test_element_run_error_process(res);
+    audio_el_res_deinit(res);
+    // Test for run with multi task
+    test_element_run_with_multi_task(&cfg, NULL);
+    // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, NULL);
     ESP_GMF_MEM_SHOW(TAG);
 }
 

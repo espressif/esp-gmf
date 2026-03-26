@@ -20,6 +20,7 @@ ESP GMF Audio is a collection of GMF elements related to audio processing, inclu
 |  SONIC   |aud_sonic |Audio pitch and speed shifting effects|`set_speed`<br>`get_speed`<br>`set_pitch`<br>`get_pitch`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  DRC     |aud_drc |Audio dynamic range control|`set_attack`<br>`get_attack`<br>`set_release`<br>`get_release`<br>`set_hold`<br>`get_hold`<br>`set_makeup`<br>`get_makeup`<br>`set_knee`<br>`get_knee`<br>`set_points`<br>`get_point_num`<br>`get_points`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  MBC     |aud_mbc |Audio multi-band compression|`set_para`<br>`get_para`<br>`set_fc`<br>`get_fc`<br>`set_solo`<br>`get_solo`<br>`set_bypass`<br>`get_bypass`|Single|Single|Maximum delay|Maximum delay|Yes|
+|  HOWL    |aud_howl |Howling suppression (acoustic feedback suppression)|Nil|Single|Single|Maximum delay|Maximum delay|Yes|
 |  MIXER   |aud_mixer |Audio mixing effects|`set_mode`<br>`set_info`|Multiple|Single|The blocking time for the first channel is 0, while the blocking time for other channels is maximum delay|Maximum delay|No|
 |INTERLEAVE|aud_intlv|Data interleaving|Nil|Multiple|Single|User configurable, default value is maximum delay|Maximum delay|Yes|
 |DEINTERLEAVE|aud_deintlv|Data de-interleaving|Nil|Single|Multiple|Maximum delay|User configurable, default value is maximum delay|Yes|

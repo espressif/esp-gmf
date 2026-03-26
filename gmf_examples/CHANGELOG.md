@@ -5,6 +5,7 @@
 ### Features
 
 - Added `pipeline_record_audio_muxer` example for recording encoded audio with muxer container output to microSD card
+- Added `pipeline_howl` example for acoustic feedback (howling) suppression using the GMF howl element with mixed music and microphone paths
 
 ## v0.8.0
 

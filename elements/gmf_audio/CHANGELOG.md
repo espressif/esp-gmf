@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added `aud_muxer` element
+- Added `aud_howl` element
+
 ## v0.8.3
 
 ### Features

@@ -18,6 +18,7 @@ ESP GMF Examples 是一个汇集了 GMF 相关 example 的组件，其主要目�
 | [pipeline_http_download_to_sdcard](./basic_examples/pipeline_http_download_to_sdcard) | 下载 HTTP 文件并写入 SD 卡（整体速度优化） | 固件/音频下载、离线缓存、下载测速 | Wi-Fi、SD 卡 |
 | [pipeline_record_http](./basic_examples/pipeline_record_http) | 麦克风录制并编码上传 HTTP 服务器 | 语音上传、在线录音、推流到服务端 | 麦克风、Audio ADC、Wi-Fi |
 | [pipeline_audio_effects](./basic_examples/pipeline_audio_effects) | 播放音频并施加多种特效与混音 | 音效模拟、EQ/DRC、多路混音 | Audio DAC、扬声器 |
+| [pipeline_howl](./basic_examples/pipeline_howl) | SD 卡伴奏解码后与麦克风（`aud_howl` 啸叫抑制）混音播放 | KTV/扩声啸叫抑制、多路 pipeline 与 ringbuf 互连参考 | SD 卡、麦克风、Audio ADC、Audio DAC、扬声器 |
 | [pipeline_loop_play_no_gap](./basic_examples/pipeline_loop_play_no_gap) | 多文件无缝循环播放 | 背景音乐循环、单曲连续播放 | SD 卡、Audio DAC、扬声器 |
 | [pipeline_play_multi_source_music](./basic_examples/pipeline_play_multi_source_music) | 多源音频播放器，支持从 HTTP、SD 卡、Flash 三种音频源播放音乐 | 提示音插入播放、多源音乐切换 | SD 卡、Wi-Fi、Audio DAC、扬声器 |
 | [play_embed_music](../packages/esp_board_manager/examples/play_embed_music) | 基于 `esp_board_manager` 播放 Flash 内嵌 WAV（不依赖 GMF） | 板级播放、快速验证开发板 | Audio DAC、扬声器 |

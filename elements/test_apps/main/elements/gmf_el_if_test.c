@@ -22,7 +22,7 @@
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_audio_dec.h"
 #include "esp_gmf_audio_muxer.h"
-
+#include "esp_gmf_howl.h"
 #include "esp_gmf_io_embed_flash.h"
 #include "esp_gmf_io_http.h"
 #include "esp_gmf_io_file.h"
@@ -460,6 +460,21 @@ void test_esp_gmf_enc_if()
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
+void test_esp_gmf_howl_if()
+{
+    esp_ae_howl_cfg_t config = DEFAULT_ESP_GMF_HOWL_CONFIG();
+    esp_gmf_obj_handle_t handle;
+    // Initialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_howl_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_howl_init(&config, &handle), ESP_GMF_ERR_OK);
+    // Deinitialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_howl_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+}
+
 void test_esp_gmf_io_embed_flash_if()
 {
     embed_flash_io_cfg_t config = EMBED_FLASH_CFG_DEFAULT();
@@ -580,6 +595,7 @@ TEST_CASE("Test element if check", "[ESP_GMF_IF_CHECK]")
     test_esp_gmf_sonic_if();
     test_esp_gmf_dec_if();
     test_esp_gmf_enc_if();
+    test_esp_gmf_howl_if();
     test_esp_gmf_io_embed_flash_if();
     test_esp_gmf_io_file_if();
     test_esp_gmf_io_http_if();

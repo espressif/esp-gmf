@@ -38,6 +38,7 @@ GMF Loader 是一个辅助组件，允许用户通过 menuconfig 轻松自定义
   - 音频混音
   - 动态范围控制
   - 多频段动态范围压缩
+  - 啸叫抑制 (HOWL)
 
 - AI 音频配置：
   - 音频回声消除 (AEC)
@@ -135,7 +136,8 @@ ESP GMF Loader
 │   │   ├── Speed Effect [N]
 │   │   ├── Fade In/Out [N]
 │   │   ├── Dynamic Range Control [N]
-│   │   └── Multi-Band Compressor [N]
+│   │   ├── Multi-Band Compressor [N]
+│   │   └── 啸叫抑制 (HOWL) [N]
 │   │
 │   ├── GMF AI Audio
 │   │   ├── Audio Echo Cancellation (AEC) [Y]

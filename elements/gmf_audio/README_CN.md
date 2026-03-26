@@ -20,6 +20,7 @@ ESP GMF Audio 是 GMF 音频处理相关元素的集合，包括音频编码，�
 |  SONIC   | aud_sonic | 音频变速变调效果    |`set_speed`<br>`get_speed`<br>`set_pitch`<br>`get_pitch`| 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  DRC     | aud_drc | 音频动态范围控制    |`set_attack`<br>`get_attack`<br>`set_release`<br>`get_release`<br>`set_hold`<br>`get_hold`<br>`set_makeup`<br>`get_makeup`<br>`set_knee`<br>`get_knee`<br>`set_points`<br>`get_point_num`<br>`get_points`| 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  MBC     | aud_mbc | 音频多频段压缩    |`set_para`<br>`get_para`<br>`set_fc`<br>`get_fc`<br>`set_solo`<br>`get_solo`<br>`set_bypass`<br>`get_bypass`| 单个 | 单个 |最大延迟 |最大延迟| 是 |
+|  HOWL    | aud_howl | 啸叫抑制（声学反馈抑制） | 无 | 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  MIXER   | aud_mixer | 音频混音效果  |`set_mode`<br>`set_info`|  多个 |  单个  | 第一路阻塞时间为0，其他路阻塞时间为最大延迟 |最大延迟| 否 |
 |INTERLEAVE| aud_intlv | 数据交织    | 无 | 多个 |  单个  | 可用户配置，默认是最大延迟 |最大延迟| 是 |
 |DEINTERLEAVE| aud_deintlv | 数据解交织 | 无| 单个 |  多个  |最大延迟|可用户配置，默认是最大延迟 |是 |

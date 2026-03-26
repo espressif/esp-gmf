@@ -21,6 +21,7 @@
 #include "esp_gmf_deinterleave.h"
 #include "esp_gmf_drc.h"
 #include "esp_gmf_mbc.h"
+#include "esp_gmf_howl.h"
 
 static const char *TAG = "GMF_SETUP_AUD_EFFECTS";
 
@@ -362,6 +363,30 @@ static esp_gmf_err_t gmf_loader_setup_default_mbc(esp_gmf_pool_handle_t pool)
 }
 #endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_MBC */
 
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_HOWL
+static esp_gmf_err_t gmf_loader_setup_default_howl(esp_gmf_pool_handle_t pool)
+{
+    ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_element_handle_t hd = NULL;
+    esp_ae_howl_cfg_t howl_cfg = DEFAULT_ESP_GMF_HOWL_CONFIG();
+    howl_cfg.papr_th = (float)CONFIG_GMF_AUDIO_EFFECT_HOWL_PAPR_X10 / 10.0f;
+    howl_cfg.phpr_th = (float)CONFIG_GMF_AUDIO_EFFECT_HOWL_PHPR_X10 / 10.0f;
+    howl_cfg.pnpr_th = (float)CONFIG_GMF_AUDIO_EFFECT_HOWL_PNPR_X10 / 10.0f;
+    howl_cfg.imsd_th = (float)CONFIG_GMF_AUDIO_EFFECT_HOWL_IMSD_X10 / 10.0f;
+#if CONFIG_GMF_AUDIO_EFFECT_HOWL_ENABLE_IMSD
+    howl_cfg.enable_imsd = true;
+#else
+    howl_cfg.enable_imsd = false;
+#endif
+    ret = esp_gmf_howl_init(&howl_cfg, &hd);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init audio HOWL");
+    ret = esp_gmf_pool_register_element(pool, hd, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_element_deinit(hd); return ret;}, "Failed to register element in pool");
+    return ret;
+}
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_HOWL */
+
 esp_gmf_err_t gmf_loader_setup_audio_effects_default(esp_gmf_pool_handle_t pool)
 {
     ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
@@ -426,6 +451,11 @@ esp_gmf_err_t gmf_loader_setup_audio_effects_default(esp_gmf_pool_handle_t pool)
     ret = gmf_loader_setup_default_mbc(pool);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register mbc");
 #endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_MBC */
+
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_HOWL
+    ret = gmf_loader_setup_default_howl(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register howl");
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_HOWL */
 
     return ret;
 }
