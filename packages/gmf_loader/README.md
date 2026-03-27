@@ -41,6 +41,7 @@ The GMF Loader is a helper component that allows users to easily customize their
 
 - AI Audio features configuration:
   - Audio Echo Cancellation (AEC) element
+  - Audio Wake Net (WN) element
   - Audio Front End (AFE) element
 
 - Video codec initialization support:
@@ -133,6 +134,7 @@ ESP GMF Loader
 │   │
 │   └── GMF AI Audio
 │       ├── Audio Echo Cancellation (AEC) [Y]
+|       ├── Audio Wake Net (WN) [N]
 │       └── Audio Front End (AFE) [N]
 │
 │── GMF Video Configurations

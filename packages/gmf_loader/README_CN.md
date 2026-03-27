@@ -41,6 +41,7 @@ GMF Loader 是一个辅助组件，允许用户通过 menuconfig 轻松自定义
 
 - AI 音频配置：
   - 音频回声消除 (AEC)
+  - 语音唤醒 (WN)
   - 音频前端 (AFE)
 
 - 视频编解码器初始化支持：
@@ -133,6 +134,7 @@ ESP GMF Loader
 │   │
 │   └── GMF AI Audio
 │       ├── Audio Echo Cancellation (AEC) [Y]
+|       ├── Audio Wake Net (WN) [N]
 │       └── Audio Front End (AFE) [N]
 │
 │── GMF Video Configurations

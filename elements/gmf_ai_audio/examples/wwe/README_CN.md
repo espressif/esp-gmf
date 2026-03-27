@@ -45,9 +45,9 @@ graph
 
 ### 编译准备
 
-编译本例程前需先确保已配置 ESP-IDF 环境；若已配置可跳过本段，直接进入工程目录。若未配置，请在 ESP-IDF 根目录运行以下脚本完成环境设置，完整步骤请参阅 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)。
+编译本例程前需先确保已配置 ESP-IDF 环境；若已配置可跳过本段，直接进入工程目录并运行相关预编译脚本。若未配置，请在 ESP-IDF 根目录运行以下脚本完成环境设置，完整步骤请参阅 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)。
 
-```shell
+```
 ./install.sh
 . ./export.sh
 ```
@@ -57,28 +57,20 @@ graph
 - 进入本例程工程目录（以下为示例路径，请改为实际例程路径）：
 
 ```
-cd $YOUR_GMF_PATH/elements/gmf_ai_audio/examples/wwe
+cd $YOUR_GMF_PATH/elements/gmf_ai_audio/examples/aec_rec
 ```
 
-- 本例程使用 `esp_board_manager` 管理板级资源，需先添加板级支持
+- 执行预编译脚本，根据提示选择编译芯片，自动设置 IDF Action 扩展，通过 `esp_board_manager` 选择支持的开发板，如需选择自定义开发板，详情参考：[自定义板子](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board)
 
-在 Linux / macOS 中：
-
-```bash
-idf.py set-target esp32s3
-export IDF_EXTRA_ACTIONS_PATH=./managed_components/esp_board_manager
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+在 Linux / macOS 中运行以下命令：
+```bash/zsh
+source prebuild.sh
 ```
 
-在 Windows 中：
-
+在 Windows 中运行以下命令：
 ```powershell
-idf.py set-target esp32s3
-$env:IDF_EXTRA_ACTIONS_PATH = ".\managed_components\esp_board_manager"
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+.\prebuild.ps1
 ```
-
-如需选择自定义开发板，详情参考：[自定义板子](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board)。
 
 ### 编译与烧录
 

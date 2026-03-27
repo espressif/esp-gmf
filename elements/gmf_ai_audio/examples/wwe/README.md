@@ -45,7 +45,7 @@ This example supports IDF release/v5.4 (>= v5.4.3) and release/v5.5 (>= v5.5.2).
 
 ### Build Preparation
 
-Before building this example, ensure the ESP-IDF environment is set up. If it is already set up, skip to the project directory. If not, run the following in the ESP-IDF root directory to complete the environment setup. For full steps, see the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html).
+Before building this example, ensure the ESP-IDF environment is set up. If it is already set up, skip this paragraph and go to the project directory and run the pre-build script(s) as follows. If not, run the following in the ESP-IDF root directory to complete the environment setup. For full steps, see the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html).
 
 ```
 ./install.sh
@@ -54,31 +54,23 @@ Before building this example, ensure the ESP-IDF environment is set up. If it is
 
 Short steps:
 
-- Go to this example's project directory (example path below; replace with your actual path):
+- Go to this example's project directory:
 
 ```
 cd $YOUR_GMF_PATH/elements/gmf_ai_audio/examples/wwe
 ```
 
-- This example uses `esp_board_manager` for board-level resources; add board support first
+- Run the pre-build script: follow the prompts to select the target chip, set up the IDF Action extension, and use `esp_board_manager` to select a supported board. For a custom board, see [Custom board](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board).
 
 On Linux / macOS:
-
-```bash
-idf.py set-target esp32s3
-export IDF_EXTRA_ACTIONS_PATH=./managed_components/esp_board_manager
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+```bash/zsh
+source prebuild.sh
 ```
 
 On Windows:
-
 ```powershell
-idf.py set-target esp32s3
-$env:IDF_EXTRA_ACTIONS_PATH = ".\managed_components\esp_board_manager"
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
+.\prebuild.ps1
 ```
-
-For a custom board, see [Custom board](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board).
 
 ### Build and Flash Commands
 

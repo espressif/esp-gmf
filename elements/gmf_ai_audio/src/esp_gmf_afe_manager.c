@@ -49,7 +49,7 @@ typedef struct __afe {
     EventGroupHandle_t              ctrl_events;   /*!< Control events */
     SemaphoreHandle_t               read_cb_lock;  /*!< Mutex for read callback */
     SemaphoreHandle_t               result_cb_lock;/*!< Mutex for result callback */
-    esp_afe_sr_iface_t             *esp_afe;       /*!< AFE interface */
+    const esp_afe_sr_iface_t       *esp_afe;       /*!< AFE interface */
 } esp_gmf_afe_manager_t;
 
 static const char *TAG = "AFE_MANAGER";

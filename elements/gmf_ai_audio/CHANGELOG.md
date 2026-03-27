@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.8.1
+
+### Features
+
+- Upgrade `esp-sr` to version v2.4.0
+- Set the AEC type based on the chip type in the `aec_rec` example
+- Remove the compile-time chip restriction for AEC
+
 ## v0.8.0
 
 ### Features

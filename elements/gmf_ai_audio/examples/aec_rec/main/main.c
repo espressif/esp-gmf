@@ -37,27 +37,36 @@
 #endif  /* defined CONFIG_IDF_TARGET_ESP32S3 */
 
 #if AUDIO_BOARD == BOARD_KORVO_2
-#define ADC_I2S_PORT        (0)
 #define ADC_I2S_CH          (2)
 #define ADC_I2S_BITS        (32)
-#define DAC_I2S_PORT        (0)
 #define DAC_I2S_CH          (2)
 #define DAC_I2S_BITS        (32)
 #define INPUT_CH_NUM        (4)
 #define INPUT_CH_BITS       (16) /* For board `ESP32-S3-Korvo-2`, the es7210 is configured as 32-bit,
                                    2-channel mode to accommodate 16-bit, 4-channel data */
-#define INPUT_CH_ALLOCATION ("RMNM")
 #elif AUDIO_BOARD == BOARD_LYRAT_MINI
-#define ADC_I2S_PORT        (1)
 #define ADC_I2S_CH          (2)
 #define ADC_I2S_BITS        (16)
-#define DAC_I2S_PORT        (0)
 #define DAC_I2S_CH          (1)
 #define DAC_I2S_BITS        (16)
 #define INPUT_CH_NUM        (ADC_I2S_CH)
 #define INPUT_CH_BITS       (ADC_I2S_BITS)
-#define INPUT_CH_ALLOCATION ("RM")
+#else
+#define ADC_I2S_CH          (2)
+#define ADC_I2S_BITS        (16)
+#define DAC_I2S_CH          (2)
+#define DAC_I2S_BITS        (16)
+#define INPUT_CH_NUM        (ADC_I2S_CH)
+#define INPUT_CH_BITS       (ADC_I2S_BITS)
 #endif  /* AUDIO_BOARD == BOARD_KORVO_2 */
+
+#ifdef CONFIG_GMF_AI_AUDIO_AEC_INPUT_SAMPLING_RATE_16K
+#define AEC_INPUT_SAMPLE_RATE (16000)
+#define OUTPUT_PCM_PATH       ("/sdcard/aec_16k_16bit_1ch.pcm")
+#else
+#define AEC_INPUT_SAMPLE_RATE (8000)
+#define OUTPUT_PCM_PATH       ("/sdcard/aec_8k_16bit_1ch.pcm")
+#endif  /* CONFIG_GMF_AI_AUDIO_AEC_INPUT_SAMPLING_RATE_8K */
 
 #define ENCODER_ENABLE (false)
 
@@ -138,7 +147,7 @@ void app_main(void)
     esp_gmf_element_register_out_port(read_pipe->last_el, out_port);
     esp_gmf_obj_handle_t rate_cvt = NULL;
     esp_gmf_pipeline_get_el_by_name(read_pipe, "aud_rate_cvt", &rate_cvt);
-    esp_gmf_rate_cvt_set_dest_rate(rate_cvt, 16000);
+    esp_gmf_rate_cvt_set_dest_rate(rate_cvt, AEC_INPUT_SAMPLE_RATE);
 
     esp_gmf_info_sound_t info = {
         .format_id = ESP_AUDIO_SIMPLE_DEC_TYPE_MP3,
@@ -198,7 +207,7 @@ void app_main(void)
 #if ENCODER_ENABLE
     FILE *file = fopen("/sdcard/aec.aac", "wb");
 #else
-    FILE *file = fopen("/sdcard/aec_16k_16bit_1ch.pcm", "wb");
+    FILE *file = fopen(OUTPUT_PCM_PATH, "wb");
 #endif  /* ENCODER_ENABLE */
     if (file) {
         fwrite(pcm_buffer, 1, pcm_received, file);

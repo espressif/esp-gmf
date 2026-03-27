@@ -11,7 +11,7 @@ dependencies:
     override_path: ../../../gmf_core
   gmf_video:
     override_path: ../../gmf_video
-  espressif/esp-dsp: <=1.6.0
+  espressif/esp-dsp: <=1.7.0
   espressif/esp_video_codec: "~0.5.2"
   espressif/esp_h264:
     version: "1.0.4"
