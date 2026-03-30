@@ -107,44 +107,45 @@ class ConfigGenerator(LoggerMixin):
             return str(v)
 
     def dict_to_c_initializer(self, d: Dict[str, Any], indent: int = 4) -> List[str]:
-        """Convert dictionary to C initializer format with proper type handling and formatting"""
-        lines = []
-        if isinstance(d, list):
-            # Special case for top-level list (unlikely for struct init, but kept for compatibility)
-            arr = ', '.join(self._format_value_to_c(x) for x in d)
-            lines.append(f'{arr}')
+        """Convert dictionary to C initializer format with fixed per-level indentation."""
+        step = indent if indent > 0 else 4
+
+        def _render(obj: Any) -> List[str]:
+            lines: List[str] = []
+            if isinstance(obj, list):
+                arr = ', '.join(self._format_value_to_c(x) for x in obj)
+                lines.append(f'{arr}')
+                return lines
+
+            for k, v in obj.items():
+                # Special handling for large integers or specific fields that need hex
+                if isinstance(v, int):
+                    if k == 'pin_bit_mask' and v > 0xFFFFFFFF:
+                        lines.append(f'.{k} = 0x{v:X}ULL,')
+                        continue
+                    elif k in ['adc_channel_mask', 'dac_channel_mask']:
+                        lines.append(f'.{k} = 0x{v:X},')
+                        continue
+
+                if isinstance(v, dict):
+                    lines.append(f'.{k} = {{')
+                    lines += [(' ' * step) + l for l in _render(v)]
+                    lines.append('},')
+                elif isinstance(v, list) and v and isinstance(v[0], dict):
+                    # Array of structs - multiline formatting
+                    lines.append(f'.{k} = {{')
+                    for item in v:
+                        lines.append((' ' * step) + '{')
+                        lines += [(' ' * (step * 2)) + l for l in _render(item)]
+                        lines.append((' ' * step) + '},')
+                    lines.append('},')
+                else:
+                    val_str = self._format_value_to_c(v)
+                    lines.append(f'.{k} = {val_str},')
+
             return lines
 
-        for k, v in d.items():
-            # Special handling for large integers or specific fields that need hex
-            if isinstance(v, int):
-                if k == 'pin_bit_mask' and v > 0xFFFFFFFF:
-                    lines.append(f'.{k} = 0x{v:X}ULL,')
-                    continue
-                elif k in ['adc_channel_mask', 'dac_channel_mask']:
-                    lines.append(f'.{k} = 0x{v:X},')
-                    continue
-
-            # Standard handling using the helper
-            # We handle dicts specially here to preserve the nice multiline formatting
-            if isinstance(v, dict):
-                lines.append(f'.{k} = {{')
-                lines += [' ' * (indent + 4) + l for l in self.dict_to_c_initializer(v, indent + 4)]
-                lines.append(' ' * indent + '},')
-            elif isinstance(v, list) and v and isinstance(v[0], dict):
-                # Array of structs - special multiline formatting
-                lines.append(f'.{k} = {{')
-                for item in v:
-                    lines.append(' ' * (indent + 4) + '{')
-                    lines += [' ' * (indent + 8) + l for l in self.dict_to_c_initializer(item, indent + 4)]
-                    lines.append(' ' * (indent + 4) + '},')
-                lines.append(' ' * indent + '},')
-            else:
-                # Everything else (primitives, arrays of primitives, arrays of arrays)
-                val_str = self._format_value_to_c(v)
-                lines.append(f'.{k} = {val_str},')
-
-        return lines
+        return _render(d)
 
     def extract_id_from_name(self, name: str) -> int:
         """Extract numeric ID from component name using regex pattern matching"""
@@ -425,9 +426,9 @@ class ConfigGenerator(LoggerMixin):
         project_root = self.get_project_root()
         if project_root:
             self.logger.info(f'Using project root: {project_root}')
-            if not project_root:
-                self.logger.warning('⚠️  Could not find project root, using default board')
-                return BoardManagerConfig.DEFAULT_BOARD
+        else:
+            self.logger.warning('⚠️  Could not find project root, using default board')
+            return BoardManagerConfig.DEFAULT_BOARD
 
         sdkconfig_path = Path(project_root) / 'sdkconfig'
         if not sdkconfig_path.exists():
@@ -436,15 +437,17 @@ class ConfigGenerator(LoggerMixin):
 
         self.logger.info(f'Reading sdkconfig from: {sdkconfig_path}')
 
-        # Read sdkconfig and look for BOARD_XX configs
+        # Read sdkconfig and look for board selection configs.
         selected_board = None
         with open(sdkconfig_path, 'r') as f:
             for line in f:
                 line = line.strip()
-                if line.startswith('CONFIG_BOARD_') and '=y' in line:
-                    # Extract board name from CONFIG_BOARD_ESP32S3_KORVO_3=y
-                    config_name = line.split('=')[0]
-                    board_name = config_name.replace('CONFIG_BOARD_', '').lower()
+                if '=y' not in line:
+                    continue
+
+                config_name = line.split('=')[0]
+                if line.startswith('CONFIG_ESP_BOARD_') and not line.endswith('_SUPPORT=y'):
+                    board_name = config_name.replace('CONFIG_ESP_BOARD_', '').lower()
                     selected_board = board_name
                     self.logger.info(f'Found selected board in sdkconfig: {board_name}')
                     break

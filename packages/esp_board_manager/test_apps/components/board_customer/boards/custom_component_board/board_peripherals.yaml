@@ -1,0 +1,15 @@
+version: 1.0.0
+# Peripherals Configuration for custom component board
+peripherals:
+  # LCD SPI Configuration
+  - name: spi_master
+    type: spi
+    role: master
+    config:
+      # spi_bus_config_t fields
+      spi_bus_config:
+        spi_port: SPI2_HOST
+        mosi_io_num: 37
+        miso_io_num: 35
+        sclk_io_num: 36
+        max_transfer_sz: 3600

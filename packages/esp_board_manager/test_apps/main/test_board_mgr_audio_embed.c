@@ -9,8 +9,10 @@
 #include <math.h>
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_clk_tree.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "hal/adc_ll.h"
 #include "test_dev_audio_codec.h"
 #include "esp_board_manager.h"
 #include "dev_audio_codec.h"
@@ -51,6 +53,8 @@ static void cleanup_recording_resources(void)
 static void embedded_wav_playback_task(void *pvParameters)
 {
     ESP_LOGI(TAG, "Starting embedded WAV file playback...");
+    dev_audio_codec_handles_t *dac_handles = NULL;
+    uint8_t *playback_buffer = NULL;
 
     // Calculate embedded file size， -1 make the size is correctly
     size_t embedded_file_size = test_wav_end - test_wav_start - 1;
@@ -81,7 +85,6 @@ static void embedded_wav_playback_task(void *pvParameters)
         .duration_seconds = 10
     };
 
-    dev_audio_codec_handles_t *dac_handles = NULL;
     esp_err_t ret = configure_codec("audio_dac", &dac_config, true, &dac_handles);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to configure DAC");
@@ -93,7 +96,7 @@ static void embedded_wav_playback_task(void *pvParameters)
     size_t audio_data_size = embedded_file_size - 44;
 
     const size_t buffer_size = 5 * 1024;
-    uint8_t *playback_buffer = malloc(buffer_size);
+    playback_buffer = malloc(buffer_size);
     if (playback_buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate playback buffer");
         goto cleanup_embedded_playback;
@@ -116,11 +119,17 @@ static void embedded_wav_playback_task(void *pvParameters)
 
     ESP_LOGI(TAG, "Embedded WAV file playback completed");
     free(playback_buffer);
+    playback_buffer = NULL;
+    close_codec(dac_handles);
     playback_finished = true;
     vTaskDelete(NULL);
     return;
 
 cleanup_embedded_playback:
+    if (playback_buffer) {
+        free(playback_buffer);
+    }
+    close_codec(dac_handles);
     playback_finished = true;
     vTaskDelete(NULL);
 }
@@ -129,6 +138,8 @@ cleanup_embedded_playback:
 static void partition_recording_task(void *pvParameters)
 {
     ESP_LOGI(TAG, "Starting partition-based recording...");
+    dev_audio_codec_handles_t *adc_handles = NULL;
+    uint8_t *recording_buffer = NULL;
 
     // Find the record partition
     record_partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "record");
@@ -156,37 +167,44 @@ static void partition_recording_task(void *pvParameters)
         goto cleanup_partition_recording;
     }
 
+#ifdef CONFIG_ESP_BOARD_PERIPH_I2S_SUPPORT
     periph_i2s_config_t *i2s_rx_cfg = NULL;
-    ret = esp_board_manager_get_periph_config(adc_cfg->i2s_cfg.name, (void**)&i2s_rx_cfg);
-    if (ret != ESP_OK || i2s_rx_cfg == NULL) {
-        ESP_LOGE(TAG, "Failed to get I2S RX config for %s", adc_cfg->i2s_cfg.name);
-        goto cleanup_partition_recording;
+    if (adc_cfg->i2s_cfg.name != NULL) {
+        ret = esp_board_manager_get_periph_config(adc_cfg->i2s_cfg.name, (void **)&i2s_rx_cfg);
+        if (ret != ESP_OK || i2s_rx_cfg == NULL) {
+            ESP_LOGE(TAG, "Failed to get I2S RX config for %s", adc_cfg->i2s_cfg.name);
+        }
     }
+#endif  /* CONFIG_ESP_BOARD_PERIPH_I2S_SUPPORT */
 
     // Configure ADC for recording
-    audio_config_t adc_config = {
-        .sample_rate = i2s_rx_cfg->i2s_cfg.std.clk_cfg.sample_rate_hz,
-        .bits_per_sample = 16,
-        .duration_seconds = 3  // Record for 3 seconds
-    };
-
+    audio_config_t adc_config = {0};
+    if (i2s_rx_cfg != NULL) {
+        adc_config.sample_rate = i2s_rx_cfg->i2s_cfg.std.clk_cfg.sample_rate_hz;
+        adc_config.bits_per_sample = 16;  // ADC data is typically 16-bit
+        adc_config.duration_seconds = 3;  // Record for 3 seconds
 #if CONFIG_SOC_I2S_SUPPORTS_TDM
-    if (i2s_rx_cfg->mode == I2S_COMM_MODE_TDM) {
-        adc_config.channels = i2s_rx_cfg->i2s_cfg.tdm.slot_cfg.total_slot;
-    } else
-#endif
-    {
-        // When mode is I2S_STD, there is no total_slot, so use slot_mode instead
-        adc_config.channels = i2s_rx_cfg->i2s_cfg.std.slot_cfg.slot_mode == I2S_SLOT_MODE_STEREO ? 2 : 1;
+        if (i2s_rx_cfg->mode == I2S_COMM_MODE_TDM) {
+            adc_config.channels = i2s_rx_cfg->i2s_cfg.tdm.slot_cfg.total_slot;
+        } else
+#endif  /* CONFIG_SOC_I2S_SUPPORTS_TDM */
+        {
+            // When mode is I2S_STD, there is no total_slot, so use slot_mode instead
+            adc_config.channels = i2s_rx_cfg->i2s_cfg.std.slot_cfg.slot_mode == I2S_SLOT_MODE_STEREO ? 2 : 1;
+        }
+    } else {
+        // Fallback to default configuration when using internal Codec ADC without I2S data interface
+        adc_config.sample_rate = 16000;
+        adc_config.bits_per_sample = 16;
+        adc_config.duration_seconds = 5;
+        adc_config.channels = 1;
     }
 
     // Save configuration for playback
     recorded_audio_config = adc_config;
-
     ESP_LOGI(TAG, "Recording config: %" PRIu32 " Hz, %d channels, %d bits",
              adc_config.sample_rate, adc_config.channels, adc_config.bits_per_sample);
 
-    dev_audio_codec_handles_t *adc_handles = NULL;
     ret = configure_codec("audio_adc", &adc_config, false, &adc_handles);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to configure ADC");
@@ -194,13 +212,14 @@ static void partition_recording_task(void *pvParameters)
     }
 
     const size_t buffer_size = 4096;
-    uint8_t *recording_buffer = malloc(buffer_size);
+    recording_buffer = malloc(buffer_size);
+    // recording_buffer = heap_caps_malloc(buffer_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (recording_buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate recording buffer");
         goto cleanup_partition_recording;
     }
 
-    ESP_LOGI(TAG, "Recording 3 seconds of audio to partition (48kHz, stereo)...");
+    ESP_LOGI(TAG, "Recording 3 seconds of audio to partition...");
     uint32_t record_duration_ms = adc_config.duration_seconds * 1000;
     uint32_t start_time = esp_timer_get_time() / 1000;
     record_partition_used = 0;
@@ -228,11 +247,17 @@ static void partition_recording_task(void *pvParameters)
 
     ESP_LOGI(TAG, "Partition recording completed. Recorded %d bytes", record_partition_used);
     free(recording_buffer);
+    recording_buffer = NULL;
+    close_codec(adc_handles);
     recording_finished = true;
     vTaskDelete(NULL);
     return;
 
 cleanup_partition_recording:
+    if (recording_buffer) {
+        free(recording_buffer);
+    }
+    close_codec(adc_handles);
     recording_finished = true;
     vTaskDelete(NULL);
 }
@@ -241,6 +266,8 @@ cleanup_partition_recording:
 static void play_recorded_audio_task(void *pvParameters)
 {
     ESP_LOGI(TAG, "Playing back recorded audio from partition...");
+    dev_audio_codec_handles_t *dac_handles = NULL;
+    uint8_t *playback_buffer = NULL;
     if (record_partition == NULL || record_partition_used == 0) {
         ESP_LOGE(TAG, "No recorded audio data available");
         goto cleanup_play_recorded;
@@ -269,7 +296,6 @@ static void play_recorded_audio_task(void *pvParameters)
         .duration_seconds = recorded_audio_config.duration_seconds
     };
 
-    dev_audio_codec_handles_t *dac_handles = NULL;
     ret = configure_codec("audio_dac", &dac_config, true, &dac_handles);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to configure DAC for recorded audio playback");
@@ -277,7 +303,7 @@ static void play_recorded_audio_task(void *pvParameters)
     }
 
     const size_t buffer_size = 4096;
-    uint8_t *playback_buffer = malloc(buffer_size);
+    playback_buffer = malloc(buffer_size);
     if (playback_buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate playback buffer");
         goto cleanup_play_recorded;
@@ -309,10 +335,18 @@ static void play_recorded_audio_task(void *pvParameters)
 
     ESP_LOGI(TAG, "Recorded audio playback completed");
     free(playback_buffer);
+    playback_buffer = NULL;
+    close_codec(dac_handles);
+    playback_finished = true;
     vTaskDelete(NULL);
     return;
 
 cleanup_play_recorded:
+    if (playback_buffer) {
+        free(playback_buffer);
+    }
+    close_codec(dac_handles);
+    playback_finished = true;
     vTaskDelete(NULL);
 }
 
@@ -362,10 +396,13 @@ void test_board_mgr_audio_recording_after_playback(void)
 
     // Finally, play back the recorded audio
     ESP_LOGI(TAG, "Step 3: Playing back recorded audio...");
+    playback_finished = false;
     xTaskCreate(play_recorded_audio_task, "play_recorded_audio", 4096, NULL, 1, NULL);
 
     // Wait for playback to complete
-    vTaskDelay(pdMS_TO_TICKS(4000));  // Wait 4 seconds for playback (3s recording + 1s buffer)
+    while (!playback_finished) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
 
     // Clean up
     cleanup_recording_resources();

@@ -20,6 +20,17 @@ PERIPH_PREFIX_LEN = len(PERIPH_PREFIX)
 DEVICES_DIR = 'devices'
 PERIPHERALS_DIR = 'peripherals'
 
+
+def _load_parser_module(module_name: str, script_path: str):
+    """Import a parser module from disk and return the loaded module."""
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f'Failed to create import spec for parser {module_name}: {script_path}')
+
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
 def load_parsers(search_dirs: List[str], prefix: str, base_dir: str = None) -> Dict[str, Tuple[str, Callable, Callable]]:
     """
     prefix: 'parse_periph_' for peripherals, 'parse_dev_' for devices
@@ -69,9 +80,10 @@ def load_parsers(search_dirs: List[str], prefix: str, base_dir: str = None) -> D
             if fname.startswith(prefix) and fname.endswith('.py'):
                 type_name = fname[len(prefix):-3]
                 script_path = os.path.join(search_path, fname)
-                spec = importlib.util.spec_from_file_location(type_name, script_path)
-                mod = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(mod)
+                try:
+                    mod = _load_parser_module(type_name, script_path)
+                except Exception as e:
+                    raise RuntimeError(f'Error loading parser {type_name} from {script_path}: {e}') from e
                 version = getattr(mod, 'VERSION', None)
                 parse_func = getattr(mod, 'parse', None)
                 get_includes_func = getattr(mod, 'get_includes', None)
@@ -100,8 +112,12 @@ def load_component_parsers_from_folders(base_dir: Optional[str], prefix: str, di
     Returns:
         dict: Dictionary of component parsers {component_type: (version, parse_func, get_includes_func)}
     """
+    from .utils.logger import get_logger
+
+    logger = get_logger('parser_loader')
     parsers = {}
     prefix_len = len(prefix)
+    load_errors = []
 
     # Construct absolute path if base_dir is provided
     if base_dir:
@@ -136,9 +152,7 @@ def load_component_parsers_from_folders(base_dir: Optional[str], prefix: str, di
 
         try:
             # Import the parser module
-            spec = importlib.util.spec_from_file_location(component_folder.name, str(parser_file))
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
+            mod = _load_parser_module(component_folder.name, str(parser_file))
 
             # Look for parse and get_includes functions
             version = getattr(mod, 'VERSION', '1.0.0')
@@ -154,14 +168,20 @@ def load_component_parsers_from_folders(base_dir: Optional[str], prefix: str, di
                     parsers[component_folder.name] = (version, parse_func, get_includes_func)
 
                 # Use logger for debug output
-                from .utils.logger import get_logger
-                logger = get_logger('parser_loader')
                 logger.debug(f'Loaded parser for {component_folder.name} -> {component_type} (version: {version})')
             else:
-                print(f'Warning: No parse function found in {parser_file}')
+                msg = f'No parse function found in parser file: {parser_file}'
+                load_errors.append(msg)
+                logger.error(msg)
 
         except Exception as e:
-            logger.error(f'Error loading parser for {component_folder.name}: {e}')
+            msg = f'Error loading parser for {component_folder.name} from {parser_file}: {e}'
+            load_errors.append(msg)
+            logger.error(msg)
+
+    if load_errors:
+        error_list = '\n'.join(f'- {msg}' for msg in load_errors)
+        raise RuntimeError(f'Failed to load {dir_name} parser(s):\n{error_list}')
 
     return parsers
 

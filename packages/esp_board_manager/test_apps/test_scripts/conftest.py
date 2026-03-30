@@ -28,23 +28,29 @@ def script_path(bmgr_root):
 @pytest.fixture
 def run_bmgr_cmd(script_path, bmgr_root):
     """Fixture to run board manager commands"""
-    def _run(args, check=True):
+    def _run(args, check=True, cwd=None, env=None):
         """
         Run board manager command with given arguments
 
         Args:
             args: List of command arguments
             check: Whether to check return code (default True)
+            cwd: Working directory for command execution (default: bmgr_root)
+            env: Extra environment variables to inject
 
         Returns:
             subprocess.CompletedProcess object
         """
         cmd = ['python3', str(script_path)] + args
+        merged_env = os.environ.copy()
+        if env:
+            merged_env.update(env)
         result = subprocess.run(
             cmd,
-            cwd=str(bmgr_root),
+            cwd=str(cwd) if cwd else str(bmgr_root),
             capture_output=True,
-            text=True
+            text=True,
+            env=merged_env,
         )
         if check and result.returncode != 0:
             print(f"Command failed: {' '.join(cmd)}")
@@ -86,4 +92,3 @@ def valid_board(board_list):
 def board_count(board_list):
     """Get total number of boards"""
     return len(board_list)
-

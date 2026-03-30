@@ -94,6 +94,19 @@ esp_err_t configure_codec(const char *codec_name, const audio_config_t *config, 
     return ESP_OK;
 }
 
+esp_err_t close_codec(dev_audio_codec_handles_t *codec_handles)
+{
+    if (codec_handles == NULL || codec_handles->codec_dev == NULL) {
+        return ESP_OK;
+    }
+    esp_err_t ret = esp_codec_dev_close(codec_handles->codec_dev);
+    if (ret != ESP_CODEC_DEV_OK) {
+        ESP_LOGE(TAG, "Failed to close codec device");
+        return ret;
+    }
+    return ESP_OK;
+}
+
 esp_err_t cleanup_devices(const device_config_t *dev_config)
 {
     esp_err_t ret = ESP_OK;

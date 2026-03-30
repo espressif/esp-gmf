@@ -9,18 +9,22 @@
 
 #include "esp_idf_version.h"
 #include "esp_lcd_types.h"
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_dev.h"
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
 #include "esp_lcd_mipi_dsi.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
-#include "esp_lcd_panel_io.h"
-#include "esp_lcd_panel_dev.h"
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT
+#include "esp_lcd_io_parl.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT */
 
 #ifdef __cplusplus
 extern "C" {
 #endif  /* __cplusplus */
 
-#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_DSI "dsi"  /*!< LCD display over DSI */
-#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI "spi"  /*!< LCD display over SPI */
+#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_DSI     "dsi"     /*!< LCD display over DSI */
+#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI     "spi"     /*!< LCD display over SPI */
+#define ESP_BOARD_DEVICE_LCD_SUB_TYPE_PARLIO  "parlio"  /*!< LCD display over PARLIO (esp_lcd_io_parl) */
 
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
 
@@ -60,6 +64,16 @@ typedef struct {
 } dev_display_lcd_spi_sub_config_t;
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_SPI_SUPPORT */
 
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT
+/**
+ * @brief  PARLIO LCD display sub configuration (parallel panel IO + panel chip config)
+ */
+typedef struct {
+    esp_lcd_panel_io_parl_config_t  io_parl;       /*!< PARLIO panel IO configuration */
+    esp_lcd_panel_dev_config_t      panel_config;  /*!< LCD panel device configuration */
+} dev_display_lcd_parlio_sub_config_t;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT */
+
 /**
  * @brief  LCD display device handles structure
  *
@@ -79,7 +93,7 @@ typedef struct {
 typedef struct {
     const char              *name;              /*!< Device name */
     const char              *chip;              /*!< LCD chip type */
-    const char              *sub_type;          /*!< Sub type (dsi or spi) */
+    const char              *sub_type;          /*!< Sub type: dsi, spi, parlio */
     uint16_t                 lcd_width;         /*!< LCD width */
     uint16_t                 lcd_height;        /*!< LCD height */
     uint8_t                  swap_xy      : 1;  /*!< Swap X and Y coordinates */
@@ -94,9 +108,12 @@ typedef struct {
 #if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
         dev_display_lcd_dsi_sub_config_t  dsi;
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
-#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_SPI_SUPPORT
+#ifdef  CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_SPI_SUPPORT
         dev_display_lcd_spi_sub_config_t  spi;
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_SPI_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT
+        dev_display_lcd_parlio_sub_config_t  parlio;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT */
     } sub_cfg;
 } dev_display_lcd_config_t;
 

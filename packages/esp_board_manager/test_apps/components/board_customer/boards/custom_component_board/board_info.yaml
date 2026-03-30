@@ -1,0 +1,5 @@
+board: custom_component_board
+chip: esp32c3
+version: 1.0.0
+description: "custom_component_board"
+manufacturer: "ESPRESSIF"

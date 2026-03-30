@@ -65,3 +65,38 @@
     - name: i2c_master      # [TO_BE_CONFIRMED] I2C bus name for camera control
       frequency: 400000     # I2C frequency in Hz
     - name: ldo_mipi        # [TO_BE_CONFIRMED] LDO peripheral for csi power management
+
+# Example SPI camera configuration
+# CONFIG_CAMERA_XCLK_USE_LEDC: required when xclk_source is ESP_CAM_SENSOR_XCLK_LEDC (xclk_ledc_cfg used).
+- name: camera
+  type: camera
+  sub_type: spi
+  config:
+    spi_config:
+      # esp_video_init_spi_config_t (esp_video_init.h), excluding sccb_config (filled at init from periph_i2c).
+      # SPI CAM interface type: ESP_CAM_CTLR_SPI_CAM_INTF_SPI or ESP_CAM_CTLR_SPI_CAM_INTF_PARLIO
+      intf: ESP_CAM_CTLR_SPI_CAM_INTF_SPI
+      # SPI CAM data I/O mode (SPI interface only supports 1-bit): ESP_CAM_CTLR_SPI_CAM_IO_MODE_1BIT / _2BIT
+      io_mode: ESP_CAM_CTLR_SPI_CAM_IO_MODE_1BIT
+      spi_port: 1                         # [TO_BE_CONFIRMED] SPI port
+      spi_cs_pin: 10                      # [IO] SPI CS pin
+      spi_sclk_pin: 11                    # [IO] SPI SCLK pin
+      spi_data0_io_pin: 12                # [IO] SPI data0 I/O pin
+      # SPI data1 I/O pin (only required when io_mode is ESP_CAM_CTLR_SPI_CAM_IO_MODE_2BIT, set to -1 if not used)
+      spi_data1_io_pin: -1                # [IO] SPI data1 I/O pin
+      # SPI interface camera sensor reset pin, if hardware has no reset pin, set reset_pin to be -1
+      reset_pin: -1                       # [IO] SPI interface camera sensor reset pin
+      # SPI interface camera sensor power down pin, if hardware has no power down pin, set pwdn_pin to be -1
+      pwdn_pin: -1                       # [IO] SPI interface camera sensor power down pin
+      # Output clock resource / frequency / pin for SPI interface camera sensor
+      xclk_source: ESP_CAM_SENSOR_XCLK_LEDC
+      xclk_freq: 20000000                # [TO_BE_CONFIRMED] XCLK frequency in Hz (default: 20MHz)
+      xclk_pin: 13                       # [IO] XCLK pin
+      # Used when xclk_source is ESP_CAM_SENSOR_XCLK_LEDC (ledc_timer_t / ledc_clk_cfg_t / ledc_channel_t)
+      xclk_ledc_cfg:
+        timer: 0                          # [TO_BE_CONFIRMED] The timer source of channel
+        clk_cfg: LEDC_AUTO_CLK            # [TO_BE_CONFIRMED] LEDC source clock from ledc_clk_cfg_t
+        channel: 0                        # [TO_BE_CONFIRMED] LEDC channel used for XCLK
+  peripherals:
+    - name: i2c_master                   # Must match a periph_i2c name; provides SCCB i2c_handle to esp_video
+      frequency: 100000                   # SCCB I2C frequency (Hz)

@@ -1,85 +1,115 @@
 # Record Audio to microSD Card
 
 - [中文版](./README_CN.md)
+- Example difficulty: ⭐⭐
 
 ## Example Brief
 
-This example demonstrates how to use `esp_board_manager` to initialize the codec and sdcard, obtain device handles, and use the `esp_codec_dev` API to record audio data and save it as a WAV file to a microSD card.
+- This example captures audio from the microphone (Audio ADC), encodes it as PCM in a WAV container, and saves to `/sdcard/test.wav` for a fixed duration (see `DEFAULT_DURATION_SECONDS` in source).
+- Technically it demonstrates `esp_board_manager` for Audio ADC and `fs_sdcard`, plus `esp_codec_dev` read path and `write_wav_header` from the shared `common` component.
 
-## Example Set Up
+### Typical Scenarios
 
-### IDF Default Branch
+- Voice memos, acoustic logging to SD, or verifying microphone and SD paths on a board.
 
-This example supports IDF release/v5.5 (>=5.5.2) and IDF release/v5.4 (>=5.4.3) branches.
+### Run Flow
 
-### Preparation
+init ADC → mount SD → write WAV header → loop `esp_codec_dev_read` and `fopen` write → close file → deinit.
 
-This example requires a microSD card. The recorded audio file will be named `record.wav` and stored on the card.
+### File Structure
 
-### Build and Flash
+```
+├── common
+│   ├── CMakeLists.txt
+│   ├── wav_header.c
+│   └── include/wav_header.h
+├── main
+│   ├── CMakeLists.txt
+│   ├── idf_component.yml
+│   └── record_to_sdcard.c
+├── CMakeLists.txt               Project: bmgr_record_to_sdcard
+├── partitions.csv
+├── sdkconfig.defaults
+├── sdkconfig.defaults.esp32
+├── sdkconfig.defaults.esp32s3
+├── sdkconfig.defaults.esp32p4
+├── README.md
+└── README_CN.md
+```
 
-Before compiling this example, ensure that the ESP-IDF environment is properly set up. If not, run the following script in the root directory of ESP-IDF to set up the build environment. For detailed steps on configuring and using ESP-IDF, please refer to the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html):
+## Environment Setup
 
-```shell
+### Hardware Required
+
+- Board with Audio ADC (`audio_adc`) and SD card support (`fs_sdcard`).
+
+### Default IDF Branch
+
+This example supports IDF release/v5.4 (>= v5.4.3) and release/v5.5 (>= v5.5.2).
+
+### Software Requirements
+
+- Sufficient free space on the SD card for the WAV clip.
+
+## Build and Flash
+
+### Build Preparation
+
+```
 ./install.sh
 . ./export.sh
 ```
 
-Here are the summarized compilation steps:
-
-- Navigate to the test project directory for recording audio to a microSD card:
-
-```shell
-cd $YOUR_GMF_PATH/packages/esp_board_manager/example/dev_audio_codec/record_to_sdcard
+```
+cd $YOUR_GMF_PATH/packages/esp_board_manager/examples/record_to_sdcard
 ```
 
-- Configure the `esp_board_manager` path to activate the environment (only needs to be executed once under the current terminal):
-
-```shell
-# Ubuntu and Mac:
+```
+# Linux / macOS:
 export IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
 
 # Windows PowerShell:
 $env:IDF_EXTRA_ACTIONS_PATH = "$YOUR_GMF_PATH/packages/esp_board_manager"
 
-# Windows Command Prompt (CMD):
+# Windows CMD:
 set IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
 ```
 
-- Select the development board to use, for example, esp32_s3_korvo2_v3:
-
-```shell
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
-
-- You can also run the following command to see a list of supported development boards:
-
-```shell
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 idf.py gen-bmgr-config -l
 ```
 
-- Compile the example code:
+Custom boards: [Custom board](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board).
 
-```shell
+### Project Configuration
+
+- Board and defaults from `gen-bmgr-config`.
+- FatFs options preset for SD in `sdkconfig.defaults`.
+- Recording duration, sample rate, path, and gain: edit macros in `record_to_sdcard.c` (`DEFAULT_DURATION_SECONDS`, `DEFAULT_SAMPLE_RATE`, `DEFAULT_REC_URL`, `DEFAULT_REC_GAIN`, etc.).
+
+### Build and Flash Commands
+
+```
 idf.py build
 ```
 
-- Flash the program and run the monitor tool to view serial output (replace PORT with your port name):
-
-```shell
+```
 idf.py -p PORT flash monitor
 ```
 
-- To exit the debugging interface, use `Ctrl-]`.
+Exit monitor: `Ctrl-]`
 
 ## How to Use the Example
 
 ### Functionality and Usage
 
-- After the example starts, it will automatically begin recording 10 seconds of audio and save it to the `record.wav` file on the microSD card. The output will be as follows:
+- Insert SD card, flash, and run; after boot the device records for the configured duration and writes `/sdcard/test.wav`.
 
-```c
-I (732) BOARD_MANAGER_RECORD_TO_SDCARD: Record to /sdcard/record.wav
+### Log Output
+
+```text
+I (732) BMGR_RECORD_TO_SDCARD: Record to /sdcard/record.wav
 I (738) DEV_AUDIO_CODEC: ADC is ENABLED
 I (760) PERIPH_I2S: I2S[0] TDM, RX, ws: 45, bclk: 9, dout: 8, din: 10
 I (766) PERIPH_I2S: I2S[0] initialize success: 0x3c096ebc
@@ -114,9 +144,9 @@ I (980) ES7210: Enable ES7210_INPUT_MIC3
 I (983) ES7210: Enable TDM mode
 I (988) ES7210: Unmuted
 I (988) Adev_Codec: Open codec device OK
-I (991) BOARD_MANAGER_RECORD_TO_SDCARD: Record WAV file info: 48000 Hz, 1 channels, 32 bits
-I (995) BOARD_MANAGER_RECORD_TO_SDCARD: Starting I2S recording...
-I (11012) BOARD_MANAGER_RECORD_TO_SDCARD: I2S recording completed. Total bytes recorded: 1925120
+I (991) BMGR_RECORD_TO_SDCARD: Record WAV file info: 48000 Hz, 1 channels, 32 bits
+I (995) BMGR_RECORD_TO_SDCARD: Starting I2S recording...
+I (11012) BMGR_RECORD_TO_SDCARD: I2S recording completed. Total bytes recorded: 1925120
 I (11018) BOARD_DEVICE: Deinit device audio_adc ref_count: 0 device_handle:0x3fce9a7c
 I (11021) BOARD_DEVICE: Device audio_adc config found: 0x3c064f04 (size: 92)
 I (11024) BOARD_PERIPH: Deinit peripheral i2s_audio_in ref_count: 0
@@ -129,15 +159,29 @@ I (11058) BOARD_DEVICE: Deinit device fs_sdcard ref_count: 0 device_handle:0x3fc
 I (11065) BOARD_MANAGER: Device fs_sdcard deinitialized
 ```
 
+(Exact sample rate or channel count may match your codec/board configuration.)
+
 ## Troubleshooting
 
-1. If you encounter the following error message, please run `echo $IDF_EXTRA_ACTIONS_PATH` to check if the `esp_board_manager` path is configured correctly:
+### `gen-bmgr-config` has no `-b`
 
-```c
-Usage: idf.py gen-bmgr-config [OPTIONS]
-Try 'idf.py gen-bmgr-config --help' for help.
+Configure `IDF_EXTRA_ACTIONS_PATH` to `esp_board_manager`.
 
-Error: No such option: -b
+```
+# Linux / macOS:
+echo $IDF_EXTRA_ACTIONS_PATH
+
+# Windows PowerShell:
+echo $env:IDF_EXTRA_ACTIONS_PATH
+
+# Windows CMD:
+echo %IDF_EXTRA_ACTIONS_PATH%
 ```
 
-2. If you need to use a custom development board, please refer to the instructions on **custom boards** in [README.md](../../../README.md).
+### SD or recording failures
+
+Check card is FAT, mounted at `/sdcard`, and not write-protected. Verify the board supported `audio_adc` and `fs_sdcard`.
+
+### Custom board
+
+See [esp_board_manager README](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md).

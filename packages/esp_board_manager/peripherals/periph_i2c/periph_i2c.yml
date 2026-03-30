@@ -7,9 +7,20 @@
   config:
     # I2C port number (default: -1 for auto selection)
     port: -1
-    # Valid values: -1 (auto), 0, 1, etc.
-    # When -1, uses I2C_NUM_AUTO
-    # When >= 0, uses I2C_NUM_{port}
+    # Valid values:
+    # - -1 (auto select, HP I2C only)
+    # - numeric index: 0 / 1 (will map to I2C_NUM_0 / I2C_NUM_1)
+    # - macro: I2C_NUM_0 / I2C_NUM_1 / LP_I2C_NUM_0
+
+    # I2C clock source macro (optional)
+    # If omitted:
+    # - HP I2C uses I2C_CLK_SRC_DEFAULT
+    # - LP I2C uses LP_I2C_SCLK_DEFAULT
+    # Example values:
+    #   I2C_CLK_SRC_DEFAULT, I2C_CLK_SRC_APB, I2C_CLK_SRC_XTAL,
+    #   I2C_CLK_SRC_RC_FAST, I2C_CLK_SRC_REF_TICK,
+    #   LP_I2C_SCLK_DEFAULT, LP_I2C_SCLK_LP_FAST, LP_I2C_SCLK_XTAL_D2
+    clk_source: I2C_CLK_SRC_DEFAULT
 
     # I2C pins configuration
     pins:

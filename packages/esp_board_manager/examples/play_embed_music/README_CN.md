@@ -1,85 +1,125 @@
-# 播放嵌入的 WAV 音乐
+# 播放嵌入式 WAV 音乐
 
-- [English](./README.md)
+- [English Version](./README.md)
+- 例程难度：⭐
 
 ## 例程简介
 
-本例程介绍了如何使用 `esp_board_manager` 初始化 codec，获取设备的句柄，并使用 `esp_codec_dev` 的 API 播放 flash 中的 WAV 格式的音乐。
+- 本例程从固件内置 Flash 中的 WAV 数据播放音频，无需 microSD 卡或网络。
+- 技术上演示通过 `esp_board_manager` 初始化音频 DAC、获取 `dev_audio_codec_handles_t`，并使用 `esp_codec_dev`（open、音量、write）播放；音频通过 CMake `EMBED_TXTFILES` 嵌入镜像。
 
-## 示例创建
+### 典型场景
 
-### IDF 默认分支
+- 开机提示音、小体积演示音频等不依赖外置存储的场景。
 
-本例程仅支持 IDF release/v5.5 (>=5.5.2) 及 IDF release/v5.4 (>=5.4.3) 分支。
+### 预备知识
 
-### 准备工作
+音频文件通过 ESP-IDF [嵌入式二进制](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/api-guides/build-system.html#cmake-embed-data)随固件编译。将 WAV 放在 `main/audio_files/`（默认 `test.wav`），并在 `main/CMakeLists.txt` 的 `EMBED_TXTFILES` 中注册。C 侧符号为 `_binary_<名称>_start` / `_binary_<名称>_end`（名称由路径规则生成）。
 
-本例程所需的 WAV 格式的音频文件已经存放在 `main/audio_files` 文件夹中 。
+### 运行机制
 
-### 编译和下载
+`app_main` 经板级管理初始化 DAC，根据 Flash 中 WAV 头解析格式并打开 codec，将采样数据通过 `esp_codec_dev_write` 写入 ，最后释放设备。
 
-编译本例程前需要先确保已配置 ESP-IDF ，如果已配置可跳到下一项配置，如果未配置需要先在 ESP-IDF 根目录运行下面脚本设置编译环境，有关配置和使用 ESP-IDF 完整步骤，请参阅 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)：
+### 文件结构
 
-```shell
+```
+├── main
+│   ├── audio_files              放置 test.wav 等
+│   ├── CMakeLists.txt           EMBED_TXTFILES 嵌入 WAV
+│   ├── idf_component.yml
+│   └── play_embed_music.c
+├── CMakeLists.txt               工程名：bmgr_play_embed_music
+├── partitions.csv
+├── sdkconfig.defaults
+├── sdkconfig.defaults.esp32
+├── sdkconfig.defaults.esp32s3
+├── sdkconfig.defaults.esp32p4
+├── README.md
+└── README_CN.md
+```
+
+## 环境配置
+
+### 硬件要求
+
+- 连接扬声器
+
+### 默认 IDF 分支
+
+本例程支持 IDF release/v5.4 (>= v5.4.3) 与 release/v5.5 (>= v5.5.2) 分支。
+
+## 编译和下载
+
+### 编译准备
+
+编译前需已配置 ESP-IDF 环境；若已配置可跳过安装，直接进入工程目录。若未配置，请在 ESP-IDF 根目录执行：
+
+```
 ./install.sh
 . ./export.sh
 ```
 
-下面是简略编译步骤：
+简略步骤：
 
-- 进入播放 Flash 音乐测试工程存放位置
+- 进入本例程目录：
 
-```shell
+```
 cd $YOUR_GMF_PATH/packages/esp_board_manager/examples/play_embed_music
 ```
 
 - 配置 `esp_board_manager` 路径，激活环境（在当前终端下只需要执行一次）
 
-```shell
-# Ubuntu and Mac:
+```
+# Linux / macOS:
 export IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
 
 # Windows PowerShell:
 $env:IDF_EXTRA_ACTIONS_PATH = "$YOUR_GMF_PATH/packages/esp_board_manager"
 
-# Windows Command Prompt (CMD):
+# Windows CMD:
 set IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
 ```
 
-- 选择使用的开发板
+- 生成板级配置（示例：`esp32_s3_korvo2_v3`）：
 
-```shell
+```
 idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
 
-- 也可以执行以下命令查看支持的开发板列表
+自定义板：参考 [自定义板子](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board)。
 
-```shell
+- 列出已支持开发板：
+
+```
 idf.py gen-bmgr-config -l
 ```
 
-- 编译例程代码
+### 项目配置
 
-```shell
+- 板子与芯片默认由 `gen-bmgr-config` 及生成的 `components/gen_bmgr_codes/board_manager.defaults` 注入
+
+### 编译与烧录
+
+```
 idf.py build
 ```
 
-- 烧录程序并运行 monitor 工具来查看串口输出 (替换 PORT 为端口名称)：
-
-```shell
+```
 idf.py -p PORT flash monitor
 ```
 
-- 退出调试界面使用 ``Ctrl-]``
+退出 monitor：`Ctrl-]`
 
 ## 如何使用例程
 
 ### 功能和用法
 
-- 例程开始运行后，将自动播放 flash 中的 `test.wav` 文件。输出如下：
+- 烧录后设备自动播放嵌入的 `test.wav` 一遍，随后 `app_main` 结束。
 
-```c
-I (918) BMGR_EMBED_SDCARD_MUSIC: Playing embedded music
+### 日志输出
+
+```text
+I (918) BMGR_EMBED_MUSIC: Playing embedded music
 I (923) PERIPH_I2S: I2S[0] TDM,  TX, ws: 45, bclk: 9, dout: 8, din: 10
 I (929) PERIPH_I2S: I2S[0] initialize success: 0x3c1629b0
 I (934) DEV_AUDIO_CODEC: DAC is ENABLED
@@ -90,12 +130,12 @@ I (963) DEV_AUDIO_CODEC: Successfully initialized codec: audio_dac
 I (964) DEV_AUDIO_CODEC: Create esp_codec_dev success, dev:0x3fceaa48, chip:es8311
 I (971) BOARD_MANAGER: Device audio_dac initialized
 I (976) BOARD_DEVICE: Device handle audio_dac found, Handle: 0x3fce9a7c TO: 0x3fce9a7c
-I (983) BMGR_EMBED_SDCARD_MUSIC: Embedded WAV file size: 818920 bytes
-I (989) BMGR_EMBED_SDCARD_MUSIC: WAV file info: 48000 Hz, 2 channels, 16 bits
+I (983) BMGR_EMBED_MUSIC: Embedded WAV file size: 818920 bytes
+I (989) BMGR_EMBED_MUSIC: WAV file info: 48000 Hz, 2 channels, 16 bits
 I (996) I2S_IF: channel mode 2 bits:16/16 channel:2 mask:3
 I (1002) I2S_IF: TDM Mode 1 bits:16/16 channel:2 sample_rate:48000 mask:3
 I (1023) Adev_Codec: Open codec device OK
-I (5273) BMGR_EMBED_SDCARD_MUSIC: Embedded WAV file playback completed
+I (5273) BMGR_EMBED_MUSIC: Embedded WAV file playback completed
 I (5273) BOARD_DEVICE: Deinit device audio_dac ref_count: 0 device_handle:0x3fce9a7c
 I (5286) BOARD_DEVICE: Device audio_dac config found: 0x3c12f0e4 (size: 92)
 I (5286) BOARD_PERIPH: Deinit peripheral i2s_audio_out ref_count: 0
@@ -106,18 +146,29 @@ E (5306) i2s_common: i2s_channel_disable(1217): the channel has not been enabled
 I (5313) BOARD_PERIPH: Deinit peripheral i2c_master ref_count: 0
 I (5319) PERIPH_I2C: I2C master bus deinitialized successfully
 I (5324) BOARD_MANAGER: Device audio_dac deinitialized
-I (5329) main_task: Returned from app_main()
 ```
 
-## 问题解答
+## 故障排除
 
-1. 如果出现以下错误信息，请执行 `echo $IDF_EXTRA_ACTIONS_PATH` 检查 `esp_board_manager` 路径配置是否正确：
+### `idf.py gen-bmgr-config` 没有 `-b` 参数
 
-```c
-Usage: idf.py gen-bmgr-config [OPTIONS]
-Try 'idf.py gen-bmgr-config --help' for help.
+请确认已设置 `IDF_EXTRA_ACTIONS_PATH` 指向 `esp_board_manager`：
 
-Error: No such option: -b
+```
+# Linux / macOS:
+echo $IDF_EXTRA_ACTIONS_PATH
+
+# Windows PowerShell:
+echo $env:IDF_EXTRA_ACTIONS_PATH
+
+# Windows CMD:
+echo %IDF_EXTRA_ACTIONS_PATH%
 ```
 
-2. 如果需要使用自定义的开发板，请参考 [README_CN.md](../../../README_CN.md) 中关于 **自定义板级** 的说明。
+### 嵌入式 WAV 缺失或编译失败
+
+确认 `main/audio_files/test.wav` 存在，且 `main/CMakeLists.txt` 中 `EMBED_TXTFILES` 已包含该文件。
+
+### 自定义开发板
+
+参阅 [esp_board_manager README](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md)。

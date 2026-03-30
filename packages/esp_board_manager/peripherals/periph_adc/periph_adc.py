@@ -27,7 +27,8 @@ VALID_ADC_BITWIDTH = [
     'ADC_BITWIDTH_11',
     'ADC_BITWIDTH_12',
     'ADC_BITWIDTH_13',
-    'ADC_BITWIDTH_DEFAULT'
+    'ADC_BITWIDTH_DEFAULT',
+    'SOC_ADC_DIGI_MAX_BITWIDTH'
 ]
 VALID_ADC_FORMATS = [
     'ADC_DIGI_OUTPUT_FORMAT_TYPE1',
@@ -45,6 +46,8 @@ VALID_ADC_ULP_MODES = [
     'ADC_ULP_MODE_RISCV',
     'ADC_ULP_MODE_LP_CORE'
 ]
+
+MAX_ADC_PATTERN_ENTRIES = 16
 
 def validate_enum_value(value: str, enum_type: str, valid_values: list) -> bool:
     """Validate if the enum value is within the valid range.
@@ -98,8 +101,97 @@ def get_includes() -> list:
 
 def parse_adc_continuous_config(continuous_config: dict) -> dict:
     """Parse ADC continuous mode specific configuration"""
+    channel_id = continuous_config.get('channel_id')
+    patterns = continuous_config.get('patterns')
+    has_patterns = isinstance(patterns, list) and len(patterns) > 0
+    has_channel_id = channel_id is not None
+    if has_patterns and has_channel_id:
+        raise ValueError("ADC continuous config cannot contain both 'patterns' and 'channel_id'")
+    if not has_patterns and not has_channel_id:
+        raise ValueError("ADC continuous config requires either 'patterns' or 'channel_id'")
 
-    pattern_num = continuous_config.get('pattern_num', 1)
+    parsed_patterns = []
+    channel_id_array = []
+    unit = None
+    if has_patterns:
+        for item in patterns:
+            if not isinstance(item, dict):
+                raise ValueError("Each 'patterns' item must be a mapping")
+            parsed_patterns.append({
+                'unit': get_enum_value(item.get('unit'), 'ADC_UNIT_1', 'ADC unit', VALID_ADC_UNITS),
+                'channel': int(item.get('channel', -1)),
+                'atten': get_enum_value(item.get('atten'), 'ADC_ATTEN_DB_0', 'ADC attenuation', VALID_ADC_ATTEN),
+                'bit_width': get_enum_value(item.get('bit_width'), 'ADC_BITWIDTH_DEFAULT', 'ADC bit width', VALID_ADC_BITWIDTH),
+            })
+    else:
+        if isinstance(channel_id, list) and len(channel_id) <= 0:
+            raise ValueError('Empty channel ID list for ADC continuous device')
+        if not isinstance(channel_id, list):
+            channel_id = [channel_id]
+        channel_id_array = [int(ch) for ch in channel_id]
+        for ch in channel_id_array:
+            if ch < 0:
+                raise ValueError('channel_id cannot be negative')
+
+    pattern_num = len(parsed_patterns) if has_patterns else len(channel_id_array)
+    if pattern_num <= 0:
+        raise ValueError('pattern_num must be greater than 0')
+    if pattern_num > MAX_ADC_PATTERN_ENTRIES:
+        raise ValueError(f'pattern_num too large ({pattern_num}), max {MAX_ADC_PATTERN_ENTRIES}')
+    if 'pattern_num' in continuous_config:
+        expect = int(continuous_config.get('pattern_num', pattern_num))
+        if expect != pattern_num:
+            raise ValueError(f'pattern_num({expect}) mismatch with configured entries({pattern_num})')
+
+    explicit_conv_mode = continuous_config.get('conv_mode')
+    conv_mode = explicit_conv_mode
+    if explicit_conv_mode is not None:
+        conv_mode = get_enum_value(
+            conv_mode,
+            'ADC_CONV_SINGLE_UNIT_1',
+            'ADC conversion mode',
+            VALID_ADC_CONV_MODES
+        )
+    elif has_patterns:
+        units = {item['unit'] for item in parsed_patterns}
+        if units == {'ADC_UNIT_1'}:
+            conv_mode = 'ADC_CONV_SINGLE_UNIT_1'
+        elif units == {'ADC_UNIT_2'}:
+            conv_mode = 'ADC_CONV_SINGLE_UNIT_2'
+        else:
+            conv_mode = 'ADC_CONV_BOTH_UNIT'
+    else:
+        unit = get_enum_value(
+            continuous_config.get('unit_id'),
+            'ADC_UNIT_1',
+            'ADC unit',
+            VALID_ADC_UNITS
+        )
+        conv_mode = 'ADC_CONV_SINGLE_UNIT_1' if unit == 'ADC_UNIT_1' else 'ADC_CONV_SINGLE_UNIT_2'
+
+    if explicit_conv_mode is not None:
+        if has_patterns:
+            units = {item['unit'] for item in parsed_patterns}
+            if units == {'ADC_UNIT_1'} and conv_mode != 'ADC_CONV_SINGLE_UNIT_1':
+                raise ValueError('conv_mode must be ADC_CONV_SINGLE_UNIT_1 when all patterns use ADC_UNIT_1')
+            if units == {'ADC_UNIT_2'} and conv_mode != 'ADC_CONV_SINGLE_UNIT_2':
+                raise ValueError('conv_mode must be ADC_CONV_SINGLE_UNIT_2 when all patterns use ADC_UNIT_2')
+            if len(units) > 1 and conv_mode in {'ADC_CONV_SINGLE_UNIT_1', 'ADC_CONV_SINGLE_UNIT_2'}:
+                raise ValueError('conv_mode cannot be single-unit when patterns span multiple ADC units')
+        else:
+            if unit is None:
+                unit = get_enum_value(
+                    continuous_config.get('unit_id'),
+                    'ADC_UNIT_1',
+                    'ADC unit',
+                    VALID_ADC_UNITS
+                )
+            expected_single = 'ADC_CONV_SINGLE_UNIT_1' if unit == 'ADC_UNIT_1' else 'ADC_CONV_SINGLE_UNIT_2'
+            if conv_mode != expected_single:
+                raise ValueError(
+                    f"conv_mode '{conv_mode}' is inconsistent with unit_id '{unit}'. Expected {expected_single}"
+                )
+
     handle_cfg = {
         'max_store_buf_size': continuous_config.get('max_store_buf_size', 1024),
         'conv_frame_size': continuous_config.get('conv_frame_size', 256),
@@ -115,48 +207,42 @@ def parse_adc_continuous_config(continuous_config: dict) -> dict:
             'ADC format',
             VALID_ADC_FORMATS
         ),
-        'conv_mode': get_enum_value(
-            continuous_config.get('conv_mode'),
-            'ADC_CONV_SINGLE_UNIT_1',
-            'ADC conversion mode',
-            VALID_ADC_CONV_MODES
-        ),
-        'pattern_num': pattern_num
+        'conv_mode': conv_mode,
+        'pattern_num': pattern_num,
+        'cfg_mode': 'PERIPH_ADC_CONTINUOUS_CFG_MODE_PATTERN' if has_patterns else 'PERIPH_ADC_CONTINUOUS_CFG_MODE_SINGLE_UNIT',
     }
 
-    # Handle channel_id array
-    channel_id = continuous_config.get('channel_id')
-    if channel_id is None:
-        raise ValueError(f'Missing channel ID for ADC continuous device')
-    if isinstance(channel_id, list) and len(channel_id) <= 0:
-        raise ValueError(f'Empty channel ID list for ADC continuous device')
-    if not isinstance(channel_id, list):
-        channel_id = [channel_id]
-
-    channel_id_array = [0] * pattern_num
-    for i, channel in enumerate(channel_id):
-        if i < len(channel_id_array):
-            channel_id_array[i] = channel
-
-    continuous_cfg['channel_id'] = channel_id_array
-    continuous_cfg['unit_id'] = get_enum_value(
-        continuous_config.get('unit_id'),
-        'ADC_UNIT_1',
-        'ADC unit',
-        VALID_ADC_UNITS
-    )
-    continuous_cfg['atten'] = get_enum_value(
-        continuous_config.get('atten'),
-        'ADC_ATTEN_DB_0',
-        'ADC attenuation',
-        VALID_ADC_ATTEN
-    )
-    continuous_cfg['bit_width'] = get_enum_value(
-        continuous_config.get('bit_width'),
-        'ADC_BITWIDTH_DEFAULT',
-        'ADC bit width',
-        VALID_ADC_BITWIDTH
-    )
+    if has_patterns:
+        for i, item in enumerate(parsed_patterns):
+            if item['channel'] < 0:
+                raise ValueError(f'patterns[{i}].channel cannot be negative')
+        continuous_cfg['cfg'] = {
+            'patterns': parsed_patterns
+        }
+    else:
+        continuous_cfg['cfg'] = {
+            'single_unit': {
+                'unit_id': get_enum_value(
+                    continuous_config.get('unit_id'),
+                    'ADC_UNIT_1',
+                    'ADC unit',
+                    VALID_ADC_UNITS
+                ),
+                'atten': get_enum_value(
+                    continuous_config.get('atten'),
+                    'ADC_ATTEN_DB_0',
+                    'ADC attenuation',
+                    VALID_ADC_ATTEN
+                ),
+                'bit_width': get_enum_value(
+                    continuous_config.get('bit_width'),
+                    'SOC_ADC_DIGI_MAX_BITWIDTH',
+                    'ADC bit width',
+                    VALID_ADC_BITWIDTH
+                ),
+                'channel_id': channel_id_array,
+            }
+        }
 
     return continuous_cfg
 
@@ -181,6 +267,12 @@ def parse_adc_oneshot_config(oneshot_config: dict) -> dict:
     channel_id = oneshot_config.get('channel_id')
     if channel_id is None:
         raise ValueError(f'Missing channel ID for ADC oneshot device')
+    if isinstance(channel_id, list):
+        raise ValueError('channel_id for ADC oneshot device must be a single integer, not a list')
+    if isinstance(channel_id, bool) or not isinstance(channel_id, int):
+        raise ValueError(f"channel_id for ADC oneshot device must be an integer, got '{type(channel_id).__name__}'")
+    if channel_id < 0:
+        raise ValueError('channel_id for ADC oneshot device cannot be negative')
     chan_cfg = {
         'atten': get_enum_value(
             oneshot_config.get('atten'),
@@ -190,7 +282,7 @@ def parse_adc_oneshot_config(oneshot_config: dict) -> dict:
         ),
         'bitwidth': get_enum_value(
             oneshot_config.get('bit_width'),
-            'ADC_BITWIDTH_DEFAULT',
+            'SOC_ADC_DIGI_MAX_BITWIDTH',
             'ADC bit width',
             VALID_ADC_BITWIDTH
         )
@@ -260,4 +352,3 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     except Exception as e:
         # Catch any other exceptions and provide context
         raise ValueError(f"Error parsing ADC peripheral '{name}': {e}")
-

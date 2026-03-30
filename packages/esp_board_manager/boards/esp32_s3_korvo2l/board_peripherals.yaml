@@ -49,3 +49,13 @@ peripherals:
       pin: 46                          # GPIO pin number
       mode: GPIO_MODE_OUTPUT           # GPIO mode
       pull_up: true                    # Enable pull-up resistor
+
+  # ADC for Button
+  - name: adc_oneshot
+    type: adc
+    role: oneshot
+    config:
+      unit_id: ADC_UNIT_1
+      channel_id: 4
+      atten: ADC_ATTEN_DB_12
+      bit_width: ADC_BITWIDTH_12

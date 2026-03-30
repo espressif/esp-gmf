@@ -1,0 +1,6 @@
+#
+# Audio Codec Device Configuration
+#
+CONFIG_CODEC_DUMMY_SUPPORT=y
+CONFIG_CODEC_DATA_ADC_SUPPORT=y
+# end of Audio Codec Device Configuration

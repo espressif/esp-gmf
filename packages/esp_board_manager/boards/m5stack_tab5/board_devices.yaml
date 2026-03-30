@@ -13,12 +13,6 @@ devices:
       # DAC channel mask, 1-enable, 0-disable, layout: left,right
       dac_channel_mask: "1"     # Left enable
 
-      pa_type: external_pa
-      pa_ext_pin: 1
-      gain: 6                    # dBs
-      active_level: 1            # 0-low, 1-high
-
-
     # Power amplifier configuration
     peripherals:
       - name: i2s_audio_out

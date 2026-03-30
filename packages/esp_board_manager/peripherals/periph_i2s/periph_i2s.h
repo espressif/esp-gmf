@@ -77,6 +77,24 @@ int periph_i2s_init(void *cfg, int cfg_size, void **periph_handle);
  */
 int periph_i2s_deinit(void *periph_handle);
 
+/**
+ * @brief  Get GPIO matrix output signal index for I2S data out line
+ *
+ *         This helper provides a chip-agnostic way to query I2S data output signal index
+ *         for manual gpio-matrix routing (for example, mirrored/inverted auxiliary output).
+ *
+ * @param[in]   name     I2S peripheral name defined in board_peripherals.yaml
+ * @param[in]   line     TX data line index, 0 for the main line, >0 for extra TX data lines when supported
+ * @param[out]  sig_idx  Returned GPIO matrix signal index
+ *
+ * @return
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_INVALID_ARG    Invalid arguments
+ *       - ESP_ERR_NOT_FOUND      Peripheral name not found
+ *       - ESP_ERR_NOT_SUPPORTED  Requested line or signal is not supported on this target
+ */
+esp_err_t periph_i2s_get_data_out_signal(const char *name, int line, int *sig_idx);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

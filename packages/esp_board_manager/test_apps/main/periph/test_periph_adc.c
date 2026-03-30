@@ -38,6 +38,20 @@ static const char *TAG = "TEST_ADC";
 static esp_err_t continuous_test(adc_continuous_handle_t adc_handle, periph_adc_config_t *adc_cfg);
 static esp_err_t oneshot_test(adc_oneshot_unit_handle_t adc_handle, periph_adc_config_t *adc_cfg);
 
+static adc_digi_pattern_config_t get_first_pattern(const periph_adc_continuous_cfg_t *cfg)
+{
+    adc_digi_pattern_config_t p = {0};
+    if (cfg->cfg_mode == PERIPH_ADC_CONTINUOUS_CFG_MODE_PATTERN) {
+        p = cfg->cfg.patterns[0];
+    } else {
+        p.unit = cfg->cfg.single_unit.unit_id;
+        p.atten = cfg->cfg.single_unit.atten;
+        p.bit_width = cfg->cfg.single_unit.bit_width;
+        p.channel = cfg->cfg.single_unit.channel_id[0];
+    }
+    return p;
+}
+
 void test_periph_adc(void)
 {
     periph_adc_handle_t *handle = NULL;
@@ -75,10 +89,11 @@ esp_err_t continuous_test(adc_continuous_handle_t adc_handle, periph_adc_config_
 {
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
     adc_cali_handle_t adc_cali_handle = NULL;
+    adc_digi_pattern_config_t first_pattern = get_first_pattern(&adc_cfg->cfg.continuous);
     adc_cali_curve_fitting_config_t cali_config = {
-        .unit_id = adc_cfg->cfg.continuous.unit_id,
-        .atten = adc_cfg->cfg.continuous.atten,
-        .bitwidth = adc_cfg->cfg.continuous.bit_width,
+        .unit_id = (adc_unit_t)first_pattern.unit,
+        .atten = (adc_atten_t)first_pattern.atten,
+        .bitwidth = (adc_bitwidth_t)first_pattern.bit_width,
     };
     esp_err_t ret = adc_cali_create_scheme_curve_fitting(&cali_config, &adc_cali_handle);
     if (ret != ESP_OK) {
@@ -101,7 +116,7 @@ esp_err_t continuous_test(adc_continuous_handle_t adc_handle, periph_adc_config_
                 adc_digi_output_data_t *p = (adc_digi_output_data_t *)&result[i];
                 uint32_t chan_num = EXAMPLE_ADC_GET_CHANNEL(p);
                 uint32_t data = EXAMPLE_ADC_GET_DATA(p);
-                uint8_t unit = adc_cfg->cfg.continuous.unit_id;
+                uint8_t unit = first_pattern.unit;
                 /* Check the channel number validation, the data is invalid if the channel num exceed the maximum channel */
                 if (chan_num < SOC_ADC_CHANNEL_NUM(unit)) {
                     int voltage = 0;

@@ -28,6 +28,8 @@ esp_err_t initialize_devices(const device_config_t *dev_config);
 
 esp_err_t configure_codec(const char *codec_name, const audio_config_t *config, bool is_dac, dev_audio_codec_handles_t **codec_handles);
 
+esp_err_t close_codec(dev_audio_codec_handles_t *codec_handles);
+
 esp_err_t cleanup_devices(const device_config_t *dev_config);
 
 esp_err_t read_wav_header(FILE *fp, uint32_t *sample_rate, uint16_t *channels, uint16_t *bits_per_sample);

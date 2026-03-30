@@ -1,85 +1,110 @@
 # 录制音频到 microSD 卡
 
-- [English](./README.md)
+- [English Version](./README.md)
+- 例程难度：⭐⭐
 
 ## 例程简介
 
-本例程介绍了如何使用 `esp_board_manager` 初始化 codec 和 sdcard，获取设备的句柄，并使用 `esp_codec_dev` 的 API 录制音频数据，然后将其以 WAV 文件格式保存到 microSD 卡中。
+- 从麦克风（Audio ADC）采集音频，按 WAV 格式写入 `/sdcard/test.wav`，录制时长由源码中 `DEFAULT_DURATION_SECONDS` 等宏配置。
+- 技术上演示 `esp_board_manager` 初始化 Audio ADC 与 `fs_sdcard`，使用 `esp_codec_dev` 读音频数据，并借助 `common` 中 `write_wav_header` 写文件头。
 
-## 示例创建
+### 典型场景
 
-### IDF 默认分支
+- 语音备忘、环境声采集存盘，或验证板级麦克风与 SD 链路。
 
-本例程仅支持 IDF release/v5.5 (>=5.5.2) 及 IDF release/v5.4 (>=5.4.3) 分支。
+### 运行机制
 
-### 准备工作
+初始化 ADC → 挂载 SD → 写 WAV 头 → 循环读 ADC 并写入文件 → 关闭并释放设备。
 
-本例程需要准备一张 microSD 卡。录制的音频文件将命名为 `record.wav` 并存储在卡上。
+### 文件结构
 
-### 编译和下载
+```
+├── common
+│   ├── CMakeLists.txt
+│   ├── wav_header.c
+│   └── include/wav_header.h
+├── main
+│   ├── CMakeLists.txt
+│   ├── idf_component.yml
+│   └── record_to_sdcard.c
+├── CMakeLists.txt               工程：bmgr_record_to_sdcard
+├── partitions.csv
+├── sdkconfig.defaults
+├── sdkconfig.defaults.esp32
+├── sdkconfig.defaults.esp32s3
+├── sdkconfig.defaults.esp32p4
+├── README.md
+└── README_CN.md
+```
 
-编译本例程前需要先确保已配置 ESP-IDF 的环境，如果已配置可跳到下一项配置，如果未配置需要先在 ESP-IDF 根目录运行下面脚本设置编译环境，有关配置和使用 ESP-IDF 完整步骤，请参阅 [《ESP-IDF 编程指南》](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/index.html)：
+## 环境配置
 
-```shell
+### 硬件要求
+
+- 具备 Audio ADC 与 SD 卡的开发板
+
+### 默认 IDF 分支
+
+本例程支持 IDF release/v5.4 (>= v5.4.3) 与 release/v5.5 (>= v5.5.2) 分支。
+
+### 软件要求
+
+- SD 卡有足够空间保存 WAV 片段。
+
+## 编译和下载
+
+### 编译准备
+
+```
 ./install.sh
 . ./export.sh
 ```
 
-下面是简略编译步骤：
-
-- 进入播放 microSD 卡音乐测试工程存放位置
-
-```shell
-cd $YOUR_GMF_PATH/packages/esp_board_manager/example/dev_audio_codec/record_to_sdcard
+```
+cd $YOUR_GMF_PATH/packages/esp_board_manager/examples/record_to_sdcard
 ```
 
-- 配置 `esp_board_manager` 路径，激活环境（在当前终端下只需要执行一次）
-
-```shell
-# Ubuntu and Mac:
+```
+# Linux / macOS:
 export IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
 
 # Windows PowerShell:
 $env:IDF_EXTRA_ACTIONS_PATH = "$YOUR_GMF_PATH/packages/esp_board_manager"
 
-# Windows Command Prompt (CMD):
+# Windows CMD:
 set IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
 ```
 
-- 选择使用的开发板，以 esp32_s3_korvo2_v3 为例：
-
-```shell
-idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
-
-- 也可以执行以下命令查看支持的开发板列表
-
-```shell
+idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 idf.py gen-bmgr-config -l
 ```
 
-- 编译例程代码
+自定义板：[自定义板子](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board)。
 
-```shell
-idf.py build
+### 项目配置
+
+- 录制时长、采样率、路径、增益等可在 `record_to_sdcard.c` 中修改宏。
+
+### 编译与烧录
+
 ```
-
-- 烧录程序并运行 monitor 工具来查看串口输出 (替换 PORT 为端口名称)：
-
-```shell
+idf.py build
 idf.py -p PORT flash monitor
 ```
 
-- 退出调试界面使用 ``Ctrl-]``
+退出 monitor：`Ctrl-]`
 
 ## 如何使用例程
 
 ### 功能和用法
 
-- 例程开始运行后，将自动开始录制 10 秒钟的音频，并将音频保存到 microSD 卡的 `record.wav` 文件中。输出如下：
+- 插入 SD 卡并烧录运行；上电后自动录制设定时长并生成 `/sdcard/test.wav`。
 
-```c
-I (732) BOARD_MANAGER_RECORD_TO_SDCARD: Record to /sdcard/record.wav
+### 日志输出
+
+```text
+I (732) BMGR_RECORD_TO_SDCARD: Record to /sdcard/record.wav
 I (738) DEV_AUDIO_CODEC: ADC is ENABLED
 I (760) PERIPH_I2S: I2S[0] TDM, RX, ws: 45, bclk: 9, dout: 8, din: 10
 I (766) PERIPH_I2S: I2S[0] initialize success: 0x3c096ebc
@@ -114,9 +139,9 @@ I (980) ES7210: Enable ES7210_INPUT_MIC3
 I (983) ES7210: Enable TDM mode
 I (988) ES7210: Unmuted
 I (988) Adev_Codec: Open codec device OK
-I (991) BOARD_MANAGER_RECORD_TO_SDCARD: Record WAV file info: 48000 Hz, 1 channels, 32 bits
-I (995) BOARD_MANAGER_RECORD_TO_SDCARD: Starting I2S recording...
-I (11012) BOARD_MANAGER_RECORD_TO_SDCARD: I2S recording completed. Total bytes recorded: 1925120
+I (991) BMGR_RECORD_TO_SDCARD: Record WAV file info: 48000 Hz, 1 channels, 32 bits
+I (995) BMGR_RECORD_TO_SDCARD: Starting I2S recording...
+I (11012) BMGR_RECORD_TO_SDCARD: I2S recording completed. Total bytes recorded: 1925120
 I (11018) BOARD_DEVICE: Deinit device audio_adc ref_count: 0 device_handle:0x3fce9a7c
 I (11021) BOARD_DEVICE: Device audio_adc config found: 0x3c064f04 (size: 92)
 I (11024) BOARD_PERIPH: Deinit peripheral i2s_audio_in ref_count: 0
@@ -129,15 +154,29 @@ I (11058) BOARD_DEVICE: Deinit device fs_sdcard ref_count: 0 device_handle:0x3fc
 I (11065) BOARD_MANAGER: Device fs_sdcard deinitialized
 ```
 
-## 问题解答
+（实际采样率、声道数可能随板级 codec 配置变化。）
 
-1. 如果出现以下错误信息，请执行 `echo $IDF_EXTRA_ACTIONS_PATH` 检查 `esp_board_manager` 路径配置是否正确：
+## 故障排除
 
-```c
-Usage: idf.py gen-bmgr-config [OPTIONS]
-Try 'idf.py gen-bmgr-config --help' for help.
+### `gen-bmgr-config` 无 `-b` 选项
 
-Error: No such option: -b
+检查 `IDF_EXTRA_ACTIONS_PATH` 是否指向 `esp_board_manager` 包目录。
+
+```
+# Linux / macOS:
+echo $IDF_EXTRA_ACTIONS_PATH
+
+# Windows PowerShell:
+echo $env:IDF_EXTRA_ACTIONS_PATH
+
+# Windows CMD:
+echo %IDF_EXTRA_ACTIONS_PATH%
 ```
 
-2. 如果需要使用自定义的开发板，请参考 [README_CN.md](../../../README_CN.md) 中关于 **自定义板级** 的说明。
+### SD 或录制失败
+
+检查卡为 FAT、挂载为 `/sdcard`、未写保护；确认开发板支持 `audio_adc` 与 `fs_sdcard`。
+
+### 自定义开发板
+
+参阅 [esp_board_manager README](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md)。

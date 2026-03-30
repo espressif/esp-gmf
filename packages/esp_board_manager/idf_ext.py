@@ -20,7 +20,7 @@ directory. The extension will be loaded after project configuration with 'idf.py
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Set, Tuple
 import logging
 
 # Add current directory to path for imports
@@ -29,8 +29,69 @@ sys.path.insert(0, str(current_dir))
 
 from gen_bmgr_config_codes import BoardConfigGenerator, resolve_board_name_or_index
 from generators.utils.file_utils import find_project_root as find_project_root_util
+from generators.sdkconfig_manager import SDKConfigManager
 from create_new_board import BoardCreator
 import re
+
+try:
+    from idf_py_actions.errors import FatalError
+except Exception:
+    class FatalError(RuntimeError):
+        """Fallback error type when idf_py_actions is unavailable."""
+        pass
+
+
+def _env_flag_true(var_name: str) -> bool:
+    value = os.environ.get(var_name, '')
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _parse_bmgr_defaults_symbols(
+    defaults_path: str,
+) -> Tuple[Optional[str], Set[str], Set[str], Dict[str, Set[str]]]:
+    """Parse expected board-manager symbols from board_manager.defaults."""
+    selected_board = None
+    device_types: Set[str] = set()
+    peripheral_types: Set[str] = set()
+    device_subtypes: Dict[str, Set[str]] = {}
+
+    line_board = re.compile(r'^CONFIG_ESP_BOARD_([A-Z0-9_]+)=y\s*$')
+    line_periph = re.compile(r'^CONFIG_ESP_BOARD_PERIPH_([A-Z0-9_]+)_SUPPORT=y\s*$')
+    line_dev_sub = re.compile(r'^CONFIG_ESP_BOARD_DEV_([A-Z0-9_]+)_SUB_([A-Z0-9_]+)_SUPPORT=y\s*$')
+    line_dev = re.compile(r'^CONFIG_ESP_BOARD_DEV_([A-Z0-9_]+)_SUPPORT=y\s*$')
+
+    with open(defaults_path, 'r', encoding='utf-8') as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith('#'):
+                continue
+
+            m = line_periph.match(line)
+            if m:
+                peripheral_types.add(m.group(1).lower())
+                continue
+
+            m = line_dev_sub.match(line)
+            if m:
+                dev_type = m.group(1).lower()
+                subtype = m.group(2).lower()
+                device_types.add(dev_type)
+                device_subtypes.setdefault(dev_type, set()).add(subtype)
+                continue
+
+            m = line_dev.match(line)
+            if m:
+                device_types.add(m.group(1).lower())
+                continue
+
+            m = line_board.match(line)
+            if m:
+                board_macro = m.group(1)
+                # Exclude *_SUPPORT symbols; this regex runs last as a fallback.
+                if not board_macro.endswith('_SUPPORT'):
+                    selected_board = board_macro.lower()
+
+    return selected_board, device_types, peripheral_types, device_subtypes
 
 
 def action_extensions(base_actions: Dict, project_path: str) -> Dict:
@@ -129,6 +190,40 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
 
         sdk_file = os.path.join(proj_dir, 'sdkconfig')
         if os.path.exists(sdk_file):
+            if _env_flag_true('ESP_BOARD_MANAGER_SKIP_SDKCONFIG_CHECK'):
+                print('[Board Manager] sdkconfig consistency check skipped by ESP_BOARD_MANAGER_SKIP_SDKCONFIG_CHECK')
+                return
+
+            print('[Board Manager] Checking sdkconfig consistency before action execution...')
+            selected_board, device_types, peripheral_types, device_subtypes = _parse_bmgr_defaults_symbols(patch_file)
+            if not selected_board:
+                print('[Board Manager] Warning: failed to parse selected board from board_manager.defaults.')
+                print('[Board Manager] Please run: idf.py gen-bmgr-config -b <board> to refresh board metadata.')
+                return
+
+            sdkconfig_manager = SDKConfigManager(current_dir)
+            check_result = sdkconfig_manager.ensure_sdkconfig_consistency(
+                sdkconfig_path=sdk_file,
+                selected_board=selected_board,
+                device_types=device_types,
+                peripheral_types=peripheral_types,
+                device_subtypes=device_subtypes,
+                auto_fix=False,
+                project_path=proj_dir,
+            )
+            if not check_result.get('ok', False):
+                issues = check_result.get('issues', [])
+                print(f'[Board Manager] Detected {len(issues)} sdkconfig inconsistency issue(s):')
+                for issue in issues:
+                    print(f'[Board Manager]   - {issue}')
+                print(f'[Board Manager] Please run: idf.py gen-bmgr-config -b {selected_board}')
+                print(
+                    '[Board Manager] Or temporarily bypass this check with: '
+                    'ESP_BOARD_MANAGER_SKIP_SDKCONFIG_CHECK=1 idf.py <action>'
+                )
+                print('[Board Manager] Warning: sdkconfig consistency check failed. Build continues without auto-fix in callback.')
+                return
+
             return
 
         # Parse existing SDKCONFIG_DEFAULTS from multiple sources
@@ -207,6 +302,7 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
             peripherals_only=kwargs.get('peripherals_only', False),
             devices_only=kwargs.get('devices_only', False),
             kconfig_only=kwargs.get('kconfig_only', False),
+            skip_sdkconfig_check=kwargs.get('skip_sdkconfig_check', False),
             log_level=kwargs.get('log_level', 'INFO'),
             clean=kwargs.get('clean', False),
             new_board=new_board
@@ -507,6 +603,11 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
         {
             'names': ['--kconfig-only'],
             'help': 'Only generate Kconfig menu without board switching (skips sdkconfig deletion and board code generation)',
+            'is_flag': True,
+        },
+        {
+            'names': ['--skip-sdkconfig-check'],
+            'help': 'Skip sdkconfig consistency check for board-manager symbols when sdkconfig is preserved',
             'is_flag': True,
         },
         {

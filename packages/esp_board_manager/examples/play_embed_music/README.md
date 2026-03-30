@@ -1,85 +1,131 @@
-# Play embedded WAV music
+# Play Embedded WAV Music
 
 - [中文版](./README_CN.md)
+- Example difficulty: ⭐
 
 ## Example Brief
 
-This example demonstrates how to use `esp_board_manager` to initialize the codec, obtain device handles, and play music in WAV format from flash using the `esp_codec_dev` API.
+- This example plays a WAV file bundled with the firmware from flash, without using a microSD card or network.
+- Technically it demonstrates `esp_board_manager` device initialization for the audio DAC, retrieval of `dev_audio_codec_handles_t`, and playback through `esp_codec_dev` (open, set volume, write). Audio is linked via CMake `EMBED_TXTFILES`.
 
-## Example Set Up
+### Typical Scenarios
 
-### IDF Default Branch
+- Firmware-included prompt tones, boot jingles, or small demonstration clips where no external storage is required.
 
-This example supports IDF release/v5.5 (>=5.5.2) and IDF release/v5.4 (>=5.4.3) branches.
+### Prerequisites
 
-### Preparation
+The WAV file is built into the application using ESP-IDF [embedded binary data](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-guides/build-system.html#cmake-embed-data). Place your file under `main/audio_files/` (default: `test.wav`) and ensure `main/CMakeLists.txt` lists it in `EMBED_TXTFILES`. The C symbols are `_binary_<name>_start` / `_binary_<name>_end` (object name derived from the file path).
 
-A wav audio file required for this example have been stored in the `main/audio_files` folder.
+### Run Flow
 
-### Build and Flash
+`app_main` initializes the DAC via the board manager, opens the codec with parameters parsed from the WAV header in flash, pass the data stream through `esp_codec_dev_write` for output, then deinitializes the device.
 
-Before compiling this example, ensure that the ESP-IDF environment is properly set up. If not, run the following script in the root directory of ESP-IDF to set up the build environment. For detailed steps on configuring and using ESP-IDF, please refer to the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html):
+### File Structure
 
-```shell
+```
+├── main
+│   ├── audio_files              Place test.wav (or your WAV) here
+│   ├── CMakeLists.txt           EMBED_TXTFILES for WAV
+│   ├── idf_component.yml
+│   └── play_embed_music.c
+├── CMakeLists.txt               Project: bmgr_play_embed_music
+├── partitions.csv
+├── sdkconfig.defaults
+├── sdkconfig.defaults.esp32
+├── sdkconfig.defaults.esp32s3
+├── sdkconfig.defaults.esp32p4
+├── README.md
+└── README_CN.md
+```
+
+## Environment Setup
+
+### Hardware Required
+
+- Speaker as required by the board.
+
+### Default IDF Branch
+
+This example supports IDF release/v5.4 (>= v5.4.3) and release/v5.5 (>= v5.5.2).
+
+## Build and Flash
+
+### Build Preparation
+
+Before building this example, ensure the ESP-IDF environment is set up. If it is already set up, skip to the project directory steps below. If not, run the following in the ESP-IDF root directory. For full steps, see the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html).
+
+```
 ./install.sh
 . ./export.sh
 ```
 
-Here are the summarized compilation steps:
+Short steps:
 
-- Navigate to the test project directory for playing music from a microSD card:
+- Go to this example's project directory:
 
-```shell
+```
 cd $YOUR_GMF_PATH/packages/esp_board_manager/examples/play_embed_music
 ```
 
 - Configure the `esp_board_manager` path to activate the environment (only needs to be executed once under the current terminal):
 
-```shell
-# Ubuntu and Mac:
+```
+# Linux / macOS:
 export IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
 
 # Windows PowerShell:
 $env:IDF_EXTRA_ACTIONS_PATH = "$YOUR_GMF_PATH/packages/esp_board_manager"
 
-# Windows Command Prompt (CMD):
+# Windows CMD:
 set IDF_EXTRA_ACTIONS_PATH=$YOUR_GMF_PATH/packages/esp_board_manager
 ```
 
-- Select the development board to use:
+- Generate board configuration and code for your board (example: `esp32_s3_korvo2_v3`):
 
-```shell
+```
 idf.py gen-bmgr-config -b esp32_s3_korvo2_v3
 ```
 
-- You can also run the following command to see a list of supported development boards:
+Custom boards: see [Custom board](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board).
 
-```shell
+- List supported boards:
+
+```
 idf.py gen-bmgr-config -l
 ```
 
-- Compile the example code:
+### Project Configuration
 
-```shell
+- Board selection and chip target are applied via `gen-bmgr-config` and generated `components/gen_bmgr_codes/board_manager.defaults`
+
+### Build and Flash Commands
+
+- Build:
+
+```
 idf.py build
 ```
 
-- Flash the program and run the monitor tool to view serial output (replace PORT with your port name):
+- Flash and monitor (replace `PORT`):
 
-```shell
+```
 idf.py -p PORT flash monitor
 ```
 
-- To exit the debugging interface, use `Ctrl-]`.
+- Exit monitor: `Ctrl-]`
 
 ## How to Use the Example
 
 ### Functionality and Usage
 
-- After the example starts, it will automatically play the `test.wav` file from flash. The output will be as follows:
+- After flashing, the device plays the embedded `test.wav` once through the DAC, then exits `app_main`.
 
-```c
-I (918) BMGR_EMBED_SDCARD_MUSIC: Playing embedded music
+### Log Output
+
+Key lines showing initialization and playback completion:
+
+```text
+I (918) BMGR_EMBED_MUSIC: Playing embedded music
 I (923) PERIPH_I2S: I2S[0] TDM,  TX, ws: 45, bclk: 9, dout: 8, din: 10
 I (929) PERIPH_I2S: I2S[0] initialize success: 0x3c1629b0
 I (934) DEV_AUDIO_CODEC: DAC is ENABLED
@@ -90,12 +136,12 @@ I (963) DEV_AUDIO_CODEC: Successfully initialized codec: audio_dac
 I (964) DEV_AUDIO_CODEC: Create esp_codec_dev success, dev:0x3fceaa48, chip:es8311
 I (971) BOARD_MANAGER: Device audio_dac initialized
 I (976) BOARD_DEVICE: Device handle audio_dac found, Handle: 0x3fce9a7c TO: 0x3fce9a7c
-I (983) BMGR_EMBED_SDCARD_MUSIC: Embedded WAV file size: 818920 bytes
-I (989) BMGR_EMBED_SDCARD_MUSIC: WAV file info: 48000 Hz, 2 channels, 16 bits
+I (983) BMGR_EMBED_MUSIC: Embedded WAV file size: 818920 bytes
+I (989) BMGR_EMBED_MUSIC: WAV file info: 48000 Hz, 2 channels, 16 bits
 I (996) I2S_IF: channel mode 2 bits:16/16 channel:2 mask:3
 I (1002) I2S_IF: TDM Mode 1 bits:16/16 channel:2 sample_rate:48000 mask:3
 I (1023) Adev_Codec: Open codec device OK
-I (5273) BMGR_EMBED_SDCARD_MUSIC: Embedded WAV file playback completed
+I (5273) BMGR_EMBED_MUSIC: Embedded WAV file playback completed
 I (5273) BOARD_DEVICE: Deinit device audio_dac ref_count: 0 device_handle:0x3fce9a7c
 I (5286) BOARD_DEVICE: Device audio_dac config found: 0x3c12f0e4 (size: 92)
 I (5286) BOARD_PERIPH: Deinit peripheral i2s_audio_out ref_count: 0
@@ -106,18 +152,29 @@ E (5306) i2s_common: i2s_channel_disable(1217): the channel has not been enabled
 I (5313) BOARD_PERIPH: Deinit peripheral i2c_master ref_count: 0
 I (5319) PERIPH_I2C: I2C master bus deinitialized successfully
 I (5324) BOARD_MANAGER: Device audio_dac deinitialized
-I (5329) main_task: Returned from app_main()
 ```
 
 ## Troubleshooting
 
-1. If you encounter the following error message, please run `echo $IDF_EXTRA_ACTIONS_PATH` to check if the `esp_board_manager` path is configured correctly:
+### `idf.py gen-bmgr-config` has no `-b` option
 
-```c
-Usage: idf.py gen-bmgr-config [OPTIONS]
-Try 'idf.py gen-bmgr-config --help' for help.
+`IDF_EXTRA_ACTIONS_PATH` must point to `esp_board_manager`. Verify:
 
-Error: No such option: -b
+```
+# Linux / macOS:
+echo $IDF_EXTRA_ACTIONS_PATH
+
+# Windows PowerShell:
+echo $env:IDF_EXTRA_ACTIONS_PATH
+
+# Windows CMD:
+echo %IDF_EXTRA_ACTIONS_PATH%
 ```
 
-2. If you need to use a custom development board, please refer to the instructions on **custom boards** in [README.md](../../../README.md).
+### Embedded WAV missing or build error
+
+Ensure `main/audio_files/test.wav` exists and `main/CMakeLists.txt` contains `EMBED_TXTFILES` for that path.
+
+### Custom board
+
+See [esp_board_manager README](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md).

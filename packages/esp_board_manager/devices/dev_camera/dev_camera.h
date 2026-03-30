@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include "driver/gpio.h"
+#include "esp_video_init.h"
 #if CONFIG_SOC_LCDCAM_CAM_SUPPORTED
 #include "esp_cam_ctlr_dvp.h"
 #include "esp_cam_sensor_xclk.h"
@@ -34,15 +36,20 @@ typedef struct {
 #endif  /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
 } dev_camera_sub_csi_cfg;
 
+#if CONFIG_ESP_BOARD_DEV_CAMERA_SUB_SPI_SUPPORT
 /**
- * @brief  SPI configuration structure (placeholder)
+ * @brief  SPI camera board configuration: peripheral I2C for SCCB + driver struct from esp_video.
  *
- *         This structure is intended to contain configuration parameters for an SPI interface.
- *         Currently, it is a placeholder and will be implemented in the future.
+ *         `i2c_name` / `i2c_freq` select the board I2C peripheral; at init, `esp_video_spi.sccb_config`
+ *         is filled with init_sccb=false, freq from `i2c_freq`, and i2c_handle from that peripheral.
+ *         Static fields use `esp_video_init_spi_config_t` as defined in esp_video_init.h.
  */
 typedef struct {
-    // TODO
+    const char                  *i2c_name;       /*!< Board peripheral name for SCCB I2C (periph_i2c) */
+    uint32_t                     i2c_freq;       /*!< SCCB I2C frequency (Hz), see esp_video_init_sccb_config_t::freq */
+    esp_video_init_spi_config_t  esp_video_spi;  /*!< SPI camera connection config (sccb_config overwritten at init) */
 } dev_camera_sub_spi_cfg;
+#endif  /* CONFIG_ESP_BOARD_DEV_CAMERA_SUB_SPI_SUPPORT */
 
 /**
  * @brief  USB UVC configuration structure (placeholder)
@@ -82,11 +89,13 @@ typedef struct {
     const char *type;      /*!< Device type */
     const char *sub_type;  /*!< Bus type (e.g., "csi", "spi", "dvp", "usb_uvc" etc.) */
     union {
-#ifdef CONFIG_SOC_LCDCAM_CAM_SUPPORTED
-        dev_camera_sub_dvp_cfg  dvp;          /*!< DVP interface configuration */
-#endif /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
-        dev_camera_sub_csi_cfg      csi;      /*!< CSI interface configuration (placeholder) */
-        dev_camera_sub_spi_cfg      spi;      /*!< SPI interface configuration (placeholder) */
+#ifdef  CONFIG_SOC_LCDCAM_CAM_SUPPORTED
+        dev_camera_sub_dvp_cfg  dvp;  /*!< DVP interface configuration */
+#endif  /* CONFIG_SOC_LCDCAM_CAM_SUPPORTED */
+        dev_camera_sub_csi_cfg  csi;  /*!< CSI interface configuration (placeholder) */
+#if CONFIG_ESP_BOARD_DEV_CAMERA_SUB_SPI_SUPPORT
+        dev_camera_sub_spi_cfg  spi;  /*!< SPI esp_video camera configuration */
+#endif  /* CONFIG_ESP_BOARD_DEV_CAMERA_SUB_SPI_SUPPORT */
         dev_camera_sub_usb_uvc_cfg  usb_uvc;  /*!< USB UVC interface configuration (placeholder) */
     } sub_cfg;
 } dev_camera_config_t;

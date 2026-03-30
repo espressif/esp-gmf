@@ -41,9 +41,12 @@ esp_board_manager/
 │   ├── gen_board_periph_handles.c
 │   ├── gen_board_device_config.c
 │   ├── gen_board_device_handles.c
+│   ├── gen_board_device_custom.h    # Optional, only when custom device structs are generated
 │   ├── gen_board_info.c
+│   ├── board_manager.defaults
 │   ├── CMakeLists.txt
-│   └── idf_component.yml
+│   ├── idf_component.yml
+│   └── Kconfig.projbuild            # Optional, only when external/custom boards are present
 ```
 
 ## Quick Start
@@ -162,9 +165,12 @@ At this point, the board configuration files will be automatically generated to 
 - `components/gen_bmgr_codes/gen_board_periph_handles.c` - Peripheral handles
 - `components/gen_bmgr_codes/gen_board_device_config.c` - Device configuration
 - `components/gen_bmgr_codes/gen_board_device_handles.c` - Device handles
+- `components/gen_bmgr_codes/gen_board_device_custom.h` - Optional custom device struct definitions
 - `components/gen_bmgr_codes/gen_board_info.c` - Board metadata
+- `components/gen_bmgr_codes/board_manager.defaults` - Board-specific sdkconfig defaults and selected board symbols
 - `components/gen_bmgr_codes/CMakeLists.txt` - Build system configuration
 - `components/gen_bmgr_codes/idf_component.yml` - Component dependencies
+- `components/gen_bmgr_codes/Kconfig.projbuild` - Optional external-board Kconfig definitions
 
 > **Note:** If you encounter problems, refer to the [Troubleshooting](#troubleshooting) section.
 
@@ -293,30 +299,31 @@ Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicate
 
 ## Command Line Options
 
-**Board Selection:**
+**Board Selection and Discovery:**
 ```bash
--b, --board BOARD_NAME           # Directly specify board name (bypass sdkconfig reading)
--b, --board BOARD_INDEX          # Specify board by index
--c, --customer-path PATH         # Customer board directory path (use "NONE" to skip)
+-b, --board BOARD                # Board name or index
+-c, --customer-path PATH         # Customer board directory (单个或多个)
 -l, --list-boards                # List all available boards and exit
+-n, --new-board ARG              # Create a new board (idf.py action only)
+[BOARD]                          # Specify board name or index directly (standalone script only)
 ```
 
-**Generation Control:**
+**Generation Modes:**
 ```bash
---kconfig-only                   # Only generate Kconfig menu system (skip board configuration generation)
---peripherals-only               # Only process peripherals (skip devices)
---devices-only                   # Only process devices (skip peripherals)
+--peripherals-only               # Generate peripheral outputs only; skip device generation
+--devices-only                   # Generate device outputs only; peripherals are still loaded for reference
+--kconfig-only                   # Generate Kconfig files only; skip board code generation and sdkconfig cleanup
 ```
 
-**SDKconfig Configuration:**
+**SDKconfig Behavior:**
 ```bash
---sdkconfig-only                 # Only check sdkconfig features without enabling them
---disable-sdkconfig-auto-update  # Disable automatic sdkconfig feature enabling (enabled by default)
+--skip-sdkconfig-check           # Skip sdkconfig consistency check
+-x, --clean                      # Delete generated .c/.h files, reset generated CMakeLists.txt/idf_component.yml, and remove board_manager.defaults
 ```
 
 **Log Control:**
 ```bash
---log-level LEVEL                # Set log level: DEBUG, INFO, WARNING, ERROR (default: INFO)
+--log-level LEVEL                # DEBUG, INFO, WARNING, ERROR (default: INFO)
 ```
 
 ### Method 1: Using as IDF Action Extension (Recommended)
@@ -334,15 +341,20 @@ idf.py gen-bmgr-config -b 1
 # Use custom board
 idf.py gen-bmgr-config -b my_board -c /path/to/custom/boards
 
+# Create a new board in the default components directory
+idf.py gen-bmgr-config -n my_new_board
+
+# Create a new board in a specified path
+idf.py gen-bmgr-config -n path/to/boards/my_new_board
+
+# Generate Kconfig files only
+idf.py gen-bmgr-config -b esp_vocat_board_v1_0 --kconfig-only
+
+# Skip sdkconfig consistency check when reusing current sdkconfig
+idf.py gen-bmgr-config -b esp_vocat_board_v1_0 --skip-sdkconfig-check
+
 # Clean generated files
 idf.py gen-bmgr-config -x
-
-# Create the board configuration files at the default path (default path is {PROJECT_ROOT}/components/<board_name>):
-idf.py gen-bmgr-config -n <board_name>
-
-# Create the board configuration files at a custom path:
-idf.py gen-bmgr-config -n path/to/board/<board_name>
-...
 ```
 
 ### Method 2: Using Standalone Script
@@ -361,8 +373,17 @@ python gen_bmgr_config_codes.py -b 1
 python gen_bmgr_config_codes.py 1 -c /custom/boards
 python gen_bmgr_config_codes.py -b my_board -c /path/to/custom/boards
 
+# Generate peripherals only
+python gen_bmgr_config_codes.py -b esp_vocat_board_v1_0 --peripherals-only
+
+# Generate devices only
+python gen_bmgr_config_codes.py -b esp_vocat_board_v1_0 --devices-only
+
+# Generate Kconfig files only
+python gen_bmgr_config_codes.py -b esp_vocat_board_v1_0 --kconfig-only
+
 # Clean generated files
-python gen_bmgr_config_codes.py -x
+python gen_bmgr_config_codes.py --clean
 ```
 
 Additional usage when using the standalone script directly:
@@ -372,25 +393,25 @@ Additional usage when using the standalone script directly:
 python gen_bmgr_config_codes.py
 
 # Specify board as direct parameter (name or index)
-# Direct parameter (without `-b`) only works when calling the script directly, not with `idf.py` due to ESP-IDF framework limitations.
+# Using board naming or indexing parameters directly only works when the script is called directly
 python gen_bmgr_config_codes.py esp32_s3_korvo2_v3
 python gen_bmgr_config_codes.py 1
 ```
 
 ## Script Execution Flow
 
-ESP Board Manager uses `gen_bmgr_config_codes.py` for code generation, which handles both Kconfig menu generation and board configuration generation in a unified workflow. The execution follows a comprehensive 8‑step process that transforms YAML configurations into C code and build system files:
+ESP Board Manager uses `gen_bmgr_config_codes.py` for code generation, which handles both Kconfig generation and board configuration generation in a unified workflow. The execution follows an 8-step process that transforms YAML configurations into source files and build metadata:
 
 1. **Board Directory Scanning**: Discover boards in default, customer, and component directories
 2. **Board Selection**: Read board selection from sdkconfig or command‑line arguments
-3. **Kconfig Generation**: Create a unified Kconfig menu system for board and component selection
-4. **Configuration File Discovery**: Locate `board_peripherals.yaml` and `board_devices.yaml` for the selected board
-5. **Peripheral Processing**: Parse peripheral configurations and generate C structures
-6. **Device Processing**: Process device configurations, dependencies, and update build files
-7. **Project sdkconfig Configuration**: Update project sdkconfig based on board device and peripheral types
-8. **File Generation**: Create all necessary C configuration and handle files in the project folder's `components/gen_bmgr_codes/`
+3. **Configuration File Discovery**: Locate `board_peripherals.yaml` and `board_devices.yaml` for the selected board
+4. **Peripheral Processing**: Parse peripheral configurations and generate peripheral C structures/handles
+5. **Device Processing**: Parse device configurations, resolve dependencies, and generate device C structures/handles
+6. **Kconfig Generation**: Generate `components/gen_bmgr_codes/Kconfig.projbuild` when external boards are involved
+7. **Board SDKconfig Handling**: When needed, validate preserved sdkconfig consistency and generate `components/gen_bmgr_codes/board_manager.defaults`
+8. **Generated Component Setup**: Write board information and generated component files under `components/gen_bmgr_codes/`
 
-**⚠️ Important**: When switching boards, the script automatically backs up and deletes the existing `sdkconfig` file in step 1. This prevents residual configurations from the old board (e.g., different chip's CONFIG_IDF_TARGET, different board's device configurations) from affecting the new board. The backup file is `sdkconfig.bmgr_board.old`, which can be renamed back to `sdkconfig` if needed (skipped when using `--kconfig-only`).
+**⚠️ Important**: When switching boards, the script automatically backs up and deletes the existing `sdkconfig` file during environment cleanup. This prevents residual configurations from the old board (for example, a different chip's `CONFIG_IDF_TARGET` or stale board symbols) from affecting the new board. The backup file is `sdkconfig.bmgr_board.old`.
 
 ## Custom Board
 
@@ -422,7 +443,7 @@ If `idf.py gen-bmgr-config` is not recognized:
 1. Check that `IDF_EXTRA_ACTIONS_PATH` is set correctly
 2. Restart your terminal session
 
-### `undefined reference for g_board_devices and g_board_peripherals`
+### `undefined reference to 'g_esp_board_devices'` or `g_esp_board_peripherals`
 
 1. Make sure there is no `idf_build_set_property(MINIMAL_BUILD ON)` in your project, because MINIMAL_BUILD only performs a minimal build by including only the "common" components required by all other components.
 2. Ensure your project has a `components/gen_bmgr_codes` folder with generated files. These files are generated by running `idf.py gen-bmgr-config -b YOUR_BOARD`.
@@ -453,7 +474,7 @@ Failed to resolve component 'esp_board_manager' required by component
   'gen_bmgr_codes': unknown name.
 ```
 
-This may be caused by leftover generated files from the board manager that were not cleared. **You can clean the generated files using `idf.py gen-bmgr-config -x` (or `python gen_bmgr_config_codes.py -x`)** to remove all generated .c and .h files and reset CMakeLists.txt and idf_component.yml.
+This may be caused by leftover generated files from the board manager that were not cleared. **You can clean the generated files using `idf.py gen-bmgr-config -x` (or `python gen_bmgr_config_codes.py -x`)** to delete generated `.c/.h` files, reset generated `CMakeLists.txt` / `idf_component.yml`, and remove `board_manager.defaults`.
 
 ### Undefined reference to 'g_esp_board_devices'
 

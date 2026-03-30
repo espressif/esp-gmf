@@ -7,6 +7,31 @@
 VERSION = 'v1.0.0'
 
 import sys
+from typing import Union
+
+I2CPortValue = Union[int, str]
+
+VALID_I2C_PORT_MACROS = {
+    'I2C_NUM_0',
+    'I2C_NUM_1',
+    'LP_I2C_NUM_0',
+}
+
+VALID_I2C_CLK_SOURCE_MACROS = {
+    'I2C_CLK_SRC_DEFAULT',
+    'I2C_CLK_SRC_APB',
+    'I2C_CLK_SRC_REF_TICK',
+    'I2C_CLK_SRC_XTAL',
+    'I2C_CLK_SRC_RC_FAST',
+    'LP_I2C_SCLK_DEFAULT',
+    'LP_I2C_SCLK_LP_FAST',
+    'LP_I2C_SCLK_XTAL_D2',
+}
+LP_I2C_CLK_SOURCE_MACROS = {
+    'LP_I2C_SCLK_DEFAULT',
+    'LP_I2C_SCLK_LP_FAST',
+    'LP_I2C_SCLK_XTAL_D2',
+}
 
 def get_includes() -> list:
     """Return list of required include headers for I2C peripheral"""
@@ -15,6 +40,77 @@ def get_includes() -> list:
         'driver/i2c_types.h',
         'hal/gpio_types.h'
     ]
+
+def _validate_macro_value(name: str, field: str, value: str, valid_values: set) -> str:
+    """Validate macro value against allowed macro list."""
+    if value not in valid_values:
+        raise ValueError(
+            f"Invalid {field} value '{value}' in I2C peripheral '{name}'. "
+            f'Valid values: {sorted(valid_values)}'
+        )
+    return value
+
+def _parse_i2c_port(name: str, port_cfg) -> I2CPortValue:
+    """Parse and validate I2C port value.
+
+    Supports:
+      - -1 for auto selection
+      - numeric port index (e.g. 0/1 -> I2C_NUM_0/I2C_NUM_1)
+      - explicit macro value (e.g. I2C_NUM_0 / LP_I2C_NUM_0)
+    """
+    if port_cfg is None or port_cfg == '':
+        return -1
+
+    if isinstance(port_cfg, str):
+        port_cfg = port_cfg.strip()
+        if not port_cfg:
+            return -1
+        if port_cfg.lstrip('-').isdigit():
+            port_cfg = int(port_cfg)
+        else:
+            return _validate_macro_value(name, 'port', port_cfg, VALID_I2C_PORT_MACROS)
+
+    if isinstance(port_cfg, bool) or not isinstance(port_cfg, int):
+        raise ValueError(f"Invalid port type '{type(port_cfg).__name__}' in I2C peripheral '{name}'")
+
+    if port_cfg == -1:
+        return -1
+
+    if port_cfg < -1:
+        raise ValueError(f"Invalid port value '{port_cfg}' in I2C peripheral '{name}'. Use -1, 0, 1, or valid macro.")
+
+    return _validate_macro_value(name, 'port', f'I2C_NUM_{port_cfg}', VALID_I2C_PORT_MACROS)
+
+def _parse_i2c_clk_source(name: str, clk_cfg, i2c_port: I2CPortValue) -> str:
+    """Parse and validate I2C clock source macro."""
+    if clk_cfg is None or clk_cfg == '':
+        if isinstance(i2c_port, str) and i2c_port.startswith('LP_I2C_NUM_'):
+            return 'LP_I2C_SCLK_DEFAULT'
+        return 'I2C_CLK_SRC_DEFAULT'
+
+    if not isinstance(clk_cfg, str):
+        raise ValueError(f"Invalid clk_source type '{type(clk_cfg).__name__}' in I2C peripheral '{name}'")
+
+    return _validate_macro_value(name, 'clk_source', clk_cfg.strip(), VALID_I2C_CLK_SOURCE_MACROS)
+
+
+def _validate_i2c_port_clk_source_combo(name: str, i2c_port: I2CPortValue, clk_source: str) -> None:
+    """Validate that I2C port selection matches the chosen clock source family."""
+    is_lp_port = isinstance(i2c_port, str) and i2c_port.startswith('LP_I2C_NUM_')
+    is_lp_clk = clk_source in LP_I2C_CLK_SOURCE_MACROS
+
+    if i2c_port == -1 and is_lp_clk:
+        raise ValueError(
+            f"LP I2C clock source '{clk_source}' in I2C peripheral '{name}' requires an explicit LP_I2C_NUM_* port"
+        )
+    if is_lp_port and not is_lp_clk:
+        raise ValueError(
+            f"Clock source '{clk_source}' is incompatible with LP I2C port '{i2c_port}' in I2C peripheral '{name}'"
+        )
+    if not is_lp_port and is_lp_clk:
+        raise ValueError(
+            f"Clock source '{clk_source}' is incompatible with regular I2C port '{i2c_port}' in I2C peripheral '{name}'"
+        )
 
 def parse(name: str, config: dict) -> dict:
     """Parse I2C peripheral configuration.
@@ -35,10 +131,8 @@ def parse(name: str, config: dict) -> dict:
         # Get the actual config
         config = config.get('config', {})
 
-        # Get port number
-        i2c_port = config.get('port', -1)  # -1 means auto selecting if not specified
-        if i2c_port >= 0:
-            i2c_port = f'I2C_NUM_{i2c_port}'  # Convert to enum format
+        # Get port number (-1 for auto selection; no I2C_NUM_AUTO macro in ESP-IDF)
+        i2c_port = _parse_i2c_port(name, config.get('port', -1))
 
         # Get pins from the config
         pins = config.get('pins', {})
@@ -57,22 +151,30 @@ def parse(name: str, config: dict) -> dict:
         intr_priority = config.get('intr_priority', 1)  # Default to 1 if not set
         if intr_priority is None or intr_priority == '':
             intr_priority = 1  # Set default if empty or None
+        clk_source = _parse_i2c_clk_source(name, config.get('clk_source'), i2c_port)
+        _validate_i2c_port_clk_source_combo(name, i2c_port, clk_source)
+
+        struct_init = {
+            'i2c_port': i2c_port,
+            'sda_io_num': sda_io,
+            'scl_io_num': scl_io,
+            'glitch_ignore_cnt': glitch_ignore_cnt,
+            'intr_priority': intr_priority,
+            'trans_queue_depth': 0,  # Default queue depth
+            'flags': {
+                'enable_internal_pullup': enable_internal_pullup,
+            },
+        }
+        # i2c_master_bus_config_t uses union: clk_source vs lp_source_clk (SOC_LP_I2C_SUPPORTED)
+        if isinstance(i2c_port, str) and i2c_port.startswith('LP_I2C_NUM_'):
+            struct_init['lp_source_clk'] = clk_source
+        else:
+            struct_init['clk_source'] = clk_source
 
         return {
             'struct_type': 'i2c_master_bus_config_t',
             'struct_var': f'{name}_cfg',
-            'struct_init': {
-                'i2c_port': i2c_port if i2c_port != -1 else 'I2C_NUM_AUTO',
-                'sda_io_num': sda_io,
-                'scl_io_num': scl_io,
-                'clk_source': 'I2C_CLK_SRC_DEFAULT',  # Default to APB clock
-                'glitch_ignore_cnt': glitch_ignore_cnt,
-                'intr_priority': intr_priority,
-                'trans_queue_depth': 0,  # Default queue depth
-                'flags': {
-                    'enable_internal_pullup': enable_internal_pullup,
-                }
-            }
+            'struct_init': struct_init,
         }
 
     except ValueError as e:

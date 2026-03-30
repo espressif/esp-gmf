@@ -23,6 +23,7 @@ void app_main(void)
     esp_err_t ret = ESP_OK;
     dev_audio_codec_handles_t *dac_handle = NULL;
     const size_t buffer_size = 5 * 1024;
+    uint8_t *playback_buf = NULL;
 
     // Initialize audio DAC device
     ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
@@ -76,13 +77,20 @@ void app_main(void)
         // Continue playback anyway
     }
 
+    playback_buf = (uint8_t *)malloc(buffer_size);
+    if (playback_buf == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate playback buffer");
+        goto cleanup;
+    }
+
     // Skip WAV header (44 bytes) and play audio data
     current_pos += 44;
     size_t audio_data_size = embedded_file_size - 44;
     size_t remaining_data = audio_data_size;
     while (remaining_data > 0) {
         size_t bytes_to_write = (remaining_data > buffer_size) ? buffer_size : remaining_data;
-        ret = esp_codec_dev_write(dac_handle->codec_dev, current_pos, bytes_to_write);
+        memcpy(playback_buf, current_pos, bytes_to_write);
+        ret = esp_codec_dev_write(dac_handle->codec_dev, playback_buf, bytes_to_write);
         if (ret != ESP_CODEC_DEV_OK) {
             ESP_LOGE(TAG, "Failed to write to DAC");
             break;
@@ -92,6 +100,12 @@ void app_main(void)
     }
 
     ESP_LOGI(TAG, "Embedded WAV file playback completed");
+
+cleanup:
+    if (playback_buf) {
+        free(playback_buf);
+        playback_buf = NULL;
+    }
     // Deinitialize audio DAC device
     ret = esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
     if (ret != ESP_OK) {

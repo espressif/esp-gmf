@@ -5,21 +5,15 @@ devices:
     chip: es8311
     type: audio_codec
     version: default
-    config: &es8311_config
-      adc_enabled: true
-      adc_max_channel: 1
-      # The channel mask, 1-enable, 0-disable
-      # e.g.“0111”, bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable, bit4: Mic4 disable
-      adc_channel_mask: "1"            # Mic0 enable
-      adc_channel_labels: ['RE','FC']  # Mic0 and reference enable, MSB ~ LSB
-
+    config:
+      adc_enabled: false
       dac_enabled: true
       dac_max_channel: 1
       # DAC channel mask, 1-enable, 0-disable, layout: left,right
       dac_channel_mask: "1"     # Left enable
 
     # Power amplifier configuration
-    peripherals: &es8311_peripherals
+    peripherals:
       - name: gpio_pa_control
         gain: 6                    # dB
         active_level: 1            # 0-low, 1-high
@@ -27,7 +21,8 @@ devices:
       # I2S interface configuration
       - name: i2s_audio_out
       # I2C interface configuration
-      - name: i2c_master
+      - &es8311_i2c_master
+        name: i2c_master
         address: 0x30
         frequency: 400000          # Hz
 
@@ -35,12 +30,21 @@ devices:
     chip: es8311
     type: audio_codec
     version: default
-    config: *es8311_config
-    # Power amplifier configuration
+    # NOTE:
+    # The physical ES8311 supports full-duplex, but board manager models it as two
+    # logical single-direction devices: `audio_adc` and `audio_dac`.
+    config:
+      adc_enabled: true
+      adc_max_channel: 1
+      # The channel mask, 1-enable, 0-disable
+      # e.g.“0111”, bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable, bit4: Mic4 disable
+      adc_channel_mask: "1"            # Mic0 enable
+      adc_channel_labels: ['RE','FC']  # Mic0 and reference enable, MSB ~ LSB
+      dac_enabled: false
+
     peripherals:
-      - *es8311_peripherals
-      # override i2s_audio_in
       - name: i2s_audio_in
+      - *es8311_i2c_master
 
   - name: fs_sdcard       # The name of the device, must be unique
     type: fs_fat          # The type of the device, must be unique
@@ -62,19 +66,28 @@ devices:
       partition_label: NULL           # The partition label for the SPIFFS filesystem
       format_if_mount_failed: true
 
-  - name: my_custom_sensor         # The name of the device, must be unique
-    type: custom                   # The type of the device, must be unique
-    chip: esp32s3                  # Optional: Name of chip
-    version: default               # Optional: Parser version to use
-    init_skip: false               # Optional: skip initialization when the manager initializes all devices
+  # ADC Button Devices Configuration for multiple buttons
+  - name: adc_button_group
+    type: button
+    sub_type: adc_multi
     config:
-      # Custom configuration parameters - these will be automatically generated as struct fields
-      sensor_id: 0x01              # Sensor ID (hex format)
-      sample_rate: 100             # Sample rate in Hz
-      enable_filter: true          # Enable digital filter
-      filter_cutoff: 50.5          # Filter cutoff frequency in Hz
-      timeout_ms: 1000             # Timeout in milliseconds
-      debug_mode: false            # Enable debug mode
-    peripherals:                   # Optional: List of used peripherals
-      - name: i2c_master           # I2C peripheral for communication
-      - name: gpio_pa_control      # GPIO peripheral for control
+      long_press_time: 2000
+      short_press_time: 100
+      events_cfg:
+        press_down: true
+        press_up: true
+        single_click: true
+        double_click: true
+        multi_click: false
+        long_press_start: true
+        long_press_up: true
+        long_press_hold: false
+        press_repeat: false
+        press_repeat_done: false
+        press_end: false
+      button_num: 6
+      max_voltage: 3000
+      voltage_range: [380, 820, 1110, 1650, 1980, 2410]
+      button_labels: ["VOLUME_UP", "VOLUME_DOWN", "SET", "PLAY", "MUTE", "REC"]
+    peripherals:
+    - name: adc_oneshot

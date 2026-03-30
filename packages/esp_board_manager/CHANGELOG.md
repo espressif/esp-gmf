@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.5.7
+
+### ⚠️ Breaking Change
+
+- Replace the board macro definitions from `CONFIG_BOARD_XXX` to `CONFIG_ESP_BOARD_XXX`
+
+### Bug Fixes
+
+- Fixed an issue where board manager configurations were not correctly reflected in `sdkconfig` in certain use cases, and enhanced the validation mechanism
+
+### Important Changes
+
+- Add sdkconfig consistency check on `-b` command, auto-fix mismatched symbols by default, remain skip flag `--skip-sdkconfig-check`
+- Add sdkconfig consistency check on global callback, raise warning messages while mismatches occurred, use environment variable `ESP_BOARD_MANAGER_SKIP_SDKCONFIG_CHECK` to skip
+- Additionally generate devices and peripherals symbols to `board_manager.defaults`
+- Avoid `Kconfig.in` modifications, put the macro definitions of custom boards into `gen_bmgr_codes/Kconfig.projbuild` files
+
+### Features
+
+- Split the `adc_single` and `adc_multi` of the button in the file, keeping it consistent with other devices
+- Support ADC Mic and PA-only speaker in `dev_audio_codec`
+- Added support for `parlio` sub_type in `dev_display_lcd`
+- Added support for `spi` sub_type in `dev_camera`
+
 ## 0.5.6
 
 ### Modifications
@@ -28,6 +52,7 @@
 - Add `board_name` validation, only allow letters (a-z, A-Z), numbers (0-9), and underscores (_). If the name does not comply, this board will be unavailable.
 
 ### Modifications
+
 - Reduce unnecessary configurations and files: delete the Kconfig file under the board path, and delete the board and chip fields in `board_devices.yaml` and `board_peripherals.yaml`
 - Optimized the scanning logic of the development board, and instead of using the Kconfig file to determine whether it is the development board path, it scans three files: `board_devices.yaml`, `board_info.yaml`, and `board_peripherals.yaml`
 
@@ -43,11 +68,13 @@
 - Adapt to the new version of `esp_io_expander` component by adding support for configuring IO output modes and enabling pull-up/pull-down resistors
 
 ### Bug Fixes
+
 - Modified the effective scope of the `board_manager_global_callback` function to ensure that build-related operations can correctly include `board_manager.defaults`
 - Fixed an issue where the `pa_pin` configuration of ES8156 did not take effect correctly
 - Fixed ledc timer parsing script error for `timer_sel`
 
 ### Modifications
+
 - Change the output path of `board_manager.defaults` to `components/gen_bmgr_config/` to exclude it from git diffs
 
 ## 0.5.2
@@ -63,9 +90,9 @@
 
 - Changed board defaults to use `board_manager.defaults` file instead of appending to `sdkconfig.defaults`. Board-specific configurations are now automatically applied via `SDKCONFIG_DEFAULTS` environment variable during build/menuconfig/reconfigure.
 - Changed backup file from `sdkconfig.bmgr_board.backup` to `sdkconfig.bmgr_board.old`
-- Use `dev_display_lcd` to replace `dev_display_lcd_spi` in echoear_core_board_v1_1/v1_2, esp32_s3_korvo2_v3, esp_box_3, m5stack_cores3, dual_eyes_board_v1_0
-- Use `dev_fs_fat` to replace `dev_fatfs_sdcard` and `dev_fatfs_sdcard_spi` in echoear_core_board_v1_1/v1_2, esp32_s3_korvo2_v3, esp_box_3, m5stack_cores3, esp32_p4_function_ev, lyrat_mini_v1_1
-- Add `dev_power_ctrl` device support for echoear_core_board_v1_1/v1_2, replace `dev_gpio_ctrl` used to apply power
+- Use `dev_display_lcd` to replace `dev_display_lcd_spi` in esp_vocat_board_v1_1/v1_2, esp32_s3_korvo2_v3, esp_box_3, m5stack_cores3, dual_eyes_board_v1_0
+- Use `dev_fs_fat` to replace `dev_fatfs_sdcard` and `dev_fatfs_sdcard_spi` in esp_vocat_board_v1_1/v1_2, esp32_s3_korvo2_v3, esp_box_3, m5stack_cores3, esp32_p4_function_ev, lyrat_mini_v1_1
+- Add `dev_power_ctrl` device support for esp_vocat_board_v1_1/v1_2, replace `dev_gpio_ctrl` used to apply power
 - Removed support for `dev_display_lcd`, `dev_fatfs_sdcard`, `dev_fatfs_sdcard_spi` and related test code
 
 ### New Script
@@ -73,6 +100,7 @@
 - Add a new script `create_board.py` to simplify the process of creating a new board.
   This script simplifies the process of copying configurations from different peripheral and device directories when users add new boards, provides an interactive new board creation process, allowing sequential selection of chip, device, and peripherals. After passing the peripheral dependency check, the script automatically creates four configuration files required for the board.
   - Usage:
+
     ```python
     # Create a new board in default path: components/<board_name>
     idf.py gen-bmgr-config -n <board_name>
@@ -80,9 +108,11 @@
     # Create a new board in specific path:
     idf.py gen-bmgr-config -n path/to/board/<board_name>
     ```
+
   - Note: It is recommended not to run create_board.py directly as there may be path issues.
 
 ### Features
+
 - Added prebuild script for convenient compilation
 - Added global callback to auto-inject board defaults via SDKCONFIG_DEFAULTS mechanism
 - Supported `-D SDKCONFIG_DEFAULTS=xxx` parameter with automatic merging
@@ -137,12 +167,14 @@
 - Added [`record_to_sdcard`](example/record_to_sdcard/README.md) example to show how to use board manager to initialize codec and record wav audio files
 
 ### Modifications
+
 - Added `clk_src` configuration for `dev_audio_codec`
 - Reorganized the peripherals directory structure
 - Modify the periph role macro definition from string to enum
 - Removed the unused periph type macro definition and added the commonly used periph name macro definition
 
 ### Bug Fixes
+
 - Fixed pa active_level configuration for `esp32_p4_function_ev` board
 
 ## 0.4.8
@@ -151,20 +183,21 @@
 
 - Fixed the issue where the configuration of the periph_ledc was not correctly obtained during the initialization of dev_ledc_ctrl
 - Added `need_reset` configuration to control whether to reset lcd during the initialization of `display_lcd_spi`
-- Modified the default configuration of echoear_core_board_v1_2 to prevent screen flickering during initialization
+- Modified the default configuration of esp_vocat_board_v1_2 to prevent screen flickering during initialization
 - Fixed incorrect PA gain assigned for codec_device
 
 ### Features
-- Added gpio_led support for echoear_core_board_v1_2
+
+- Added gpio_led support for esp_vocat_board_v1_2
 
 ## 0.4.7
 
 ### Features
 
 - Added board support for M5STACK CORES3
-  * Complete YAML configuration files (board_info.yaml, board_peripherals.yaml, board_devices.yaml)
-  * Support for AW88298 DAC, ES7210 ADC, ILI9342 LCD, FT5X06 LCD TOUCH, AW9523B GPIO EXPANDER, AXP2101 PMU and SD card devices
-  * I2C, I2S, SPI and GPIO peripherals configuration
+  - Complete YAML configuration files (board_info.yaml, board_peripherals.yaml, board_devices.yaml)
+  - Support for AW88298 DAC, ES7210 ADC, ILI9342 LCD, FT5X06 LCD TOUCH, AW9523B GPIO EXPANDER, AXP2101 PMU and SD card devices
+  - I2C, I2S, SPI and GPIO peripherals configuration
 - Supported configuring invert_color during lcd_spi initialization
 
 ### Bug Fixes
@@ -197,16 +230,16 @@
 
 ### Bug Fixes
 
-- Reduce the default spi max_transfer_sz value for echoear_core_board_v1_2 to avoid allocating excessive memory
+- Reduce the default spi max_transfer_sz value for esp_vocat_board_v1_2 to avoid allocating excessive memory
 
 ## v0.4.2
 
 ### Features
 
 - Added full board support for ESP32 Lyrat Mini V1.1
-  * Complete YAML configuration files (board_info.yaml, board_peripherals.yaml, board_devices.yaml)
-  * Support for ES8311 DAC, ES7243E ADC, and SD card devices
-  * I2C, I2S, and GPIO peripherals configuration
+  - Complete YAML configuration files (board_info.yaml, board_peripherals.yaml, board_devices.yaml)
+  - Support for ES8311 DAC, ES7243E ADC, and SD card devices
+  - I2C, I2S, and GPIO peripherals configuration
 - Enhanced I2S peripheral support with improved configuration handling
 - Added `board_utils.py` helper functions for board configuration
 
@@ -275,7 +308,7 @@
 
 ### Supported Boards
 
-- **Echoear Core Board V1.0**: Full audio, LCD, touch, and SD card support
+- **ESP-Vocat Board V1.0**: Full audio, LCD, touch, and SD card support
 - **ESP-BOX-3**: ESP32-S3 development board with I2C, I2S, SPI, LEDC, and GPIO support
 - **Dual Eyes Board V1.0**: Dual LCD display with touch support
 - **ESP32-S3 Korvo2 V3**: Full audio and SD card support

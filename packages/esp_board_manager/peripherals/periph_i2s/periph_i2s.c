@@ -5,10 +5,21 @@
  * See LICENSE file for details.
  */
 
-#include <stdlib.h>
-#include <string.h>
 #include "esp_log.h"
+#include "esp_board_manager_err.h"
 #include "periph_i2s.h"
+
+#if defined(__has_include)
+#if __has_include("hal/i2s_periph.h")
+#include "hal/i2s_periph.h"
+#elif __has_include("soc/i2s_periph.h")
+#include "soc/i2s_periph.h"
+#else
+#error "Missing I2S peripheral signal header: expected hal/i2s_periph.h or soc/i2s_periph.h"
+#endif  /* __has_include("hal/i2s_periph.h") */
+#else
+#include "soc/i2s_periph.h"
+#endif  /* defined(__has_include) */
 
 static const char *TAG = "PERIPH_I2S";
 
@@ -20,6 +31,60 @@ typedef struct {
 } periph_i2s_chan_t;
 
 periph_i2s_chan_t i2s_chan_handles[SOC_I2S_NUM] = {0};
+
+esp_err_t periph_i2s_get_data_out_signal(const char *name, int line, int *sig_idx)
+{
+    if (name == NULL || name[0] == '\0' || sig_idx == NULL || line < 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    periph_i2s_config_t *i2s_cfg = NULL;
+    esp_err_t ret = esp_board_periph_get_config(name, (void **)&i2s_cfg);
+    if (ret != ESP_OK || i2s_cfg == NULL) {
+        ESP_LOGE(TAG, "Get I2S peripheral config failed, name:%s err:%s", name, esp_err_to_name(ret));
+        if (ret == ESP_BOARD_ERR_PERIPH_NOT_FOUND) {
+            return ESP_ERR_NOT_FOUND;
+        }
+        if (ret == ESP_BOARD_ERR_PERIPH_NOT_SUPPORTED) {
+            return ESP_ERR_NOT_SUPPORTED;
+        }
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    int port = i2s_cfg->port;
+    if (port < 0 || port >= SOC_I2S_NUM) {
+        ESP_LOGE(TAG, "I2S peripheral '%s' has invalid port: %d", name, port);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    int signal = -1;
+    const i2s_signal_conn_t *sig_conn = &i2s_periph_signal[port];
+
+    if (line == 0) {
+#if SOC_I2S_PDM_MAX_TX_LINES > 0
+        signal = sig_conn->data_out_sigs[0];
+#else
+        signal = sig_conn->data_out_sig;
+#endif  /* SOC_I2S_PDM_MAX_TX_LINES > 0 */
+    } else {
+#if SOC_I2S_PDM_MAX_TX_LINES > 1
+        if (line >= SOC_I2S_PDM_MAX_TX_LINES) {
+            return ESP_ERR_NOT_SUPPORTED;
+        }
+        signal = sig_conn->data_out_sigs[line];
+#else
+        return ESP_ERR_NOT_SUPPORTED;
+#endif  /* SOC_I2S_PDM_MAX_TX_LINES > 1 */
+    }
+
+    /* Unsupported lines may be encoded as 0xFF (from uint8_t -1), and on some targets
+     * (e.g. esp32h2) line>0 can resolve to 0 when only data_out_sig is initialized. */
+    if (signal < 0 || signal == 0xFF || (line > 0 && signal == 0)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    *sig_idx = signal;
+    return ESP_OK;
+}
 
 int periph_i2s_init(void *cfg, int cfg_size, void **periph_handle)
 {
@@ -51,8 +116,7 @@ int periph_i2s_init(void *cfg, int cfg_size, void **periph_handle)
             err = i2s_channel_init_std_mode(i2s_chan_handles[config->port].chan_out, &config->i2s_cfg.std);
             err = i2s_channel_enable(i2s_chan_handles[config->port].chan_out);
             i2s_chan_handles[config->port].out_en = true;
-        }
-        if (config->direction == I2S_DIR_RX && !i2s_chan_handles[config->port].in_en) {
+        } else if (config->direction == I2S_DIR_RX && !i2s_chan_handles[config->port].in_en) {
             if (i2s_chan_handles[config->port].out_en == false) {
                 err = i2s_channel_init_std_mode(i2s_chan_handles[config->port].chan_out, &config->i2s_cfg.std);
                 err = i2s_channel_enable(i2s_chan_handles[config->port].chan_out);

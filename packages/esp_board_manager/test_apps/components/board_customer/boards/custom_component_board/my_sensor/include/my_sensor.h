@@ -7,12 +7,14 @@
 
 #pragma once
 
+#include "esp_err.h"
+
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif  /* __cplusplus */
 
 esp_err_t my_sensor_run(void);
 
 #ifdef __cplusplus
 }
-#endif
+#endif  /* __cplusplus */

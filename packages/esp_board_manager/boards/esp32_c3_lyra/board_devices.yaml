@@ -1,0 +1,37 @@
+version: 1.0.0
+devices:
+  - name: audio_adc
+    chip: internal
+    type: audio_codec
+    version: default
+    config:
+      adc_enabled: true
+    peripherals:
+      - name: adc_audio_in
+
+  # - name: audio_adc
+  #   chip: internal
+  #   type: audio_codec
+  #   config:
+  #     adc_enabled: true
+  #     dac_enabled: false
+  #     adc_local_cfg:
+  #       channel_list: [0]          # required
+  #       sample_rate_hz: 16000
+  #       max_store_buf_size: 1024
+  #       conv_frame_size: 256
+  #       unit_id: ADC_UNIT_1
+  #       atten: ADC_ATTEN_DB_12
+  #       bit_width: SOC_ADC_DIGI_MAX_BITWIDTH
+
+  - name: audio_dac
+    chip: internal
+    type: audio_codec
+    version: default
+    config:
+      dac_enabled: true
+    peripherals:
+      - name: i2s_audio_out
+      - name: gpio_pa_control
+        gain: 6
+        active_level: 1

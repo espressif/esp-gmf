@@ -9,8 +9,8 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "driver/gpio.h"
 #include "driver/uart.h"
-#include "soc/gpio_num.h"
 
 #ifdef __cplusplus
 extern "C" {

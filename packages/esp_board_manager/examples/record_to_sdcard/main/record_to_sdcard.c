@@ -37,14 +37,14 @@ void app_main(void)
     }
 
     // Initialize audio ADC device
-#if CONFIG_BOARD_LYRAT_MINI_V1_1
+#if CONFIG_ESP_BOARD_LYRAT_MINI_V1_1
     // On the esp32_lyrat_mini_v1_1 development board, ES8311 (DAC) needs to be enabled to power the microphone
     ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize audio DAC device");
         goto cleanup;
     }
-#endif  /* CONFIG_BOARD_LYRAT_MINI_V1_1 */
+#endif  /* CONFIG_ESP_BOARD_LYRAT_MINI_V1_1 */
     ret = esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_ADC);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize audio ADC device");
@@ -126,14 +126,14 @@ void app_main(void)
     fclose(fp);
 
     // Deinitialize audio ADC device and SD card filesystem
-#if CONFIG_BOARD_LYRAT_MINI_V1_1
+#if CONFIG_ESP_BOARD_LYRAT_MINI_V1_1
     // On the esp32_lyrat_mini_v1_1 development board, ES8311 (DAC) needs to be enabled to power the microphone
     ret = esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to deinitialize audio DAC device");
         goto cleanup;
     }
-#endif  /* CONFIG_BOARD_LYRAT_MINI_V1_1 */
+#endif  /* CONFIG_ESP_BOARD_LYRAT_MINI_V1_1 */
     ret = esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_ADC);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to deinitialize audio ADC device");
