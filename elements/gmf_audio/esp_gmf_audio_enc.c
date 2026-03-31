@@ -641,6 +641,7 @@ static esp_gmf_job_err_t esp_gmf_audio_enc_close(esp_gmf_element_handle_t self, 
         esp_audio_enc_close(enc->audio_enc_hd);
         enc->audio_enc_hd = NULL;
     }
+    memset(&enc->spec_info, 0, sizeof(esp_gmf_audio_helper_spec_info_t));
     esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
     return ESP_GMF_JOB_ERR_OK;
 }
