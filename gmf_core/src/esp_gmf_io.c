@@ -230,12 +230,6 @@ esp_gmf_err_t esp_gmf_io_init(esp_gmf_io_handle_t handle, esp_gmf_io_cfg_t *io_c
     } else {
         memset(&io->io_cfg, 0, sizeof(esp_gmf_io_cfg_t));
     }
-    io->_is_done = 0;
-    io->_is_abort = 0;
-    io->_is_hold = 0;
-    io->task_timeout_ms = 1000;
-    io->evt_group = NULL;
-    io->seek_pos = ESP_GMF_IO_SEEK_POS_INVALID;
     return esp_gmf_info_file_init(&io->attr);
 }
 
@@ -243,20 +237,6 @@ esp_gmf_err_t esp_gmf_io_deinit(esp_gmf_io_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
-    if (io->task_hd) {
-        esp_gmf_task_deinit(io->task_hd);
-        io->task_hd = NULL;
-        vEventGroupDelete((EventGroupHandle_t)io->evt_group);
-        io->evt_group = NULL;
-    }
-    if (io->data_bus) {
-        esp_gmf_db_deinit(io->data_bus);
-        io->data_bus = NULL;
-    }
-    if (io->speed_stats) {
-        esp_gmf_oal_free(io->speed_stats);
-        io->speed_stats = NULL;
-    }
     return esp_gmf_info_file_deinit(&io->attr);
 }
 
@@ -310,6 +290,12 @@ esp_gmf_err_t esp_gmf_io_open(esp_gmf_io_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_io_t *io = (esp_gmf_io_t *)handle;
+    io->_is_done = 0;
+    io->_is_abort = 0;
+    io->_is_hold = 0;
+    io->seek_pos = ESP_GMF_IO_SEEK_POS_INVALID;
+    io->task_timeout_ms = 1000;
+    io->evt_group = NULL;
     if (io->open == NULL) {
         return ESP_GMF_ERR_NOT_READY;
     }
@@ -369,8 +355,8 @@ esp_gmf_err_t esp_gmf_io_seek(esp_gmf_io_handle_t handle, uint64_t seek_byte_pos
     if (io->seek == NULL) {
         return ESP_GMF_ERR_NOT_SUPPORT;
     }
-    if (info.size > 0 && seek_byte_pos >= info.size) {
-        ESP_LOGE(TAG, "The seek position is out of range, pos %llu >= %llu, io: %p-%s", seek_byte_pos, info.size, io, OBJ_GET_TAG(io));
+    if (info.size > 0 && seek_byte_pos > info.size) {
+        ESP_LOGE(TAG, "The seek position is out of range, pos %llu > %llu, io: %p-%s", seek_byte_pos, info.size, io, OBJ_GET_TAG(io));
         return ESP_GMF_ERR_OUT_OF_RANGE;
     }
     int ret = ESP_GMF_ERR_OK;
@@ -421,7 +407,18 @@ esp_gmf_err_t esp_gmf_io_close(esp_gmf_io_handle_t handle)
             io->_is_hold = 0;
             xEventGroupSetBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_HOLD_DONE_BIT);
         }
-        esp_gmf_task_stop(io->task_hd);
+        esp_gmf_task_deinit(io->task_hd);
+        io->task_hd = NULL;
+        if (io->evt_group) {
+            vEventGroupDelete((EventGroupHandle_t)io->evt_group);
+            io->evt_group = NULL;
+        }
+        esp_gmf_db_deinit(io->data_bus);
+        io->data_bus = NULL;
+    }
+    if (io->speed_stats) {
+        esp_gmf_oal_free(io->speed_stats);
+        io->speed_stats = NULL;
     }
     return io->close(io);
 }
@@ -726,6 +723,7 @@ esp_gmf_err_t esp_gmf_io_reload(esp_gmf_io_handle_t handle, const char *uri)
 
     if (io->data_bus) {
         esp_gmf_db_reset_done_write(io->data_bus);
+        esp_gmf_db_clear_abort(io->data_bus);
     }
 
     esp_gmf_err_t ret = io->reload(io, uri);
