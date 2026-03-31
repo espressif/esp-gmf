@@ -51,16 +51,20 @@ static esp_gmf_job_err_t esp_gmf_bit_cvt_open(esp_gmf_element_handle_t self, voi
     esp_gmf_bit_cvt_t *bit_cvt = (esp_gmf_bit_cvt_t *)self;
     esp_ae_bit_cvt_cfg_t *bit_info = (esp_ae_bit_cvt_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, bit_info, {return ESP_GMF_JOB_ERR_FAIL;});
+    esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     esp_ae_bit_cvt_open(bit_info, &bit_cvt->bit_hd);
-    ESP_GMF_CHECK(TAG, bit_cvt->bit_hd, {return ESP_GMF_JOB_ERR_FAIL;}, "Failed to create bit conversion handle");
+    ESP_GMF_CHECK(TAG, bit_cvt->bit_hd, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __bit_open_exit;}, "Failed to create bit conversion handle");
     bit_cvt->in_bytes_per_sample = (bit_info->src_bits >> 3) * bit_info->channel;
     bit_cvt->out_bytes_per_sample = (bit_info->dest_bits >> 3) * bit_info->channel;
-    GMF_AUDIO_UPDATE_SND_INFO(self, bit_info->sample_rate, bit_info->dest_bits, bit_info->channel);
     ESP_LOGD(TAG, "Open, rate: %ld, channel: %d, src_bits: %d, dest_bits: %d",
              bit_info->sample_rate, bit_info->channel, bit_info->src_bits, bit_info->dest_bits);
     bit_cvt->need_reopen = false;
     bit_cvt->bypass = (bit_info->src_bits == bit_info->dest_bits);
-    return ESP_GMF_JOB_ERR_OK;
+__bit_open_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    GMF_AUDIO_UPDATE_SND_INFO(self, bit_info->sample_rate, bit_info->dest_bits, bit_info->channel);
+    return job_ret;
 }
 
 static esp_gmf_job_err_t esp_gmf_bit_cvt_close(esp_gmf_element_handle_t self, void *para)
@@ -221,18 +225,23 @@ static esp_gmf_err_t _load_bit_cvt_methods_func(esp_gmf_element_handle_t handle)
 esp_gmf_err_t esp_gmf_bit_cvt_set_dest_bits(esp_gmf_element_handle_t handle, uint8_t dest_bits)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     esp_ae_bit_cvt_cfg_t *cfg = (esp_ae_bit_cvt_cfg_t *)OBJ_GET_CFG(handle);
-    if (cfg) {
-        if (cfg->dest_bits == dest_bits) {
-            return ESP_GMF_ERR_OK;
-        }
-        cfg->dest_bits = dest_bits;
-        esp_gmf_bit_cvt_t *bit_cvt = (esp_gmf_bit_cvt_t *)handle;
-        bit_cvt->need_reopen = true;
-        return ESP_GMF_ERR_OK;
+    if (cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to set dest bits, cfg is NULL");
+        ret = ESP_GMF_ERR_FAIL;
+        goto __bit_set_dest_bits_exit;
     }
-    ESP_LOGE(TAG, "Failed to set dest bits, cfg is NULL");
-    return ESP_GMF_ERR_FAIL;
+    if (cfg->dest_bits == dest_bits) {
+        goto __bit_set_dest_bits_exit;
+    }
+    cfg->dest_bits = dest_bits;
+    esp_gmf_bit_cvt_t *bit_cvt = (esp_gmf_bit_cvt_t *)handle;
+    bit_cvt->need_reopen = true;
+__bit_set_dest_bits_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_bit_cvt_init(esp_ae_bit_cvt_cfg_t *config, esp_gmf_element_handle_t *handle)

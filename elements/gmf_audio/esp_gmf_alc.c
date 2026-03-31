@@ -81,17 +81,25 @@ static esp_gmf_job_err_t esp_gmf_alc_open(esp_gmf_element_handle_t self, void *p
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)self;
     esp_ae_alc_cfg_t *config = (esp_ae_alc_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, config, { return ESP_GMF_JOB_ERR_FAIL;});
+    esp_gmf_job_err_t ret = ESP_GMF_JOB_ERR_OK;
     alc->bytes_per_sample = (config->bits_per_sample >> 3) * config->channel;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     esp_ae_alc_open(config, &alc->alc_hd);
-    ESP_GMF_CHECK(TAG, alc->alc_hd, { return ESP_GMF_JOB_ERR_FAIL;}, "Failed to create alc handle");
+    ESP_GMF_CHECK(TAG, alc->alc_hd, { ret = ESP_GMF_JOB_ERR_FAIL; goto __alc_open_exit;}, "Failed to create alc handle");
     for (size_t i = 0; i < config->channel; i++) {
-        esp_ae_err_t ret = esp_ae_alc_set_gain(alc->alc_hd, i, alc->gain[i]);
-        if (ret != ESP_AE_ERR_OK) {
-            return ESP_GMF_JOB_ERR_FAIL;
+        esp_ae_err_t ae_ret = esp_ae_alc_set_gain(alc->alc_hd, i, alc->gain[i]);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_JOB_ERR_FAIL;
+            goto __alc_open_exit;
         }
     }
-    GMF_AUDIO_UPDATE_SND_INFO(self, config->sample_rate, config->bits_per_sample, config->channel);
+__alc_open_exit:
     alc->need_reopen = false;
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    if (ret != ESP_GMF_JOB_ERR_OK) {
+        return ret;
+    }
+    GMF_AUDIO_UPDATE_SND_INFO(self, config->sample_rate, config->bits_per_sample, config->channel);
     ESP_LOGD(TAG, "Open, %p", self);
     return ESP_GMF_JOB_ERR_OK;
 }
@@ -100,10 +108,12 @@ static esp_gmf_job_err_t esp_gmf_alc_close(esp_gmf_element_handle_t self, void *
 {
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     if (alc->alc_hd != NULL) {
         esp_ae_alc_close(alc->alc_hd);
         alc->alc_hd = NULL;
     }
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
     return ESP_GMF_ERR_OK;
 }
 
@@ -196,8 +206,14 @@ static esp_gmf_err_t alc_received_event_handler(esp_gmf_event_pkt_t *evt, void *
     ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)self;
     if (info->channels > alc->max_ch) {
-        alc->gain = esp_gmf_oal_realloc(alc->gain, config->channel * sizeof(*alc->gain));
-        ESP_GMF_MEM_VERIFY(TAG, alc->gain, return ESP_GMF_ERR_MEMORY_LACK, "alc gain", config->channel * sizeof(*alc->gain));
+        int8_t *new_gain = esp_gmf_oal_realloc(alc->gain, info->channels * sizeof(*alc->gain));
+        ESP_GMF_MEM_VERIFY(TAG, new_gain, return ESP_GMF_ERR_MEMORY_LACK,
+                           "alc gain", info->channels * sizeof(*alc->gain));
+        alc->gain = new_gain;
+        // Most case the gain will be same for each channel, here set the new gain to the first channel
+        for (int i = alc->max_ch; i < info->channels; ++i) {
+            alc->gain[i] = alc->gain[0];
+        }
         alc->max_ch = info->channels;
     }
     alc->need_reopen = (config->sample_rate != info->sample_rates) || (info->channels != config->channel) || (config->bits_per_sample != info->bits);
@@ -270,56 +286,64 @@ static esp_gmf_err_t _load_alc_methods_func(esp_gmf_element_handle_t handle)
 
 esp_gmf_err_t esp_gmf_alc_set_gain(esp_gmf_element_handle_t handle, uint8_t idx, int8_t gain)
 {
-    ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_JOB_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (idx >= alc->max_ch) {
         ESP_LOGE(TAG, "Gain index %d is out of range", idx);
-        return ESP_GMF_ERR_INVALID_ARG;
+        ret = ESP_GMF_ERR_INVALID_ARG;
+        goto __alc_set_gain_exit;
     }
     if (alc->alc_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_alc_set_gain(alc->alc_hd, idx, gain);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        if (ret != ESP_AE_ERR_OK) {
-            return ESP_GMF_JOB_ERR_FAIL;
+        esp_ae_err_t ae_ret = esp_ae_alc_set_gain(alc->alc_hd, idx, gain);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_JOB_ERR_FAIL;
+            goto __alc_set_gain_exit;
         }
     }
     alc->gain[idx] = gain;
-    return ESP_GMF_JOB_ERR_OK;
+__alc_set_gain_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_alc_get_gain(esp_gmf_element_handle_t handle, uint8_t idx, int8_t *gain)
 {
-    ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
-    ESP_GMF_NULL_CHECK(TAG, gain, { return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, gain, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)handle;
-    if(idx > alc->max_ch) {
+    esp_gmf_err_t ret = ESP_GMF_JOB_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    if (idx >= alc->max_ch) {
         ESP_LOGE(TAG, "Gain index %d is out of range", idx);
-        return ESP_GMF_ERR_INVALID_ARG;
+        ret = ESP_GMF_ERR_INVALID_ARG;
+        goto __alc_get_gain_exit;
     }
     if (alc->alc_hd) {
-        esp_ae_err_t ret = esp_ae_alc_get_gain(alc->alc_hd, idx, gain);
-        if (ret != ESP_AE_ERR_OK) {
-            return ESP_GMF_JOB_ERR_FAIL;
-        }
-        return ESP_GMF_JOB_ERR_OK;
+        esp_ae_err_t ae_ret = esp_ae_alc_get_gain(alc->alc_hd, idx, gain);
+        ret = (ae_ret == ESP_AE_ERR_OK) ? ESP_GMF_JOB_ERR_OK : ESP_GMF_JOB_ERR_FAIL;
+        goto __alc_get_gain_exit;
     }
     *gain = alc->gain[idx];
-    return ESP_GMF_JOB_ERR_OK;
+__alc_get_gain_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 static esp_gmf_job_err_t esp_gmf_alc_reset(esp_gmf_element_handle_t handle, void *para)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)handle;
+    esp_gmf_job_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (alc->alc_hd) {
-        esp_ae_err_t ret = esp_ae_alc_reset(alc->alc_hd);
-        if (ret != ESP_AE_ERR_OK) {
-            return ESP_GMF_ERR_FAIL;
-        }
+        esp_ae_err_t ae_ret = esp_ae_alc_reset(alc->alc_hd);
+        ret = (ae_ret == ESP_AE_ERR_OK) ? ESP_GMF_ERR_OK : ESP_GMF_ERR_FAIL;
     }
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
     ESP_LOGD(TAG, "ALC reset");
-    return ESP_GMF_ERR_OK;
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_alc_init(esp_ae_alc_cfg_t *config, esp_gmf_element_handle_t *handle)

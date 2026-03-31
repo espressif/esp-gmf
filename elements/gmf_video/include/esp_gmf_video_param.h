@@ -13,7 +13,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif  /* __cplusplus */
 
 /**
  * @brief  This file provides general parameter setting functions for common video processing using GMF method
@@ -27,8 +27,8 @@ extern "C" {
 /**
  * @brief  Set destination format for video element (e.g., color converter, video decoder)
  *
- * @param[in]  handle    Video element handle
- * @param[in]  dst_fmt   Destination format
+ * @param[in]  handle   Video element handle
+ * @param[in]  dst_fmt  Destination format
  *
  * @return
  *       - ESP_GMF_ERR_OK           On success
@@ -83,7 +83,7 @@ esp_gmf_err_t esp_gmf_video_param_set_dst_codec(esp_gmf_element_handle_t handle,
 /**
  * @brief  Preset source video information and destination codec for video encoder
  *
- * @note   In special cases call this API then query some information from video encoder before element running
+ * @note  In special cases call this API then query some information from video encoder before element running
  *
  * @param[in]  handle     Video element handle
  * @param[in]  vid_info   Source video information
@@ -101,10 +101,10 @@ esp_gmf_err_t esp_gmf_video_param_venc_preset(esp_gmf_element_handle_t handle, e
 /**
  * @brief  Get supported source formats by codec for video element (mainly for video encoder)
  *
- * @param[in]   handle        Video element handle
- * @param[in]   dst_codec     Destination codec
- * @param[in]   src_fmts      Pointer to store source formats array
- * @param[in]   src_fmts_num  Pointer to store source formats number
+ * @param[in]  handle        Video element handle
+ * @param[in]  dst_codec     Destination codec
+ * @param[in]  src_fmts      Pointer to store source formats array
+ * @param[in]  src_fmts_num  Pointer to store source formats number
  *
  * @return
  *       - ESP_GMF_ERR_OK           On success
@@ -132,8 +132,8 @@ esp_gmf_err_t esp_gmf_video_param_set_src_codec(esp_gmf_element_handle_t handle,
 /**
  * @brief  Set the rotation angle for the video element (mainly for video rotator)
  *
- * @param[in]   handle  Video element handle
- * @param[in]   degree  Rotation angle in degrees (e.g., 0, 90, 180, 270)
+ * @param[in]  handle  Video element handle
+ * @param[in]  degree  Rotation angle in degrees (e.g., 0, 90, 180, 270)
  *
  * @return
  *       - ESP_GMF_ERR_OK           On success
@@ -146,8 +146,8 @@ esp_gmf_err_t esp_gmf_video_param_set_rotate_angle(esp_gmf_element_handle_t hand
 /**
  * @brief  Set the cropped region for video element (mainly for video cropper)
  *
- * @param[in]   handle  Video element handle
- * @param[in]   rgn     Kept region after crop
+ * @param[in]  handle  Video element handle
+ * @param[in]  rgn     Kept region after crop
  *
  * @return
  *       - ESP_GMF_ERR_OK           On success
@@ -160,8 +160,8 @@ esp_gmf_err_t esp_gmf_video_param_set_cropped_region(esp_gmf_element_handle_t ha
 /**
  * @brief  Enable overlay for video element (mainly for video overlay)
  *
- * @param[in]   handle  Video element handle
- * @param[in]   enable  Whether enable video overlay or not
+ * @param[in]  handle  Video element handle
+ * @param[in]  enable  Whether enable video overlay or not
  *
  * @return
  *       - ESP_GMF_ERR_OK           On success
@@ -174,8 +174,8 @@ esp_gmf_err_t esp_gmf_video_param_overlay_enable(esp_gmf_element_handle_t self, 
 /**
  * @brief  Set overlay port for video element (mainly for video overlay)
  *
- * @param[in]   handle  Video element handle
- * @param[in]   port    Handle to the input GMF port providing overlay data
+ * @param[in]  handle  Video element handle
+ * @param[in]  port    Handle to the input GMF port providing overlay data
  *
  * @return
  *       - ESP_GMF_ERR_OK           On success
@@ -188,8 +188,8 @@ esp_gmf_err_t esp_gmf_video_param_set_overlay_port(esp_gmf_element_handle_t self
 /**
  * @brief  Set overlay region information for video element (mainly for video overlay)
  *
- * @param[in]   handle  Video element handle
- * @param[in]   rgn     Overlay region information
+ * @param[in]  handle  Video element handle
+ * @param[in]  rgn     Overlay region information
  *
  * @return
  *       - ESP_GMF_ERR_OK           On success
@@ -199,6 +199,23 @@ esp_gmf_err_t esp_gmf_video_param_set_overlay_port(esp_gmf_element_handle_t self
  */
 esp_gmf_err_t esp_gmf_video_param_set_overlay_rgn(esp_gmf_element_handle_t self, esp_gmf_overlay_rgn_info_t *rgn);
 
+/**
+ * @brief  Get supported destination formats by codec for video element (mainly for video decoder)
+ *
+ * @param[in]  handle        Video element handle
+ * @param[in]  src_codec     Source codec
+ * @param[in]  src_fmts      Pointer to store source formats array
+ * @param[in]  src_fmts_num  Pointer to store source formats number
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_NOT_FOUND    Not found the method
+ *       - ESP_GMF_ERR_MEMORY_LACK  Failed to allocate memory
+ *       - Others                   Failed to apply method
+ */
+esp_gmf_err_t esp_gmf_video_param_get_dst_fmts_by_codec(esp_gmf_element_handle_t handle, uint32_t src_codec,
+                                                        const uint32_t **dst_fmts, uint8_t *dst_fmts_num);
+
 #ifdef __cplusplus
 }
-#endif
+#endif  /* __cplusplus */

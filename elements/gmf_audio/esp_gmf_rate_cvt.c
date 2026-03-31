@@ -50,14 +50,21 @@ static esp_gmf_job_err_t esp_gmf_rate_cvt_open(esp_gmf_element_handle_t self, vo
     esp_gmf_rate_cvt_t *rate_cvt = (esp_gmf_rate_cvt_t *)self;
     esp_ae_rate_cvt_cfg_t *rate_info = (esp_ae_rate_cvt_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, rate_info, {return ESP_GMF_JOB_ERR_FAIL;});
+    esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
     rate_cvt->bytes_per_sample = (rate_info->bits_per_sample >> 3) * rate_info->channel;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     esp_ae_rate_cvt_open(rate_info, &rate_cvt->rate_hd);
-    ESP_GMF_CHECK(TAG, rate_cvt->rate_hd, {return ESP_GMF_JOB_ERR_FAIL;}, "Failed to create rate conversion handle");
-    GMF_AUDIO_UPDATE_SND_INFO(self, rate_info->dest_rate, rate_info->bits_per_sample, rate_info->channel);
+    ESP_GMF_CHECK(TAG, rate_cvt->rate_hd, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __rate_open_exit;}, "Failed to create rate conversion handle");
     ESP_LOGD(TAG, "Open, src: %"PRIu32", dest: %"PRIu32", ch: %d, bits: %d",
              rate_info->src_rate, rate_info->dest_rate, rate_info->channel, rate_info->bits_per_sample);
     rate_cvt->need_reopen = false;
     rate_cvt->bypass = rate_info->src_rate == rate_info->dest_rate;
+__rate_open_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    if (job_ret != ESP_GMF_JOB_ERR_OK) {
+        return job_ret;
+    }
+    GMF_AUDIO_UPDATE_SND_INFO(self, rate_info->dest_rate, rate_info->bits_per_sample, rate_info->channel);
     return ESP_GMF_JOB_ERR_OK;
 }
 
@@ -65,10 +72,12 @@ static esp_gmf_job_err_t esp_gmf_rate_cvt_close(esp_gmf_element_handle_t self, v
 {
     esp_gmf_rate_cvt_t *rate_cvt = (esp_gmf_rate_cvt_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     if (rate_cvt->rate_hd != NULL) {
         esp_ae_rate_cvt_close(rate_cvt->rate_hd);
         rate_cvt->rate_hd = NULL;
     }
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
     return ESP_GMF_JOB_ERR_OK;
 }
 
@@ -227,27 +236,36 @@ esp_gmf_err_t esp_gmf_rate_cvt_set_dest_rate(esp_gmf_element_handle_t handle, ui
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_ae_rate_cvt_cfg_t *cfg = (esp_ae_rate_cvt_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (cfg->dest_rate == dest_rate) {
-        return ESP_GMF_ERR_OK;
+        goto __rate_set_dest_rate_exit;
     }
     cfg->dest_rate = dest_rate;
     esp_gmf_rate_cvt_t *rate_cvt = (esp_gmf_rate_cvt_t *)handle;
     rate_cvt->need_reopen = true;
-    return ESP_GMF_ERR_OK;
+__rate_set_dest_rate_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 static esp_gmf_job_err_t esp_gmf_rate_cvt_reset(esp_gmf_element_handle_t handle, void *para)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_rate_cvt_t *rate_cvt = (esp_gmf_rate_cvt_t *)handle;
+    esp_gmf_job_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (rate_cvt->rate_hd) {
-        esp_ae_err_t ret = esp_ae_rate_cvt_reset(rate_cvt->rate_hd);
-        if (ret != ESP_AE_ERR_OK) {
-            return ESP_GMF_ERR_FAIL;
+        esp_ae_err_t ae_ret = esp_ae_rate_cvt_reset(rate_cvt->rate_hd);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __rate_reset_exit;
         }
     }
+__rate_reset_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
     ESP_LOGD(TAG, "Rate converter reset");
-    return ESP_GMF_ERR_OK;
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_rate_cvt_init(esp_ae_rate_cvt_cfg_t *config, esp_gmf_element_handle_t *handle)

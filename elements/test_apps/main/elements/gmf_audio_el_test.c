@@ -431,7 +431,7 @@ static void audio_el_res_init(audio_el_res_cfg_t *cfg, audio_el_res_t **res)
         elements = (char **)heap_caps_calloc(cfg->el_cnt, sizeof(char *), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         TEST_ASSERT_NOT_EQUAL(NULL, elements);
         for (int i = 0; i < cfg->el_cnt; i++) {
-            elements[i] = audio_el_get_element_name_by_caps(*res, cfg->caps_cc[i]);
+            elements[i] = (char *)audio_el_get_element_name_by_caps(*res, cfg->caps_cc[i]);
             TEST_ASSERT_NOT_EQUAL(NULL, elements[i]);
         }
     }
@@ -548,7 +548,7 @@ static void test_element_run_finish(audio_el_res_t *res)
         esp_gmf_pipeline_report_info(res->pipe, ESP_GMF_INFO_SOUND, &res->in_inst[i].src_info, sizeof(res->in_inst[i].src_info));
     }
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res->pipe));
-    char *el_name = OBJ_GET_TAG(res->current_hd[0]);
+    char *el_name = (char *)OBJ_GET_TAG(res->current_hd[0]);
     // Mixer need to stop by user
     if (strcmp(el_name, "aud_mixer") == 0) {
         vTaskDelay(2000 / portTICK_RATE_MS);
@@ -602,7 +602,7 @@ static void test_element_reopen_parameter_persistence(audio_el_res_t *res)
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res->pipe));
     vTaskDelay(1000 / portTICK_RATE_MS);
     res->is_end = true;
-    char *el_name = OBJ_GET_TAG(res->current_hd[0]);
+    char *el_name = (char *)OBJ_GET_TAG(res->current_hd[0]);
     if (strcmp(el_name, "aud_mixer") == 0) {
         vTaskDelay(2000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));

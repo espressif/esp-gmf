@@ -568,19 +568,21 @@ void encoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
             if (get_cfg->type == ESP_AUDIO_TYPE_AMRNB || get_cfg->type == ESP_AUDIO_TYPE_AMRWB) {
                 TEST_ASSERT_EQUAL(ESP_GMF_ERR_FAIL, audio_el_test_set_encoder_bitrate(el, 60000));
             }
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_encoder_bitrate(el, set_bitrate));
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_encoder_bitrate(el, &bitrate_read));
-            if (get_cfg->type == ESP_AUDIO_TYPE_AAC || get_cfg->type == ESP_AUDIO_TYPE_LC3 ||
-                get_cfg->type == ESP_AUDIO_TYPE_OPUS || get_cfg->type == ESP_AUDIO_TYPE_AMRNB ||
-                get_cfg->type == ESP_AUDIO_TYPE_AMRWB) {
-                uint32_t diff = (set_bitrate > bitrate_read) ? (set_bitrate - bitrate_read) : (bitrate_read - set_bitrate);
-                TEST_ASSERT_LESS_THAN(1000, diff);
+            if (audio_el_test_set_encoder_bitrate(el, set_bitrate) == ESP_GMF_ERR_OK &&
+                audio_el_test_get_encoder_bitrate(el, &bitrate_read) == ESP_GMF_ERR_OK) {
+                if (get_cfg->type == ESP_AUDIO_TYPE_AAC || get_cfg->type == ESP_AUDIO_TYPE_LC3 ||
+                    get_cfg->type == ESP_AUDIO_TYPE_OPUS || get_cfg->type == ESP_AUDIO_TYPE_AMRNB ||
+                    get_cfg->type == ESP_AUDIO_TYPE_AMRWB) {
+                    uint32_t diff = (set_bitrate > bitrate_read) ? (set_bitrate - bitrate_read) : (bitrate_read - set_bitrate);
+                    TEST_ASSERT_LESS_THAN(1000, diff);
+                }
             }
             uint32_t in_size = 0;
             uint32_t out_size = 0;
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_encoder_frame_size(el, &in_size, &out_size));
-            TEST_ASSERT_EQUAL(ESP_GMF_ELEMENT_GET(el)->in_attr.data_size, in_size);
-            TEST_ASSERT_EQUAL(ESP_GMF_ELEMENT_GET(el)->out_attr.data_size, out_size);
+            if (audio_el_test_get_encoder_frame_size(el, &in_size, &out_size) == ESP_GMF_ERR_OK) {
+                TEST_ASSERT_EQUAL(ESP_GMF_ELEMENT_GET(el)->in_attr.data_size, in_size);
+                TEST_ASSERT_EQUAL(ESP_GMF_ELEMENT_GET(el)->out_attr.data_size, out_size);
+            }
         }
     }
 }

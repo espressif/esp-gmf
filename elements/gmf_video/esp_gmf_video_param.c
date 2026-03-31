@@ -160,3 +160,16 @@ esp_gmf_err_t esp_gmf_video_param_set_overlay_rgn(esp_gmf_element_handle_t self,
 
     RELEASE_VMETHOD_SETTING();
 }
+
+esp_gmf_err_t esp_gmf_video_param_get_dst_fmts_by_codec(esp_gmf_element_handle_t self, uint32_t src_codec,
+                                                        const uint32_t **dst_fmts, uint8_t *dst_fmts_num)
+{
+    const char *method_name = VMETHOD(DECODER, GET_DST_FMTS);
+    PREPARE_VMETHOD_SETTING();
+
+    SET_METHOD_ARG(VMETHOD_ARG(DECODER, GET_DST_FMTS, SRC_CODEC), src_codec);
+    SET_METHOD_ARG(VMETHOD_ARG(DECODER, GET_DST_FMTS, DST_FMTS_PTR), dst_fmts);
+    SET_METHOD_ARG(VMETHOD_ARG(DECODER, GET_DST_FMTS, DST_FMTS_NUM_PTR), dst_fmts_num);
+
+    RELEASE_VMETHOD_SETTING();
+}

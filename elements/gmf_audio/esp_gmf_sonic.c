@@ -87,17 +87,24 @@ static esp_gmf_job_err_t esp_gmf_sonic_open(esp_gmf_element_handle_t self, void 
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)self;
     esp_ae_sonic_cfg_t *sonic_info = (esp_ae_sonic_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, sonic_info, {return ESP_GMF_JOB_ERR_FAIL;});
+    esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
     sonic->sample_rate = sonic_info->sample_rate;
     sonic->channel = sonic_info->channel;
     sonic->bits_per_sample = sonic_info->bits_per_sample;
     sonic->bytes_per_sample = (sonic_info->bits_per_sample >> 3) * sonic_info->channel;
-    GMF_AUDIO_UPDATE_SND_INFO(self, sonic_info->sample_rate, sonic_info->bits_per_sample, sonic_info->channel);
     sonic->out_size = SONIC_DEFAULT_OUTPUT_TIME_MS * sonic->sample_rate * sonic->bytes_per_sample / 1000;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     esp_ae_sonic_open(sonic_info, &sonic->sonic_hd);
-    ESP_GMF_CHECK(TAG, sonic->sonic_hd, {return ESP_GMF_JOB_ERR_FAIL;}, "Failed to create sonic handle");
+    ESP_GMF_CHECK(TAG, sonic->sonic_hd, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __sonic_open_exit;}, "Failed to create sonic handle");
     esp_ae_sonic_set_speed(sonic->sonic_hd, sonic->speed);
     esp_ae_sonic_set_pitch(sonic->sonic_hd, sonic->pitch);
     sonic->need_reopen = false;
+__sonic_open_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    if (job_ret != ESP_GMF_JOB_ERR_OK) {
+        return job_ret;
+    }
+    GMF_AUDIO_UPDATE_SND_INFO(self, sonic_info->sample_rate, sonic_info->bits_per_sample, sonic_info->channel);
     ESP_LOGD(TAG, "Open, %p", self);
     return ESP_GMF_JOB_ERR_OK;
 }
@@ -106,10 +113,12 @@ static esp_gmf_job_err_t esp_gmf_sonic_close(esp_gmf_element_handle_t self, void
 {
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     if (sonic->sonic_hd != NULL) {
         esp_ae_sonic_close(sonic->sonic_hd);
         sonic->sonic_hd = NULL;
     }
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
     sonic->cur_pts = 0;
     return ESP_GMF_ERR_OK;
 }
@@ -337,14 +346,16 @@ esp_gmf_err_t esp_gmf_sonic_set_speed(esp_gmf_element_handle_t handle, float spe
 {
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (sonic->sonic_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_sonic_set_speed(sonic->sonic_hd, speed);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_JOB_ERR_FAIL;, "sonicualize set error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_sonic_set_speed(sonic->sonic_hd, speed);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_JOB_ERR_FAIL; goto __sonic_set_speed_exit;}, "sonicualize set error %d", ae_ret);
     }
     sonic->speed = speed;
-    return ESP_GMF_ERR_OK;
+__sonic_set_speed_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_sonic_get_speed(esp_gmf_element_handle_t handle, float *speed)
@@ -352,29 +363,33 @@ esp_gmf_err_t esp_gmf_sonic_get_speed(esp_gmf_element_handle_t handle, float *sp
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     ESP_GMF_NULL_CHECK(TAG, speed, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (sonic->sonic_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_sonic_get_speed(sonic->sonic_hd, speed);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_JOB_ERR_FAIL;, "sonicualize set error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_sonic_get_speed(sonic->sonic_hd, speed);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_JOB_ERR_FAIL; goto __sonic_get_speed_exit;}, "sonicualize set error %d", ae_ret);
     } else {
         *speed = sonic->speed;
     }
-    return ESP_GMF_ERR_OK;
+__sonic_get_speed_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_sonic_set_pitch(esp_gmf_element_handle_t handle, float pitch)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (sonic->sonic_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_sonic_set_pitch(sonic->sonic_hd, pitch);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_JOB_ERR_FAIL;, "sonicualize set error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_sonic_set_pitch(sonic->sonic_hd, pitch);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_JOB_ERR_FAIL; goto __sonic_set_pitch_exit;}, "sonicualize set error %d", ae_ret);
     }
     sonic->pitch = pitch;
-    return ESP_GMF_ERR_OK;
+__sonic_set_pitch_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_sonic_get_pitch(esp_gmf_element_handle_t handle, float *pitch)
@@ -382,33 +397,40 @@ esp_gmf_err_t esp_gmf_sonic_get_pitch(esp_gmf_element_handle_t handle, float *pi
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     ESP_GMF_NULL_CHECK(TAG, pitch, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (sonic->sonic_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_sonic_get_pitch(sonic->sonic_hd, pitch);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_JOB_ERR_FAIL;, "sonicualize set error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_sonic_get_pitch(sonic->sonic_hd, pitch);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_JOB_ERR_FAIL; goto __sonic_get_pitch_exit;}, "sonicualize set error %d", ae_ret);
     } else {
         *pitch = sonic->pitch;
     }
-    return ESP_GMF_ERR_OK;
+__sonic_get_pitch_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 static esp_gmf_job_err_t esp_gmf_sonic_reset(esp_gmf_element_handle_t handle, void *para)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)handle;
+    esp_gmf_job_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (sonic->sonic_hd) {
-        esp_ae_err_t ret = esp_ae_sonic_reset(sonic->sonic_hd);
-        if (ret != ESP_AE_ERR_OK) {
-            return ESP_GMF_ERR_FAIL;
+        esp_ae_err_t ae_ret = esp_ae_sonic_reset(sonic->sonic_hd);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __sonic_reset_exit;
         }
         memset(&sonic->in_data_hd, 0, sizeof(esp_ae_sonic_in_data_t));
         memset(&sonic->out_data_hd, 0, sizeof(esp_ae_sonic_out_data_t));
         sonic->is_done = false;
         sonic->cur_pts = 0;
     }
+__sonic_reset_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
     ESP_LOGD(TAG, "Sonic reset");
-    return ESP_GMF_ERR_OK;
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_sonic_init(esp_ae_sonic_cfg_t *config, esp_gmf_element_handle_t *handle)

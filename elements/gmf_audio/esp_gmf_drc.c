@@ -186,11 +186,18 @@ static esp_gmf_job_err_t gmf_drc_open(esp_gmf_element_handle_t self, void *para)
     esp_gmf_drc_t *el = (esp_gmf_drc_t *)self;
     esp_ae_drc_cfg_t *config = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, config, {return ESP_GMF_JOB_ERR_FAIL;});
+    esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
     el->bytes_per_sample = (config->bits_per_sample >> 3) * config->channel;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     esp_ae_err_t ret = esp_ae_drc_open(config, &el->drc_hd);
-    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_JOB_ERR_FAIL;}, "Failed to create drc handle %d", ret);
-    GMF_AUDIO_UPDATE_SND_INFO(self, config->sample_rate, config->bits_per_sample, config->channel);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __drc_open_exit;}, "Failed to create drc handle %d", ret);
     el->need_reopen = false;
+__drc_open_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    if (job_ret != ESP_GMF_JOB_ERR_OK) {
+        return job_ret;
+    }
+    GMF_AUDIO_UPDATE_SND_INFO(self, config->sample_rate, config->bits_per_sample, config->channel);
     ESP_LOGD(TAG, "Open, %p", self);
     return ESP_GMF_JOB_ERR_OK;
 }
@@ -199,10 +206,12 @@ static esp_gmf_job_err_t gmf_drc_close(esp_gmf_element_handle_t self, void *para
 {
     esp_gmf_drc_t *el = (esp_gmf_drc_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     if (el->drc_hd) {
         esp_ae_drc_close(el->drc_hd);
         el->drc_hd = NULL;
     }
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
     return ESP_GMF_ERR_OK;
 }
 
@@ -432,14 +441,19 @@ esp_gmf_err_t esp_gmf_drc_set_attack_time(esp_gmf_element_handle_t handle, uint1
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_drc_set_attack_time(drc->drc_hd, attack);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC set attack error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_set_attack_time(drc->drc_hd, attack);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_set_attack_exit;
+        }
     }
     cfg->drc_para.attack_time = attack;
-    return ESP_GMF_ERR_OK;
+__drc_set_attack_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_get_attack_time(esp_gmf_element_handle_t handle, uint16_t *attack)
@@ -447,15 +461,25 @@ esp_gmf_err_t esp_gmf_drc_get_attack_time(esp_gmf_element_handle_t handle, uint1
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, attack, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_ae_err_t ret = esp_ae_drc_get_attack_time(drc->drc_hd, attack);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC get attack error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_get_attack_time(drc->drc_hd, attack);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_get_attack_exit;
+        }
     } else {
         esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
-        ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+        if (cfg == NULL) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_get_attack_exit;
+        }
         *attack = cfg->drc_para.attack_time;
     }
-    return ESP_GMF_ERR_OK;
+__drc_get_attack_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_set_release_time(esp_gmf_element_handle_t handle, uint16_t release)
@@ -464,14 +488,19 @@ esp_gmf_err_t esp_gmf_drc_set_release_time(esp_gmf_element_handle_t handle, uint
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_drc_set_release_time(drc->drc_hd, release);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC set release error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_set_release_time(drc->drc_hd, release);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_set_release_exit;
+        }
     }
     cfg->drc_para.release_time = release;
-    return ESP_GMF_ERR_OK;
+__drc_set_release_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_get_release_time(esp_gmf_element_handle_t handle, uint16_t *release)
@@ -479,15 +508,25 @@ esp_gmf_err_t esp_gmf_drc_get_release_time(esp_gmf_element_handle_t handle, uint
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, release, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_ae_err_t ret = esp_ae_drc_get_release_time(drc->drc_hd, release);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC get release error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_get_release_time(drc->drc_hd, release);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_get_release_exit;
+        }
     } else {
         esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
-        ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+        if (cfg == NULL) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_get_release_exit;
+        }
         *release = cfg->drc_para.release_time;
     }
-    return ESP_GMF_ERR_OK;
+__drc_get_release_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_set_hold_time(esp_gmf_element_handle_t handle, uint16_t hold)
@@ -496,14 +535,19 @@ esp_gmf_err_t esp_gmf_drc_set_hold_time(esp_gmf_element_handle_t handle, uint16_
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_drc_set_hold_time(drc->drc_hd, hold);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC set hold error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_set_hold_time(drc->drc_hd, hold);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_set_hold_exit;
+        }
     }
     cfg->drc_para.hold_time = hold;
-    return ESP_GMF_ERR_OK;
+__drc_set_hold_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_get_hold_time(esp_gmf_element_handle_t handle, uint16_t *hold)
@@ -511,15 +555,25 @@ esp_gmf_err_t esp_gmf_drc_get_hold_time(esp_gmf_element_handle_t handle, uint16_
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, hold, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_ae_err_t ret = esp_ae_drc_get_hold_time(drc->drc_hd, hold);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC get hold error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_get_hold_time(drc->drc_hd, hold);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_get_hold_exit;
+        }
     } else {
         esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
-        ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+        if (cfg == NULL) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_get_hold_exit;
+        }
         *hold = cfg->drc_para.hold_time;
     }
-    return ESP_GMF_ERR_OK;
+__drc_get_hold_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_set_makeup_gain(esp_gmf_element_handle_t handle, float makeup)
@@ -528,14 +582,19 @@ esp_gmf_err_t esp_gmf_drc_set_makeup_gain(esp_gmf_element_handle_t handle, float
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_drc_set_makeup_gain(drc->drc_hd, makeup);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC set makeup error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_set_makeup_gain(drc->drc_hd, makeup);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_set_makeup_exit;
+        }
     }
     cfg->drc_para.makeup_gain = makeup;
-    return ESP_GMF_ERR_OK;
+__drc_set_makeup_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_get_makeup_gain(esp_gmf_element_handle_t handle, float *makeup)
@@ -543,15 +602,25 @@ esp_gmf_err_t esp_gmf_drc_get_makeup_gain(esp_gmf_element_handle_t handle, float
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, makeup, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_ae_err_t ret = esp_ae_drc_get_makeup_gain(drc->drc_hd, makeup);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC get makeup error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_get_makeup_gain(drc->drc_hd, makeup);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_get_makeup_exit;
+        }
     } else {
         esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
-        ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+        if (cfg == NULL) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_get_makeup_exit;
+        }
         *makeup = cfg->drc_para.makeup_gain;
     }
-    return ESP_GMF_ERR_OK;
+__drc_get_makeup_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_set_knee_width(esp_gmf_element_handle_t handle, float knee)
@@ -560,14 +629,16 @@ esp_gmf_err_t esp_gmf_drc_set_knee_width(esp_gmf_element_handle_t handle, float 
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_drc_set_knee_width(drc->drc_hd, knee);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC set knee error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_set_knee_width(drc->drc_hd, knee);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __drc_set_knee_exit;}, "DRC set knee error %d", ae_ret);
     }
     cfg->drc_para.knee_width = knee;
-    return ESP_GMF_ERR_OK;
+__drc_set_knee_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_get_knee_width(esp_gmf_element_handle_t handle, float *knee)
@@ -575,15 +646,22 @@ esp_gmf_err_t esp_gmf_drc_get_knee_width(esp_gmf_element_handle_t handle, float 
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, knee, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_ae_err_t ret = esp_ae_drc_get_knee_width(drc->drc_hd, knee);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC get knee error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_get_knee_width(drc->drc_hd, knee);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __drc_get_knee_exit;}, "DRC get knee error %d", ae_ret);
     } else {
         esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
-        ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+        if (cfg == NULL) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_get_knee_exit;
+        }
         *knee = cfg->drc_para.knee_width;
     }
-    return ESP_GMF_ERR_OK;
+__drc_get_knee_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_set_points(esp_gmf_element_handle_t handle, esp_ae_drc_curve_point *points, uint8_t point_num)
@@ -592,22 +670,29 @@ esp_gmf_err_t esp_gmf_drc_set_points(esp_gmf_element_handle_t handle, esp_ae_drc
     ESP_GMF_NULL_CHECK(TAG, points, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_CHECK(TAG, point_num >= 2 && point_num <= 6, {return ESP_GMF_ERR_INVALID_ARG;}, "Invalid DRC point number");
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_ae_err_t ret = esp_ae_drc_set_curve_points(drc->drc_hd, points, point_num);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_ERR_FAIL, "DRC set points error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_set_curve_points(drc->drc_hd, points, point_num);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __drc_set_points_exit;}, "DRC set points error %d", ae_ret);
     }
     esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
-    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    if (cfg == NULL) {
+        ret = ESP_GMF_ERR_FAIL;
+        goto __drc_set_points_exit;
+    }
     size_t points_size = point_num * sizeof(esp_ae_drc_curve_point);
     esp_ae_drc_curve_point *dup_points = esp_gmf_oal_calloc(1, points_size);
-    ESP_GMF_MEM_VERIFY(TAG, dup_points, {return ESP_GMF_ERR_MEMORY_LACK;}, "drc points", (int)points_size);
+    ESP_GMF_MEM_VERIFY(TAG, dup_points, {ret = ESP_GMF_ERR_MEMORY_LACK; goto __drc_set_points_exit;}, "drc points", (int)points_size);
     memcpy(dup_points, points, points_size);
     if (cfg->drc_para.point && (cfg->drc_para.point != esp_gmf_default_drc_points)) {
         esp_gmf_oal_free(cfg->drc_para.point);
     }
     cfg->drc_para.point = dup_points;
     cfg->drc_para.point_num = point_num;
-    return ESP_GMF_ERR_OK;
+__drc_set_points_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_get_point_num(esp_gmf_element_handle_t handle, uint8_t *point_num)
@@ -615,15 +700,22 @@ esp_gmf_err_t esp_gmf_drc_get_point_num(esp_gmf_element_handle_t handle, uint8_t
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, point_num, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_ae_err_t ret = esp_ae_drc_get_curve_point_num(drc->drc_hd, point_num);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC get point num error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_drc_get_curve_point_num(drc->drc_hd, point_num);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __drc_get_point_num_exit;}, "DRC get point num error %d", ae_ret);
     } else {
         esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
-        ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+        if (cfg == NULL) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_get_point_num_exit;
+        }
         *point_num = cfg->drc_para.point_num;
     }
-    return ESP_GMF_ERR_OK;
+__drc_get_point_num_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_get_points(esp_gmf_element_handle_t handle, esp_ae_drc_curve_point *points)
@@ -631,34 +723,45 @@ esp_gmf_err_t esp_gmf_drc_get_points(esp_gmf_element_handle_t handle, esp_ae_drc
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, points, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_ae_err_t ret = esp_ae_drc_get_curve_points(drc->drc_hd, points);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "DRC get points error %d", ret);
-        return ESP_GMF_ERR_OK;
+        esp_ae_err_t ae_ret = esp_ae_drc_get_curve_points(drc->drc_hd, points);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __drc_get_points_exit;}, "DRC get points error %d", ae_ret);
+        ret = ESP_GMF_ERR_OK;
+        goto __drc_get_points_exit;
     } else {
         esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
-        ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+        if (cfg == NULL) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __drc_get_points_exit;
+        }
         if (cfg->drc_para.point && cfg->drc_para.point_num > 0) {
             memcpy(points, cfg->drc_para.point, cfg->drc_para.point_num * sizeof(esp_ae_drc_curve_point));
-            return ESP_GMF_ERR_OK;
+            ret = ESP_GMF_ERR_OK;
+            goto __drc_get_points_exit;
         }
         ESP_LOGE(TAG, "No DRC points configured");
-        return ESP_GMF_ERR_FAIL;
+        ret = ESP_GMF_ERR_FAIL;
     }
+__drc_get_points_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 static esp_gmf_job_err_t esp_gmf_drc_reset(esp_gmf_element_handle_t handle, void *para)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
+    esp_gmf_job_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (drc->drc_hd) {
-        esp_ae_err_t ret = esp_ae_drc_reset(drc->drc_hd);
-        if (ret != ESP_AE_ERR_OK) {
-            return ESP_GMF_ERR_FAIL;
-        }
+        esp_ae_err_t ae_ret = esp_ae_drc_reset(drc->drc_hd);
+        ret = (ae_ret == ESP_AE_ERR_OK) ? ESP_GMF_ERR_OK : ESP_GMF_ERR_FAIL;
     }
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
     ESP_LOGD(TAG, "DRC reset");
-    return ESP_GMF_ERR_OK;
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_drc_init(esp_ae_drc_cfg_t *config, esp_gmf_element_handle_t *handle)
