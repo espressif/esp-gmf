@@ -30,21 +30,28 @@ typedef struct _gmf_imgfx_crop_t {
 static esp_gmf_job_err_t video_crop_el_open(esp_gmf_element_handle_t self, void *para)
 {
     esp_gmf_crop_hd_t *video_el = (esp_gmf_crop_hd_t *)self;
+    esp_gmf_job_err_t ret = ESP_GMF_JOB_ERR_OK;
     // Get and check config
     esp_imgfx_crop_cfg_t *cfg = (esp_imgfx_crop_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_CHECK(TAG, cfg, return ESP_GMF_JOB_ERR_FAIL, "Failed to get crop config");
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
     // Open crop module
     esp_imgfx_crop_open(cfg, &video_el->hd);
-    ESP_GMF_CHECK(TAG, video_el->hd, return ESP_GMF_JOB_ERR_FAIL, "Failed to create crop handle");
+    ESP_GMF_CHECK(TAG, video_el->hd, {ret = ESP_GMF_JOB_ERR_FAIL; goto __video_crop_open_exit;}, "Failed to create crop handle");
     // Get video size
     esp_imgfx_get_image_size(cfg->in_pixel_fmt, &cfg->in_res, (uint32_t *)&(ESP_GMF_ELEMENT_GET(video_el)->in_attr.data_size));
     esp_imgfx_get_image_size(cfg->in_pixel_fmt, &cfg->cropped_res, (uint32_t *)&(ESP_GMF_ELEMENT_GET(video_el)->out_attr.data_size));
-    // Report information to the next element, the next element will use this information to configure
-    gmf_video_update_info(self, cfg->cropped_res.width, cfg->cropped_res.height, cfg->in_pixel_fmt);
     // The video_el->hd has been opened using newest configuration, so it can set the need_recfg to false
     video_el->need_recfg = false;
+__video_crop_open_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
+    if (ret != ESP_GMF_JOB_ERR_OK) {
+        return ret;
+    }
+    // Report information to the next element, the next element will use this information to configure
+    gmf_video_update_info(self, cfg->cropped_res.width, cfg->cropped_res.height, cfg->in_pixel_fmt);
     ESP_LOGD(TAG, "Open, %p", self);
-    return ESP_GMF_JOB_ERR_OK;
+    return ret;
 }
 
 static esp_gmf_job_err_t video_crop_el_process(esp_gmf_element_handle_t self, void *para)
@@ -124,10 +131,12 @@ static esp_gmf_job_err_t video_crop_el_close(esp_gmf_element_handle_t self, void
     ESP_LOGD(TAG, "Closed, %p", self);
     esp_gmf_crop_hd_t *video_el = (esp_gmf_crop_hd_t *)self;
     if (video_el) {
+        esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
         if (video_el->hd) {
             esp_imgfx_crop_close(video_el->hd);
             video_el->hd = NULL;
         }
+        esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
     }
     return ESP_GMF_ERR_OK;
 }
@@ -313,12 +322,19 @@ __init_exit:
 
 esp_gmf_err_t esp_gmf_video_crop_rgn(esp_gmf_element_handle_t handle, esp_gmf_video_rgn_t *rgn)
 {
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, rgn, return ESP_GMF_ERR_INVALID_ARG);
     esp_imgfx_crop_cfg_t config;
-    esp_gmf_err_t ret = esp_gmf_video_crop_get_cfg(handle, &config);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to get crop configuration");
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)handle)->lock);
+    ret = esp_gmf_video_crop_get_cfg(handle, &config);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto __video_crop_rgn_exit, "Failed to get crop configuration");
     config.x_pos = rgn->x;
     config.y_pos = rgn->y;
     config.cropped_res.width = rgn->width;
     config.cropped_res.height = rgn->height;
-    return esp_gmf_video_crop_set_cfg(handle, &config);
+    ret = esp_gmf_video_crop_set_cfg(handle, &config);
+__video_crop_rgn_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)handle)->lock);
+    return ret;
 }

@@ -7,6 +7,7 @@
 
 #include <string.h>
 #include "esp_log.h"
+#include "esp_gmf_oal_mutex.h"
 #include "esp_gmf_info.h"
 #include "esp_gmf_oal_mem.h"
 #include "esp_gmf_err.h"
@@ -151,6 +152,8 @@ static esp_gmf_err_t venc_el_apply_settings(venc_t *venc, venc_extra_set_mask_t 
 static esp_gmf_job_err_t venc_el_open(esp_gmf_video_element_handle_t self, void *para)
 {
     venc_t *venc = (venc_t *)self;
+    esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
     esp_gmf_video_enc_cfg_t *cfg = (esp_gmf_video_enc_cfg_t *)OBJ_GET_CFG(self);
     esp_gmf_info_video_t *src_info = &venc->parent.src_info;
     venc->venc_bypass = (src_info->format_id == venc->dst_codec);
@@ -171,7 +174,8 @@ static esp_gmf_job_err_t venc_el_open(esp_gmf_video_element_handle_t self, void 
         esp_vc_err_t ret = esp_video_enc_open(&enc_cfg, &venc->enc_handle);
         if (ret != ESP_VC_ERR_OK) {
             ESP_LOGE(TAG, "Fail to open encoder ret %d", ret);
-            return ESP_GMF_ERR_NOT_SUPPORT;
+            job_ret = ESP_GMF_ERR_NOT_SUPPORT;
+            goto __venc_open_exit;
         }
         int in_frame_size = 0;
         int out_frame_size = 0;
@@ -183,8 +187,10 @@ static esp_gmf_job_err_t venc_el_open(esp_gmf_video_element_handle_t self, void 
     // Report info to next element
     esp_gmf_info_video_t out_info = venc->parent.src_info;
     out_info.format_id = venc->dst_codec;
+__venc_open_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
     esp_gmf_element_notify_vid_info(self, &out_info);
-    return ESP_GMF_JOB_ERR_OK;
+    return job_ret;
 }
 
 static esp_gmf_job_err_t venc_el_process(esp_gmf_video_element_handle_t self, void *para)
@@ -250,20 +256,24 @@ static esp_gmf_job_err_t venc_el_process(esp_gmf_video_element_handle_t self, vo
 static esp_gmf_job_err_t venc_el_close(esp_gmf_video_element_handle_t self, void *para)
 {
     venc_t *venc = (venc_t *)self;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
     if (venc->enc_handle) {
         esp_video_enc_close(venc->enc_handle);
         venc->enc_handle = NULL;
     }
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
     return ESP_GMF_JOB_ERR_OK;
 }
 
 static esp_gmf_err_t venc_el_destroy(esp_gmf_video_element_handle_t self)
 {
     venc_t *venc = (venc_t *)self;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
     if (venc->enc_handle) {
         esp_video_enc_close(venc->enc_handle);
         venc->enc_handle = NULL;
     }
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
     esp_gmf_video_el_deinit(self);
     void *cfg = OBJ_GET_CFG(self);
     if (cfg) {
@@ -449,72 +459,98 @@ esp_gmf_err_t esp_gmf_video_enc_get_out_size(esp_gmf_element_handle_t self, uint
     ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, frame_size, return ESP_GMF_ERR_INVALID_ARG);
     venc_t *venc = (venc_t *)self;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
     *frame_size = 0;
     if (venc->parent.src_info.format_id == 0 || venc->dst_codec == ESP_VIDEO_CODEC_TYPE_NONE) {
-        return ESP_GMF_ERR_NOT_SUPPORT;
+        ret = ESP_GMF_ERR_NOT_SUPPORT;
+        goto __venc_get_out_size_exit;
     }
     if (venc->venc_bypass) {
-        return ESP_GMF_ERR_OK;
+        goto __venc_get_out_size_exit;
     }
     int in_frame_size = 0, out_frame_size = 0;
     venc_get_frame_size(venc, &in_frame_size, &out_frame_size);
     *frame_size = out_frame_size;
-    return ESP_GMF_ERR_OK;
+__venc_get_out_size_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_video_enc_set_bitrate(esp_gmf_element_handle_t self, uint32_t bitrate)
 {
     ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);
     venc_t *venc = (venc_t *)self;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
     venc->extra_set.bitrate = bitrate;
     venc->extra_set.mask |= VENC_EXTRA_SET_MASK_BITRATE;
-    return venc_el_apply_settings(venc, VENC_EXTRA_SET_MASK_BITRATE);
+    ret = venc_el_apply_settings(venc, VENC_EXTRA_SET_MASK_BITRATE);
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_video_enc_set_gop(esp_gmf_element_handle_t self, uint32_t gop)
 {
     ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);
     venc_t *venc = (venc_t *)self;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
     venc->extra_set.gop = gop;
     venc->extra_set.mask |= VENC_EXTRA_SET_MASK_GOP;
-    return venc_el_apply_settings(venc, VENC_EXTRA_SET_MASK_GOP);
+    ret = venc_el_apply_settings(venc, VENC_EXTRA_SET_MASK_GOP);
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_video_enc_set_qp(esp_gmf_element_handle_t self, uint32_t min_qp, uint32_t max_qp)
 {
     ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);
     venc_t *venc = (venc_t *)self;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
     venc->extra_set.min_qp = min_qp;
     venc->extra_set.max_qp = max_qp;
     venc->extra_set.mask |= VENC_EXTRA_SET_MASK_QP;
     venc_el_apply_settings(venc, VENC_EXTRA_SET_MASK_QP);
-    return ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_video_enc_set_dst_codec(esp_gmf_element_handle_t handle, uint32_t dst_codec)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     venc_t *venc = (venc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)handle)->lock);
     if (venc->enc_handle) {
         ESP_LOGE(TAG, "Not support set encoder handle during run");
-        return ESP_GMF_ERR_NOT_SUPPORT;
+        ret = ESP_GMF_ERR_NOT_SUPPORT;
+        goto __venc_set_dst_codec_exit;
     }
     venc->dst_codec = (esp_video_codec_type_t)dst_codec;
-    return ESP_GMF_ERR_OK;
+__venc_set_dst_codec_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_video_enc_preset(esp_gmf_element_handle_t self, esp_gmf_info_video_t *video_info, uint32_t dst_codec)
 {
     ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);
     venc_t *venc = (venc_t *)self;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
     if (venc_is_codec_supported(venc, video_info->format_id, dst_codec) == false) {
         ESP_LOGE(TAG, "Not support encode from %s to %s",
                  esp_gmf_video_get_format_string(video_info->format_id), esp_gmf_video_get_format_string(dst_codec));
-        return ESP_GMF_ERR_NOT_SUPPORT;
+        ret = ESP_GMF_ERR_NOT_SUPPORT;
+        goto __venc_preset_exit;
     }
     venc->parent.src_info = *video_info;
     venc->dst_codec = (esp_video_codec_type_t)(dst_codec);
-    return 0;
+__venc_preset_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_video_enc_get_src_formats(esp_gmf_element_handle_t self,
@@ -524,7 +560,11 @@ esp_gmf_err_t esp_gmf_video_enc_get_src_formats(esp_gmf_element_handle_t self,
 {
     ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);
     venc_t *venc = (venc_t *)self;
-    return venc_get_input_codecs(venc, dst_codec, input_codecs, input_codec_num);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
+    ret = venc_get_input_codecs(venc, dst_codec, input_codecs, input_codec_num);
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_video_enc_init(esp_gmf_video_enc_cfg_t *cfg, esp_gmf_element_handle_t *handle)

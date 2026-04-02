@@ -14,6 +14,7 @@
 #include "gmf_video_common.h"
 #include "esp_gmf_video_methods_def.h"
 #include "esp_log.h"
+#include "esp_gmf_oal_mutex.h"
 
 #define TAG "VDEC_EL"
 
@@ -84,12 +85,12 @@ static bool vdec_is_codec_supported(vdec_t *vdec, uint32_t in_codec, uint32_t ou
 static esp_gmf_job_err_t vdec_el_open(esp_gmf_video_element_handle_t self, void *para)
 {
     vdec_t *vdec = (vdec_t *)self;
+    esp_gmf_job_err_t ret = ESP_GMF_JOB_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
     esp_gmf_info_video_t *src_info = &vdec->parent.src_info;
     vdec->vdec_bypass = (src_info->format_id == vdec->out_format);
     if (vdec->vdec_bypass) {
-        // Report video info to next element directly
-        esp_gmf_element_notify_vid_info(self, src_info);
-        return ESP_GMF_JOB_ERR_OK;
+        goto __vdec_open_exit;
     }
     // Open video decoder now
     esp_video_dec_cfg_t dec_cfg = {
@@ -102,11 +103,13 @@ static esp_gmf_job_err_t vdec_el_open(esp_gmf_video_element_handle_t self, void 
         ESP_LOGE(TAG, "Format not supported in:%s out:%s",
                  esp_gmf_video_get_format_string(src_info->format_id),
                  esp_gmf_video_get_format_string(vdec->out_format));
-        return ESP_GMF_JOB_ERR_FAIL;
+        ret = ESP_GMF_JOB_ERR_FAIL;
+        goto __vdec_open_exit;
     }
-    int ret = esp_video_dec_open(&dec_cfg, &vdec->dec_handle);
-    if (ret != ESP_VC_ERR_OK) {
-        return ESP_GMF_JOB_ERR_FAIL;
+    int vret = esp_video_dec_open(&dec_cfg, &vdec->dec_handle);
+    if (vret != ESP_VC_ERR_OK) {
+        ret = ESP_GMF_JOB_ERR_FAIL;
+        goto __vdec_open_exit;
     }
     // Get alignment request
     uint8_t in_frame_align = 0;
@@ -114,7 +117,11 @@ static esp_gmf_job_err_t vdec_el_open(esp_gmf_video_element_handle_t self, void 
     esp_video_dec_get_frame_align(vdec->dec_handle, &in_frame_align, &out_frame_align);
     ESP_GMF_ELEMENT_GET(vdec)->in_attr.port.buf_addr_aligned = in_frame_align;
     ESP_GMF_ELEMENT_GET(vdec)->out_attr.port.buf_addr_aligned = out_frame_align;
-    return ESP_GMF_JOB_ERR_OK;
+__vdec_open_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
+    // Report video info to next element directly
+    esp_gmf_element_notify_vid_info(self, src_info);
+    return ret;
 }
 
 static int vdec_bypass(vdec_t *vdec, esp_gmf_port_t *in, esp_gmf_port_t *out)
@@ -417,7 +424,9 @@ esp_gmf_err_t esp_gmf_video_dec_set_dst_format(esp_gmf_element_handle_t handle, 
 {
     ESP_GMF_MEM_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     vdec_t *vdec = (vdec_t *)handle;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)handle)->lock);
     vdec->out_format = dst_fmt;
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)handle)->lock);
     return ESP_GMF_ERR_OK;
 }
 
@@ -428,5 +437,9 @@ esp_gmf_err_t esp_gmf_video_dec_get_dst_formats(esp_gmf_element_handle_t handle,
 {
     ESP_GMF_MEM_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     vdec_t *vdec = (vdec_t *)handle;
-    return vdec_get_out_fmts(vdec, in_codec, dst_fmts, dst_fmts_num);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)handle)->lock);
+    ret = vdec_get_out_fmts(vdec, in_codec, dst_fmts, dst_fmts_num);
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)handle)->lock);
+    return ret;
 }

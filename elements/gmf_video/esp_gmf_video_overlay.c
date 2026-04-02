@@ -11,6 +11,7 @@
 #include "esp_fourcc.h"
 #include "esp_gmf_node.h"
 #include "esp_gmf_oal_mem.h"
+#include "esp_gmf_oal_mutex.h"
 #include "esp_gmf_video_element.h"
 #include "esp_gmf_info.h"
 #include "esp_gmf_video_overlay.h"
@@ -284,7 +285,8 @@ static esp_gmf_err_t set_mixer_enable(esp_gmf_element_handle_t handle, esp_gmf_a
     ESP_GMF_NULL_CHECK(TAG, arg_desc, return ESP_GMF_ERR_INVALID_ARG);
     gmf_vid_overlay_t *overlay_mixer = (gmf_vid_overlay_t *)handle;
     overlay_mixer->enable = *(bool *)buf;
-    return overlay_mixer->enable ? overlay_enable(overlay_mixer) : overlay_disable(overlay_mixer);
+    esp_gmf_err_t ret = overlay_mixer->enable ? overlay_enable(overlay_mixer) : overlay_disable(overlay_mixer);
+    return ret;
 }
 
 static esp_gmf_err_t set_mixer_rgn(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,

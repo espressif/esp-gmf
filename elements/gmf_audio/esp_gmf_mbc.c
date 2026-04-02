@@ -136,19 +136,26 @@ static esp_gmf_job_err_t gmf_mbc_open(esp_gmf_element_handle_t self, void *para)
     esp_gmf_mbc_t *el = (esp_gmf_mbc_t *)self;
     esp_ae_mbc_config_t *config = (esp_ae_mbc_config_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, config, {return ESP_GMF_JOB_ERR_FAIL;});
+    esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
     el->bytes_per_sample = (config->bits_per_sample >> 3) * config->channel;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     esp_ae_err_t ret = esp_ae_mbc_open(config, &el->mbc_hd);
-    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_JOB_ERR_FAIL;}, "Failed to create mbc handle %d", ret);
-    GMF_AUDIO_UPDATE_SND_INFO(self, config->sample_rate, config->bits_per_sample, config->channel);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __mbc_open_exit;}, "Failed to create mbc handle %d", ret);
     for (int i = 0; i < ESP_AE_MBC_BAND_IDX_MAX; i++) {
         ret = esp_ae_mbc_set_solo(el->mbc_hd, i, el->solo_state[i]);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_ae_mbc_close(el->mbc_hd); el->mbc_hd = NULL; return ESP_GMF_JOB_ERR_FAIL;},
+        ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_ae_mbc_close(el->mbc_hd); el->mbc_hd = NULL; job_ret = ESP_GMF_JOB_ERR_FAIL; goto __mbc_open_exit;},
                              "Failed to restore solo state %d", ret);
         ret = esp_ae_mbc_set_bypass(el->mbc_hd, i, el->bypass_state[i]);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_ae_mbc_close(el->mbc_hd); el->mbc_hd = NULL; return ESP_GMF_JOB_ERR_FAIL;},
+        ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_ae_mbc_close(el->mbc_hd); el->mbc_hd = NULL; job_ret = ESP_GMF_JOB_ERR_FAIL; goto __mbc_open_exit;},
                              "Failed to restore bypass state %d", ret);
     }
     el->need_reopen = false;
+__mbc_open_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    if (job_ret != ESP_GMF_JOB_ERR_OK) {
+        return job_ret;
+    }
+    GMF_AUDIO_UPDATE_SND_INFO(self, config->sample_rate, config->bits_per_sample, config->channel);
     ESP_LOGD(TAG, "Open, %p", self);
     return ESP_GMF_JOB_ERR_OK;
 }
@@ -157,10 +164,12 @@ static esp_gmf_job_err_t gmf_mbc_close(esp_gmf_element_handle_t self, void *para
 {
     esp_gmf_mbc_t *el = (esp_gmf_mbc_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     if (el->mbc_hd) {
         esp_ae_mbc_close(el->mbc_hd);
         el->mbc_hd = NULL;
     }
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
     return ESP_GMF_ERR_OK;
 }
 
@@ -386,14 +395,16 @@ esp_gmf_err_t esp_gmf_mbc_set_para(esp_gmf_element_handle_t handle, uint8_t idx,
     esp_ae_mbc_config_t *cfg = (esp_ae_mbc_config_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     ESP_GMF_CHECK(TAG, idx < ESP_AE_MBC_BAND_IDX_MAX, {return ESP_GMF_ERR_INVALID_ARG;}, "Invalid MBC band index");
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (mbc->mbc_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_mbc_set_para(mbc->mbc_hd, idx, para);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "MBC set para error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_mbc_set_para(mbc->mbc_hd, idx, para);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __mbc_set_para_exit;}, "MBC set para error %d", ae_ret);
     }
     cfg->mbc_para[idx] = *para;
-    return ESP_GMF_ERR_OK;
+__mbc_set_para_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_mbc_get_para(esp_gmf_element_handle_t handle, uint8_t idx, esp_ae_mbc_para_t *para)
@@ -404,14 +415,18 @@ esp_gmf_err_t esp_gmf_mbc_get_para(esp_gmf_element_handle_t handle, uint8_t idx,
     esp_ae_mbc_config_t *cfg = (esp_ae_mbc_config_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     ESP_GMF_CHECK(TAG, idx < ESP_AE_MBC_BAND_IDX_MAX, {return ESP_GMF_ERR_INVALID_ARG;}, "Invalid MBC band index");
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (mbc->mbc_hd) {
-        esp_ae_err_t ret = esp_ae_mbc_get_para(mbc->mbc_hd, idx, para);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "MBC get para error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_mbc_get_para(mbc->mbc_hd, idx, para);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __mbc_get_para_exit;}, "MBC get para error %d", ae_ret);
         cfg->mbc_para[idx] = *para;
     } else {
         *para = cfg->mbc_para[idx];
     }
-    return ESP_GMF_ERR_OK;
+__mbc_get_para_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_mbc_set_fc(esp_gmf_element_handle_t handle, uint8_t fc_idx, uint32_t fc)
@@ -421,14 +436,16 @@ esp_gmf_err_t esp_gmf_mbc_set_fc(esp_gmf_element_handle_t handle, uint8_t fc_idx
     esp_ae_mbc_config_t *cfg = (esp_ae_mbc_config_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     ESP_GMF_CHECK(TAG, fc_idx < ESP_AE_MBC_FC_IDX_MAX, {return ESP_GMF_ERR_INVALID_ARG;}, "Invalid MBC fc index");
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (mbc->mbc_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_mbc_set_fc(mbc->mbc_hd, fc_idx, fc);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "MBC set fc error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_mbc_set_fc(mbc->mbc_hd, fc_idx, fc);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __mbc_set_fc_exit;}, "MBC set fc error %d", ae_ret);
     }
     cfg->fc[fc_idx] = fc;
-    return ESP_GMF_ERR_OK;
+__mbc_set_fc_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_mbc_get_fc(esp_gmf_element_handle_t handle, uint8_t fc_idx, uint32_t *fc)
@@ -439,14 +456,18 @@ esp_gmf_err_t esp_gmf_mbc_get_fc(esp_gmf_element_handle_t handle, uint8_t fc_idx
     esp_ae_mbc_config_t *cfg = (esp_ae_mbc_config_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     ESP_GMF_CHECK(TAG, fc_idx < ESP_AE_MBC_FC_IDX_MAX, {return ESP_GMF_ERR_INVALID_ARG;}, "Invalid MBC fc index");
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (mbc->mbc_hd) {
-        esp_ae_err_t ret = esp_ae_mbc_get_fc(mbc->mbc_hd, fc_idx, fc);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "MBC get fc error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_mbc_get_fc(mbc->mbc_hd, fc_idx, fc);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __mbc_get_fc_exit;}, "MBC get fc error %d", ae_ret);
         cfg->fc[fc_idx] = *fc;
     } else {
         *fc = cfg->fc[fc_idx];
     }
-    return ESP_GMF_ERR_OK;
+__mbc_get_fc_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_mbc_set_solo(esp_gmf_element_handle_t handle, uint8_t idx, bool enable_solo)
@@ -454,14 +475,16 @@ esp_gmf_err_t esp_gmf_mbc_set_solo(esp_gmf_element_handle_t handle, uint8_t idx,
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_mbc_t *mbc = (esp_gmf_mbc_t *)handle;
     ESP_GMF_CHECK(TAG, idx < ESP_AE_MBC_BAND_IDX_MAX, {return ESP_GMF_ERR_INVALID_ARG;}, "Invalid MBC band index");
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (mbc->mbc_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_mbc_set_solo(mbc->mbc_hd, idx, enable_solo);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "MBC set solo error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_mbc_set_solo(mbc->mbc_hd, idx, enable_solo);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __mbc_set_solo_exit;}, "MBC set solo error %d", ae_ret);
     }
     mbc->solo_state[idx] = enable_solo;
-    return ESP_GMF_ERR_OK;
+__mbc_set_solo_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_mbc_get_solo(esp_gmf_element_handle_t handle, uint8_t idx, bool *enable_solo)
@@ -470,14 +493,18 @@ esp_gmf_err_t esp_gmf_mbc_get_solo(esp_gmf_element_handle_t handle, uint8_t idx,
     ESP_GMF_NULL_CHECK(TAG, enable_solo, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_mbc_t *mbc = (esp_gmf_mbc_t *)handle;
     ESP_GMF_CHECK(TAG, idx < ESP_AE_MBC_BAND_IDX_MAX, {return ESP_GMF_ERR_INVALID_ARG;}, "Invalid MBC band index");
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (mbc->mbc_hd) {
-        esp_ae_err_t ret = esp_ae_mbc_get_solo(mbc->mbc_hd, idx, enable_solo);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "MBC get solo error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_mbc_get_solo(mbc->mbc_hd, idx, enable_solo);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __mbc_get_solo_exit;}, "MBC get solo error %d", ae_ret);
         mbc->solo_state[idx] = *enable_solo;
     } else {
         *enable_solo = mbc->solo_state[idx];
     }
-    return ESP_GMF_ERR_OK;
+__mbc_get_solo_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_mbc_set_bypass(esp_gmf_element_handle_t handle, uint8_t idx, bool enable_bypass)
@@ -485,14 +512,16 @@ esp_gmf_err_t esp_gmf_mbc_set_bypass(esp_gmf_element_handle_t handle, uint8_t id
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_mbc_t *mbc = (esp_gmf_mbc_t *)handle;
     ESP_GMF_CHECK(TAG, idx < ESP_AE_MBC_BAND_IDX_MAX, {return ESP_GMF_ERR_INVALID_ARG;}, "Invalid MBC band index");
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (mbc->mbc_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_mbc_set_bypass(mbc->mbc_hd, idx, enable_bypass);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "MBC set bypass error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_mbc_set_bypass(mbc->mbc_hd, idx, enable_bypass);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __mbc_set_bypass_exit;}, "MBC set bypass error %d", ae_ret);
     }
     mbc->bypass_state[idx] = enable_bypass;
-    return ESP_GMF_ERR_OK;
+__mbc_set_bypass_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_mbc_get_bypass(esp_gmf_element_handle_t handle, uint8_t idx, bool *enable_bypass)
@@ -501,28 +530,37 @@ esp_gmf_err_t esp_gmf_mbc_get_bypass(esp_gmf_element_handle_t handle, uint8_t id
     ESP_GMF_NULL_CHECK(TAG, enable_bypass, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_mbc_t *mbc = (esp_gmf_mbc_t *)handle;
     ESP_GMF_CHECK(TAG, idx < ESP_AE_MBC_BAND_IDX_MAX, {return ESP_GMF_ERR_INVALID_ARG;}, "Invalid MBC band index");
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (mbc->mbc_hd) {
-        esp_ae_err_t ret = esp_ae_mbc_get_bypass(mbc->mbc_hd, idx, enable_bypass);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "MBC get bypass error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_mbc_get_bypass(mbc->mbc_hd, idx, enable_bypass);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __mbc_get_bypass_exit;}, "MBC get bypass error %d", ae_ret);
         mbc->bypass_state[idx] = *enable_bypass;
     } else {
         *enable_bypass = mbc->bypass_state[idx];
     }
-    return ESP_GMF_ERR_OK;
+__mbc_get_bypass_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 static esp_gmf_job_err_t esp_gmf_mbc_reset(esp_gmf_element_handle_t handle, void *para)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_mbc_t *mbc = (esp_gmf_mbc_t *)handle;
+    esp_gmf_job_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (mbc->mbc_hd) {
-        esp_ae_err_t ret = esp_ae_mbc_reset(mbc->mbc_hd);
-        if (ret != ESP_AE_ERR_OK) {
-            return ESP_GMF_ERR_FAIL;
+        esp_ae_err_t ae_ret = esp_ae_mbc_reset(mbc->mbc_hd);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __mbc_reset_exit;
         }
     }
+__mbc_reset_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
     ESP_LOGD(TAG, "MBC reset");
-    return ESP_GMF_ERR_OK;
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_mbc_init(esp_ae_mbc_config_t *config, esp_gmf_element_handle_t *handle)

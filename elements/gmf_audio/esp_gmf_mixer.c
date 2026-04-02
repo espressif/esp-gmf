@@ -107,9 +107,11 @@ static esp_gmf_job_err_t esp_gmf_mixer_open(esp_gmf_element_handle_t self, void 
     esp_gmf_mixer_t *mixer = (esp_gmf_mixer_t *)self;
     esp_ae_mixer_cfg_t *mixer_info = (esp_ae_mixer_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, mixer_info, {return ESP_GMF_JOB_ERR_FAIL;})
+    esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     mixer->bytes_per_sample = (mixer_info->bits_per_sample >> 3) * mixer_info->channel;
     esp_ae_mixer_open(mixer_info, &mixer->mixer_hd);
-    ESP_GMF_CHECK(TAG, mixer->mixer_hd, {return ESP_GMF_JOB_ERR_FAIL;}, "Failed to create mixer handle");
+    ESP_GMF_CHECK(TAG, mixer->mixer_hd, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __mixer_open_exit;}, "Failed to create mixer handle");
     for (int i = 0; i < mixer_info->src_num; i++) {
         esp_ae_mixer_set_mode(mixer->mixer_hd, i, mixer->mode[i]);
     }
@@ -118,14 +120,24 @@ static esp_gmf_job_err_t esp_gmf_mixer_open(esp_gmf_element_handle_t self, void 
     mixer->frame_time = GMF_AUDIO_CALC_PTS(mixer->process_num, mixer_info->sample_rate, mixer_info->channel, mixer_info->bits_per_sample);
     mixer->src_num = mixer_info->src_num;
     mixer->in_load = esp_gmf_oal_calloc(1, sizeof(esp_gmf_payload_t *) * mixer_info->src_num);
-    ESP_GMF_MEM_VERIFY(TAG, mixer->in_load, {return ESP_GMF_JOB_ERR_FAIL;},
-                       "in load", sizeof(esp_gmf_payload_t *) * mixer_info->src_num);
+    if (mixer->in_load == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate in load");
+        job_ret = ESP_GMF_JOB_ERR_FAIL;
+        goto __mixer_open_exit;
+    }
     mixer->in_arr = esp_gmf_oal_calloc(1, sizeof(int *) * mixer_info->src_num);
-    ESP_GMF_MEM_VERIFY(TAG, mixer->in_arr, {return ESP_GMF_JOB_ERR_FAIL;},
-                       "in buffer array", sizeof(int *) * mixer_info->src_num);
-    GMF_AUDIO_UPDATE_SND_INFO(self, mixer_info->sample_rate, mixer_info->bits_per_sample, mixer_info->channel);
-
+    if (mixer->in_arr == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate in buffer array");
+        job_ret = ESP_GMF_JOB_ERR_FAIL;
+        goto __mixer_open_exit;
+    }
     mixer->need_reopen = false;
+__mixer_open_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    if (job_ret != ESP_GMF_JOB_ERR_OK) {
+        return job_ret;
+    }
+    GMF_AUDIO_UPDATE_SND_INFO(self, mixer_info->sample_rate, mixer_info->bits_per_sample, mixer_info->channel);
     ESP_LOGD(TAG, "Open, %p", self);
     return ESP_GMF_JOB_ERR_OK;
 }
@@ -134,10 +146,12 @@ static esp_gmf_job_err_t esp_gmf_mixer_close(esp_gmf_element_handle_t self, void
 {
     esp_gmf_mixer_t *mixer = (esp_gmf_mixer_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
     if (mixer->mixer_hd != NULL) {
         esp_ae_mixer_close(mixer->mixer_hd);
         mixer->mixer_hd = NULL;
     }
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
     if (mixer->in_arr != NULL) {
         esp_gmf_oal_free(mixer->in_arr);
         mixer->in_arr = NULL;
@@ -354,14 +368,16 @@ esp_gmf_err_t esp_gmf_mixer_set_mode(esp_gmf_element_handle_t handle, uint8_t sr
         ESP_LOGE(TAG, "Source index %d overlimit %d hd:%p", src_idx, cfg->src_num, mixer);
         return ESP_GMF_ERR_INVALID_ARG;
     }
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (mixer->mixer_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_mixer_set_mode(mixer->mixer_hd, src_idx, mode);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_JOB_ERR_FAIL;, "mixerualize set error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_mixer_set_mode(mixer->mixer_hd, src_idx, mode);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_JOB_ERR_FAIL; goto __mixer_set_mode_exit;}, "mixerualize set error %d", ae_ret);
     }
     mixer->mode[src_idx] = mode;
-    return ESP_GMF_ERR_OK;
+__mixer_set_mode_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_mixer_set_audio_info(esp_gmf_element_handle_t handle, uint32_t sample_rate,
@@ -370,28 +386,34 @@ esp_gmf_err_t esp_gmf_mixer_set_audio_info(esp_gmf_element_handle_t handle, uint
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_ae_mixer_cfg_t *cfg = (esp_ae_mixer_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (cfg->sample_rate == sample_rate && cfg->bits_per_sample == bits && cfg->channel == channel) {
-        return ESP_GMF_ERR_OK;
+        goto __mixer_set_audio_info_exit;
     }
     cfg->sample_rate = sample_rate;
     cfg->bits_per_sample = bits;
     cfg->channel = channel;
     esp_gmf_mixer_t *mixer = (esp_gmf_mixer_t *)handle;
     mixer->need_reopen = true;
-    return ESP_GMF_ERR_OK;
+__mixer_set_audio_info_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_mixer_reset(esp_gmf_element_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_mixer_t *mixer = (esp_gmf_mixer_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
     if (mixer->mixer_hd) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
-        esp_ae_err_t ret = esp_ae_mixer_reset(mixer->mixer_hd);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
-        ESP_GMF_RET_ON_ERROR(TAG, ret, {return ESP_GMF_ERR_FAIL;}, "Mixer reset error %d", ret);
+        esp_ae_err_t ae_ret = esp_ae_mixer_reset(mixer->mixer_hd);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __mixer_reset_exit;}, "Mixer reset error %d", ae_ret);
     }
-    return ESP_GMF_ERR_OK;
+__mixer_reset_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_mixer_init(esp_ae_mixer_cfg_t *config, esp_gmf_element_handle_t *handle)

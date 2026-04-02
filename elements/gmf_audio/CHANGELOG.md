@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.1
+
+### Bug Fixes
+
+- Added fine-grained mutex protection for internal handle calls across `gmf_audio` elements to improve thread safety
+
 ## v0.8.0
 
 ### Features

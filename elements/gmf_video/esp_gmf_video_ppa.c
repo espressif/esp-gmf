@@ -24,7 +24,7 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "esp_idf_version.h"
-
+#include "esp_gmf_oal_mutex.h"
 #if CONFIG_IDF_TARGET_ESP32P4
 #include "driver/ppa.h"
 #include "esp_private/dma2d.h"
@@ -508,7 +508,9 @@ static void close_dma2d(gmf_video_ppa_t *vid_cvt)
 static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void *para)
 {
     gmf_video_ppa_t *vid_cvt = (gmf_video_ppa_t *)self;
-     esp_gmf_info_video_t *src_info = &vid_cvt->parent.src_info;
+    esp_gmf_job_err_t ret = ESP_GMF_JOB_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
+    esp_gmf_info_video_t *src_info = &vid_cvt->parent.src_info;
     esp_gmf_info_video_t vid_info = vid_cvt->parent.src_info;
     // Set Default info
     if (vid_cvt->dst_width == 0) {
@@ -531,21 +533,22 @@ static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void 
             ESP_LOGE(TAG, "Crop over limited w: %d + %d > %d h: %d + %d > %d",
                      vid_cvt->crop_rgn.x, vid_cvt->crop_rgn.width, src_info->width,
                      vid_cvt->crop_rgn.y, vid_cvt->crop_rgn.height, src_info->height);
-            return ESP_GMF_JOB_ERR_FAIL;
+            ret = ESP_GMF_JOB_ERR_FAIL;
+            goto __video_ppa_open_exit;
         }
     }
     vid_cvt->bypass = false;
     if (vid_cvt->dst_width == src_info->width && vid_cvt->dst_height == src_info->height && vid_cvt->dst_format == src_info->format_id) {
         vid_cvt->bypass = true;
     }
-    int ret = 0;
     if (vid_cvt->bypass == false) {
 #if CONFIG_IDF_TARGET_ESP32P4
         vid_cvt->supported = check_ppa_supported(vid_cvt) || check_2ddma_supported(vid_cvt);
         if (vid_cvt->supported == false) {
             ESP_LOGE(TAG, "Not support convert from %s to %s",
                     esp_gmf_video_get_format_string(src_info->format_id), esp_gmf_video_get_format_string(vid_cvt->dst_format));
-            return ESP_GMF_ERR_NOT_SUPPORT;
+            ret = ESP_GMF_ERR_NOT_SUPPORT;
+            goto __video_ppa_open_exit;
         }
         // TODO decide to use DMA2D or PPA
         vid_cvt->out_frame_size = get_frame_size(vid_cvt, vid_cvt->dst_format);
@@ -558,6 +561,9 @@ static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void 
         } else {
             ret = open_dma2d(vid_cvt);
         }
+        if (ret != ESP_GMF_JOB_ERR_OK) {
+            goto __video_ppa_open_exit;
+        }
         vid_info.format_id = vid_cvt->dst_format;
         vid_info.width = vid_cvt->dst_width;
         vid_info.height = vid_cvt->dst_height;
@@ -567,9 +573,12 @@ static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void 
                  vid_cvt->use_ppa);
 #else
         ESP_LOGE(TAG, "Not support video convert except esp32p4");
-        return ESP_GMF_JOB_ERR_FAIL;
+        ret = ESP_GMF_JOB_ERR_FAIL;
+        goto __video_ppa_open_exit;
 #endif
     }
+__video_ppa_open_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
     esp_gmf_element_notify_vid_info(self, &vid_info);
     return ret;
 }
@@ -816,60 +825,85 @@ _cvt_init_fail:
 esp_gmf_err_t esp_gmf_video_ppa_set_dst_format(esp_gmf_element_handle_t handle, uint32_t codec)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)handle)->lock);
     const esp_gmf_method_t *method_head = NULL;
     const esp_gmf_method_t *method = NULL;
     esp_gmf_element_get_method((esp_gmf_element_handle_t)handle, &method_head);
     esp_gmf_method_found(method_head, VMETHOD(CLR_CVT, SET_DST_FMT), &method);
-    ESP_GMF_NULL_CHECK(TAG, method_head, return ESP_GMF_ERR_NOT_SUPPORT);
+    ESP_GMF_NULL_CHECK(TAG, method_head, {ret = ESP_GMF_ERR_NOT_SUPPORT; goto __video_ppa_set_fmt_exit;});
+    ESP_GMF_NULL_CHECK(TAG, method, {ret = ESP_GMF_ERR_NOT_SUPPORT; goto __video_ppa_set_fmt_exit;});
     uint8_t buf[4] = { 0 };
     esp_gmf_args_set_value(method->args_desc, VMETHOD_ARG(CLR_CVT, SET_DST_FMT, FMT), buf, (uint8_t *)&codec, sizeof(uint32_t));
-    return esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, VMETHOD(CLR_CVT, SET_DST_FMT), buf, sizeof(buf));
+    ret = esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, VMETHOD(CLR_CVT, SET_DST_FMT), buf, sizeof(buf));
+__video_ppa_set_fmt_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_video_ppa_set_cropped_rgn(esp_gmf_element_handle_t handle, esp_gmf_video_rgn_t *rgn)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, rgn, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)handle)->lock);
     const esp_gmf_method_t *method_head = NULL;
     const esp_gmf_method_t *method = NULL;
     esp_gmf_element_get_method((esp_gmf_element_handle_t)handle, &method_head);
     esp_gmf_method_found(method_head, VMETHOD(CROP, SET_CROP_RGN), &method);
-    ESP_GMF_NULL_CHECK(TAG, method_head, return ESP_GMF_ERR_NOT_SUPPORT);
+    ESP_GMF_NULL_CHECK(TAG, method_head, {ret = ESP_GMF_ERR_NOT_SUPPORT; goto __video_ppa_set_crop_exit;});
+    ESP_GMF_NULL_CHECK(TAG, method, {ret = ESP_GMF_ERR_NOT_SUPPORT; goto __video_ppa_set_crop_exit;});
     uint8_t buf[8];
     esp_gmf_args_set_value(method->args_desc, VMETHOD_ARG(CROP, SET_CROP_RGN, X), buf, (uint8_t *)&rgn->x, sizeof(uint16_t));
     esp_gmf_args_set_value(method->args_desc, VMETHOD_ARG(CROP, SET_CROP_RGN, Y), buf, (uint8_t *)&rgn->y, sizeof(uint16_t));
     esp_gmf_args_set_value(method->args_desc, VMETHOD_ARG(CROP, SET_CROP_RGN, WIDTH), buf, (uint8_t *)&rgn->width, sizeof(uint16_t));
     esp_gmf_args_set_value(method->args_desc, VMETHOD_ARG(CROP, SET_CROP_RGN, HEIGHT), buf, (uint8_t *)&rgn->height, sizeof(uint16_t));
-    return esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, VMETHOD(CROP, SET_CROP_RGN), buf, sizeof(buf));
+    ret = esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, VMETHOD(CROP, SET_CROP_RGN), buf, sizeof(buf));
+__video_ppa_set_crop_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_video_ppa_set_rotation(esp_gmf_element_handle_t handle, uint16_t degree)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)handle)->lock);
     const esp_gmf_method_t *method_head = NULL;
     const esp_gmf_method_t *method = NULL;
     esp_gmf_element_get_method((esp_gmf_element_handle_t)handle, &method_head);
     esp_gmf_method_found(method_head, VMETHOD(ROTATOR, SET_ANGLE), &method);
-    ESP_GMF_NULL_CHECK(TAG, method_head, return ESP_GMF_ERR_NOT_SUPPORT);
+    ESP_GMF_NULL_CHECK(TAG, method_head, {ret = ESP_GMF_ERR_NOT_SUPPORT; goto __video_ppa_set_rot_exit;});
+    ESP_GMF_NULL_CHECK(TAG, method, {ret = ESP_GMF_ERR_NOT_SUPPORT; goto __video_ppa_set_rot_exit;});
     uint8_t buf[2] = { 0 };
     esp_gmf_args_set_value(method->args_desc, VMETHOD_ARG(ROTATOR, SET_ANGLE, DEGREE), buf, (uint8_t *)&degree, sizeof(uint16_t));
-    return esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, VMETHOD(ROTATOR, SET_ANGLE), buf, sizeof(buf));
+    ret = esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, VMETHOD(ROTATOR, SET_ANGLE), buf, sizeof(buf));
+__video_ppa_set_rot_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)handle)->lock);
+    return ret;
 }
 
 esp_gmf_err_t esp_gmf_video_ppa_set_dst_resolution(esp_gmf_element_handle_t handle, esp_gmf_video_resolution_t *res)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, res, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)handle)->lock);
     const esp_gmf_method_t *method_head = NULL;
     const esp_gmf_method_t *method = NULL;
     esp_gmf_element_get_method((esp_gmf_element_handle_t)handle, &method_head);
     esp_gmf_method_found(method_head, VMETHOD(SCALER, SET_DST_RES), &method);
-    ESP_GMF_NULL_CHECK(TAG, method_head, return ESP_GMF_ERR_NOT_SUPPORT);
+    ESP_GMF_NULL_CHECK(TAG, method_head, {ret = ESP_GMF_ERR_NOT_SUPPORT; goto __video_ppa_set_res_exit;});
+    ESP_GMF_NULL_CHECK(TAG, method, {ret = ESP_GMF_ERR_NOT_SUPPORT; goto __video_ppa_set_res_exit;});
     uint8_t buf[4] = { 0 };
     esp_gmf_args_set_value(method->args_desc, VMETHOD_ARG(SCALER, SET_DST_RES, WIDTH), buf,
                            (uint8_t *)&res->width, sizeof(uint16_t));
     esp_gmf_args_set_value(method->args_desc, VMETHOD_ARG(SCALER, SET_DST_RES, HEIGHT),
                            buf, (uint8_t *)&res->height, sizeof(uint16_t));
-    return esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, VMETHOD(SCALER, SET_DST_RES), buf, sizeof(buf));
+    ret = esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, VMETHOD(SCALER, SET_DST_RES), buf, sizeof(buf));
+__video_ppa_set_res_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)handle)->lock);
+    return ret;
 }
 
 /**

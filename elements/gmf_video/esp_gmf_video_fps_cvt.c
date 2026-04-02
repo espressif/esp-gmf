@@ -17,6 +17,7 @@
 #include "esp_gmf_video_element.h"
 #include "esp_gmf_info.h"
 #include "gmf_video_common.h"
+#include "esp_gmf_oal_mutex.h"
 
 static const char *TAG = "VID_FPS_CVT";
 
@@ -33,17 +34,22 @@ typedef struct {
 static esp_gmf_job_err_t gmf_vid_rate_cvt_open(esp_gmf_element_handle_t self, void *para)
 {
     gmf_vid_rate_cvt_t *rate_cvt = (gmf_vid_rate_cvt_t *)self;
+    esp_gmf_job_err_t ret = ESP_GMF_JOB_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
     esp_gmf_info_video_t *src_info = &rate_cvt->parent.src_info;
     if (rate_cvt->dst_fps == 0 || rate_cvt->dst_fps > src_info->fps) {
         ESP_LOGE(TAG, "dst fps %d > src fps %d", rate_cvt->dst_fps, src_info->fps);
-        return ESP_GMF_JOB_ERR_FAIL;
+        ret = ESP_GMF_JOB_ERR_FAIL;
+        goto __fps_cvt_open_exit;
     }
     esp_gmf_info_video_t vid_info = *src_info;
     vid_info.fps = rate_cvt->dst_fps;
-    esp_gmf_element_notify_vid_info(self, &vid_info);
     rate_cvt->frame_num = 0;
     rate_cvt->start_pts = 0;
-    return ESP_GMF_JOB_ERR_OK;
+__fps_cvt_open_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
+    esp_gmf_element_notify_vid_info(self, &vid_info);
+    return ret;
 }
 
 static bool rate_control_need_drop(gmf_vid_rate_cvt_t *rate_cvt, esp_gmf_payload_t *in_load)
@@ -196,11 +202,17 @@ _cvt_init_fail:
 esp_gmf_err_t esp_gmf_video_fps_cvt_set_fps(esp_gmf_element_handle_t handle, uint16_t fps)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)handle)->lock);
     const esp_gmf_method_t *method_head = NULL;
     const esp_gmf_method_t *method = NULL;
     esp_gmf_element_get_method((esp_gmf_element_handle_t)handle, &method_head);
     esp_gmf_method_found(method_head, VMETHOD(FPS_CVT, SET_FPS), &method);
+    ESP_GMF_NULL_CHECK(TAG, method, {ret = ESP_GMF_ERR_NOT_FOUND; goto __fps_set_fps_exit;});
     uint8_t buf[2] = { 0 };
     esp_gmf_args_set_value(method->args_desc, VMETHOD_ARG(FPS_CVT, SET_FPS, FPS), buf, (uint8_t *)&fps, sizeof(fps));
-    return esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, VMETHOD(FPS_CVT, SET_FPS), buf, sizeof(buf));
+    ret = esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, VMETHOD(FPS_CVT, SET_FPS), buf, sizeof(buf));
+__fps_set_fps_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)handle)->lock);
+    return ret;
 }
