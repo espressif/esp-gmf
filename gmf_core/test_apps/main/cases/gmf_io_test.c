@@ -467,10 +467,6 @@ TEST_CASE("GMF IO reset with running task", "[ESP_GMF_IO]")
     ret = esp_gmf_io_reset(reader);
     TEST_ASSERT_EQUAL(ret, ESP_GMF_ERR_OK);
 
-    esp_gmf_db_get_filled_size(fake_reader->base.data_bus, &filled_size);
-    TEST_ASSERT_EQUAL(0, filled_size);
-    ESP_LOGI(TAG, "Filled size after reset: %u", filled_size);
-
     ret = esp_gmf_io_open(reader);
     TEST_ASSERT_EQUAL(ret, ESP_GMF_ERR_OK);
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.8.1
+
+### Bug Fixes
+
+- Fixed `esp_gmf_io_seek` could not seek exactly to the end of the file
+- Fixed `esp_gmf_io_reload` could not reload correctly after an abort
+- Fixed reopening IO could fail when data_bus enabled
+- Improved resource cleanup logic during IO close to ensure resources are properly released after the pipeline stop
+
 ## v0.8.0
 
 ### Features
