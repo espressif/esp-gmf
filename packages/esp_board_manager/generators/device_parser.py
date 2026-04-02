@@ -9,11 +9,12 @@ Parses device configurations from YAML files
 """
 
 from .utils.logger import LoggerMixin
-from .utils.yaml_utils import load_yaml_safe
+from .utils.yaml_utils import load_yaml_safe, BoardConfigYamlError
 from .settings import BoardManagerConfig
 from .parser_loader import load_parsers
 from .peripheral_parser import PeripheralParser
 from .name_validator import validate_component_name
+from .utils.board_schema_version import warn_if_invalid_board_yaml_schema_version
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import os
@@ -119,6 +120,11 @@ class DeviceParser(LoggerMixin):
             self.logger.info("The file should contain a 'devices' section with at least one device")
             return []
 
+        if isinstance(data, dict) and data.get('version') is not None:
+            warn_if_invalid_board_yaml_schema_version(
+                self.logger, data.get('version'), f'{yaml_path} (file root)'
+            )
+
         # Process devices
         result_devices = []
         device_types = []
@@ -130,6 +136,13 @@ class DeviceParser(LoggerMixin):
                     self.logger.error(f'Device missing name! Path: {yaml_path}')
                     self.logger.info(f'Device #{i+1}: {dev}. Missing field: name. Each device must have a name field')
                     continue
+
+                if 'version' in dev:
+                    warn_if_invalid_board_yaml_schema_version(
+                        self.logger,
+                        dev.get('version'),
+                        f'{yaml_path} device #{i + 1} ({dev["name"]})',
+                    )
 
                 # Validate peripheral references
                 if 'peripherals' in dev:
@@ -204,12 +217,15 @@ class DeviceParser(LoggerMixin):
 
     def parse_devices_yaml_legacy(self, yaml_path: str, peripherals_dict: Dict[str, Any], stop_on_error: bool = True) -> List[Any]:
         """
-        Legacy method that returns a list of device objects for backward compatibility
+        Legacy method that returns a list of device objects for backward compatibility.
+
+        ``board_devices.yaml`` may be empty or ``devices: []``. Peripheral names are passed
+        through even when absent from ``peripherals_dict``; each device ``parse_*`` validates.
 
         Args:
             yaml_path: Path to the YAML file
-            peripherals_dict: Dictionary of available peripherals
-            stop_on_error: Whether to stop on critical errors (default: True)
+            peripherals_dict: Dictionary of available peripherals (may be empty)
+            stop_on_error: Reserved; peripheral binding errors are raised from device parsers.
         """
         from dataclasses import dataclass
 
@@ -223,24 +239,21 @@ class DeviceParser(LoggerMixin):
             sub_type: str = None  # Optional sub_type for devices that support it
             power_ctrl_device: str = None  # Optional power control device reference
 
-        # Load YAML with includes
-        try:
-            data = self._load_yaml_with_includes(yaml_path)
-        except Exception as e:
-            self.logger.error(f'Failed to load YAML file! Path: {yaml_path}')
-            self.logger.info(f'Error: {e}')
-            return []
-
-        if not data:
-            self.logger.error(f'Empty or invalid YAML file! Path: {yaml_path}')
-            self.logger.info('The file appears to be empty or contains no valid YAML content')
-            return []
+        # Load YAML with includes; empty merged file / missing devices / devices: [] are valid.
+        data = self._load_yaml_with_includes(yaml_path)
 
         devices = data.get('devices', [])
-        if not devices:
-            self.logger.error(f'No devices found! Path: {yaml_path}')
-            self.logger.info("The file should contain a 'devices' section with at least one device")
-            return []
+        if not isinstance(devices, list):
+            raise BoardConfigYamlError(
+                yaml_path,
+                BoardConfigYamlError.REASON_NOT_A_MAPPING,
+                f'devices must be a YAML list, got {type(devices).__name__}',
+            )
+
+        if isinstance(data, dict) and data.get('version') is not None:
+            warn_if_invalid_board_yaml_schema_version(
+                self.logger, data.get('version'), f'{yaml_path} (file root)'
+            )
 
         result_devices = []
         for i, dev in enumerate(devices):
@@ -250,6 +263,13 @@ class DeviceParser(LoggerMixin):
                     self.logger.error(f'Device missing name! Path: {yaml_path}')
                     self.logger.info(f'Device #{i+1}: {dev}. Missing field: name. Each device must have a name field')
                     continue
+
+                if 'version' in dev:
+                    warn_if_invalid_board_yaml_schema_version(
+                        self.logger,
+                        dev.get('version'),
+                        f'{yaml_path} device #{i + 1} ({name})',
+                    )
 
                 # Process peripherals
                 periph_list = []
@@ -270,13 +290,7 @@ class DeviceParser(LoggerMixin):
                                 self.logger.info(f"Device '{name}', Peripheral: {pname}. Invalid peripheral name. Peripheral names must be lowercase, start with a letter, and contain only letters, numbers, and underscores")
                                 continue
 
-                            if pname not in peripherals_dict:
-                                error_msg = f"Undefined peripheral reference! Path: {yaml_path}\nDevice '{name}', Peripheral: {pname}. Undefined peripheral: {pname}"
-                                self.logger.error(error_msg)
-                                if stop_on_error:
-                                    raise ValueError(error_msg)
-                                continue
-
+                            # Peripheral may be absent from board_peripherals.yaml; device parsers validate use.
                             p_copy = p.copy()
                             p_copy['name'] = pname
                             periph_list.append(p_copy)
@@ -285,13 +299,6 @@ class DeviceParser(LoggerMixin):
                             if not validate_component_name(p):
                                 self.logger.error(f'Invalid peripheral name! Path: {yaml_path}')
                                 self.logger.info(f"Device '{name}', Peripheral: {p}. Invalid peripheral name. Peripheral names must be lowercase, start with a letter, and contain only letters, numbers, and underscores")
-                                continue
-
-                            if p not in peripherals_dict:
-                                error_msg = f"Undefined peripheral reference! Path: {yaml_path}\nDevice '{name}', Peripheral: {p}. Undefined peripheral: {p}"
-                                self.logger.error(error_msg)
-                                if stop_on_error:
-                                    raise ValueError(error_msg)
                                 continue
 
                             periph_list.append({'name': p})
@@ -331,7 +338,15 @@ class DeviceParser(LoggerMixin):
 
 
 def load_yaml_with_includes(yaml_path: str) -> dict:
-    """Load YAML file with support for cross-file references and includes"""
+    """Load YAML file with support for cross-file references and includes.
+
+    Whitespace-only merged content or a null document is treated as ``{}`` (no devices / keys).
+    YAML syntax errors and a non-mapping root still abort with :class:`BoardConfigYamlError`.
+
+    Raises:
+        FileNotFoundError: main YAML file missing.
+        BoardConfigYamlError: syntax error or root not a dict.
+    """
     import yaml
     import os
 
@@ -357,22 +372,20 @@ def load_yaml_with_includes(yaml_path: str) -> dict:
             main_content = f.read()
             all_content += main_content
     except FileNotFoundError:
-        print(f'Error: File not found! Path: {yaml_path}')
-        print('Please check if the file exists and the path is correct')
-        raise
-    except Exception as e:
-        print(f'Error: Cannot read file! Path: {yaml_path}')
-        print(f'Error: {e}')
-        raise
+        raise FileNotFoundError(yaml_path) from None
 
-    # Now parse the combined content
+    if not all_content.strip():
+        return {}
+
     try:
-        return yaml.safe_load(all_content)
+        data = yaml.safe_load(all_content)
     except yaml.YAMLError as e:
-        print(f'Error: Invalid YAML syntax! Path: {yaml_path}')
-        print(f'Please check the YAML syntax and indentation. Error: {e}')
-        raise
+        raise BoardConfigYamlError(yaml_path, BoardConfigYamlError.REASON_YAML_SYNTAX, str(e)) from e
     except Exception as e:
-        print(f'Error: Unexpected error! Path: {yaml_path}')
-        print(f'Error: {e}')
-        raise
+        raise BoardConfigYamlError(yaml_path, BoardConfigYamlError.REASON_YAML_SYNTAX, str(e)) from e
+
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise BoardConfigYamlError(yaml_path, BoardConfigYamlError.REASON_NOT_A_MAPPING, type(data).__name__)
+    return data

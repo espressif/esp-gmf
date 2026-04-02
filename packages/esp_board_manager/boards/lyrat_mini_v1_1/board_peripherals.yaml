@@ -1,4 +1,3 @@
-version: 1.0.0
 # Peripherals Configuration
 peripherals:
   # I2C Master for audio codec communication

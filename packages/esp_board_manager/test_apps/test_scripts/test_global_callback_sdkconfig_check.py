@@ -6,6 +6,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 
 
 class _Task:
@@ -18,9 +20,20 @@ def _make_project(tmp_path: Path, with_sdkconfig: bool = True) -> Path:
     proj = tmp_path / 'proj'
     gen_dir = proj / 'components' / 'gen_bmgr_codes'
     gen_dir.mkdir(parents=True, exist_ok=True)
+    for filename in (
+        'CMakeLists.txt',
+        'idf_component.yml',
+        'gen_board_info.c',
+        'gen_board_periph_config.c',
+        'gen_board_periph_handles.c',
+        'gen_board_device_config.c',
+        'gen_board_device_handles.c',
+    ):
+        (gen_dir / filename).write_text('', encoding='utf-8')
     (gen_dir / 'board_manager.defaults').write_text(
         '\n'.join(
             [
+                'CONFIG_IDF_TARGET="esp32s3"',
                 'CONFIG_ESP_BOARD_TEST_BOARD=y',
                 'CONFIG_ESP_BOARD_NAME="test_board"',
                 'CONFIG_ESP_BOARD_PERIPH_I2C_SUPPORT=y',
@@ -32,7 +45,10 @@ def _make_project(tmp_path: Path, with_sdkconfig: bool = True) -> Path:
         encoding='utf-8',
     )
     if with_sdkconfig:
-        (proj / 'sdkconfig').write_text('CONFIG_FREERTOS_HZ=1000\n', encoding='utf-8')
+        (proj / 'sdkconfig').write_text(
+            'CONFIG_IDF_TARGET="esp32s3"\nCONFIG_FREERTOS_HZ=1000\n',
+            encoding='utf-8',
+        )
     return proj
 
 
@@ -90,7 +106,59 @@ def test_callback_warns_on_inconsistent_sdkconfig(bmgr_root, tmp_path, monkeypat
     out = capsys.readouterr().out
     assert '[Board Manager] Checking sdkconfig consistency before action execution...' in out
     assert '[Board Manager] Detected 1 sdkconfig inconsistency issue(s):' in out
-    assert 'Please run: idf.py gen-bmgr-config -b test_board' in out
+    assert 'Please run: idf.py bmgr -b test_board' in out
+    assert 'legacy: idf.py gen-bmgr-config -b test_board' in out
+
+
+def test_set_target_runs_sdkconfig_check_when_sdkconfig_present(bmgr_root, tmp_path, capsys):
+    """Like build, set-target runs warn-only sdkconfig consistency when sdkconfig exists."""
+    project_dir = _make_project(tmp_path, with_sdkconfig=True)
+    (project_dir / 'sdkconfig').write_text(
+        'CONFIG_IDF_TARGET="esp32c5"\nCONFIG_FREERTOS_HZ=1000\n',
+        encoding='utf-8',
+    )
+    callback, _ = _load_callback(bmgr_root, project_dir)
+    callback(
+        None,
+        {'project_dir': str(project_dir), 'define_cache_entry': []},
+        [_Task('set-target')],
+    )
+    out = capsys.readouterr().out
+    assert '[Board Manager] Checking sdkconfig consistency before action execution...' in out
+
+
+@pytest.mark.parametrize(
+    'task_name',
+    ['menuconfig', 'confserver', 'config-report'],
+)
+def test_configure_tasks_run_sdkconfig_check_when_sdkconfig_present(
+    bmgr_root, tmp_path, capsys, task_name
+):
+    project_dir = _make_project(tmp_path, with_sdkconfig=True)
+    (project_dir / 'sdkconfig').write_text(
+        'CONFIG_IDF_TARGET="esp32c5"\nCONFIG_FREERTOS_HZ=1000\n',
+        encoding='utf-8',
+    )
+    callback, _ = _load_callback(bmgr_root, project_dir)
+    callback(
+        None,
+        {'project_dir': str(project_dir), 'define_cache_entry': []},
+        [_Task(task_name)],
+    )
+    out = capsys.readouterr().out
+    assert '[Board Manager] Checking sdkconfig consistency before action execution...' in out
+
+
+def test_set_target_injects_when_sdkconfig_missing(bmgr_root, tmp_path, monkeypatch):
+    project_dir = _make_project(tmp_path, with_sdkconfig=False)
+    callback, _ = _load_callback(bmgr_root, project_dir)
+    monkeypatch.delenv('SDKCONFIG_DEFAULTS', raising=False)
+    callback(
+        None,
+        {'project_dir': str(project_dir), 'define_cache_entry': []},
+        [_Task('set-target')],
+    )
+    assert 'board_manager.defaults' in os.environ.get('SDKCONFIG_DEFAULTS', '')
 
 
 def test_callback_skip_switch(bmgr_root, tmp_path, monkeypatch, capsys):
@@ -113,7 +181,8 @@ def test_callback_skip_switch(bmgr_root, tmp_path, monkeypatch, capsys):
         [_Task('build')],
     )
     out = capsys.readouterr().out
-    assert 'sdkconfig consistency check skipped by ESP_BOARD_MANAGER_SKIP_SDKCONFIG_CHECK' in out
+    assert 'ESP_BOARD_MANAGER_SKIP_SDKCONFIG_CHECK' in out
+    assert 'sdkconfig consistency check skipped' in out
 
 
 def test_callback_injects_defaults_when_sdkconfig_missing(bmgr_root, tmp_path, monkeypatch):

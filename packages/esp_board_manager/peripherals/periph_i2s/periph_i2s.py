@@ -4,9 +4,10 @@
 # See LICENSE file for details.
 
 # I2S peripheral config parser
-# Supports different I2S hardware versions:
-# - SOC_I2S_HW_VERSION_1: ESP32/ESP32-S2 (uses msb_right field in slot config)
-# - SOC_I2S_HW_VERSION_2: All other chips (uses left_align, big_endian, bit_order_lsb fields in slot config)
+# Supports different I2S hardware versions (must match ESP-IDF i2s_std.h):
+# - SOC_I2S_HW_VERSION_1: legacy IP (msb_right in std slot cfg; no ext_clk_freq_hz in std clk cfg)
+# - SOC_I2S_HW_VERSION_2: newer IP (left_align, big_endian, bit_order_lsb; ext_clk_freq_hz in std clk)
+# When IDF_PATH is set, layout is taken from soc_caps.h; otherwise esp32/esp32s2 -> v1, else v2.
 VERSION = 'v1.0.0'
 
 import sys
@@ -252,18 +253,25 @@ def chip_supports_pdm_tx_second_dout_pin(chip_name) -> bool:
 
 
 def get_i2s_hw_version() -> int:
-    """Determine I2S hardware version based on chip type.
+    """Determine I2S hardware version for generated struct layout.
+
+    Prefer ``$IDF_PATH/components/soc/<chip>/.../soc_caps.h`` so output matches the
+    IDF version used to build (avoids v1/v2 mismatches on newer or transitional chips).
+
     Returns:
-        1 for SOC_I2S_HW_VERSION_1 (ESP32/ESP32-S2)
-        2 for SOC_I2S_HW_VERSION_2 (all other chips)
+        1 for SOC_I2S_HW_VERSION_1 layout, 2 for SOC_I2S_HW_VERSION_2 layout.
     """
     chip_name = get_effective_chip_name()
+    from generators.utils.idf_soc_i2s import soc_i2s_hw_layout_version_from_idf
+
+    from_idf = soc_i2s_hw_layout_version_from_idf(chip_name)
+    if from_idf is not None:
+        return from_idf
     if not chip_name:
-        # Legacy: assume newer IP (v2). Re-run gen-bmgr-config with a board selected for correct ESP32 output.
         return 2
     if chip_name in ('esp32', 'esp32s2'):
-        return 1  # SOC_I2S_HW_VERSION_1
-    return 2  # SOC_I2S_HW_VERSION_2
+        return 1
+    return 2
 
 
 def pdm_slot_supports_data_fmt() -> bool:
@@ -478,15 +486,26 @@ def parse(name: str, config: dict) -> dict:
 
         # Add mode-specific config
         if format_config['config_type'] == 'std':
-            # Clock config - handle hardware version differences
-            clk_cfg = {
-                'sample_rate_hz': int(cfg.get('sample_rate_hz', 48000)),
-                'clk_src': get_enum_value(cfg.get('clk_src'), 'I2S_CLK_SRC_DEFAULT', 'clk_src'),
-                'mclk_multiple': 'I2S_MCLK_MULTIPLE_' + str(cfg.get('mclk_multiple', 256))
-            }
-            # Add ext_clk_freq_hz only for SOC_I2S_HW_VERSION_2
+            # Clock config — i2s_std_clk_config_t: v2 adds ext_clk_freq_hz before mclk_multiple
+            sr = int(cfg.get('sample_rate_hz', 48000))
+            clk_src = get_enum_value(cfg.get('clk_src'), 'I2S_CLK_SRC_DEFAULT', 'clk_src')
+            mclk_mul = 'I2S_MCLK_MULTIPLE_' + str(cfg.get('mclk_multiple', 256))
+            bclk_div = int(cfg.get('bclk_div', 8))
             if hw_version == 2:
-                clk_cfg['ext_clk_freq_hz'] = int(cfg.get('ext_clk_freq_hz', 0))  # Only used when clk_src is EXTERNAL
+                clk_cfg = {
+                    'sample_rate_hz': sr,
+                    'clk_src': clk_src,
+                    'ext_clk_freq_hz': int(cfg.get('ext_clk_freq_hz', 0)),
+                    'mclk_multiple': mclk_mul,
+                    'bclk_div': bclk_div,
+                }
+            else:
+                clk_cfg = {
+                    'sample_rate_hz': sr,
+                    'clk_src': clk_src,
+                    'mclk_multiple': mclk_mul,
+                    'bclk_div': bclk_div,
+                }
 
             config_dict['struct_init']['i2s_cfg']['std'] = {
                 'clk_cfg': clk_cfg,

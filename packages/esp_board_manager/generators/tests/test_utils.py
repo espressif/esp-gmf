@@ -17,7 +17,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from generators.utils.file_utils import should_skip_directory, should_skip_file, find_project_root
-from generators.utils.yaml_utils import load_yaml_safe, save_yaml_safe, merge_yaml_data
+from generators.utils.yaml_utils import (
+    load_yaml_safe,
+    save_yaml_safe,
+    merge_yaml_data,
+    load_board_yaml_file,
+    load_board_yaml_strict,
+    BoardConfigYamlError,
+)
 from generators.settings import BoardManagerConfig
 
 
@@ -254,12 +261,67 @@ class TestYamlUtils(unittest.TestCase):
             yaml_file = Path(f.name)
 
         try:
-            success = save_yaml_safe(yaml_file, test_data)
+            success = save_yaml_safe(test_data, yaml_file)
             self.assertTrue(success)
 
             # Verify the file was written correctly
             loaded_data = load_yaml_safe(yaml_file)
             self.assertEqual(loaded_data, test_data)
+        finally:
+            yaml_file.unlink()
+
+    def test_load_board_yaml_file_ok(self):
+        """Board YAML file load accepts a valid mapping file."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False, encoding='utf-8') as f:
+            f.write('peripherals:\n  - name: a\n    type: gpio\n')
+            yaml_file = Path(f.name)
+        try:
+            data = load_board_yaml_file(yaml_file)
+            self.assertIsInstance(data, dict)
+            self.assertEqual(len(data['peripherals']), 1)
+        finally:
+            yaml_file.unlink()
+
+    def test_load_board_yaml_strict_alias(self):
+        """load_board_yaml_strict is an alias of load_board_yaml_file."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False, encoding='utf-8') as f:
+            f.write('k: 1\n')
+            yaml_file = Path(f.name)
+        try:
+            self.assertEqual(load_board_yaml_strict(yaml_file), load_board_yaml_file(yaml_file))
+        finally:
+            yaml_file.unlink()
+
+    def test_load_board_yaml_file_empty_file(self):
+        """Whitespace-only file yields empty mapping (allowed for board YAML)."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False, encoding='utf-8') as f:
+            f.write('   \n')
+            yaml_file = Path(f.name)
+        try:
+            data = load_board_yaml_file(yaml_file)
+            self.assertEqual(data, {})
+        finally:
+            yaml_file.unlink()
+
+    def test_load_board_yaml_file_comment_only(self):
+        """Comments-only / null document yields empty mapping."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False, encoding='utf-8') as f:
+            f.write('# only a comment\n')
+            yaml_file = Path(f.name)
+        try:
+            self.assertEqual(load_board_yaml_file(yaml_file), {})
+        finally:
+            yaml_file.unlink()
+
+    def test_load_board_yaml_file_syntax_error(self):
+        """Invalid YAML still raises syntax error (distinct from empty)."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False, encoding='utf-8') as f:
+            f.write('a: b: c\n')  # invalid mapping nesting
+            yaml_file = Path(f.name)
+        try:
+            with self.assertRaises(BoardConfigYamlError) as ctx:
+                load_board_yaml_file(yaml_file)
+            self.assertEqual(ctx.exception.reason, BoardConfigYamlError.REASON_YAML_SYNTAX)
         finally:
             yaml_file.unlink()
 

@@ -1,4 +1,3 @@
-version: 1.0.0
 # Devices Configuration for ESP VoCat Board V1.0
 devices:
   # Power Control before LCD init and SDcard init

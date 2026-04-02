@@ -6,7 +6,7 @@
 - name: audio_codec          # The name of the device, must be unique
   chip: generic_codec        # [TO_BE_CONFIRMED] Codec chip type (es8311, es7210, etc.)
   type: audio_codec          # The type of the device, must be unique
-  version: default
+  version: 1.0.0
   config:
     # NOTE:
     # A single logical dev_audio_codec instance must not enable both ADC and DAC at the same time.
@@ -77,7 +77,7 @@
 # The audio codec device will reuse the existing periph_adc handle directly,
 # instead of creating a local ADC continuous handle inside dev_audio_codec.
 # -----------------------------------------------------------------------------
-- name: audio_adc_reuse
+- name: audio_adc_mic_reuse
   chip: internal                         # Internal ADC path, no external codec chip is used
   type: audio_codec                      # Audio codec device type, must remain audio_codec
   config:
@@ -103,7 +103,7 @@
 # convert the YAML below into an audio_codec_adc_continuous_cfg_t-equivalent
 # configuration and create the ADC data interface locally.
 # -----------------------------------------------------------------------------
-- name: audio_adc_local
+- name: audio_adc_mic
   chip: internal                         # Internal ADC path, no external codec chip is used
   type: audio_codec                      # Audio codec device type, must remain audio_codec
   config:
@@ -139,38 +139,32 @@
       # - ADC_CONV_ALTER_UNIT
       conv_mode: ADC_CONV_SINGLE_UNIT_1
 
-      # [single_unit] ADC unit, optional values are ADC_UNIT_1 and ADC_UNIT_2
-      unit_id: ADC_UNIT_1
+      # ADC pattern configuration
+      patterns:
+        - unit: ADC_UNIT_1  # [TO_BE_CONFIRMED] ADC unit, optional values are ADC_UNIT_1 and ADC_UNIT_2
+          channel: 4        # [TO_BE_CONFIRMED] ADC channel used by this audio input path
+                            # Use adc_continuous_io_to_channel() / adc_continuous_channel_to_io() to map IO to channel.
+          # ADC attenuation. Different parameters determine the input range. (default: ADC_ATTEN_DB_0)
+          # Valid values:
+          # - ADC_ATTEN_DB_0
+          # - ADC_ATTEN_DB_2_5
+          # - ADC_ATTEN_DB_6
+          # - ADC_ATTEN_DB_12
+          # - ADC_ATTEN_DB_11 (deprecated on some targets)
+          atten: ADC_ATTEN_DB_0
+          # ADC raw output bit-width.
+          # Valid values:
+          # - ADC_BITWIDTH_9
+          # - ADC_BITWIDTH_10
+          # - ADC_BITWIDTH_11
+          # - ADC_BITWIDTH_12
+          # - ADC_BITWIDTH_13
+          # - ADC_BITWIDTH_DEFAULT
+          # - SOC_ADC_DIGI_MAX_BITWIDTH
+          bit_width: SOC_ADC_DIGI_MAX_BITWIDTH
 
-      # [single_unit] ADC attenuation. Different parameters determine the input range. (default: ADC_ATTEN_DB_0)
-      # Valid values:
-      # - ADC_ATTEN_DB_0
-      # - ADC_ATTEN_DB_2_5
-      # - ADC_ATTEN_DB_6
-      # - ADC_ATTEN_DB_12
-      # - ADC_ATTEN_DB_11 (deprecated on some targets)
-      atten: ADC_ATTEN_DB_0
-
-      # [single_unit] ADC raw output bit-width.
-      # Valid values:
-      # - ADC_BITWIDTH_9
-      # - ADC_BITWIDTH_10
-      # - ADC_BITWIDTH_11
-      # - ADC_BITWIDTH_12
-      # - ADC_BITWIDTH_13
-      # - ADC_BITWIDTH_DEFAULT
-      # - SOC_ADC_DIGI_MAX_BITWIDTH
-      bit_width: SOC_ADC_DIGI_MAX_BITWIDTH
-
-      # [single_unit] List of ADC channels used by this audio input path.
-      # Do not configure together with patterns[] below.
-      # Use adc_continuous_io_to_channel() / adc_continuous_channel_to_io() to map IO to channel.
-      channel_list: [4]
-
-      # pattern mode example (do not mix with channel_list):
-      # [pattern] Full pattern list (supports mixed units)
-      # patterns:
-      #   - unit: ADC_UNIT_1
-      #     channel: 4
-      #     atten: ADC_ATTEN_DB_0
-      #     bit_width: SOC_ADC_DIGI_MAX_BITWIDTH
+      # Single Unit configuration mode, simpler mode for single unit ADC path, alternative to patterns[]:
+      # unit_id: ADC_UNIT_1  # [TO_BE_CONFIRMED] ADC unit, optional values are ADC_UNIT_1 and ADC_UNIT_2
+      # channel_list: [4]  # [TO_BE_CONFIRMED] List of ADC channels used by this audio input path.
+      # atten: ADC_ATTEN_DB_0
+      # bit_width: SOC_ADC_DIGI_MAX_BITWIDTH

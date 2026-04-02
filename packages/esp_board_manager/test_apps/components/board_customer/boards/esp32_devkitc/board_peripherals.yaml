@@ -1,4 +1,3 @@
-version: 1.0.0
 # Peripherals Configuration
 peripherals:
   - name: dac_channel_0

@@ -85,11 +85,14 @@
   config:
     # ADC Configuration
     button_num: 6                                      # [TO_BE_CONFIRMED] Number of buttons in the group, must not be greater than CONFIG_ADC_BUTTON_MAX_BUTTON_PER_CHANNEL (default: 8)
-    voltage_range: [380, 820, 1110, 1650, 1980, 2410]  # [TO_BE_CONFIRMED] Voltage ranges for each button in mV
+    voltage_range: [380, 820, 1110, 1650, 1980, 2410]  # [TO_BE_CONFIRMED] Nominal voltage for each button in mV
     # This voltage_range configuration is only applicable to the Korvo2 V3 development board.
     # Please refer to the schematic of your development board to determine the correct configuration.
     button_labels: ["VOLUME_UP", "VOLUME_DOWN", "SET", "PLAY", "MUTE", "REC"]  # Labels for each button
-    max_voltage: 3000                                  # [TO_BE_CONFIRMED] Maximum voltage in mV for this ADC channel (default: 3000)
+    # Optional but recommended labels for each button in the group.
+    # When esp_board_device_callback_register(name, cb, NULL) is used, these labels are passed as callback user_data by default.
+    # If omitted, ADC multi-button callbacks still work, but the default user_data is NULL so the callback cannot distinguish buttons by label.
+    max_voltage: 3000                                  # Maximum voltage in mV for this ADC channel (default: 3000)
 
     # Button Timing Configuration
     long_press_time: 2000        # Long press time in milliseconds (default: 2000)

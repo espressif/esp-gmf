@@ -1,4 +1,3 @@
-version: 1.0.0
 # Devices Configuration for custom component board
 devices:
   - name: my_fs_fat          # The name of the device, must be unique

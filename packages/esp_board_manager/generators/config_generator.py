@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
 
 from .utils.logger import LoggerMixin
-from .utils.file_utils import find_project_root, safe_write_file
+from .utils.file_utils import normalize_project_dir, resolve_project_root_dir, safe_write_file
+from .utils.main_idf_override import collect_main_override_board_paths
 from .utils.yaml_utils import load_yaml_safe
 from .settings import BoardManagerConfig
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -28,13 +29,17 @@ from .name_validator import parse_component_name
 class ConfigGenerator(LoggerMixin):
     """Main configuration generator class for board scanning and configuration file discovery"""
 
-    def __init__(self, root_dir: Path):
+    def __init__(self, root_dir: Path, project_dir: Optional[str] = None):
         super().__init__()
         self.root_dir = root_dir
         # Use validated root_dir passed from main script
         self.boards_dir = self.root_dir / 'boards'
         # Cache project root to avoid repeated lookups
-        self._project_root: Optional[str] = None
+        self._project_root: Optional[str] = normalize_project_dir(project_dir)
+
+    def set_project_root(self, project_dir: Optional[str]) -> None:
+        """Update cached project root explicitly."""
+        self._project_root = normalize_project_dir(project_dir)
 
     def get_project_root(self) -> Optional[str]:
         """Get project root directory, with caching
@@ -46,17 +51,10 @@ class ConfigGenerator(LoggerMixin):
         if self._project_root is not None:
             return self._project_root
 
-        # Try environment variable first
-        project_root = os.environ.get('PROJECT_DIR')
+        project_root = resolve_project_root_dir(start_dir=Path(os.getcwd()))
         if project_root:
             self._project_root = project_root
             return project_root
-
-        # Search for project root
-        project_root_path = find_project_root(Path(os.getcwd()))
-        if project_root_path:
-            self._project_root = str(project_root_path)
-            return self._project_root
 
         return None
 
@@ -204,7 +202,8 @@ class ConfigGenerator(LoggerMixin):
                 component_boards = self._scan_all_directories_for_boards(
                     components_dir,
                     'component',
-                    exclude_path=default_boards_path
+                    exclude_path=default_boards_path,
+                    max_depth=3,
                 )
                 all_boards.update(component_boards)
 
@@ -241,6 +240,52 @@ class ConfigGenerator(LoggerMixin):
                 except Exception as e:
                     self.logger.debug(f'Error scanning managed_components: {e}')
 
+            # 2.2 main/idf_component.yml — local overrides for board-named dependencies only
+            try:
+                override_entries, override_missing = collect_main_override_board_paths(Path(project_root))
+            except Exception as e:
+                self.logger.debug(f'Error collecting main idf_component override board paths: {e}')
+                override_entries, override_missing = [], []
+
+            for dep_name, raw_path in override_missing:
+                self.logger.warning(
+                    f'⚠️  main idf_component: board-style dependency "{dep_name}" override path '
+                    f'is missing or not a directory: {raw_path}'
+                )
+
+            if override_entries:
+                self.logger.info('   Scanning main idf_component local overrides (board-named deps only)')
+            mgr_root = self.root_dir.resolve()
+            for dep_name, abs_p in override_entries:
+                abs_path = str(abs_p)
+                try:
+                    if abs_p.resolve() == mgr_root:
+                        self.logger.debug(
+                            f'     Skip {dep_name}: override resolves to esp_board_manager root (already scanned)'
+                        )
+                        continue
+                except OSError:
+                    pass
+                self.logger.info(f'     {dep_name} -> {abs_path}')
+                if self._is_board_directory(abs_path):
+                    board_name = os.path.basename(abs_path)
+                    if self.is_valid_board_name(board_name):
+                        all_boards[board_name] = abs_path
+                        self.logger.debug(f'Found single board (main override): {board_name}')
+                    else:
+                        self.logger.warning(
+                            f'⚠️  Skipping board with invalid name "{board_name}" (main override). '
+                            'Board names must contain only letters, numbers, and underscores.'
+                        )
+                else:
+                    main_override_boards = self._scan_all_directories_for_boards(
+                        abs_path,
+                        f'main override ({dep_name})',
+                        exclude_path=default_boards_path,
+                        max_depth=3,
+                    )
+                    all_boards.update(main_override_boards)
+
         # 3. Scan customer boards directory if provided
         if board_customer_path and board_customer_path != 'NONE':
             self.logger.info(f'Scanning customer boards: {board_customer_path}')
@@ -260,7 +305,12 @@ class ConfigGenerator(LoggerMixin):
                     # self.check_board_name_consistency(board_customer_path, board_name)
                 else:
                     # It's a directory containing multiple boards (recursive scan)
-                    customer_boards = self._scan_all_directories_for_boards(board_customer_path, 'customer')
+                    customer_boards = self._scan_all_directories_for_boards(
+                        board_customer_path,
+                        'customer',
+                        exclude_path=None,
+                        max_depth=3,
+                    )
                     all_boards.update(customer_boards)
             else:
                 self.logger.warning(f'⚠️  Warning: Customer boards path does not exist: {board_customer_path}')
@@ -275,7 +325,7 @@ class ConfigGenerator(LoggerMixin):
         dir_name: str,
         exclude_path: Optional[str] = None,
         depth: int = 0,
-        max_depth: int = 10
+        max_depth: int = 3
     ) -> Dict[str, str]:
         """
         Recursively scan all subdirectories for valid boards.
@@ -290,7 +340,7 @@ class ConfigGenerator(LoggerMixin):
             dir_name: Name for logging purposes
             exclude_path: Optional path to exclude (e.g., Default boards directory)
             depth: Current recursion depth
-            max_depth: Maximum recursion depth to prevent infinite loops
+            max_depth: Maximum recursion depth (call sites use 3; entries with depth >= max_depth are not listed)
 
         Returns:
             Dictionary of board_name -> board_path

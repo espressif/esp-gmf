@@ -6,7 +6,7 @@
 - name: lcd_touch          # The name of the device, must be unique
   chip: generic_touch      # [TO_BE_CONFIRMED] Touch chip type (e.g., cst816s, ft5x06, gt911, st1633)
   type: lcd_touch_i2c      # The type of the device, must be unique
-  version: default
+  version: 1.0.0
   dependencies:
     espressif/esp_lcd_touch_generic: "*"  # [TO_BE_CONFIRMED] Component dependency for the touch chip
   config:

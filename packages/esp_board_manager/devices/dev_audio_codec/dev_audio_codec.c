@@ -12,6 +12,7 @@
 #include "esp_adc/adc_continuous.h"
 #endif  /* SOC_ADC_SUPPORTED */
 #include "driver/i2s_types.h"
+#include "driver/i2s_common.h"
 #include "driver/gpio.h"
 #include "dev_audio_codec.h"
 #include "esp_board_periph.h"

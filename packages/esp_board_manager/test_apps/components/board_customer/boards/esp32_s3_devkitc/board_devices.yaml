@@ -1,4 +1,3 @@
-version: 1.0.0
 # Devices Configuration
 devices:
   # - name: power_control          # The name of the device, must be unique
@@ -23,12 +22,13 @@ devices:
     type: button
     sub_type: gpio
     config:
-      events:
+      events_cfg:
         press_down: true
         press_up: true
         single_click: true
         double_click: true
-        multi_click: [3, 4, 5]
+        multi_click: true
+        click_counts: [3, 4, 5]
         long_press_start: true
         long_press_start_time: [3000, 4000, 5000]
         long_press_up: true
@@ -37,7 +37,8 @@ devices:
         press_repeat: false
         press_repeat_done: false
         press_end: false
-      gpio_name: gpio_button
       active_level: 1
       long_press_time: 2000
       short_press_time: 100
+    peripherals:
+      - name: gpio_button

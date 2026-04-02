@@ -50,6 +50,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 from generators.utils.logger import setup_logger, get_logger, LoggerMixin
 
 
+# Device types listed here collapse multiple example entries into one generic option when
+# creating boards interactively. This is useful for sample-only device YAMLs such as `custom`.
+DEVICE_SINGLE_TEMPLATE_TYPES = frozenset({
+    'custom',
+})
+
+
 class EscKeyPressed(Exception):
     """Exception raised when ESC key is pressed to go back to previous step"""
     def __init__(self, step_name: str = ''):
@@ -482,11 +489,12 @@ class BoardCreator(LoggerMixin):
         self.peripheral_config_cache = {}  # Maps peripheral_type_str -> YAML block content
 
         # Initialize device list and configuration cache
-        self.device_list = []  # List of device type strings (e.g., ["button_gpio", "button_adc_multi"])
-        self.device_config_cache = {}  # Maps device_type_str -> YAML block content
+        self.device_list = []  # List of device option keys shown by `--new-board`
+        self.device_config_cache = {}  # Maps device option key -> YAML block content
+        self.device_capability_keys = {}  # Maps device option key -> capability key used for chip filtering
 
         # Initialize device peripheral dependencies cache
-        self.device_peripheral_deps = {}  # Maps device_type_str -> List[Dict] of peripheral dependencies
+        self.device_peripheral_deps = {}  # Maps device option key -> List[Dict] of peripheral dependencies
 
         # Initialize caps macro mapping cache
         self.soc_requirements_mapping = {'devices': {}, 'peripherals': {}}
@@ -522,6 +530,83 @@ class BoardCreator(LoggerMixin):
         except (ImportError, AttributeError, OSError):
             return False
 
+    def _build_device_capability_key(self, device_type: str, sub_type: str = '') -> str:
+        """Build the capability key used for chip filtering and generic option identity."""
+        return f'{device_type}_{sub_type}' if sub_type else device_type
+
+    def _split_top_level_yaml_entries(self, yaml_content: str) -> List[str]:
+        """Split YAML content into top-level list entry blocks while preserving formatting."""
+        lines = yaml_content.split('\n')
+
+        top_level_indent = None
+        for line in lines:
+            stripped = line.lstrip()
+            if stripped and not stripped.startswith('#') and stripped.startswith('-'):
+                top_level_indent = len(line) - len(stripped)
+                break
+
+        if top_level_indent is None:
+            return []
+
+        entries = []
+        current_entry = []
+        in_entry = False
+
+        for line in lines:
+            stripped = line.lstrip()
+
+            if not stripped:
+                if in_entry:
+                    current_entry.append(line)
+                continue
+
+            current_indent = len(line) - len(stripped)
+            is_top_level_item = stripped.startswith('-') and current_indent == top_level_indent
+
+            if is_top_level_item:
+                if current_entry and in_entry:
+                    entries.append('\n'.join(current_entry))
+                in_entry = True
+                current_entry = [line]
+            elif in_entry:
+                current_entry.append(line)
+
+        if current_entry and in_entry:
+            entries.append('\n'.join(current_entry))
+
+        return entries
+
+    def _make_device_option_key(self, preferred_key: str, capability_key: str, used_keys: Set[str]) -> str:
+        """Create a stable user-facing option key for one device template entry."""
+        base_key = preferred_key or capability_key
+        candidate = base_key
+        if candidate not in used_keys:
+            used_keys.add(candidate)
+            return candidate
+
+        if base_key != capability_key:
+            candidate = f'{capability_key}::{base_key}'
+            if candidate not in used_keys:
+                used_keys.add(candidate)
+                return candidate
+
+        suffix = 2
+        while True:
+            candidate = f'{base_key}__{suffix}'
+            if candidate not in used_keys:
+                used_keys.add(candidate)
+                return candidate
+            suffix += 1
+
+    def _select_single_template_device_block(self, entries: List[Dict[str, Any]], capability_key: str,
+                                             device_type: str) -> Optional[str]:
+        """Pick a representative generic block when a device type should not expand multiple examples."""
+        preferred_names = {capability_key, device_type}
+        for entry in entries:
+            if entry.get('name') in preferred_names:
+                return entry['block']
+        return None
+
     def _load_device_configurations(self) -> None:
         """Load all device configurations from YAML files and cache them"""
         if not self.devices_dir.exists():
@@ -531,10 +616,11 @@ class BoardCreator(LoggerMixin):
         # Deprecated device types to exclude
         excluded_devices = {'dev_fatfs_sdcard_spi', 'dev_fatfs_sdcard', 'dev_display_lcd_spi'}
 
-        # Use temporary sets to avoid duplicates
-        device_set = set()
+        # Use temporary sets to avoid duplicate option keys
+        option_key_set = set()
         temp_device_list = []
         temp_device_config_cache = {}
+        temp_device_capability_keys = {}
 
         for device_dir in sorted(self.devices_dir.iterdir()):
             if not device_dir.is_dir():
@@ -555,61 +641,69 @@ class BoardCreator(LoggerMixin):
             try:
                 with open(device_yaml_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    data = yaml.safe_load(content)
-                    if not data:
-                        continue
+                    grouped_entries: Dict[str, List[Dict[str, Any]]] = {}
 
-                    # Handle list format (most common)
-                    if isinstance(data, list):
-                        for entry in data:
+                    for entry_block in self._split_top_level_yaml_entries(content):
+                        try:
+                            entry_data = yaml.safe_load(entry_block)
+                        except Exception as e:
+                            self.logger.debug(f'Error parsing device YAML block in {device_yaml_path}: {e}')
+                            continue
+
+                        if not entry_data:
+                            continue
+
+                        entries = entry_data if isinstance(entry_data, list) else [entry_data]
+                        for entry in entries:
                             if not isinstance(entry, dict):
                                 continue
 
                             device_type = entry.get('type', '')
                             sub_type = entry.get('sub_type', '')
-
-                            if device_type:
-                                # Create device type string
-                                if sub_type:
-                                    device_type_str = f'{device_type}_{sub_type}'
-                                else:
-                                    device_type_str = device_type
-
-                                # Check for duplicates
-                                if device_type_str in device_set:
-                                    self.logger.debug(f'Skipping duplicate device type: {device_type_str}')
-                                    continue
-
-                                device_set.add(device_type_str)
-
-                                # Extract the YAML block for this device
-                                extracted_block = self._extract_device_block_from_yaml(content, device_type, sub_type)
-                                if extracted_block:
-                                    temp_device_list.append(device_type_str)
-                                    temp_device_config_cache[device_type_str] = extracted_block
-                                    self.logger.debug(f'Loaded device configuration: {device_type_str}')
-                    # Handle dict format (less common)
-                    elif isinstance(data, dict):
-                        device_type = data.get('type', '')
-                        sub_type = data.get('sub_type', '')
-                        if device_type:
-                            if sub_type:
-                                device_type_str = f'{device_type}_{sub_type}'
-                            else:
-                                device_type_str = device_type
-
-                            # Check for duplicates
-                            if device_type_str in device_set:
-                                self.logger.debug(f'Skipping duplicate device type: {device_type_str}')
+                            if not device_type:
                                 continue
 
-                            device_set.add(device_type_str)
+                            capability_key = self._build_device_capability_key(device_type, sub_type)
+                            grouped_entries.setdefault(capability_key, []).append({
+                                'type': device_type,
+                                'sub_type': sub_type,
+                                'name': str(entry.get('name', '')).strip(),
+                                'block': self._filter_top_level_comments(entry_block),
+                            })
 
-                            # For dict format, we need to convert it to YAML string
-                            extracted_block = yaml.dump([data], default_flow_style=False, sort_keys=False)
-                            temp_device_list.append(device_type_str)
-                            temp_device_config_cache[device_type_str] = extracted_block
-                            self.logger.debug(f'Loaded device configuration: {device_type_str}')
+                    for capability_key, entries in grouped_entries.items():
+                        device_type = entries[0]['type']
+
+                        if len(entries) == 1:
+                            option_key = self._make_device_option_key(capability_key, capability_key, option_key_set)
+                            temp_device_list.append(option_key)
+                            temp_device_config_cache[option_key] = entries[0]['block']
+                            temp_device_capability_keys[option_key] = capability_key
+                            self.logger.debug(f'Loaded device configuration: {option_key}')
+                            continue
+
+                        if device_type in DEVICE_SINGLE_TEMPLATE_TYPES:
+                            option_key = self._make_device_option_key(capability_key, capability_key, option_key_set)
+                            representative_block = self._select_single_template_device_block(
+                                entries, capability_key, device_type
+                            )
+                            temp_device_list.append(option_key)
+                            temp_device_config_cache[option_key] = representative_block
+                            temp_device_capability_keys[option_key] = capability_key
+                            self.logger.debug(
+                                f'Collapsed {len(entries)} template entries into single device option: {option_key}'
+                            )
+                            continue
+
+                        for entry in entries:
+                            preferred_key = entry['name'] or capability_key
+                            option_key = self._make_device_option_key(preferred_key, capability_key, option_key_set)
+                            temp_device_list.append(option_key)
+                            temp_device_config_cache[option_key] = entry['block']
+                            temp_device_capability_keys[option_key] = capability_key
+                            self.logger.debug(
+                                f'Loaded device template option: {option_key} (capability key: {capability_key})'
+                            )
             except Exception as e:
                 self.logger.debug(f'Error reading device YAML {device_yaml_path}: {e}')
                 continue
@@ -618,6 +712,7 @@ class BoardCreator(LoggerMixin):
         temp_device_list.sort()
         self.device_list = temp_device_list
         self.device_config_cache = temp_device_config_cache
+        self.device_capability_keys = temp_device_capability_keys
         self.logger.info(f'Loaded {len(self.device_list)} unique device configurations')
 
     def _parse_device_type(self, device_type_str: str) -> Tuple[str, Optional[str]]:
@@ -796,14 +891,14 @@ class BoardCreator(LoggerMixin):
         return '\n'.join(filtered_lines)
 
     def get_available_devices(self) -> List[str]:
-        """Get list of available device types from cached device list"""
+        """Get list of available device option keys from cached device list."""
         return self.device_list.copy()
 
     def get_device_config(self, device_type_str: str) -> Optional[str]:
-        """Get cached YAML configuration for a device type
+        """Get cached YAML configuration for a device option key
 
         Args:
-            device_type_str: Device type string (e.g., "button_gpio", "button_adc_multi")
+            device_type_str: Device option key (e.g., "button_gpio", "audio_adc_local")
 
         Returns:
             YAML block content or None if not found
@@ -972,21 +1067,31 @@ class BoardCreator(LoggerMixin):
 
         filtered_items = []
         for item in items:
+            lookup_item = item
+            if item_type == 'devices':
+                lookup_item = self.device_capability_keys.get(item, item)
+
             # Check if item has macro requirements in esp_board_soc_requirements.yml
-            if item in mapping:
-                required_macros = mapping[item]
+            if lookup_item in mapping:
+                required_macros = mapping[lookup_item]
                 # Check if all required macros are defined in soc_caps.h
                 supported = all(macro in soc_macros for macro in required_macros)
                 if supported:
                     filtered_items.append(item)
-                    self.logger.debug(f'Item {item} is supported by chip {chip}')
+                    self.logger.debug(f'Item {item} (capability key: {lookup_item}) is supported by chip {chip}')
                 else:
                     missing_macros = [macro for macro in required_macros if macro not in soc_macros]
-                    self.logger.debug(f'Item {item} is NOT supported by chip {chip}. Missing macros: {missing_macros}')
+                    self.logger.debug(
+                        f'Item {item} (capability key: {lookup_item}) is NOT supported by chip {chip}. '
+                        f'Missing macros: {missing_macros}'
+                    )
             else:
                 # If item is not in esp_board_soc_requirements.yml, assume it's supported by all chips
                 filtered_items.append(item)
-                self.logger.debug(f'Item {item} has no macro requirements, assuming supported by chip {chip}')
+                self.logger.debug(
+                    f'Item {item} (capability key: {lookup_item}) has no macro requirements, '
+                    f'assuming supported by chip {chip}'
+                )
 
         self.logger.info(f'Filtered {len(items)} {item_type} to {len(filtered_items)} supported by chip {chip}')
         return filtered_items
@@ -1721,9 +1826,8 @@ class BoardCreator(LoggerMixin):
         board_info = {
             'board': board_name,
             'chip': chip,
-            'version': '1.0.0',
             'description': f'{board_name} board configuration',
-            'manufacturer': manufacturer
+            'manufacturer': manufacturer,
         }
 
         with open(board_info_path, 'w', encoding='utf-8') as f:
@@ -2220,11 +2324,7 @@ class BoardCreator(LoggerMixin):
         """
         periph_yaml_path = board_dir / 'board_peripherals.yaml'
 
-        # Start with version
-        output_lines = [
-            f'version: 1.0.0',
-            'peripherals:'
-        ]
+        output_lines = ['peripherals:']
 
         for i, periph_type_str in enumerate(selected_peripherals):
             # Get cached configuration for this peripheral type
@@ -2270,20 +2370,13 @@ class BoardCreator(LoggerMixin):
         """
         dev_yaml_path = board_dir / 'board_devices.yaml'
 
-        # Start with version
-        output_lines = [
-            f'version: 1.0.0',
-            'devices:'
-        ]
+        output_lines = ['devices:']
 
         for i, device_type_str in enumerate(selected_devices):
             # Get cached configuration for this device type
             config_content = self.get_device_config(device_type_str)
 
             if config_content:
-                # Parse the device type to get base_type and sub_type
-                base_type, sub_type = self._parse_device_type(device_type_str)
-
                 # Add empty line before each device except the first one
                 if i > 0:
                     output_lines.append('')
@@ -2297,7 +2390,8 @@ class BoardCreator(LoggerMixin):
             else:
                 # No cached configuration, create minimal entry
                 self.logger.warning(f'No cached configuration found for device {device_type_str}, creating minimal entry')
-                base_type, sub_type = self._parse_device_type(device_type_str)
+                capability_key = self.device_capability_keys.get(device_type_str, device_type_str)
+                base_type, sub_type = self._parse_device_type(capability_key)
 
                 # Add empty line before each device except the first one
                 if i > 0:
@@ -2307,7 +2401,6 @@ class BoardCreator(LoggerMixin):
                 output_lines.append(f'    type: {base_type}')
                 if sub_type:
                     output_lines.append(f'    sub_type: {sub_type}')
-                output_lines.append(f'    version: default')
                 output_lines.append(f'    config: {{}}')
 
         # Write the output file

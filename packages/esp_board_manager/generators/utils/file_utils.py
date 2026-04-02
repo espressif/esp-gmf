@@ -10,7 +10,7 @@ File utilities for ESP Board Manager
 import os
 import re
 from pathlib import Path
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Union
 from functools import lru_cache
 
 
@@ -112,6 +112,68 @@ def find_project_root(start_dir: Path, max_depth: int = 5) -> Optional[Path]:
         depth += 1
 
     return None
+
+
+def normalize_project_dir(project_dir: Optional[Union[str, Path]]) -> Optional[str]:
+    """Normalize a project directory to an absolute path string."""
+    if project_dir is None:
+        return None
+    value = str(project_dir).strip()
+    if not value:
+        return None
+    return str(Path(value).expanduser().resolve())
+
+
+def ensure_existing_directory(
+    path_value: Optional[Union[str, Path]],
+    description: str = 'Directory',
+) -> Optional[str]:
+    """Normalize and validate that a path exists and is a directory."""
+    normalized = normalize_project_dir(path_value)
+    if normalized is None:
+        return None
+    if not os.path.exists(normalized):
+        raise ValueError(f'{description} does not exist: {normalized}')
+    if not os.path.isdir(normalized):
+        raise ValueError(f'{description} is not a directory: {normalized}')
+    return normalized
+
+
+def resolve_path_from_base(path_value: Optional[str], base_dir: Optional[Union[str, Path]]) -> Optional[str]:
+    """Resolve a user-provided path against a base directory when it is relative."""
+    if path_value is None:
+        return None
+    raw = path_value.strip()
+    if not raw:
+        return None
+
+    candidate = Path(raw).expanduser()
+    if candidate.is_absolute():
+        return str(candidate.resolve())
+
+    normalized_base = normalize_project_dir(base_dir)
+    if normalized_base is None:
+        return str(candidate.resolve())
+
+    return str((Path(normalized_base) / candidate).resolve())
+
+
+def resolve_project_root_dir(
+    explicit_project_dir: Optional[Union[str, Path]] = None,
+    start_dir: Optional[Union[str, Path]] = None,
+) -> Optional[str]:
+    """Resolve the effective project root from explicit input, env, or cwd search."""
+    normalized_explicit = normalize_project_dir(explicit_project_dir)
+    if normalized_explicit is not None:
+        return normalized_explicit
+
+    env_project_dir = normalize_project_dir(os.environ.get('PROJECT_DIR'))
+    if env_project_dir is not None:
+        return env_project_dir
+
+    search_start = Path(start_dir).expanduser() if start_dir is not None else Path.cwd()
+    project_root = find_project_root(search_start)
+    return str(project_root) if project_root is not None else None
 
 
 def backup_file(file_path: Path) -> Path:

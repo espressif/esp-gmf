@@ -39,7 +39,7 @@ The `lcd_touch_i2c` device type uses the following configuration structure:
 - name: lcd_touch
   chip: cst816s
   type: lcd_touch_i2c
-  version: default
+  version: 1.0.0   # optional; omit = current generation
   dependencies:
     espressif/esp_lcd_touch_cst816s: "*"
   config:

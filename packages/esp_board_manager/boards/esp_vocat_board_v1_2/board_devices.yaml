@@ -1,4 +1,3 @@
-version: 1.0.0
 # Devices Configuration for ESP VoCat Board V1.0
 devices:
   # Audio Power Control after Audio init

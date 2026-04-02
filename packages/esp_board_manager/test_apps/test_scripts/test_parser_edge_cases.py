@@ -158,7 +158,93 @@ def test_camera_dvp_requires_i2c_peripheral(bmgr_root):
         )
 
 
-def test_camera_csi_requires_ldo_when_dont_init_ldo_false(bmgr_root):
+def test_button_gpio_rejects_legacy_gpio_name_and_events_keys(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_button import dev_button as mod
+
+    with pytest.raises(ValueError, match="Legacy 'events' is no longer supported"):
+        mod.parse(
+            'gpio_button_0',
+            {
+                'type': 'button',
+                'sub_type': 'gpio',
+                'config': {
+                    'events': {
+                        'press_down': True,
+                    },
+                    'gpio_name': 'gpio_button',
+                },
+                'peripherals': [
+                    {'name': 'gpio_button'},
+                ],
+            },
+        )
+
+
+def test_button_gpio_requires_top_level_gpio_peripheral(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_button import dev_button as mod
+
+    with pytest.raises(ValueError, match="Legacy 'config.gpio_name' is no longer supported"):
+        mod.parse(
+            'gpio_button_0',
+            {
+                'type': 'button',
+                'sub_type': 'gpio',
+                'config': {
+                    'events_cfg': {
+                        'press_down': True,
+                    },
+                    'gpio_name': 'gpio_button',
+                },
+            },
+        )
+
+
+def test_button_adc_requires_top_level_adc_peripheral(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_button import dev_button as mod
+
+    with pytest.raises(ValueError, match="Legacy 'config.adc_name' is no longer supported"):
+        mod.parse(
+            'adc_button_0',
+            {
+                'type': 'button',
+                'sub_type': 'adc_single',
+                'config': {
+                    'adc_name': 'adc_oneshot',
+                    'button_index': 0,
+                    'min_voltage': 0,
+                    'max_voltage': 500,
+                },
+            },
+        )
+
+
+def test_camera_csi_allows_missing_ldo_when_dont_init_ldo_false(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_camera import dev_camera as mod
+
+    result = mod.parse(
+        'camera',
+        {
+            'type': 'camera',
+            'sub_type': 'csi',
+            'config': {
+                'csi_config': {
+                    'dont_init_ldo': False,
+                },
+            },
+            'peripherals': [
+                {'name': 'i2c_master', 'frequency': 400000},
+            ],
+        },
+    )
+
+    assert result['struct_init']['sub_cfg']['csi']['ldo_name'] == ''
+
+
+def test_camera_csi_requires_ldo_when_dont_init_ldo_true(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from devices.dev_camera import dev_camera as mod
 
@@ -170,7 +256,7 @@ def test_camera_csi_requires_ldo_when_dont_init_ldo_false(bmgr_root):
                 'sub_type': 'csi',
                 'config': {
                     'csi_config': {
-                        'dont_init_ldo': False,
+                        'dont_init_ldo': True,
                     },
                 },
                 'peripherals': [
@@ -178,29 +264,6 @@ def test_camera_csi_requires_ldo_when_dont_init_ldo_false(bmgr_root):
                 ],
             },
         )
-
-
-def test_camera_csi_allows_missing_ldo_when_dont_init_ldo_true(bmgr_root):
-    sys.path.insert(0, str(bmgr_root))
-    from devices.dev_camera import dev_camera as mod
-
-    result = mod.parse(
-        'camera',
-        {
-            'type': 'camera',
-            'sub_type': 'csi',
-            'config': {
-                'csi_config': {
-                    'dont_init_ldo': True,
-                },
-            },
-            'peripherals': [
-                {'name': 'i2c_master', 'frequency': 400000},
-            ],
-        },
-    )
-
-    assert result['struct_init']['sub_cfg']['csi']['ldo_name'] == ''
 
 
 def test_display_lcd_dsi_finds_dsi_and_ldo_without_order_dependency(bmgr_root):
@@ -276,9 +339,34 @@ def test_generate_kconfig_allows_external_only_boards(bmgr_root, tmp_path):
     assert result is True
 
     kconfig_content = (generator.gen_codes_dir / 'Kconfig.in').read_text(encoding='utf-8')
-    assert 'menu "Board Selection"' in kconfig_content
-    assert 'config ESP_BOARD_NAME' in kconfig_content
+    assert 'menu "Board Selection"' not in kconfig_content
+    assert 'config ESP_BOARD_NAME' not in kconfig_content
     assert 'config ESP_BOARD_CUSTOM_BOARD' not in kconfig_content
+    assert 'menu "Peripheral Support"' in kconfig_content
+
+
+@pytest.mark.parametrize('selected_board', ['esp_box_3', 'custom_board'])
+def test_generate_selected_board_kconfig_projbuild_defines_current_board_only(bmgr_root, tmp_path, selected_board):
+    sys.path.insert(0, str(bmgr_root))
+    from gen_bmgr_config_codes import BoardConfigGenerator
+
+    generator = BoardConfigGenerator(bmgr_root)
+
+    result = generator.generate_selected_board_kconfig_projbuild(
+        selected_board=selected_board,
+        project_root=str(tmp_path),
+    )
+
+    assert result is True
+
+    projbuild_path = tmp_path / 'components' / 'gen_bmgr_codes' / 'Kconfig.projbuild'
+    projbuild_content = projbuild_path.read_text(encoding='utf-8')
+    board_macro = f'ESP_BOARD_{selected_board.upper().replace("-", "_")}'
+
+    assert f'config {board_macro}' in projbuild_content
+    assert '    bool\n    default y' in projbuild_content
+    assert 'config ESP_BOARD_NAME' in projbuild_content
+    assert f'    default "{selected_board}"' in projbuild_content
 
 
 def test_lyrat_mini_peripheral_generation_keeps_structs_aligned(bmgr_root, tmp_path):

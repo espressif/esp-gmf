@@ -41,12 +41,12 @@ esp_board_manager/
 │   ├── gen_board_periph_handles.c
 │   ├── gen_board_device_config.c
 │   ├── gen_board_device_handles.c
-│   ├── gen_board_device_custom.h    # Optional, only when custom device structs are generated
 │   ├── gen_board_info.c
 │   ├── board_manager.defaults
 │   ├── CMakeLists.txt
 │   ├── idf_component.yml
-│   └── Kconfig.projbuild            # Optional, only when external/custom boards are present
+│   ├── gen_board_device_custom.h    # Optional, only when custom device structs are generated
+│   └── Kconfig.projbuild            # Generated for the currently selected board
 ```
 
 ## Quick Start
@@ -124,26 +124,26 @@ set IDF_EXTRA_ACTIONS_PATH=/PATH/TO/YOUR_PATH/esp_board_manager
 
 ### 2. Scan Boards and Select Board
 
-ESP Board Manager supports IDF action extension, providing seamless integration with the ESP-IDF build system. This feature allows you to directly use the `idf.py gen-bmgr-config` command without manually running Python scripts.
+ESP Board Manager supports IDF action extension, providing seamless integration with the ESP-IDF build system. Use **`idf.py bmgr`** with the same options as before; **`idf.py gen-bmgr-config`** remains available as a legacy alias. Do not combine `bmgr` and `gen-bmgr-config` in one `idf.py` line, and always pass the board with **`-b`** (board names are not accepted as a bare extra argument after the action).
 
 You can use the `-l` option to verify that the component path configuration is correct and print available boards:
 
 ```bash
 # List all available boards
-idf.py gen-bmgr-config -l
+idf.py bmgr -l
 ```
 
 Then select your target board by name or index:
 
 ```bash
-idf.py gen-bmgr-config -b YOUR_TARGET_BOARD
+idf.py bmgr -b YOUR_TARGET_BOARD
 ```
 
 For example:
 
 ```bash
-idf.py gen-bmgr-config -b esp_vocat_board_v1_2  # Board name
-idf.py gen-bmgr-config -b 3                     # Board index
+idf.py bmgr -b esp_vocat_board_v1_2  # Board name
+idf.py bmgr -b 3                     # Board index
 ```
 
 If you need to switch to another board, you can execute the following commands:
@@ -151,13 +151,15 @@ If you need to switch to another board, you can execute the following commands:
 > **Note:** For users who downloaded the component from the repository, please first ensure that the component has not been deleted. If the `YOUR_PROJECT_ROOT_PATH/managed_components/espressif__esp_board_manager` directory no longer exists, please first execute `idf.py set-target` or `idf.py menuconfig` to re-download the component.
 
 ```bash
-idf.py gen-bmgr-config -x  # Clear current board configuration
-idf.py gen-bmgr-config -b OTHER_BOARD
+idf.py bmgr -x  # Clear current board configuration
+idf.py bmgr -b OTHER_BOARD
 ```
 
-> **Note:** For more usage, see [Command Line Options](#command-line-options)
+> **Note:** For more usage, see [Command Line Options](#command-line-options). Equivalent legacy commands use `idf.py gen-bmgr-config` instead of `idf.py bmgr`
 
 At this point, the board configuration files will be automatically generated to the path `YOUR_PROJECT_ROOT_PATH/components/gen_bmgr_codes`. After this step, the files required for initializing the development board have been generated, and you can proceed to test in your application.
+
+> **Note:** Ensure `components/gen_bmgr_codes` is up to date (run `idf.py bmgr -b <board>` or `idf.py gen-bmgr-config -b <board>`) before building; CMake or compile may fail otherwise. If you already have `sdkconfig` and it disagrees with `board_manager.defaults`, the extension prints **warnings** only—you can skip them with `ESP_BOARD_MANAGER_SKIP_SDKCONFIG_CHECK=1`.
 
 **Generated Configuration Files:**
 
@@ -165,12 +167,12 @@ At this point, the board configuration files will be automatically generated to 
 - `components/gen_bmgr_codes/gen_board_periph_handles.c` - Peripheral handles
 - `components/gen_bmgr_codes/gen_board_device_config.c` - Device configuration
 - `components/gen_bmgr_codes/gen_board_device_handles.c` - Device handles
-- `components/gen_bmgr_codes/gen_board_device_custom.h` - Optional custom device struct definitions
 - `components/gen_bmgr_codes/gen_board_info.c` - Board metadata
 - `components/gen_bmgr_codes/board_manager.defaults` - Board-specific sdkconfig defaults and selected board symbols
 - `components/gen_bmgr_codes/CMakeLists.txt` - Build system configuration
 - `components/gen_bmgr_codes/idf_component.yml` - Component dependencies
-- `components/gen_bmgr_codes/Kconfig.projbuild` - Optional external-board Kconfig definitions
+- `components/gen_bmgr_codes/gen_board_device_custom.h` - Optional custom device struct definitions
+- `components/gen_bmgr_codes/Kconfig.projbuild` - Current-board Kconfig definitions
 
 > **Note:** If you encounter problems, refer to the [Troubleshooting](#troubleshooting) section.
 
@@ -178,7 +180,7 @@ At this point, the board configuration files will be automatically generated to 
 
 It is recommended that users read the above steps to understand the usage of `esp_board_manager`. For users wish to simplify the usage process, prebuild script for building the project with `esp_board_manager` is provided in [`tools`](tools).
 
-The first time you compile the project, copy script from [`tools`](tools) to `YOUR_PROJECT_ROOT_PATH`. Execute script，the script will first check if the ESP-IDF version is supported. Then, it will list the available chips, and user select the target chip by entering the corresponding number. After downloading the required components, the script will scan the component paths and automatically set the IDF_EXTRA_ACTIONS_PATH environment variable to include the ESP Board Manager directory. The script will then list all available boards, user select the target board by entering thr corresponding number or board name.
+The first time you compile the project, copy the scripts from [`tools`](tools) to `YOUR_PROJECT_ROOT_PATH`. After you run a script, it first checks whether the ESP-IDF version is supported, then lists the selectable chips so you can pick a target by number. After dependencies are downloaded, it scans component paths and sets `IDF_EXTRA_ACTIONS_PATH` so it includes the ESP Board Manager directory, then lists all boards so you can pick one by number or name.
 
 On Linux / macOS, run following command:
 ```bash/zsh
@@ -302,7 +304,7 @@ Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicate
 **Board Selection and Discovery:**
 ```bash
 -b, --board BOARD                # Board name or index
--c, --customer-path PATH         # Customer board directory (单个或多个)
+-c, --customer-path PATH         # Custom boards directory (supports one or more paths)
 -l, --list-boards                # List all available boards and exit
 -n, --new-board ARG              # Create a new board (idf.py action only)
 [BOARD]                          # Specify board name or index directly (standalone script only)
@@ -328,33 +330,33 @@ Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicate
 
 ### Method 1: Using as IDF Action Extension (Recommended)
 
-Use the command `idf.py gen-bmgr-config` followed by command line options, for example:
+Use **`idf.py bmgr`** (preferred) or **`idf.py gen-bmgr-config`** (legacy) with the same options, for example:
 
 ```bash
 # List available boards
-idf.py gen-bmgr-config -l
+idf.py bmgr -l
 
 # Specify board (name or index)
-idf.py gen-bmgr-config -b esp_vocat_board_v1_0
-idf.py gen-bmgr-config -b 1
+idf.py bmgr -b esp_vocat_board_v1_0
+idf.py bmgr -b 1
 
 # Use custom board
-idf.py gen-bmgr-config -b my_board -c /path/to/custom/boards
+idf.py bmgr -b my_board -c /path/to/custom/boards
 
 # Create a new board in the default components directory
-idf.py gen-bmgr-config -n my_new_board
+idf.py bmgr -n my_new_board
 
 # Create a new board in a specified path
-idf.py gen-bmgr-config -n path/to/boards/my_new_board
+idf.py bmgr -n path/to/boards/my_new_board
 
 # Generate Kconfig files only
-idf.py gen-bmgr-config -b esp_vocat_board_v1_0 --kconfig-only
+idf.py bmgr -b esp_vocat_board_v1_0 --kconfig-only
 
 # Skip sdkconfig consistency check when reusing current sdkconfig
-idf.py gen-bmgr-config -b esp_vocat_board_v1_0 --skip-sdkconfig-check
+idf.py bmgr -b esp_vocat_board_v1_0 --skip-sdkconfig-check
 
 # Clean generated files
-idf.py gen-bmgr-config -x
+idf.py bmgr -x
 ```
 
 ### Method 2: Using Standalone Script
@@ -407,11 +409,11 @@ ESP Board Manager uses `gen_bmgr_config_codes.py` for code generation, which han
 3. **Configuration File Discovery**: Locate `board_peripherals.yaml` and `board_devices.yaml` for the selected board
 4. **Peripheral Processing**: Parse peripheral configurations and generate peripheral C structures/handles
 5. **Device Processing**: Parse device configurations, resolve dependencies, and generate device C structures/handles
-6. **Kconfig Generation**: Generate `components/gen_bmgr_codes/Kconfig.projbuild` when external boards are involved
+6. **Kconfig Generation**: Generate static capability symbols in `gen_codes/Kconfig.in` and current-board symbols in `components/gen_bmgr_codes/Kconfig.projbuild`
 7. **Board SDKconfig Handling**: When needed, validate preserved sdkconfig consistency and generate `components/gen_bmgr_codes/board_manager.defaults`
 8. **Generated Component Setup**: Write board information and generated component files under `components/gen_bmgr_codes/`
 
-**⚠️ Important**: When switching boards, the script automatically backs up and deletes the existing `sdkconfig` file during environment cleanup. This prevents residual configurations from the old board (for example, a different chip's `CONFIG_IDF_TARGET` or stale board symbols) from affecting the new board. The backup file is `sdkconfig.bmgr_board.old`.
+**⚠️ Important**: When switching boards, the script automatically backs up and deletes the existing `sdkconfig` file during environment cleanup. This prevents residual configurations from the old board (for example, a different chip's `CONFIG_IDF_TARGET` or stale board symbols) from affecting the new board. The backup file is `components/gen_bmgr_codes/sdkconfig.bmgr_board.old`.
 
 ## Custom Board
 
@@ -426,7 +428,7 @@ Future development plans for ESP Board Manager (prioritized from high to low):
 - **Documentation Enhancement**: Add more documentation, such as establishing clear rules to facilitate customer addition of peripherals and devices
 - **Enhanced Validation**: Comprehensive YAML format checking, schema validation, input validation, and enhanced rule validation
 - **Enhanced Data Structure**: Enhance data or YAML structure to improve performance
-- **Version Management**: Support different version codes and parsers for devices and peripherals
+- **Version management**: Board-level and device/peripheral-level version management
 - **Plugin Architecture**: Extensible plugin system for custom device and peripheral support
 
 ## Troubleshooting
@@ -436,27 +438,32 @@ Future development plans for ESP Board Manager (prioritized from high to low):
 1. Check the `esp_board_manager` dependency in your project's main `idf_component.yml`
 2. After adding the `esp_board_manager` dependency, run `idf.py menuconfig` or `idf.py build`. These commands will download `esp_board_manager` to `YOUR_PROJECT_ROOT_PATH/managed_components/`
 
-### `idf.py gen-bmgr-config` Command Not Found
+### `idf.py bmgr` or `idf.py gen-bmgr-config` Command Not Found
 
-If `idf.py gen-bmgr-config` is not recognized:
+If neither action is recognized:
 
-1. Check that `IDF_EXTRA_ACTIONS_PATH` is set correctly
+1. Check that `IDF_EXTRA_ACTIONS_PATH` is set correctly (ESP-IDF before v6.0)
 2. Restart your terminal session
+3. On ESP-IDF v6.0+, ensure `esp_board_manager` is visible to the project so `idf_ext.py` is discovered
 
-### `undefined reference to 'g_esp_board_devices'` or `g_esp_board_peripherals`
+### CMake or compile errors (missing `gen_bmgr_codes`)
 
-1. Make sure there is no `idf_build_set_property(MINIMAL_BUILD ON)` in your project, because MINIMAL_BUILD only performs a minimal build by including only the "common" components required by all other components.
-2. Ensure your project has a `components/gen_bmgr_codes` folder with generated files. These files are generated by running `idf.py gen-bmgr-config -b YOUR_BOARD`.
+If the build fails because generated files under `components/gen_bmgr_codes` are missing or stale, run `idf.py bmgr -b YOUR_BOARD` (or `idf.py gen-bmgr-config -b YOUR_BOARD`). The IDF extension does not print a dedicated warning before CMake for missing files.
+
+### `undefined reference to 'g_esp_board_*'` (e.g. `g_esp_board_devices`, `g_esp_board_device_handles`, `g_esp_board_peripherals`)
+
+1. Ensure `idf.py bmgr -b YOUR_BOARD` (legacy: `idf.py gen-bmgr-config -b YOUR_BOARD`) **completed successfully** and `components/gen_bmgr_codes` is **complete**: besides generated `.c` / `.h` files, you must have **`CMakeLists.txt`** (and the usual `idf_component.yml`, `board_manager.defaults`, etc.). If the folder only has partial `.c` files or no `CMakeLists.txt`, ESP-IDF will not register it as a component, those sources are not compiled, and you still get the same undefined references at link time.
+2. Check whether the project is using a minimal or trimmed build configuration, such as `idf_build_set_property(MINIMAL_BUILD ON)` or `set(COMPONENTS main)`. The former keeps only the minimal set of common components, while the latter builds only the explicitly listed components and their dependencies. In either case, if `gen_bmgr_codes` is not explicitly included in the build scope, the generated board code may be excluded from compilation, which can lead to undefined references such as `g_esp_board_*` at link time.
 
 ### Switching Development Boards
 
 **Important:** When switching boards, the script automatically:
 
-1. Backs up `sdkconfig` to `sdkconfig.bmgr_board.old` and removes the original to prevent residual configurations from the old board (e.g., different chip's CONFIG_IDF_TARGET, different board's device settings) from affecting the new board
+1. Backs up `sdkconfig` to `components/gen_bmgr_codes/sdkconfig.bmgr_board.old` and removes the original to prevent residual configurations from the old board (e.g., different chip's CONFIG_IDF_TARGET, different board's device settings) from affecting the new board
 2. Generates `board_manager.defaults` file with board-specific configurations from `boards/<board_name>/sdkconfig.defaults.board`
 3. The configurations will be automatically applied via `SDKCONFIG_DEFAULTS` environment variable during build/menuconfig/reconfigure
 
-Always use `idf.py gen-bmgr-config -b` (or `python gen_bmgr_config_codes.py`) for board switching. Using `idf.py menuconfig` may cause dependency errors.
+Always use `idf.py bmgr -b` or `idf.py gen-bmgr-config -b` (or `python gen_bmgr_config_codes.py`) for board switching. Using `idf.py menuconfig` may cause dependency errors.
 
 ### Dependency Issues with Some Components
 
@@ -474,11 +481,7 @@ Failed to resolve component 'esp_board_manager' required by component
   'gen_bmgr_codes': unknown name.
 ```
 
-This may be caused by leftover generated files from the board manager that were not cleared. **You can clean the generated files using `idf.py gen-bmgr-config -x` (or `python gen_bmgr_config_codes.py -x`)** to delete generated `.c/.h` files, reset generated `CMakeLists.txt` / `idf_component.yml`, and remove `board_manager.defaults`.
-
-### Undefined reference to 'g_esp_board_devices'
-
-The `undefined reference to 'g_esp_board_device_handles'` or `undefined reference to 'g_esp_board_devices'` error occurs because `idf.py gen-bmgr-config -b YOUR_BOARD` was not run.
+This may be caused by leftover generated files from the board manager that were not cleared. **You can clean the generated files using `idf.py bmgr -x` or `idf.py gen-bmgr-config -x` (or `python gen_bmgr_config_codes.py -x`)** to delete generated `.c/.h` files, reset generated `CMakeLists.txt` / `idf_component.yml`, and remove `board_manager.defaults`.
 
 ## License
 

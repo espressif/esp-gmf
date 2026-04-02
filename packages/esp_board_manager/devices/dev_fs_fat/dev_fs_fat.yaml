@@ -4,7 +4,7 @@
 # Example FS_FAT device with SDMMC sub device configuration
 - name: fs_fat          # The name of the device, must be unique
   type: fs_fat          # The type of the device, must be unique
-  version: default
+  version: 1.0.0
   sub_type: sdmmc       # The sub type of the device, must be 'sdmmc' or 'spi'
   config:
     # Mount point configuration
@@ -55,7 +55,7 @@
 # Example FS_FAT with SPI sub device configuration
 - name: fs_fat          # The name of the device, must be unique
   type: fs_fat          # The type of the device, must be unique
-  version: default
+  version: 1.0.0
   sub_type: spi         # The sub type of the device, must be 'sdmmc' or 'spi'
   config:
     # Mount point configuration

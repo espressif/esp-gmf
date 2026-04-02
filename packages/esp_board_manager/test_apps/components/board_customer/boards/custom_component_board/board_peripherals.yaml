@@ -1,4 +1,3 @@
-version: 1.0.0
 # Peripherals Configuration for custom component board
 peripherals:
   # LCD SPI Configuration

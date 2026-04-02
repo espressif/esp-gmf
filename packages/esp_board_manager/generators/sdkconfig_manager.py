@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 from .utils.logger import LoggerMixin
-from .utils.file_utils import find_project_root, safe_write_file
+from .utils.file_utils import normalize_project_dir, resolve_project_root_dir, safe_write_file
 from .utils.yaml_utils import load_yaml_safe
 import yaml
 
@@ -21,14 +21,19 @@ import yaml
 class SDKConfigManager(LoggerMixin):
     """Manages SDKConfig file operations, auto-enabling features, and board-specific configurations"""
 
-    def __init__(self, root_dir: Path):
+    def __init__(self, root_dir: Path, project_dir: Optional[str] = None):
         super().__init__()
         self.root_dir = root_dir
+        self.project_path = normalize_project_dir(project_dir)
 
         # All paths are now relative to root_dir
         self.gen_codes_dir = self.root_dir / 'gen_codes'
         self.devices_dir = self.root_dir / 'devices'
         self.peripherals_dir = self.root_dir / 'peripherals'
+
+    def set_project_path(self, project_dir: Optional[str]) -> None:
+        """Update cached project path explicitly."""
+        self.project_path = normalize_project_dir(project_dir)
 
     def update_sdkconfig_from_board_types(self, device_types: Set[str], peripheral_types: Set[str],
                                          sdkconfig_path: Optional[str] = None,
@@ -156,23 +161,18 @@ class SDKConfigManager(LoggerMixin):
 
     def _find_sdkconfig_path(self) -> Optional[str]:
         """Find sdkconfig file path"""
+        if self.project_path:
+            return str(Path(self.project_path) / 'sdkconfig')
+
         # Prefer current working directory as the project directory
         current_dir = Path.cwd()
         cwd_sdkconfig = current_dir / 'sdkconfig'
         if cwd_sdkconfig.exists():
             return str(cwd_sdkconfig)
 
-        # Use PROJECT_DIR if provided
-        project_root = os.environ.get('PROJECT_DIR')
-        if not project_root:
-            # Start searching from current working directory, not script directory
-            project_root_path = find_project_root(Path.cwd())
-            project_root = str(project_root_path) if project_root_path is not None else None
-
+        project_root = resolve_project_root_dir(start_dir=current_dir)
         if project_root:
-            sdkconfig_path = os.path.join(project_root, 'sdkconfig')
-            if os.path.exists(sdkconfig_path):
-                return sdkconfig_path
+            return os.path.join(project_root, 'sdkconfig')
 
         # Fallback: try parent directories of CWD
         for parent in [current_dir] + list(current_dir.parents):
@@ -462,6 +462,8 @@ class SDKConfigManager(LoggerMixin):
         if board_name is None:
             board_name = Path(board_path).name
 
+        resolved_project_path = self._get_project_path(project_path)
+
         # Build board-specific section content
         marker_start = '# --- Board-specific configuration (managed by esp_board_manager) ---'
         marker_end = '# --- End of board-specific configuration ---'
@@ -532,8 +534,7 @@ class SDKConfigManager(LoggerMixin):
             self.logger.debug(f'   Generated {config_count} board defaults to {output_file}')
 
             # Delete build cache files to ensure fresh configuration
-            project_path = self._get_project_path(project_path)
-            self._delete_sdkconfig_json(Path(project_path) / 'sdkconfig')
+            self._delete_sdkconfig_json(Path(resolved_project_path) / 'sdkconfig')
 
             return result
         except Exception as e:
@@ -568,12 +569,13 @@ class SDKConfigManager(LoggerMixin):
     def _get_project_path(self, project_path: Optional[str]) -> str:
         """Get project path, auto-detect if None."""
         if project_path is None:
-            return self.project_path if hasattr(self, 'project_path') else os.getcwd()
-        return project_path
+            return self.project_path if self.project_path else os.getcwd()
+        normalized = normalize_project_dir(project_path)
+        return normalized if normalized else project_path
 
     def _parse_bmgr_symbols_from_kconfig(self, project_path: Optional[str] = None) -> Set[str]:
         """Parse board manager symbols from generated gen_codes/Kconfig.in
-        and external boards' Kconfig.projbuild.
+        and the project-side Kconfig.projbuild for the selected board.
 
         Args:
             project_path: Project directory for locating Kconfig.projbuild.
@@ -598,7 +600,7 @@ class SDKConfigManager(LoggerMixin):
         else:
             self.logger.warning(f'   Kconfig.in not found at {kconfig_in_path}, skip checking internal symbols')
 
-        # 2. Parse external board symbols from Kconfig.projbuild
+        # 2. Parse selected-board symbols from Kconfig.projbuild
         resolved_project_path = project_path or self._get_project_path(None)
         projbuild_path = Path(resolved_project_path) / 'components' / 'gen_bmgr_codes' / 'Kconfig.projbuild'
         if projbuild_path.exists():
@@ -648,7 +650,7 @@ class SDKConfigManager(LoggerMixin):
 
         Args:
             selected_board: Currently selected board name
-            project_path: Project directory for locating Kconfig.projbuild.
+            project_path: Project directory for locating the selected-board Kconfig.projbuild.
                           Falls back to _get_project_path(None) if not provided.
         """
         board_upper = selected_board.upper().replace('-', '_')
@@ -666,7 +668,7 @@ class SDKConfigManager(LoggerMixin):
             except Exception as e:
                 self.logger.warning(f'⚠️  Failed to detect board selection symbol in Kconfig.in: {e}')
 
-        # Check external board configs (Kconfig.projbuild)
+        # Check project-side selected-board configs (Kconfig.projbuild)
         resolved_project_path = project_path or self._get_project_path(None)
         projbuild_path = Path(resolved_project_path) / 'components' / 'gen_bmgr_codes' / 'Kconfig.projbuild'
         if projbuild_path.exists():
@@ -700,6 +702,97 @@ class SDKConfigManager(LoggerMixin):
             if m:
                 states[m.group(1)] = False
         return states
+
+    @staticmethod
+    def normalize_idf_target_string(value: Optional[str]) -> Optional[str]:
+        """Normalize chip id for comparison (e.g. esp32-c5 / ESP32C5 -> esp32c5)."""
+        if not value or not str(value).strip():
+            return None
+        s = str(value).strip().strip('"').strip("'").lower().replace('-', '')
+        return s if s else None
+
+    @staticmethod
+    def parse_idf_target_from_text(content: str) -> Optional[str]:
+        """Return CONFIG_IDF_TARGET value from sdkconfig/defaults text, or None if absent."""
+        line_re_dq = re.compile(r'^CONFIG_IDF_TARGET="([^"]*)"\s*$')
+        line_re_sq = re.compile(r"^CONFIG_IDF_TARGET='([^']*)'\s*$")
+        line_re_bare = re.compile(r'^CONFIG_IDF_TARGET=([^#\s]+)\s*$')
+        for line in content.splitlines():
+            s = line.strip()
+            if not s or s.startswith('#'):
+                continue
+            m = line_re_dq.match(s) or line_re_sq.match(s)
+            if m:
+                return m.group(1)
+            m = line_re_bare.match(s)
+            if m:
+                return m.group(1).strip('"').strip("'")
+        return None
+
+    @classmethod
+    def parse_idf_target_from_sdkconfig_file(cls, sdkconfig_path: str) -> Optional[str]:
+        if not sdkconfig_path or not os.path.isfile(sdkconfig_path):
+            return None
+        try:
+            with open(sdkconfig_path, 'r', encoding='utf-8') as f:
+                return cls.parse_idf_target_from_text(f.read())
+        except OSError:
+            return None
+
+    @classmethod
+    def parse_idf_target_from_defaults_file(cls, defaults_path: str) -> Optional[str]:
+        return cls.parse_idf_target_from_sdkconfig_file(defaults_path)
+
+    def idf_target_mismatch_defaults_vs_sdkconfig(
+        self,
+        *,
+        defaults_path: str,
+        sdkconfig_path: str,
+    ) -> Optional[str]:
+        """If board_manager.defaults and sdkconfig both set CONFIG_IDF_TARGET and they differ, return message."""
+        exp_raw = self.parse_idf_target_from_defaults_file(defaults_path)
+        act_raw = self.parse_idf_target_from_sdkconfig_file(sdkconfig_path)
+        if exp_raw is None or act_raw is None:
+            return None
+        exp_n = self.normalize_idf_target_string(exp_raw)
+        act_n = self.normalize_idf_target_string(act_raw)
+        if not exp_n or not act_n:
+            return None
+        if exp_n == act_n:
+            return None
+        return (
+            f'CONFIG_IDF_TARGET mismatch: sdkconfig has "{act_raw}" (normalized: {act_n}), '
+            f'board_manager.defaults expects "{exp_raw}" ({exp_n}). '
+            f'Run: idf.py set-target {exp_n} or regenerate with idf.py bmgr -b <board>.'
+        )
+
+    def check_idf_target_matches_sdkconfig(
+        self,
+        *,
+        sdkconfig_path: str,
+        expected_chip: str,
+    ) -> Tuple[bool, Optional[str]]:
+        """Return (True, None) if check passes or cannot run; (False, error) on mismatch.
+
+        Skips when sdkconfig has no CONFIG_IDF_TARGET or expected_chip is empty.
+        """
+        exp = self.normalize_idf_target_string(expected_chip)
+        if not exp:
+            return True, None
+        raw = self.parse_idf_target_from_sdkconfig_file(sdkconfig_path)
+        if raw is None:
+            return True, None
+        act = self.normalize_idf_target_string(raw)
+        if not act:
+            return True, None
+        if act != exp:
+            return False, (
+                f'CONFIG_IDF_TARGET mismatch: sdkconfig has "{raw}" ({act}), '
+                f'board chip expects "{expected_chip}" ({exp}). '
+                f'Run: idf.py set-target {exp} or choose a matching board with idf.py bmgr -b <board>.'
+            )
+        self.logger.info('   CONFIG_IDF_TARGET matches board chip')
+        return True, None
 
     def ensure_sdkconfig_consistency(
         self,

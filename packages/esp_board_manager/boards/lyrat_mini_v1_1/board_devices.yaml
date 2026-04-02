@@ -1,4 +1,3 @@
-version: 1.0.0
 # Devices Configuration
 devices:
   # Power Control for SD Card
@@ -55,8 +54,8 @@ devices:
     power_ctrl_device: sdcard_power_ctrl
     version: default
     config:
+      mount_point: "/sdcard"
       sub_config:
-        mount_point: "/sdcard"
         vfs_config:
           max_files: 5
         bus_width: 1                 # 1-line mode only
