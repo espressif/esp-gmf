@@ -177,6 +177,8 @@ esp_gmf_err_t esp_gmf_afe_manager_create(esp_gmf_afe_manager_cfg_t *cfg, esp_gmf
     ESP_GOTO_ON_FALSE(afe_manager, ESP_GMF_ERR_MEMORY_LACK, __err, TAG, "AFE manager create no memory");
     afe_manager->read_cb = cfg->read_cb;
     afe_manager->read_ctx = cfg->read_ctx;
+    afe_manager->result_proc = cfg->result_cb;
+    afe_manager->result_ctx = cfg->result_ctx;
     afe_config_print(cfg->afe_cfg);
     afe_manager->esp_afe = esp_afe_handle_from_config(cfg->afe_cfg);
     afe_manager->afe_data = afe_manager->esp_afe->create_from_config(cfg->afe_cfg);

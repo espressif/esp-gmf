@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- Fixed an issue where the AFE manager did not set the result callback during initialization
+
 ## v0.8.3
 
 ### Features

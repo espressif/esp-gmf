@@ -320,6 +320,12 @@ TEST_CASE("Test gmf aec process", "[ESP_GMF_AEC]")
     esp_gmf_oal_free(output_signal);
 }
 
+static void afe_manager_dummy_result_cb(afe_fetch_result_t *result, void *user_ctx)
+{
+    (void)result;
+    (void)user_ctx;
+}
+
 TEST_CASE("Test gmf afe manager create", "[ESP_GMF_AFE_MANAGER]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
@@ -336,11 +342,94 @@ TEST_CASE("Test gmf afe manager create", "[ESP_GMF_AFE_MANAGER]")
     afe_cfg->vad_min_speech_ms = 64;
     afe_cfg->vad_min_noise_ms = 100;
     afe_cfg->wakenet_init = true;
-    afe_cfg->aec_init = true;
+    afe_cfg->aec_init = AEC_ENABLE;
     esp_gmf_afe_manager_cfg_t afe_manager_cfg = DEFAULT_GMF_AFE_MANAGER_CFG(afe_cfg, NULL, NULL, NULL, NULL);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_afe_manager_create(&afe_manager_cfg, &afe_manager));
-    afe_config_free(afe_cfg);
+
+    esp_gmf_afe_manager_features_t feat = {0};
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_afe_manager_get_features(afe_manager, &feat));
+    TEST_ASSERT_TRUE(feat.wakeup);
+    TEST_ASSERT_TRUE(feat.vad);
+    TEST_ASSERT_EQUAL(AEC_ENABLE, feat.aec);
+
+    size_t chunk_size = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_afe_manager_get_chunk_size(afe_manager, &chunk_size));
+    TEST_ASSERT_TRUE(chunk_size > 0);
+
+    uint8_t ch_num = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_afe_manager_get_input_ch_num(afe_manager, &ch_num));
+    TEST_ASSERT_EQUAL(2, ch_num);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_afe_manager_suspend(afe_manager, true));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_afe_manager_suspend(afe_manager, false));
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_afe_manager_set_result_cb(afe_manager, afe_manager_dummy_result_cb, NULL));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_afe_manager_set_result_cb(afe_manager, NULL, NULL));
+
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_afe_manager_destroy(afe_manager));
+    afe_manager = NULL;
+    afe_config_free(afe_cfg);
+    afe_cfg = NULL;
+    esp_srmodel_deinit(models);
+}
+
+static volatile uint32_t s_afe_manager_cfg_result_hits;
+
+static void afe_manager_config_result_cb(afe_fetch_result_t *result, void *user_ctx)
+{
+    (void)result;
+    (void)user_ctx;
+    s_afe_manager_cfg_result_hits++;
+}
+
+static int32_t afe_manager_config_read_cb(void *buffer, int buf_sz, void *user_ctx, uint32_t ticks)
+{
+    (void)user_ctx;
+    (void)ticks;
+    memset(buffer, 0, (size_t)buf_sz);
+    return buf_sz;
+}
+
+TEST_CASE("Test gmf afe manager result_cb from create config", "[ESP_GMF_AFE_MANAGER]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+
+    printf("\r\n///////////////////// AFE MANAGER CONFIG RESULT_CB /////////////////////\r\n");
+
+    s_afe_manager_cfg_result_hits = 0;
+
+    esp_gmf_afe_manager_handle_t afe_manager = NULL;
+    srmodel_list_t *models = esp_srmodel_init("model");
+    const char *ch_format = "MR";
+    afe_config_t *afe_cfg = afe_config_init(ch_format, models, AFE_TYPE_SR, AFE_MODE_HIGH_PERF);
+    afe_cfg->vad_init = true;
+    afe_cfg->vad_mode = VAD_MODE_2;
+    afe_cfg->vad_min_speech_ms = 64;
+    afe_cfg->vad_min_noise_ms = 100;
+    afe_cfg->wakenet_init = true;
+    afe_cfg->aec_init = AEC_ENABLE;
+    esp_gmf_afe_manager_cfg_t afe_manager_cfg = DEFAULT_GMF_AFE_MANAGER_CFG(
+        afe_cfg,
+        afe_manager_config_read_cb,
+        NULL,
+        afe_manager_config_result_cb,
+        NULL);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_afe_manager_create(&afe_manager_cfg, &afe_manager));
+
+    const int wait_step_ms = 50;
+    const int wait_total_ms = 5000;
+    int waited_ms = 0;
+    while (s_afe_manager_cfg_result_hits == 0 && waited_ms < wait_total_ms) {
+        vTaskDelay(pdMS_TO_TICKS(wait_step_ms));
+        waited_ms += wait_step_ms;
+    }
+    TEST_ASSERT_GREATER_THAN(0U, s_afe_manager_cfg_result_hits);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_afe_manager_destroy(afe_manager));
+    afe_manager = NULL;
+    afe_config_free(afe_cfg);
+    afe_cfg = NULL;
     esp_srmodel_deinit(models);
 }
 
@@ -490,8 +579,8 @@ TEST_CASE("Test gmf afe process", "[ESP_GMF_AFE]")
     } while (true);
     esp_gmf_element_process_close(gmf_afe, NULL);
     esp_gmf_obj_delete(gmf_afe);
-    afe_config_free(afe_cfg);
     esp_gmf_afe_manager_destroy(afe_manager);
+    afe_config_free(afe_cfg);
     esp_srmodel_deinit(models);
     TEST_ASSERT_EQUAL(EVENTS_2_WAIT, xEventGroupWaitBits(g_event_group, EVENTS_2_WAIT, pdTRUE, pdTRUE, pdMS_TO_TICKS(50 * 1000)));
     vEventGroupDelete(g_event_group);

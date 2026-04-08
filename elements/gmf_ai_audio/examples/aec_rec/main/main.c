@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -25,50 +26,10 @@
 #include "esp_gmf_audio_dec.h"
 #include "esp_gmf_app_setup_peripheral.h"
 #include "esp_gmf_app_cli.h"
+#include "esp_board_manager.h"
+#include "esp_board_manager_defs.h"
+#include "dev_audio_codec.h"
 #include "gmf_loader_setup_defaults.h"
-
-#define BOARD_LYRAT_MINI  (0)
-#define BOARD_KORVO_2     (1)
-#define BOARD_S31_KORVO_1 (2)
-
-#if defined CONFIG_IDF_TARGET_ESP32S3
-#define AUDIO_BOARD (BOARD_KORVO_2)
-#elif defined CONFIG_IDF_TARGET_ESP32
-#define AUDIO_BOARD (BOARD_LYRAT_MINI)
-#elif defined CONFIG_IDF_TARGET_ESP32S31
-#define AUDIO_BOARD (BOARD_S31_KORVO_1)
-#endif  /* defined CONFIG_IDF_TARGET_ESP32S3 */
-
-#if AUDIO_BOARD == BOARD_KORVO_2
-#define ADC_I2S_CH          (2)
-#define ADC_I2S_BITS        (32)
-#define DAC_I2S_CH          (2)
-#define DAC_I2S_BITS        (32)
-#define INPUT_CH_NUM        (4)
-#define INPUT_CH_BITS       (16) /* For board `ESP32-S3-Korvo-2`, the es7210 is configured as 32-bit,
-                                   2-channel mode to accommodate 16-bit, 4-channel data */
-#elif AUDIO_BOARD == BOARD_LYRAT_MINI
-#define ADC_I2S_CH          (2)
-#define ADC_I2S_BITS        (16)
-#define DAC_I2S_CH          (1)
-#define DAC_I2S_BITS        (16)
-#define INPUT_CH_NUM        (ADC_I2S_CH)
-#define INPUT_CH_BITS       (ADC_I2S_BITS)
-#elif AUDIO_BOARD == BOARD_S31_KORVO_1
-#define ADC_I2S_CH          (4)
-#define ADC_I2S_BITS        (16)
-#define DAC_I2S_CH          (2)
-#define DAC_I2S_BITS        (16)
-#define INPUT_CH_NUM        (ADC_I2S_CH)
-#define INPUT_CH_BITS       (ADC_I2S_BITS)
-#else
-#define ADC_I2S_CH          (2)
-#define ADC_I2S_BITS        (16)
-#define DAC_I2S_CH          (2)
-#define DAC_I2S_BITS        (16)
-#define INPUT_CH_NUM        (ADC_I2S_CH)
-#define INPUT_CH_BITS       (ADC_I2S_BITS)
-#endif  /* AUDIO_BOARD == BOARD_KORVO_2 */
 
 #ifdef CONFIG_GMF_AI_AUDIO_AEC_INPUT_SAMPLING_RATE_16K
 #define AEC_INPUT_SAMPLE_RATE (16000)
@@ -85,6 +46,31 @@ static const char *TAG = "AEC_EL_2_FILE";
 static uint8_t *pcm_buffer   = NULL;
 const uint32_t  buf_size     = 600 * 1024;
 static size_t   pcm_received = 0;
+
+static uint8_t get_board_codec_channel_count(const dev_audio_codec_config_t *codec_cfg, bool is_adc)
+{
+    uint8_t channels = is_adc ? codec_cfg->adc_max_channel : codec_cfg->dac_max_channel;
+    if (channels == 0) {
+        channels = __builtin_popcount(is_adc ? codec_cfg->adc_channel_mask : codec_cfg->dac_channel_mask);
+    }
+    return channels;
+}
+
+static void get_board_audio_info(esp_gmf_app_codec_info_t *codec_info, uint8_t *input_ch_num, uint8_t *input_ch_bits)
+{
+    dev_audio_codec_config_t *adc_cfg = NULL;
+    dev_audio_codec_config_t *dac_cfg = NULL;
+    ESP_ERROR_CHECK(esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&adc_cfg));
+    ESP_ERROR_CHECK(esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&dac_cfg));
+
+    codec_info->play_info.sample_rate = 48000;
+    codec_info->play_info.channel = get_board_codec_channel_count(dac_cfg, false);
+    codec_info->record_info.sample_rate = codec_info->play_info.sample_rate;
+    codec_info->record_info.channel = get_board_codec_channel_count(adc_cfg, true);
+
+    *input_ch_num = codec_info->record_info.channel;
+    *input_ch_bits = codec_info->record_info.bits_per_sample;
+}
 
 static esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
@@ -123,12 +109,9 @@ void app_main(void)
     pcm_received = 0;
 
     esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
-    codec_info.play_info.sample_rate = 48000;
-    codec_info.play_info.channel = DAC_I2S_CH;
-    codec_info.play_info.bits_per_sample = DAC_I2S_BITS;
-    codec_info.record_info.sample_rate = codec_info.play_info.sample_rate;
-    codec_info.record_info.channel = ADC_I2S_CH;
-    codec_info.record_info.bits_per_sample = ADC_I2S_BITS;
+    uint8_t input_ch_num = 0;
+    uint8_t input_ch_bits = 0;
+    get_board_audio_info(&codec_info, &input_ch_num, &input_ch_bits);
     esp_gmf_app_setup_codec_dev(&codec_info);
 
     void *sdcard_handle = NULL;
@@ -161,9 +144,9 @@ void app_main(void)
 
     esp_gmf_info_sound_t info = {
         .format_id = ESP_AUDIO_SIMPLE_DEC_TYPE_MP3,
-        .sample_rates = 48000,
-        .channels = INPUT_CH_NUM,
-        .bits = INPUT_CH_BITS,
+        .sample_rates = codec_info.record_info.sample_rate,
+        .channels = input_ch_num,
+        .bits = input_ch_bits,
     };
     esp_gmf_pipeline_report_info(read_pipe, ESP_GMF_INFO_SOUND, &info, sizeof(info));
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
@@ -191,10 +174,10 @@ void app_main(void)
 
     esp_gmf_obj_handle_t bit_cvt = NULL;
     esp_gmf_pipeline_get_el_by_name(play_pipe, "aud_bit_cvt", &bit_cvt);
-    esp_gmf_bit_cvt_set_dest_bits(bit_cvt, DAC_I2S_BITS);
+    esp_gmf_bit_cvt_set_dest_bits(bit_cvt, codec_info.play_info.bits_per_sample);
     esp_gmf_obj_handle_t ch_cvt = NULL;
     esp_gmf_pipeline_get_el_by_name(play_pipe, "aud_ch_cvt", &ch_cvt);
-    esp_gmf_ch_cvt_set_dest_channel(ch_cvt, DAC_I2S_CH);
+    esp_gmf_ch_cvt_set_dest_channel(ch_cvt, codec_info.play_info.channel);
     esp_gmf_obj_handle_t dec_el = NULL;
     esp_gmf_pipeline_get_el_by_name(play_pipe, "aud_dec", &dec_el);
     esp_gmf_audio_dec_reconfig_by_sound_info(dec_el, &info);
