@@ -48,7 +48,9 @@ static esp_gmf_job_err_t gmf_vid_rate_cvt_open(esp_gmf_element_handle_t self, vo
     rate_cvt->start_pts = 0;
 __fps_cvt_open_exit:
     esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
-    esp_gmf_element_notify_vid_info(self, &vid_info);
+    if (ret == ESP_GMF_JOB_ERR_OK) {
+        esp_gmf_element_notify_vid_info(self, &vid_info);
+    }
     return ret;
 }
 

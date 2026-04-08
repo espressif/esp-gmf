@@ -119,8 +119,10 @@ static esp_gmf_job_err_t vdec_el_open(esp_gmf_video_element_handle_t self, void 
     ESP_GMF_ELEMENT_GET(vdec)->out_attr.port.buf_addr_aligned = out_frame_align;
 __vdec_open_exit:
     esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
-    // Report video info to next element directly
-    esp_gmf_element_notify_vid_info(self, src_info);
+    if (vdec->vdec_bypass) {
+        // Report video info to next element directly
+        esp_gmf_element_notify_vid_info(self, src_info);
+    }
     return ret;
 }
 

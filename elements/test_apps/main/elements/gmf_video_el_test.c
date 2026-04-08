@@ -26,27 +26,28 @@
 #include "esp_gmf_video_rotate.h"
 #include "esp_gmf_video_color_convert.h"
 #include "gmf_loader_setup_defaults.h"
+#include "esp_fourcc.h"
 
-#define TAG "VID_EL_TEST"
+#define TAG  "VID_EL_TEST"
 
 #if CONFIG_IDF_TARGET_ESP32P4
-#define TEST_PATTERN_WIDTH  (1280)
-#define TEST_PATTERN_HEIGHT (720)
+#define TEST_PATTERN_WIDTH   (1280)
+#define TEST_PATTERN_HEIGHT  (720)
 #else
-#define TEST_PATTERN_WIDTH  (320)
-#define TEST_PATTERN_HEIGHT (240)
-#endif
-#define TEST_PATTERN_VERTICAL  (false)
-#define TEST_PATTERN_BAR_COUNT (8)
-#define TEST_VIDEO_ALIGNMENT   (128)
+#define TEST_PATTERN_WIDTH   (320)
+#define TEST_PATTERN_HEIGHT  (240)
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+#define TEST_PATTERN_VERTICAL   (false)
+#define TEST_PATTERN_BAR_COUNT  (8)
+#define TEST_VIDEO_ALIGNMENT    (128)
 
-#define SAFE_FREE(ptr) if (ptr) {  \
-    esp_gmf_oal_free(ptr);         \
-    ptr = NULL;                    \
+#define SAFE_FREE(ptr)  if (ptr) {  \
+    esp_gmf_oal_free(ptr);          \
+    ptr = NULL;                     \
 }
 
-#define ELEMS(arr)              (sizeof(arr) / sizeof((arr)[0]))
-#define VIDEO_EL_MAX_STACK_SIZE (40 * 1024)
+#define ELEMS(arr)               (sizeof(arr) / sizeof((arr)[0]))
+#define VIDEO_EL_MAX_STACK_SIZE  (40 * 1024)
 
 typedef struct {
     // Src information
@@ -83,6 +84,55 @@ typedef struct {
     esp_gmf_element_handle_t   overlay_hd;
     esp_gmf_element_handle_t   dec_hd;
 } convert_res_t;
+
+typedef struct {
+    esp_gmf_element_handle_t  dec_hd;
+    uint32_t                  compressed_fourcc;
+    bool                      saw_compressed_report_from_dec;
+} vid_dec_open_report_probe_t;
+
+static esp_gmf_err_t vid_dec_open_report_probe_cb(esp_gmf_event_pkt_t *pkt, void *ctx)
+{
+    vid_dec_open_report_probe_t *p = (vid_dec_open_report_probe_t *)ctx;
+    if (p == NULL || p->dec_hd == NULL) {
+        return ESP_GMF_ERR_OK;
+    }
+    if (pkt->type != ESP_GMF_EVT_TYPE_REPORT_INFO || pkt->sub != ESP_GMF_INFO_VIDEO) {
+        return ESP_GMF_ERR_OK;
+    }
+    if (pkt->from != p->dec_hd) {
+        return ESP_GMF_ERR_OK;
+    }
+    if (pkt->payload == NULL || pkt->payload_size < (int)sizeof(esp_gmf_info_video_t)) {
+        return ESP_GMF_ERR_OK;
+    }
+    const esp_gmf_info_video_t *v = (const esp_gmf_info_video_t *)pkt->payload;
+    if (v->format_id == p->compressed_fourcc) {
+        p->saw_compressed_report_from_dec = true;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
+typedef struct {
+    esp_gmf_element_handle_t enc_hd;
+    uint32_t                 vid_report_count_from_enc;
+} vid_enc_open_report_probe_t;
+
+static esp_gmf_err_t vid_enc_open_report_probe_cb(esp_gmf_event_pkt_t *pkt, void *ctx)
+{
+    vid_enc_open_report_probe_t *p = (vid_enc_open_report_probe_t *)ctx;
+    if (p == NULL || p->enc_hd == NULL) {
+        return ESP_GMF_ERR_OK;
+    }
+    if (pkt->type != ESP_GMF_EVT_TYPE_REPORT_INFO || pkt->sub != ESP_GMF_INFO_VIDEO) {
+        return ESP_GMF_ERR_OK;
+    }
+    if (pkt->from != p->enc_hd) {
+        return ESP_GMF_ERR_OK;
+    }
+    p->vid_report_count_from_enc++;
+    return ESP_GMF_ERR_OK;
+}
 
 static video_el_test_t video_el_inst;
 
@@ -368,7 +418,7 @@ TEST_CASE("Color convert HW", "[ESP_GMF_VIDEO]")
 #endif  /* MEDIA_LIB_MEM_TEST */
     ESP_GMF_MEM_SHOW(TAG);
 }
-#endif
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
 
 TEST_CASE("Color convert SW", "[ESP_GMF_VIDEO]")
 {
@@ -493,7 +543,7 @@ TEST_CASE("Scale HW", "[ESP_GMF_VIDEO]")
 #endif  /* MEDIA_LIB_MEM_TEST */
     ESP_GMF_MEM_SHOW(TAG);
 }
-#endif
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
 
 TEST_CASE("Scale SW", "[ESP_GMF_VIDEO]")
 {
@@ -585,7 +635,7 @@ TEST_CASE("Rotate HW", "[ESP_GMF_VIDEO]")
 #endif  /* MEDIA_LIB_MEM_TEST */
     ESP_GMF_MEM_SHOW(TAG);
 }
-#endif
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
 
 TEST_CASE("Rotate SW", "[ESP_GMF_VIDEO]")
 {
@@ -681,7 +731,7 @@ TEST_CASE("Crop HW", "[ESP_GMF_VIDEO]")
 #endif  /* MEDIA_LIB_MEM_TEST */
     ESP_GMF_MEM_SHOW(TAG);
 }
-#endif
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
 
 TEST_CASE("Crop only SW", "[ESP_GMF_VIDEO]")
 {
@@ -733,7 +783,7 @@ TEST_CASE("Encoder only", "[ESP_GMF_VIDEO]")
         {ESP_FOURCC_RGB24, ESP_FOURCC_MJPG},
 #if CONFIG_IDF_TARGET_ESP32S3
         {ESP_FOURCC_YUV420P, ESP_FOURCC_H264},
-#endif  /* CON FIG_IDF_TARGET_ESP32S3 */
+#endif  /* CONFIG_IDF_TARGET_ESP32S3 */
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
     };
     for (int i = 0; i < ELEMS(convert_pair); i++) {
@@ -759,6 +809,51 @@ TEST_CASE("Encoder only", "[ESP_GMF_VIDEO]")
         esp_gmf_pipeline_loading_jobs(res.pipe);
     }
     // Clear up resources
+    release_convert_pipeline(&res);
+
+#ifdef MEDIA_LIB_MEM_TEST
+    media_lib_stop_mem_trace();
+#endif  /* MEDIA_LIB_MEM_TEST */
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Encoder open failure", "[ESP_GMF_VIDEO]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+#ifdef MEDIA_LIB_MEM_TEST
+    media_lib_add_default_adapter();
+#endif  /* MEDIA_LIB_MEM_TEST */
+    convert_res_t res;
+    memset(&video_el_inst, 0, sizeof(video_el_test_t));
+    TEST_ASSERT_EQUAL(0, prepare_pool(&res));
+    const char *name[] = {"vid_enc", NULL};
+    TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, name));
+    TEST_ASSERT_NOT_NULL(res.enc_hd);
+
+    vid_enc_open_report_probe_t enc_probe = {.enc_hd = res.enc_hd};
+    esp_gmf_pipeline_set_event(res.pipe, vid_enc_open_report_probe_cb, &enc_probe);
+
+    allocate_src_pattern(ESP_FOURCC_RGB16, false);
+    video_el_inst.out_res = video_el_inst.src_res;
+    esp_gmf_video_param_set_dst_codec(res.enc_hd, ESP_FOURCC_PCM);
+
+    enc_probe.vid_report_count_from_enc = 0;
+    esp_gmf_info_video_t info = {
+        .format_id = ESP_FOURCC_RGB16,
+        .width = TEST_PATTERN_WIDTH,
+        .height = TEST_PATTERN_HEIGHT,
+        .fps = 10,
+    };
+    esp_gmf_pipeline_report_info(res.pipe, ESP_GMF_INFO_VIDEO, &info, sizeof(info));
+    (void)esp_gmf_pipeline_run(res.pipe);
+    vTaskDelay(500 / portTICK_RATE_MS);
+    (void)esp_gmf_pipeline_stop(res.pipe);
+
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(0, enc_probe.vid_report_count_from_enc,
+                                     "vid_enc must not REPORT_INFO if encoder open failed");
+
+    free_video_el_inst();
     release_convert_pipeline(&res);
 
 #ifdef MEDIA_LIB_MEM_TEST
@@ -907,6 +1002,10 @@ TEST_CASE("Encoder to Decode", "[ESP_GMF_VIDEO]")
     prepare_pool(&res);
     const char *name[] = {"vid_enc", "vid_dec", NULL};
     TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, name));
+    TEST_ASSERT_NOT_NULL(res.dec_hd);
+
+    vid_dec_open_report_probe_t dec_probe = {.dec_hd = res.dec_hd};
+    esp_gmf_pipeline_set_event(res.pipe, vid_dec_open_report_probe_cb, &dec_probe);
 
     uint32_t convert_pair[][3] = {
 #if CONFIG_IDF_TARGET_ESP32P4
@@ -916,10 +1015,12 @@ TEST_CASE("Encoder to Decode", "[ESP_GMF_VIDEO]")
         {ESP_FOURCC_RGB24, ESP_FOURCC_MJPG, ESP_FOURCC_RGB16},
 #if CONFIG_IDF_TARGET_ESP32S3
         {ESP_FOURCC_YUV420P, ESP_FOURCC_H264, ESP_FOURCC_YUV420P},
-#endif  /* CON FIG_IDF_TARGET_ESP32S3 */
+#endif  /* CONFIG_IDF_TARGET_ESP32S3 */
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
     };
     for (int i = 0; i < ELEMS(convert_pair); i++) {
+        dec_probe.compressed_fourcc = convert_pair[i][1];
+        dec_probe.saw_compressed_report_from_dec = false;
         // Gen pattern
         allocate_src_pattern(convert_pair[i][0], false);
         video_el_inst.out_res = video_el_inst.src_res;
@@ -940,6 +1041,8 @@ TEST_CASE("Encoder to Decode", "[ESP_GMF_VIDEO]")
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res.pipe));
         vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res.pipe));
+        TEST_ASSERT_FALSE_MESSAGE(dec_probe.saw_compressed_report_from_dec,
+                                  "vid_dec must not REPORT_INFO compressed stream FourCC at open when decoding");
         show_result_pattern();
         free_video_el_inst();
         esp_gmf_pipeline_reset(res.pipe);
