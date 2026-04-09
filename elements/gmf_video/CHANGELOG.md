@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.2
+
+### Bug Fixes
+
+- Fixed `gmf_video` wrongly report video info when open (either non-bypass or failed)
+
 ## v0.8.1
 
 ### Features

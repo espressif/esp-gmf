@@ -546,7 +546,7 @@ static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void 
         vid_cvt->supported = check_ppa_supported(vid_cvt) || check_2ddma_supported(vid_cvt);
         if (vid_cvt->supported == false) {
             ESP_LOGE(TAG, "Not support convert from %s to %s",
-                    esp_gmf_video_get_format_string(src_info->format_id), esp_gmf_video_get_format_string(vid_cvt->dst_format));
+                     esp_gmf_video_get_format_string(src_info->format_id), esp_gmf_video_get_format_string(vid_cvt->dst_format));
             ret = ESP_GMF_ERR_NOT_SUPPORT;
             goto __video_ppa_open_exit;
         }
@@ -579,7 +579,9 @@ static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void 
     }
 __video_ppa_open_exit:
     esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
-    esp_gmf_element_notify_vid_info(self, &vid_info);
+    if (ret == ESP_GMF_JOB_ERR_OK) {
+        esp_gmf_element_notify_vid_info(self, &vid_info);
+    }
     return ret;
 }
 
