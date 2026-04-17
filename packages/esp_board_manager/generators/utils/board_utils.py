@@ -92,14 +92,19 @@ def get_board_name() -> Optional[str]:
 def get_board_version() -> Optional[str]:
     """Get board version from cached board information
 
+    ``version: default`` (any casing) and a missing key both resolve to the current
+    schema tag (same as generated ``g_esp_board_info.version``).
+
     Returns:
-        Board version or None if not found
+        Resolved schema version string, or None if board_info cannot be loaded
     """
     board_info = _load_board_info()
     if not board_info:
         return None
 
-    return board_info.get('version')
+    from .board_schema_version import resolved_board_info_version_string
+
+    return resolved_board_info_version_string(board_info.get('version'))
 
 
 def get_board_description() -> Optional[str]:

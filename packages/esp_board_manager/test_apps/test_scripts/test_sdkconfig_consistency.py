@@ -143,3 +143,49 @@ def test_get_selected_board_from_sdkconfig(bmgr_root, monkeypatch):
         monkeypatch.setattr(cfg, 'get_project_root', lambda: Path(project_dir))
 
         assert cfg.get_selected_board_from_sdkconfig() == 'lyrat_mini_v1_1'
+
+
+def test_check_idf_target_matches_sdkconfig_ok(bmgr_root, tmp_path):
+    sys.path.insert(0, str(bmgr_root))
+    from generators.sdkconfig_manager import SDKConfigManager
+
+    manager = SDKConfigManager(bmgr_root)
+    sdkconfig = tmp_path / 'sdkconfig'
+    sdkconfig.write_text('CONFIG_IDF_TARGET="esp32c5"\n', encoding='utf-8')
+    ok, err = manager.check_idf_target_matches_sdkconfig(
+        sdkconfig_path=str(sdkconfig),
+        expected_chip='esp32-c5',
+    )
+    assert ok is True
+    assert err is None
+
+
+def test_check_idf_target_matches_sdkconfig_mismatch(bmgr_root, tmp_path):
+    sys.path.insert(0, str(bmgr_root))
+    from generators.sdkconfig_manager import SDKConfigManager
+
+    manager = SDKConfigManager(bmgr_root)
+    sdkconfig = tmp_path / 'sdkconfig'
+    sdkconfig.write_text('CONFIG_IDF_TARGET="esp32c5"\n', encoding='utf-8')
+    ok, err = manager.check_idf_target_matches_sdkconfig(
+        sdkconfig_path=str(sdkconfig),
+        expected_chip='esp32s3',
+    )
+    assert ok is False
+    assert err and 'mismatch' in err
+
+
+def test_idf_target_mismatch_defaults_vs_sdkconfig(bmgr_root, tmp_path):
+    sys.path.insert(0, str(bmgr_root))
+    from generators.sdkconfig_manager import SDKConfigManager
+
+    manager = SDKConfigManager(bmgr_root)
+    defaults = tmp_path / 'board_manager.defaults'
+    sdkconfig = tmp_path / 'sdkconfig'
+    defaults.write_text('CONFIG_IDF_TARGET="esp32s3"\n', encoding='utf-8')
+    sdkconfig.write_text('CONFIG_IDF_TARGET="esp32c5"\n', encoding='utf-8')
+    msg = manager.idf_target_mismatch_defaults_vs_sdkconfig(
+        defaults_path=str(defaults),
+        sdkconfig_path=str(sdkconfig),
+    )
+    assert msg and 'mismatch' in msg

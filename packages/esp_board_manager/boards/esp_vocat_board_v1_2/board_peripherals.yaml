@@ -1,4 +1,3 @@
-version: 1.0.0
 # Peripherals Configuration for ESP VoCat Board V1.2
 peripherals:
   # I2C Configuration

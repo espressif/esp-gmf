@@ -1,4 +1,3 @@
-version: 1.0.0
 
 peripherals:
   - name: gpio_test_output

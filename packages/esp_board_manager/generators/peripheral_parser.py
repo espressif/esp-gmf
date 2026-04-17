@@ -9,7 +9,8 @@ Parses peripheral configurations from YAML files
 """
 
 from .utils.logger import LoggerMixin
-from .utils.yaml_utils import load_yaml_safe
+from .utils.yaml_utils import load_board_yaml_file, BoardConfigYamlError
+from .utils.board_schema_version import warn_if_invalid_board_yaml_schema_version
 from .settings import BoardManagerConfig
 from .name_validator import validate_component_name
 from pathlib import Path
@@ -27,42 +28,30 @@ class PeripheralParser(LoggerMixin):
 
     def parse_peripherals_yaml(self, yaml_path: str) -> Tuple[Dict[str, Any], Dict[str, str], List[str]]:
         """
-        Parse peripherals from YAML file and return peripherals dict, name map, and types list
+        Parse peripherals from YAML file and return peripherals dict, name map, and types list.
+
+        An empty file, missing ``peripherals`` key, or ``peripherals: []`` is valid and yields no peripherals.
+        Undefined peripheral references for devices are validated in each device parser, not here.
         """
-        # Check if file exists
         if not Path(yaml_path).exists():
             self.logger.error(f'File not found! Path: {yaml_path}')
             self.logger.info('Please check if the file exists and the path is correct')
             return {}, {}, []
 
-        # Try to parse YAML
-        try:
-            data = load_yaml_safe(Path(yaml_path))
-        except Exception as e:
-            self.logger.error(f'Invalid YAML syntax! Path: {yaml_path}')
-            self.logger.info(f'Please check the YAML syntax and indentation. Error: {e}')
-            return {}, {}, []
-        except Exception as e:
-            self.logger.error(f'Unexpected error! Path: {yaml_path}')
-            self.logger.info(f'Error: {e}')
-            return {}, {}, []
+        data = load_board_yaml_file(Path(yaml_path))
 
-        # Validate data structure
-        if not data:
-            self.logger.error(f'Empty or invalid YAML file! Path: {yaml_path}')
-            self.logger.info('The file appears to be empty or contains no valid YAML content')
-            return {}, {}, []
+        peripherals = data.get('peripherals', [])
+        if not isinstance(peripherals, list):
+            raise BoardConfigYamlError(
+                yaml_path,
+                BoardConfigYamlError.REASON_NOT_A_MAPPING,
+                f'peripherals must be a YAML list, got {type(peripherals).__name__}',
+            )
 
-        if 'peripherals' not in data:
-            self.logger.error(f'No peripherals found! Path: {yaml_path}')
-            self.logger.info("The file should contain a 'peripherals' section with at least one peripheral")
-            return {}, {}, []
-
-        peripherals = data['peripherals']
-        if not peripherals:
-            self.logger.error(f'No peripherals found! Path: {yaml_path}')
-            self.logger.info("The file should contain a 'peripherals' section with at least one peripheral")
-            return {}, {}, []
+        if isinstance(data, dict) and data.get('version') is not None:
+            warn_if_invalid_board_yaml_schema_version(
+                self.logger, data.get('version'), f'{yaml_path} (file root)'
+            )
 
         # Process peripherals
         out = {}
@@ -79,6 +68,13 @@ class PeripheralParser(LoggerMixin):
 
                 name = obj['name']
                 periph_type = obj['type']
+
+                if 'version' in obj:
+                    warn_if_invalid_board_yaml_schema_version(
+                        self.logger,
+                        obj.get('version'),
+                        f'{yaml_path} peripheral #{i + 1} ({name})',
+                    )
 
                 # Validate peripheral name using unified rules
                 if not validate_component_name(name):

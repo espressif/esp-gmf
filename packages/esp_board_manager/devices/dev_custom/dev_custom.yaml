@@ -4,8 +4,8 @@
 # Example custom device configuration
 - name: my_custom_sensor          # The name of the device, must be unique
   type: custom                   # The type of the device, must be unique
+  version: 1.0.0                 # Optional: board YAML schema generation (omit = current)
   chip: esp32s3                  # Optional: Name of chip
-  version: default               # Optional: Parser version to use
   init_skip: false               # Optional: skip initialization when the manager initializes all devices
   config:
     # Custom configuration parameters - these will be automatically generated as struct fields
@@ -29,8 +29,8 @@
 # Example custom actuator configuration
 - name: my_custom_actuator
   type: custom
+  version: 1.0.0                 # Optional: board YAML schema generation (omit = current)
   chip: esp32s3                  # Optional: Name of chip
-  version: default               # Optional: Parser version to use
   init_skip: false               # Optional: skip initialization when the manager initializes all devices
   config:
     # Custom configuration parameters
@@ -53,7 +53,7 @@
 
 - name: custom_temperature_sensor
   type: custom
-  version: default
+  version: 1.0.0                 # Optional: board YAML schema generation (omit = current)
   config:
     # Integer parameters
     sensor_id: 0x48                    # Sensor I2C address

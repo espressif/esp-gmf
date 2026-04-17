@@ -1,32 +1,5 @@
-version: 1.0.0
 # Devices Configuration for ESP32-C5 Spot AI Voice Interaction Module
 devices:
-  - name: audio_codec
-    chip: es8311
-    type: audio_codec
-    version: default
-    config:
-      adc_enabled: true
-      adc_max_channel: 1
-      # The channel mask, 1-enable, 0-disable, from right to left layout: mic0,mic1,mic2,mic3
-      # e.g. "0111", bit0: Mic0 enable, bit1: Mic1 enable, bit2: Mic2 enable, bit3: Mic3 enable, bit4: Mic4 disable
-      adc_channel_mask: "1"            # Mic0 enable
-      adc_channel_labels: ['FC']
-      dac_enabled: false
-      dac_max_channel: 1
-      # DAC channel mask, 1-enable, 0-disable, layout: left,right
-      dac_channel_mask: "1"            # Left enable
-
-    peripherals:
-      - name: gpio_pa_control
-        gain: 0                        # dB
-        active_level: 1                # 0-low, 1-high
-      - name: i2s_audio_out
-      # I2C interface configuration
-      - name: i2c_master
-        address: 0x18
-        frequency: 400000              # Hz
-
   # Power management and control devices
   - name: power_control
     type: gpio_ctrl
@@ -36,3 +9,37 @@ devices:
       default_level: 0
     peripherals:
       - name: gpio_power_control
+
+  - name: codec_power
+    type: power_ctrl
+    sub_type: gpio
+    peripherals:
+    - name: gpio_power_codec
+      active_level: 1
+
+  - name: audio_adc
+    chip: es8311
+    type: audio_codec
+    version: default
+    config:
+      adc_enabled: true
+    peripherals:
+      - name: i2s_audio_in
+      - &es8311_i2c_master
+        name: i2c_master
+        address: 0x30
+        frequency: 400000          # Hz
+
+  - name: audio_dac
+    chip: es8311
+    type: audio_codec
+    version: default
+    power_ctrl_device: codec_power
+    config:
+      dac_enabled: true
+    peripherals:
+      - name: i2s_audio_out
+      - name: gpio_pa_control
+        gain: 0                        # dB
+        active_level: 1                # 0-low, 1-high
+      - *es8311_i2c_master

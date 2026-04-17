@@ -1,4 +1,3 @@
-version: 1.0.0
 # Devices Configuration
 devices:
   - name: audio_dac
@@ -109,9 +108,6 @@ devices:
     type: lcd_touch_i2c
     version: default
     dependencies:
-      esp_lcd_touch:
-        version: "*"
-        require: public
       espressif/esp_lcd_touch_tt21100: ">=1.0.0"
     config:
       # esp_lcd_panel_io_i2c_config_t fields for touch communication

@@ -14,6 +14,7 @@ from typing import Dict, List, Set, Optional, Any
 
 from .utils.logger import LoggerMixin
 from .utils.yaml_utils import load_yaml_safe, save_yaml_safe
+from .device_parser import load_yaml_with_includes
 
 
 class DependencyManager(LoggerMixin):
@@ -33,46 +34,38 @@ class DependencyManager(LoggerMixin):
         Returns:
             dict: Dictionary of component dependencies with versions
         """
-        dependencies = {}
-        try:
-            data = load_yaml_safe(Path(dev_yaml_path))
+        dependencies: Dict[str, str] = {}
+        # Same merge/parse rules as device generation (anchors across sibling .yaml files).
+        data = load_yaml_with_includes(dev_yaml_path)
+        for device in data.get('devices', []):
+            # Only process explicit dependencies
+            if 'dependencies' in device:
+                device_deps = device['dependencies']
+                if isinstance(device_deps, list):
+                    for dep in device_deps:
+                        if isinstance(dep, dict):
+                            # Handle dictionary format: {"component": "version"}
+                            for component, version in dep.items():
+                                dependencies[component] = version
+                        elif isinstance(dep, str):
+                            # Handle string format: "component:version"
+                            if ':' in dep:
+                                component, version = dep.split(':', 1)
+                                dependencies[component.strip()] = version.strip()
+                            else:
+                                # Default version if not specified
+                                dependencies[dep.strip()] = '*'
+                elif isinstance(device_deps, dict):
+                    # Handle direct dictionary format
+                    for component, version in device_deps.items():
+                        dependencies[component] = version
 
-            if not data or 'devices' not in data:
-                self.logger.warning(f'⚠️  No devices found in {dev_yaml_path}')
-                return dependencies
-
-            for device in data['devices']:
-                # Only process explicit dependencies
-                if 'dependencies' in device:
-                    device_deps = device['dependencies']
-                    if isinstance(device_deps, list):
-                        for dep in device_deps:
-                            if isinstance(dep, dict):
-                                # Handle dictionary format: {"component": "version"}
-                                for component, version in dep.items():
-                                    dependencies[component] = version
-                            elif isinstance(dep, str):
-                                # Handle string format: "component:version"
-                                if ':' in dep:
-                                    component, version = dep.split(':', 1)
-                                    dependencies[component.strip()] = version.strip()
-                                else:
-                                    # Default version if not specified
-                                    dependencies[dep.strip()] = '*'
-                    elif isinstance(device_deps, dict):
-                        # Handle direct dictionary format
-                        for component, version in device_deps.items():
-                            dependencies[component] = version
-
-            if dependencies:
-                self.logger.debug(f'Extracted {len(dependencies)} dependencies from {dev_yaml_path}:')
-                for component, version in dependencies.items():
-                    self.logger.debug(f'  - {component}: {version}')
-            else:
-                self.logger.debug(f'No dependencies found in {dev_yaml_path}')
-
-        except Exception as e:
-            self.logger.error(f'Error extracting dependencies from {dev_yaml_path}: {e}')
+        if dependencies:
+            self.logger.debug(f'Extracted {len(dependencies)} dependencies from {dev_yaml_path}:')
+            for component, version in dependencies.items():
+                self.logger.debug(f'  - {component}: {version}')
+        else:
+            self.logger.debug(f'No dependencies found in {dev_yaml_path}')
 
         return dependencies
 

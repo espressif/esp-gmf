@@ -4,7 +4,7 @@
 # Example LEDC control device configuration for LCD brightness
 - name: lcd_brightness          # The name of the device, must be unique
   type: ledc_ctrl               # The type of the device, must be unique
-  version: default
+  version: 1.0.0
   config:
     default_percent: 100        # [TO_BE_CONFIRMED] Default brightness percentage (0-100)
   peripherals:

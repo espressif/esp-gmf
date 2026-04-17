@@ -16,7 +16,7 @@ The `dev_custom` device type provides a flexible way to create custom devices wi
 ```yaml
 - name: my_custom_device
   type: custom
-  version: default
+  version: 1.0.0
   config:
     # Custom configuration parameters
     param1: 123
@@ -105,7 +105,7 @@ typedef struct {
 ```yaml
 - name: temperature_sensor
   type: custom
-  version: default
+  version: 1.0.0   # optional schema generation tag; omit = current generation
   config:
     sensor_id: 0x48
     sample_rate: 10
@@ -122,7 +122,7 @@ typedef struct {
 ```yaml
 - name: servo_motor
   type: custom
-  version: default
+  version: 1.0.0   # optional schema generation tag; omit = current generation
   config:
     actuator_type: "servo"
     min_position: 0

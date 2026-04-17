@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.5.8
+
+### ⚠️ Important Change
+
+- Add preferred IDF action `idf.py bmgr` with the same options as `gen-bmgr-config`; keep `idf.py gen-bmgr-config` as a legacy alias
+- When switching boards, back up the removed `sdkconfig` to `components/gen_bmgr_codes/sdkconfig.bmgr_board.old` instead of the project root
+- Clarify the intended role of the YAML **`version`** field in Board Manager (schema / parsing contract vs. other meanings such as Component Manager `dependencies`)
+- Emit **warnings** at generation time when an unsupported schema **`version`** tag is present (supported forms documented in README and customization guides)
+- Keep `gen_codes/Kconfig.in` static for device/peripheral capability symbols only, and generate the selected board symbols in `components/gen_bmgr_codes/Kconfig.projbuild`
+- Reduce maximum recursive scan depth from 10 to 3 across all scan paths, including default components directory, override paths defined in main/idf_component.yml, and custom paths specified via -c
+
+### Features
+
+- Reject mixing `bmgr` and `gen-bmgr-config` in a single `idf.py` invocation; reject board name/index as a stray positional argument (use `-b`)
+- Support scanning board roots referenced by `main/idf_component.yml` local `override_path` / `path` entries for board-style dependencies
+
+### Bug Fixes
+
+- Use a resolved project path when deleting cached `sdkconfig` JSON after writing board defaults
+- Unify project directory resolution for `idf.py -C <project>` and standalone `--project-dir`, so board scanning, relative `--customer-path`, and `bmgr -n` all resolve against the selected project directory
+- Include `dev_fs_fat.h` and `dev_power_ctrl.h` in `esp_board_manager_includes.h` when the matching Kconfig options are enabled
+- Add `#include "driver/i2s_common.h"` in `dev_audio_codec` for build issues
+- Improve script error handling by exiting immediately when YAML parsing fails
+
+### Docs
+
+- Add **board_config_template** document, reduce the difficulty of adapting development boards, quickly obtain the required configuration
+
 ## 0.5.7
 
 ### ⚠️ Breaking Change

@@ -4,7 +4,7 @@
 # Example GPIO control device configuration
 - name: power_control         # The name of the device, must be unique
   type: gpio_ctrl             # The type of the device, must be unique
-  version: default
+  version: 1.0.0
   config:
     active_level: 1           # [TO_BE_CONFIRMED] Active level (0 or 1) - GPIO level when device is active
     default_level: 0          # Default level (0 or 1) - GPIO level when device is inactive

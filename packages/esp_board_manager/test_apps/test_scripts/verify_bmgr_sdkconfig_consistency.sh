@@ -154,7 +154,7 @@ run_cmd "List boards" idf.py gen-bmgr-config -l || { summary; exit 1; }
 OTHER_BOARD="$(idf.py gen-bmgr-config -l | awk '/^\[[0-9]+\]/{print $2}' | grep -v "^${TARGET_BOARD}$" | head -n 1 || true)"
 if [ -n "$OTHER_BOARD" ]; then
     run_cmd "Switch to another board (${OTHER_BOARD})" idf.py gen-bmgr-config -b "$OTHER_BOARD" || { summary; exit 1; }
-    if [ -f sdkconfig.bmgr_board.old ]; then
+    if [ -f components/gen_bmgr_codes/sdkconfig.bmgr_board.old ]; then
         record_pass "sdkconfig backup exists after board switch"
     else
         record_fail "sdkconfig backup missing after board switch"

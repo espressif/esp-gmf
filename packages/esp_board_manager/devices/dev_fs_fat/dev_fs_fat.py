@@ -224,7 +224,7 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
         'struct_init': {
             'name': name,
             'mount_point': mount_point,
-            'frequency': sub_cfg.get('frequency', 'SDMMC_FREQ_HIGHSPEED') if sub_type == 'sdmmc' else 'SDMMC_FREQ_DEFAULT',
+            'frequency': sub_config.get('frequency', 'SDMMC_FREQ_HIGHSPEED') if sub_type == 'sdmmc' else 'SDMMC_FREQ_DEFAULT',
             'vfs_config': {
                 'format_if_mount_failed': format_if_mount_failed,
                 'max_files': max_files,

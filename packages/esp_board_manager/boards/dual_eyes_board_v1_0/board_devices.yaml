@@ -1,4 +1,3 @@
-version: 1.0.0
 # Devices Configuration for Dual Eyes Board V1.0
 devices:
   # Dual LCD Display Configuration (GC9A01)

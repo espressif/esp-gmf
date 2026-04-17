@@ -114,6 +114,11 @@
 #include "dev_display_lcd.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
 
+/* FAT Filesystem Device */
+#ifdef CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT
+#include "dev_fs_fat.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_FS_FAT_SUPPORT */
+
 /* SPIFFS Filesystem Device */
 #ifdef CONFIG_ESP_BOARD_DEV_FS_SPIFFS_SUPPORT
 #include "dev_fs_spiffs.h"
@@ -138,6 +143,11 @@
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 #include "dev_ledc_ctrl.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
+
+/* Power Control Device */
+#ifdef CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUPPORT
+#include "dev_power_ctrl.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUPPORT */
 
 #ifdef CONFIG_ESP_BOARD_DEV_BUTTON_SUPPORT
 #include "dev_button.h"

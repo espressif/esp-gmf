@@ -1,4 +1,3 @@
-version: 1.0.0
 # Peripherals Configuration for Dual Eyes Board V1.0
 peripherals:
   # LCD SPI Configuration for GC9A01

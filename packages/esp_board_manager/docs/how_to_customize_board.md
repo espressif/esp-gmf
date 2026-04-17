@@ -6,7 +6,9 @@ ESP Board Manager allows modular board customization, supporting the following t
 
 1. **Main Board Directory**: Built-in boards provided with the component, path like `esp_board_manager/boards`
 2. **User Project Components**: Custom boards defined in project components, path like `{PROJECT_ROOT}/components/board_name`, refer to: [`esp_board_manager/test_apps/components/test_board_e/`](../test_apps/components/test_board_e/)
-3. **Custom Path**: External board definitions in custom locations, such as [`esp_board_manager/test_apps/test_single_board`](../test_apps/test_single_board/), when running commands you need to specify the path via the `-c` parameter to set custom path `idf.py gen-bmgr-config -c test_single_board -l`
+3. **Custom Path**: External board definitions in custom locations, such as [`esp_board_manager/test_apps/test_single_board`](../test_apps/test_single_board/), when running commands you need to specify the path via the `-c` parameter to set custom path `idf.py bmgr -c test_single_board -l` (legacy: `idf.py gen-bmgr-config -c test_single_board -l`)
+
+A **common device configuration template document** is provided in the repository for quick reference and obtaining **YAML configuration snippets** for common devices: [Common Configuration Templates](./board_config_template.md)
 
 > **Note:** If you use the ESP Board Manager component automatically downloaded from the component repository, it is not recommended to directly create custom boards in the motherboard-level directory to avoid accidentally deleting custom board configurations when cleaning components
 
@@ -35,10 +37,10 @@ There are three ways to create a new board:
 
 ```bash
 # Create the board configuration files at the default path (default path is {PROJECT_ROOT}/components/<board_name>):
-idf.py gen-bmgr-config -n <board_name>
+idf.py bmgr -n <board_name>
 
 # Create the board configuration files at a custom path:
-idf.py gen-bmgr-config -n path/to/board/<board_name>
+idf.py bmgr -n path/to/board/<board_name>
 ```
 
 After running the script, you need to sequentially select **chip, device, and peripherals** according to the prompts. The script will automatically check the dependencies of devices on peripherals. If any peripheral is missing, the script will prompt you to add it until all dependencies are satisfied.
@@ -101,7 +103,35 @@ After running the script, you need to sequentially select **chip, device, and pe
 >     - `esp_board_manager/devices/xxx/xxx.yaml`
 >     - `esp_board_manager/peripherals/xxx/xxx.yaml`.
 
-### 3. **Configuration File Structure**
+### 3. **The `version` Field: Parsing Contract (Schema Version)**
+
+**Core meaning: `version` declares the schema-syntax version this YAML follows**—the **parsing contract** between the generator and your configuration. When Board Manager later changes directory layout or field semantics incompatibly, tooling can use this field to distinguish old vs new syntax, migrate configs, and avoid silently breaking projects.
+
+**1. Board-level contract (`board_info.yaml`)**  
+- Indicates which **board description schema generation** applies (layout, meaning of `board_info` fields, etc.).  
+- **Long-term use:** when board-layer schema is refactored at scale, the generator can branch on this value and transition old vs new configs.
+
+**2. Devices and peripherals (only the following form is supported)**  
+In **`board_peripherals.yaml`** and **`board_devices.yaml`**, use **`version` only inside each item** of the `peripherals` / `devices` list, as a **sibling** of **`name`** and **`type`** (peer fields in the same mapping), for example:
+
+```yaml
+peripherals:
+  - name: xxx
+    type: adc
+    version: 1.0.0   # Optional; per entry, sibling of name/type
+
+devices:
+  - name: xxx
+    type: gpio_ctrl
+    version: 1.0.0   # Same
+```
+
+**Generation tag (not a permanent lock-in):** The current generation tag for board YAML in this repo is **`1.0.0`**—meaning the generation consistent with the current parser and field semantics. **Omitting `version` means the current generation** (equivalent to `1.0.0`). **`version: default`** (any casing) is equivalent to omitting or using `1.0.0`; generated metadata **resolves it to the current tag `1.0.0`**. **Breaking changes** will use **a new tag** (e.g. `2.0.0`); newer toolchains will recognize both. If you set a tag **this release does not recognize**, generation **emits a warning** (check Board Manager version or use the current tag / `default` / omit the field).
+
+**3. Do not confuse with the following `version` keys**  
+- Under **`dependencies`** in `board_devices.yaml`, each component’s `version` (e.g. `"*"`, `~1.5`) is an **ESP-IDF Component Manager** dependency constraint; **not** the YAML parsing contract above.
+
+### 4. **Configuration File Structure**
 
 **Board Information**
    ```yaml
@@ -119,11 +149,10 @@ After running the script, you need to sequentially select **chip, device, and pe
    The basic structure for each peripheral is as follows:
    ```yaml
    # board_peripherals.yaml
-   version: <version>
-
    peripherals:
      - name: <peripheral_name>
        type: <peripheral_type>
+       version: <version>
        role: <peripheral_role>
        config:
          # Peripheral-specific configuration
@@ -135,16 +164,15 @@ After running the script, you need to sequentially select **chip, device, and pe
    The basic structure for each device is as follows:
    ```yaml
    # board_devices.yaml
-   version: <version>
-
    devices:
      - name: <device_name>
        type: <device_type>
+       version: <version>
        sub_type: <sub_type>   # Optional: sub-device type string, each device may have its own sub-type or none
        init_skip: false  # Optional: skip automatic initialization (default: false)
        dependencies:     # Optional, define component dependencies
          espressif/gmf_core:
-            version: '*'  # Use version from espressif component registry
+            version: '*'  # Version from the Espressif component registry (IDF Component Manager), not YAML schema; see §3
             override_path: ${BOARD_PATH}/gmf_core
             # Optional: allows you to use a local component instead of the version downloaded from the component registry.
             # You can specify:
@@ -170,7 +198,7 @@ After running the script, you need to sequentially select **chip, device, and pe
 > - When specifying local or board-specific component paths in the `override_path` or `path` fields, always use `${BOARD_PATH}`. For more details, refer to [Local Directory Dependencies](https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html#local-directory-dependencies).
 > - ❌ **Incorrect**: `{{BOARD_PATH}}` or `$BOARD_PATH`
 
-### 4. **Board-Specific SDK Configuration (Optional)**
+### 5. **Board-Specific SDK Configuration (Optional)**
 
 `sdkconfig.defaults.board` file is used to define board-specific default SDK configuration.
 
@@ -197,7 +225,7 @@ After running the script, you need to sequentially select **chip, device, and pe
 3. `board_manager.defaults` (board-specific configurations, higher priority than sdkconfig.defaults)
 4. Component's own defaults
 
-### 5. **Custom Code in the `board` Directory**
+### 6. **Custom Code in the `board` Directory**
 
 Some devices require board-specific initialization logic that cannot be fully described through YAML configuration alone. Typical examples include `display_lcd`, `lcd_touch`, and so on.
 
@@ -212,7 +240,7 @@ For concrete examples of how this is done, see:
 
 ## YAML Configuration Rules
 
-For detailed YAML configuration rules and format specifications, please refer to [Device and Peripheral Rules](docs/device_and_peripheral_rules.md).
+For detailed YAML configuration rules and format specifications, please refer to [Device and Peripheral Rules](device_and_peripheral_rules.md).
 
 ## Board Selection Priority
 
@@ -222,7 +250,7 @@ When boards with the same name exist in different paths, ESP Board Manager follo
 
 1. **Custom Customer Path** (highest priority)
    - Boards specified via the `-c` parameter
-   - Example: `idf.py gen-bmgr-config -b my_board -c /path/to/custom/boards`
+   - Example: `idf.py bmgr -b my_board -c /path/to/custom/boards`
 
 2. **User Project Components** (medium priority)
    - Boards in project components: `{PROJECT_ROOT}/components/{component_name}/boards`
@@ -243,7 +271,7 @@ For devices and peripherals not yet included in esp_board_manager, it is recomme
 
 - Add the configuration for the custom device in the development board path `board_devices.yaml`, where the `type` needs to be configured as `custom`.
 
-- After executing the command `idf.py gen-bmgr-config -b xxx` to generate the development board's configuration code, the `gen_board_device_custom.h` header file will be generated in the `components/gen_bmgr_codes` path for use by the application.
+- After executing the command `idf.py bmgr -b xxx` (legacy: `idf.py gen-bmgr-config -b xxx`) to generate the development board's configuration code, the `gen_board_device_custom.h` header file will be generated in the `components/gen_bmgr_codes` path for use by the application.
 
 - You can refer to the implementation method in [`m5stack_cores3`](../boards/m5stack_cores3/power_manager.c). M5stack_cores3 defines a power management chip using the custom type and implementing the init and deinit functions.
 
@@ -255,10 +283,10 @@ For devices and peripherals not yet included in esp_board_manager, it is recomme
    # Test whether your board configuration is valid
    # Ensure that IDF_EXTRA_ACTIONS_PATH is set and still valid
    # For main board directory and user project components (default paths)
-   idf.py gen-bmgr-config -b <board_name>
+   idf.py bmgr -b <board_name>
 
    # For custom customer paths (external locations)
-   idf.py gen-bmgr-config -b <board_name> -c /path/to/custom/boards
+   idf.py bmgr -b <board_name> -c /path/to/custom/boards
 
    # Or use the standalone script
    cd $YOUR_ESP_BOARD_MANAGER_PATH
@@ -278,4 +306,4 @@ For devices and peripherals not yet included in esp_board_manager, it is recomme
 
    **If Errors Occur**: Check your YAML files for syntax errors, missing fields, or invalid configurations.
 
-> **Note**: When you run `idf.py gen-bmgr-config` for the first time, the script will automatically generate the Kconfig menu for the selected board.
+> **Note**: When you run `idf.py bmgr` (or `idf.py gen-bmgr-config`) for the first time, the script will automatically generate the Kconfig menu for the selected board.

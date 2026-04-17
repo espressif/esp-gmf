@@ -16,6 +16,18 @@ def get_includes() -> list:
         'dev_button.h'
     ]
 
+
+def _find_named_peripheral(peripherals, prefix: str):
+    for periph in peripherals:
+        if isinstance(periph, dict):
+            periph_name = periph.get('name', '')
+            if periph_name.startswith(prefix):
+                return periph_name
+        elif isinstance(periph, str) and periph.startswith(prefix):
+            return periph
+    return None
+
+
 def parse(name: str, config: dict, peripherals_dict=None) -> dict:
     """Parse  button device configuration from YAML to C structure"""
 
@@ -40,6 +52,12 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
     }
 
     # Parse event configuration (Optimized - bitfield storage)
+    if 'events' in device_config:
+        raise ValueError(
+            "YAML validation error in  button device: Legacy 'events' is no longer supported. "
+            "Use 'events_cfg' under config."
+        )
+
     events_config = device_config.get('events_cfg', {})
 
     # Parse enabled events bitfield
@@ -133,23 +151,17 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
 
     # Parse GPIO button configuration
     if button_type == 'gpio':
-        # Get GPIO peripheral name from device config or peripherals list
-        gpio_name = device_config.get('gpio_name')
+        if 'gpio_name' in device_config:
+            raise ValueError(
+                "YAML validation error in  button device: Legacy 'config.gpio_name' is no longer supported. "
+                "Declare the GPIO peripheral under top-level 'peripherals'."
+            )
 
-        # If gpio_name is not provided in config, try to extract from peripherals
-        if not gpio_name and peripherals:
-            for periph in peripherals:
-                if isinstance(periph, dict):
-                    periph_name = periph.get('name', '')
-                    if periph_name.startswith('gpio'):
-                        gpio_name = periph_name
-                        break
-                elif isinstance(periph, str) and periph.startswith('gpio'):
-                    gpio_name = periph
-                    break
-
+        gpio_name = _find_named_peripheral(peripherals, 'gpio')
         if gpio_name is None:
-            raise ValueError(f"YAML validation error in  button device: Missing 'gpio_name' field for GPIO button")
+            raise ValueError(
+                "YAML validation error in  button device: Missing GPIO peripheral in top-level 'peripherals'"
+            )
 
         # Validate GPIO peripheral exists if peripherals_dict is provided
         if peripherals_dict is not None and gpio_name not in peripherals_dict:
@@ -177,23 +189,17 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
 
     # Parse ADC button configuration
     elif button_type == 'adc_multi' or button_type == 'adc_single':
-        # Get ADC peripheral name from device config or peripherals list
-        adc_name = device_config.get('adc_name')
+        if 'adc_name' in device_config:
+            raise ValueError(
+                "YAML validation error in  button device: Legacy 'config.adc_name' is no longer supported. "
+                "Declare the ADC peripheral under top-level 'peripherals'."
+            )
 
-        # If adc_name is not provided in config, try to extract from peripherals
-        if not adc_name and peripherals:
-            for periph in peripherals:
-                if isinstance(periph, dict):
-                    periph_name = periph.get('name', '')
-                    if periph_name.startswith('adc'):
-                        adc_name = periph_name
-                        break
-                elif isinstance(periph, str) and periph.startswith('adc'):
-                    adc_name = periph
-                    break
-
+        adc_name = _find_named_peripheral(peripherals, 'adc')
         if adc_name is None:
-            raise ValueError(f"YAML validation error in  button device: Missing 'adc_name' field for ADC button")
+            raise ValueError(
+                "YAML validation error in  button device: Missing ADC peripheral in top-level 'peripherals'"
+            )
 
         # Validate ADC peripheral exists if peripherals_dict is provided
         if peripherals_dict is not None and adc_name not in peripherals_dict:
