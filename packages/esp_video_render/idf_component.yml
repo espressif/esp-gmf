@@ -1,0 +1,29 @@
+version: "0.8.0"
+description: Espressif Video Render is a module for render and compose video and UI through LCD
+url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_video_render
+documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_video_render/README.md"
+issues: "https://github.com/espressif/esp-gmf/issues"
+
+tags:
+   - "gmf"
+   - "multimedia"
+   - "video_render"
+   - "display"
+   - "GUI"
+   - "overlay"
+
+dependencies:
+  espressif/gmf_video:
+    require: public
+    version: "^0.8"
+  espressif/freetype:
+    require: private
+    version: "^2.13.3"
+    matches:
+      - if: "$CONFIG{ESP_VIDEO_RENDER_TEXT_WIDGET_SUPPORT} == True"
+  espressif/esp_lvgl_port:
+    version: "^2"
+    public: true
+    matches:
+      - if: "$CONFIG{ESP_VIDEO_RENDER_LVGL_BACKEND_SUPPORT} == True"
+

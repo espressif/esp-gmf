@@ -101,6 +101,30 @@ typedef struct {
 } gmf_video_ppa_t;
 
 #if CONFIG_IDF_TARGET_ESP32P4
+static SemaphoreHandle_t s_ppa_srm_mtx;
+static portMUX_TYPE s_ppa_srm_init_mux = portMUX_INITIALIZER_UNLOCKED;
+
+void ppa_srm_lock(void)
+{
+    if (s_ppa_srm_mtx == NULL) {
+        portENTER_CRITICAL(&s_ppa_srm_init_mux);
+        if (s_ppa_srm_mtx == NULL) {
+            s_ppa_srm_mtx = xSemaphoreCreateMutex();
+        }
+        portEXIT_CRITICAL(&s_ppa_srm_init_mux);
+    }
+    if (s_ppa_srm_mtx) {
+        xSemaphoreTake(s_ppa_srm_mtx, portMAX_DELAY);
+    }
+}
+
+void ppa_srm_unlock(void)
+{
+    if (s_ppa_srm_mtx) {
+        xSemaphoreGive(s_ppa_srm_mtx);
+    }
+}
+
 static uint32_t get_frame_size(gmf_video_ppa_t *vid_cvt, uint32_t codec)
 {
     switch (codec) {
@@ -270,7 +294,9 @@ static int ppa_convert(gmf_video_ppa_t *vid_cvt, esp_gmf_payload_t *in_load, esp
     vid_cvt->ppa_config.in.buffer = in_load->buf;
     vid_cvt->ppa_config.out.buffer = out_load->buf;
     vid_cvt->ppa_config.out.buffer_size = out_load->buf_length;
+    ppa_srm_lock();
     int err = ppa_do_scale_rotate_mirror(vid_cvt->ppa_handle, &vid_cvt->ppa_config);
+    ppa_srm_unlock();
     return err;
 }
 
@@ -538,7 +564,8 @@ static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void 
         }
     }
     vid_cvt->bypass = false;
-    if (vid_cvt->dst_width == src_info->width && vid_cvt->dst_height == src_info->height && vid_cvt->dst_format == src_info->format_id) {
+    if (vid_cvt->dst_width == src_info->width && vid_cvt->dst_height == src_info->height &&
+        vid_cvt->dst_format == src_info->format_id && vid_cvt->rotate_degree == 0) {
         vid_cvt->bypass = true;
     }
     if (vid_cvt->bypass == false) {
@@ -575,7 +602,7 @@ static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void 
         ESP_LOGE(TAG, "Not support video convert except esp32p4");
         ret = ESP_GMF_JOB_ERR_FAIL;
         goto __video_ppa_open_exit;
-#endif
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
     }
 __video_ppa_open_exit:
     esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
