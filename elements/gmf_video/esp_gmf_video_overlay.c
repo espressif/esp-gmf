@@ -411,12 +411,14 @@ esp_gmf_err_t esp_gmf_video_overlay_init(void *config, esp_gmf_element_handle_t 
     int ret = esp_gmf_obj_set_tag(obj, "vid_overlay");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _overlay_init_fail, "Failed set OBJ tag");
 
-    esp_gmf_element_cfg_t el_cfg = { 0 };
-    ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.in_attr, ESP_GMF_EL_PORT_CAP_MULTI, 0, 0,
+    uint8_t align = esp_gmf_oal_get_spiram_cache_align();
+    esp_gmf_element_cfg_t el_cfg = {
+        .dependency = true,
+    };
+    ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.in_attr, ESP_GMF_EL_PORT_CAP_SINGLE, align, align,
                                      ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
-    ESP_GMF_ELEMENT_OUT_PORT_ATTR_SET(el_cfg.out_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
-                                     ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
-    el_cfg.dependency = true;
+    ESP_GMF_ELEMENT_OUT_PORT_ATTR_SET(el_cfg.out_attr, ESP_GMF_EL_PORT_CAP_SINGLE, align, align,
+                                      ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
     ret = esp_gmf_video_el_init(obj, &el_cfg);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _overlay_init_fail, "Failed init video rate convert");
 
