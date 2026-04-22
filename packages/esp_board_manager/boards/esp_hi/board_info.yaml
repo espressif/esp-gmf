@@ -1,0 +1,5 @@
+board: esp_hi
+chip: esp32c3
+version: 1.0.0
+description: "ESP-HI AI Voice Interaction Module"
+manufacturer: "ESPRESSIF"

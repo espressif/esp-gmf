@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.9
+
+### ⚠️ Important Change
+
+- Added a unified board metadata generation flow that produces gen_board_metadata.yaml, consolidating board devices, peripherals, dependencies and IO metadata
+- Added runtime device config override APIs: `esp_board_device_override_config()` and `esp_board_device_restore_config()`, and updated **init**, **get_config**, and **callback_register** to use the effective runtime config
+
+### Features
+
+- Extended generated device descriptors to include sub_type
+- Added or updated sdkconfig.defaults.board for several boards
+- Added support for **esp_hi** board, supported devices includes:
+  ADC Mic and PDM Speaker, LCD, GPIO Button
+- Added global callback default log info
+
 ## 0.5.8
 
 ### ⚠️ Important Change

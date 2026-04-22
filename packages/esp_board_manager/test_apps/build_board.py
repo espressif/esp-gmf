@@ -30,11 +30,13 @@ import argparse
 import re
 import shutil
 import os
+import glob
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import time
 
 BOARD_INFO_FILENAME = 'board_info.yaml'
+ARTIFACT_ARCHIVE_ROOT = Path('logs') / 'artifacts'
 
 class Colors:
     """ANSI color codes for terminal output"""
@@ -157,6 +159,86 @@ def save_log(project_dir: Path, log_type: str, board_name: str, content: str) ->
     return log_file
 
 
+def get_artifact_archive_dir(project_dir: Path, board_name: str) -> Path:
+    """Return the per-board artifact archive directory."""
+    return project_dir / ARTIFACT_ARCHIVE_ROOT / board_name
+
+
+def prepare_artifact_archive_dir(project_dir: Path, board_name: str) -> Path:
+    """Create a clean per-board artifact archive directory."""
+    archive_dir = get_artifact_archive_dir(project_dir, board_name)
+    if archive_dir.exists():
+        shutil.rmtree(archive_dir)
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    return archive_dir
+
+
+def _copy_file_if_exists(src: Path, dst: Path) -> bool:
+    if not src.exists() or not src.is_file():
+        return False
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+    return True
+
+
+def archive_board_artifacts(project_dir: Path, board_name: str, include_build_files: bool = False) -> List[str]:
+    """
+    Archive high-value per-board artifacts for later diagnosis.
+
+    Always archives:
+      - dependencies.lock
+      - sdkconfig
+      - components/gen_bmgr_codes/board_manager.defaults
+
+    Optionally archives selected build diagnostics:
+      - build/compile_commands.json
+      - build/CMakeCache.txt
+      - build/project_description.json
+      - build/config/sdkconfig.json
+      - build/log/idf_py_stdout_output_*
+      - build/log/idf_py_stderr_output_*
+    """
+    archive_dir = get_artifact_archive_dir(project_dir, board_name)
+    archived: List[str] = []
+
+    base_files = [
+        (project_dir / 'dependencies.lock', archive_dir / 'dependencies.lock'),
+        (project_dir / 'sdkconfig', archive_dir / 'sdkconfig'),
+        (
+            project_dir / 'components' / 'gen_bmgr_codes' / 'board_manager.defaults',
+            archive_dir / 'board_manager.defaults',
+        ),
+    ]
+
+    for src, dst in base_files:
+        if _copy_file_if_exists(src, dst):
+            archived.append(str(dst.relative_to(project_dir)))
+
+    if not include_build_files:
+        return archived
+
+    build_files = [
+        (project_dir / 'build' / 'compile_commands.json', archive_dir / 'build' / 'compile_commands.json'),
+        (project_dir / 'build' / 'CMakeCache.txt', archive_dir / 'build' / 'CMakeCache.txt'),
+        (project_dir / 'build' / 'project_description.json', archive_dir / 'build' / 'project_description.json'),
+        (project_dir / 'build' / 'config' / 'sdkconfig.json', archive_dir / 'build' / 'config' / 'sdkconfig.json'),
+    ]
+
+    for src, dst in build_files:
+        if _copy_file_if_exists(src, dst):
+            archived.append(str(dst.relative_to(project_dir)))
+
+    build_log_dir = project_dir / 'build' / 'log'
+    for pattern in ('idf_py_stdout_output_*', 'idf_py_stderr_output_*'):
+        for path_str in glob.glob(str(build_log_dir / pattern)):
+            src = Path(path_str)
+            dst = archive_dir / 'build' / 'log' / src.name
+            if _copy_file_if_exists(src, dst):
+                archived.append(str(dst.relative_to(project_dir)))
+
+    return archived
+
+
 def clean_build_dir(build_dir: Path, project_dir: Path) -> None:
     """Clean build directory by direct deletion"""
     print_colored(f'  → Cleaning build directory...', Colors.OKCYAN)
@@ -258,6 +340,7 @@ def build_board(
     print_colored(f"\n{'='*60}", Colors.BOLD)
     print_colored(f'Building board: {board_name}', Colors.HEADER)
     print_colored(f"{'='*60}", Colors.BOLD)
+    prepare_artifact_archive_dir(project_dir, board_name)
 
     # Step 1: Generate board configuration
     gen_cmd = ['idf.py', 'gen-bmgr-config', '-b', board_name]
@@ -267,6 +350,7 @@ def build_board(
     success, output = run_command(gen_cmd, project_dir, f'Generate config for {board_name}')
     if not success:
         log_file = save_log(project_dir, 'config', board_name, output)
+        archived = archive_board_artifacts(project_dir, board_name, include_build_files=False)
         return False, f'Failed to generate config: {output[:200]}\n\nFull log saved to: {log_file.name}'
 
     # Step 2: Get chip type from generated defaults
@@ -274,6 +358,7 @@ def build_board(
     if not chip:
         error_msg = f'Could not determine chip type from board_manager.defaults for board {board_name}'
         print_colored(f'  ✗ {error_msg}', Colors.FAIL)
+        archive_board_artifacts(project_dir, board_name, include_build_files=False)
         return False, error_msg
 
     print_colored(f'  Chip type: {chip}', Colors.OKBLUE)
@@ -296,11 +381,18 @@ def build_board(
 
     if not success:
         log_file = save_log(project_dir, 'set_target', board_name, output)
+        archive_board_artifacts(project_dir, board_name, include_build_files=True)
         return False, f'Failed to set target: {output[:200]}\n\nFull log saved to: {log_file.name}'
 
     # Step 5: Build (if not skipped)
     if skip_build:
         print_colored(f'  → Skipping build (--skip-build specified)', Colors.WARNING)
+        archived = archive_board_artifacts(project_dir, board_name, include_build_files=False)
+        if archived:
+            print_colored(
+                f'  → Archived {len(archived)} artifact file(s) to {ARTIFACT_ARCHIVE_ROOT / board_name}',
+                Colors.OKBLUE,
+            )
     else:
         build_cmd = ['idf.py', 'build']
         success, output = run_command(build_cmd, project_dir, f'Build {board_name}')
@@ -310,6 +402,17 @@ def build_board(
             log_file = save_log(project_dir, 'build', board_name, output)
             if save_logs and success:
                 print_colored(f'  → Full build log saved to: {log_file.name}', Colors.OKBLUE)
+
+        archived = archive_board_artifacts(
+            project_dir,
+            board_name,
+            include_build_files=(not success) or save_logs,
+        )
+        if archived:
+            print_colored(
+                f'  → Archived {len(archived)} artifact file(s) to {ARTIFACT_ARCHIVE_ROOT / board_name}',
+                Colors.OKBLUE,
+            )
 
         if not success:
             # Extract error summary

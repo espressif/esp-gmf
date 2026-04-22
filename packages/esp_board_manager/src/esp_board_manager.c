@@ -221,6 +221,7 @@ esp_err_t esp_board_manager_deinit(void)
         return ret;
     }
 
+    esp_board_device_restore_all_configs();
     s_manager_initialized = false;
     ESP_LOGI(TAG, "Board manager deinitialized");
     return ESP_OK;

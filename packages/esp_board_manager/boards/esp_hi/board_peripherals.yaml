@@ -1,78 +1,72 @@
+version: 1.0.0
 peripherals:
-  - name: sdm
-    type: sdm
-    config:
-      gpio_num: 4
-      clk_src: "SDM_CLK_SRC_DEFAULT"
-      sample_rate_hz: 1000000
-      invert_out: false
-      io_loop_back: false
-
-  - name: adc_audio_in
-    type: adc
-    role: continuous
-    config:
-      unit_id: ADC_UNIT_1
-      atten: ADC_ATTEN_DB_12
-      bit_width: ADC_BITWIDTH_12
-
-      max_store_buf_size: 1024
-      conv_frame_size: 256
-      format: ADC_DIGI_OUTPUT_FORMAT_TYPE2
-      conv_mode: ADC_CONV_SINGLE_UNIT_1
-
-      channel_id: [0]
-
   - name: i2s_audio_out
     type: i2s
+    version: default
     role: master
     format: pdm-out
     config:
-      sample_rate_hz: 16000
-
+      sample_rate_hz: 24000
       clk_src: I2S_CLK_SRC_DEFAULT
-
       mclk_multiple: 256
-
       up_sample_fp: 960
       up_sample_fs: 441
-
       bclk_div: 8
-
       data_bit_width: 16
       slot_bit_width: I2S_SLOT_BIT_WIDTH_AUTO
       slot_mode: I2S_SLOT_MODE_MONO
       slot_mask: I2S_PDM_SLOT_LEFT
-
-      data_fmt: "I2S_PDM_DATA_FMT_PCM"
-
+      data_fmt: I2S_PDM_DATA_FMT_PCM
       sd_prescale: 0
       sd_scale: I2S_PDM_SIG_SCALING_MUL_4
       hp_scale: I2S_PDM_SIG_SCALING_MUL_4
       lp_scale: I2S_PDM_SIG_SCALING_MUL_4
       sinc_scale: I2S_PDM_SIG_SCALING_MUL_4
-
       line_mode: I2S_PDM_TX_ONE_LINE_CODEC
-
       hp_en: false
       hp_cut_off_freq_hz: 35.5
-
       sd_dither: 0
       sd_dither2: 1
-
       pins:
-        clk: -1                     # [IO] Clock pin
-        dout: 3                    # [IO] Data output pin
-
+        clk: -1
+        dout: 6
+        dout2: -1
       invert_flags:
         clk_inv: false
 
-  # PA CONTROL
   - name: gpio_pa_control
     type: gpio
+    version: default
+    role: io
     config:
-      pin: 1
+      pin: 3
       mode: GPIO_MODE_OUTPUT
-      intr_type: GPIO_INTR_DISABLE
       pull_up: false
-      default_level: 1
+      pull_down: false
+      intr_type: GPIO_INTR_DISABLE
+      default_level: 0
+
+  - name: spi_display
+    type: spi
+    version: default
+    role: master
+    config:
+      spi_bus_config:
+        spi_port: SPI2_HOST
+        mosi_io_num: 4
+        miso_io_num: -1
+        sclk_io_num: 5
+        quadwp_io_num: -1
+        quadhd_io_num: -1
+        max_transfer_sz: 3200
+
+  - name: gpio_boot_button
+    type: gpio
+    version: default
+    role: io
+    config:
+      pin: 9
+      mode: GPIO_MODE_INPUT
+      pull_up: true
+      pull_down: false
+      intr_type: GPIO_INTR_DISABLE

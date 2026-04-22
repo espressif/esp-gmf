@@ -8,6 +8,11 @@
 #pragma once
 
 #include "driver/sdm.h"
+#include "esp_idf_version.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#warning "periph_sdm is not supported in ESP-IDF v6.0.0 and above yet."
+#endif  /* ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) */
 
 #ifdef __cplusplus
 extern "C" {

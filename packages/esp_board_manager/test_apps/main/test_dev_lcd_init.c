@@ -20,11 +20,12 @@
 #define TAG  "LCD_INIT"
 
 // LVGL configuration
-#define LVGL_TICK_PERIOD_MS     5
-#define LVGL_TASK_MAX_SLEEP_MS  500
-#define LVGL_TASK_MIN_SLEEP_MS  5
-#define LVGL_TASK_STACK_SIZE    (10 * 1024)
-#define LVGL_TASK_PRIORITY      5
+#define LVGL_TICK_PERIOD_MS      5
+#define LVGL_TASK_MAX_SLEEP_MS   500
+#define LVGL_TASK_MIN_SLEEP_MS   5
+#define LVGL_TASK_STACK_SIZE     (10 * 1024)
+#define LVGL_TASK_PRIORITY       5
+#define LVGL_FALLBACK_BUF_LINES  20
 
 // Global handles
 static void                     *lcd_handle   = NULL;
@@ -123,11 +124,22 @@ esp_err_t test_dev_lcd_lvgl_init(void)
             return ESP_FAIL;
         }
 
+        uint32_t lvgl_buffer_pixels = lcd_cfg->lcd_width * lcd_cfg->lcd_height;
+        bool lvgl_double_buffer = true;
+        bool lvgl_use_spiram = false;
+#ifdef CONFIG_SPIRAM
+        lvgl_use_spiram = true;
+#else
+        uint32_t fallback_lines = lcd_cfg->lcd_height < LVGL_FALLBACK_BUF_LINES ? lcd_cfg->lcd_height : LVGL_FALLBACK_BUF_LINES;
+        lvgl_buffer_pixels = lcd_cfg->lcd_width * fallback_lines;
+        lvgl_double_buffer = false;
+#endif  /* CONFIG_SPIRAM */
+
         lvgl_port_display_cfg_t disp_cfg = {
             .io_handle = io_handle,
             .panel_handle = panel_handle,
-            .buffer_size = lcd_cfg->lcd_width * lcd_cfg->lcd_height,
-            .double_buffer = true,
+            .buffer_size = lvgl_buffer_pixels,
+            .double_buffer = lvgl_double_buffer,
             .hres = lcd_cfg->lcd_width,
             .vres = lcd_cfg->lcd_height,
             .monochrome = false,
@@ -137,7 +149,7 @@ esp_err_t test_dev_lcd_lvgl_init(void)
                 .mirror_y = lcd_cfg->mirror_y,
             },
             .flags = {
-                .buff_spiram = true,
+                .buff_spiram = lvgl_use_spiram,
 #if LVGL_VERSION_MAJOR >= 9
                 .swap_bytes = true,
 #endif  /* LVGL_VERSION_MAJOR >= 9 */
@@ -146,6 +158,8 @@ esp_err_t test_dev_lcd_lvgl_init(void)
         ESP_LOGI(TAG, "Unified LCD - Panel handle: %p, IO handle: %p, lcd_width: %d, lcd_height: %d, swap_xy: %d, mirror_x: %d, mirror_y: %d",
                  panel_handle, io_handle, lcd_cfg->lcd_width, lcd_cfg->lcd_height,
                  lcd_cfg->swap_xy, lcd_cfg->mirror_x, lcd_cfg->mirror_y);
+        ESP_LOGI(TAG, "LVGL draw buffer config - use_psram: %d, buffer_pixels: %" PRIu32 ", double_buffer: %d",
+                 lvgl_use_spiram, lvgl_buffer_pixels, lvgl_double_buffer);
 
         // Add LCD screen to LVGL based on sub_type
         if (strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI) == 0 || strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_PARLIO) == 0) {

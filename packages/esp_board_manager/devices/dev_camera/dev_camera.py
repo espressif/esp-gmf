@@ -6,6 +6,47 @@
 # Camera device config parser
 VERSION = 'v1.0.0'
 
+DEV_CAMERA_IO_LIST = {
+    'dvp': [
+        'reset_io',
+        'pwdn_io',
+        'de_io',
+        'pclk_io',
+        'xclk_io',
+        'vsync_io',
+        'data_io_0',
+        'data_io_1',
+        'data_io_2',
+        'data_io_3',
+        'data_io_4',
+        'data_io_5',
+        'data_io_6',
+        'data_io_7',
+        'data_io_8',
+        'data_io_9',
+        'data_io_10',
+        'data_io_11',
+        'data_io_12',
+        'data_io_13',
+        'data_io_14',
+        'data_io_15',
+    ],
+    'csi': [
+        'reset_io',
+        'pwdn_io',
+        'xclk_pin',
+    ],
+    'spi': [
+        'spi_cs_pin',
+        'spi_sclk_pin',
+        'spi_data0_io_pin',
+        'spi_data1_io_pin',
+        'reset_pin',
+        'pwdn_pin',
+        'xclk_pin',
+    ],
+}
+
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

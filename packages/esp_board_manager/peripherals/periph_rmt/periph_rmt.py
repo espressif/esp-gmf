@@ -6,6 +6,11 @@
 # RMT peripheral config parser
 VERSION = 'v1.0.0'
 
+PERIPH_RMT_IO_LIST = {
+    'tx': ['gpio_num'],
+    'rx': ['gpio_num'],
+}
+
 import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'generators'))

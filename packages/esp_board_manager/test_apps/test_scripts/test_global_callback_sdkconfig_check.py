@@ -104,6 +104,7 @@ def test_callback_warns_on_inconsistent_sdkconfig(bmgr_root, tmp_path, monkeypat
         [_Task('build')],
     )
     out = capsys.readouterr().out
+    assert '[Board Manager] Running global callback for tasks: build' in out
     assert '[Board Manager] Checking sdkconfig consistency before action execution...' in out
     assert '[Board Manager] Detected 1 sdkconfig inconsistency issue(s):' in out
     assert 'Please run: idf.py bmgr -b test_board' in out

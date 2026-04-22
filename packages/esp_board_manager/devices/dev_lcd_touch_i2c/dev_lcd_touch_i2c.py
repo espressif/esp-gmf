@@ -6,6 +6,11 @@
 # LCD touch I2C device config parser
 VERSION = 'v1.0.0'
 
+DEV_LCD_TOUCH_I2C_IO_LIST = [
+    'rst_gpio_num',
+    'int_gpio_num',
+]
+
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

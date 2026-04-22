@@ -105,6 +105,19 @@ class TestBoardDevicesYaml(unittest.TestCase):
         finally:
             shutil.rmtree(d, ignore_errors=True)
 
+    def test_explicit_null_devices_is_treated_as_empty(self):
+        d = self._devices_only_dir()
+        try:
+            main = d / 'board_devices.yaml'
+            main.write_text('devices:\n', encoding='utf-8')
+            data = load_yaml_with_includes(str(main))
+            self.assertIsNone(data.get('devices'))
+            dp = DeviceParser(BMGR_ROOT)
+            devices = dp.parse_devices_yaml_legacy(str(main), {})
+            self.assertEqual(devices, [])
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
     def test_yaml_syntax_error_aborts(self):
         d = self._devices_only_dir()
         try:

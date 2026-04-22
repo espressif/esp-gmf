@@ -42,6 +42,7 @@ esp_board_manager/
 │   ├── gen_board_device_config.c
 │   ├── gen_board_device_handles.c
 │   ├── gen_board_info.c
+│   ├── gen_board_metadata.yaml
 │   ├── board_manager.defaults
 │   ├── CMakeLists.txt
 │   ├── idf_component.yml
@@ -168,11 +169,51 @@ At this point, the board configuration files will be automatically generated to 
 - `components/gen_bmgr_codes/gen_board_device_config.c` - Device configuration
 - `components/gen_bmgr_codes/gen_board_device_handles.c` - Device handles
 - `components/gen_bmgr_codes/gen_board_info.c` - Board metadata
+- `components/gen_bmgr_codes/gen_board_metadata.yaml` - Unified board metadata for tooling, including devices, peripherals, dependencies, and occupied IO
 - `components/gen_bmgr_codes/board_manager.defaults` - Board-specific sdkconfig defaults and selected board symbols
 - `components/gen_bmgr_codes/CMakeLists.txt` - Build system configuration
 - `components/gen_bmgr_codes/idf_component.yml` - Component dependencies
 - `components/gen_bmgr_codes/gen_board_device_custom.h` - Optional custom device struct definitions
 - `components/gen_bmgr_codes/Kconfig.projbuild` - Current-board Kconfig definitions
+
+**Generated Metadata YAML**
+
+`components/gen_bmgr_codes/gen_board_metadata.yaml` is generated together with the C sources and provides a unified machine-readable board summary for tooling and inspection.
+
+Typical structure:
+
+```yaml
+version: 1
+board: esp32_s3_korvo2_v3
+chip: esp32s3
+
+devices:
+  display_lcd:
+    type: display_lcd
+    sub_type: spi
+    peripherals:
+    - spi_display
+    dependencies:
+      espressif/esp_lcd_ili9341: '*'
+    io:
+      dc_gpio_num: 10
+
+peripherals:
+  i2c_master:
+    type: i2c
+    role: master
+    io:
+      sda_io_num: 17
+      scl_io_num: 18
+```
+
+Metadata rules:
+
+- `devices.*.dependencies` mirrors the board YAML `dependencies` field.
+- `devices.*.peripherals` lists dependent peripheral names only; peripheral IO is not expanded into the device entry.
+- `devices.*.io` only contains IO configured directly by that device.
+- `peripherals.*.io` only contains IO owned by that peripheral.
+- Empty root fields such as `sub_type`, `role`, `format`, `dependencies`, `peripherals`, and `io` are omitted from the YAML output.
 
 > **Note:** If you encounter problems, refer to the [Troubleshooting](#troubleshooting) section.
 
@@ -411,7 +452,7 @@ ESP Board Manager uses `gen_bmgr_config_codes.py` for code generation, which han
 5. **Device Processing**: Parse device configurations, resolve dependencies, and generate device C structures/handles
 6. **Kconfig Generation**: Generate static capability symbols in `gen_codes/Kconfig.in` and current-board symbols in `components/gen_bmgr_codes/Kconfig.projbuild`
 7. **Board SDKconfig Handling**: When needed, validate preserved sdkconfig consistency and generate `components/gen_bmgr_codes/board_manager.defaults`
-8. **Generated Component Setup**: Write board information and generated component files under `components/gen_bmgr_codes/`
+8. **Generated Component Setup**: Write board information, unified board metadata, and generated component files under `components/gen_bmgr_codes/`
 
 **⚠️ Important**: When switching boards, the script automatically backs up and deletes the existing `sdkconfig` file during environment cleanup. This prevents residual configurations from the old board (for example, a different chip's `CONFIG_IDF_TARGET` or stale board symbols) from affecting the new board. The backup file is `components/gen_bmgr_codes/sdkconfig.bmgr_board.old`.
 

@@ -6,6 +6,12 @@
 # ADC device config parser
 VERSION = 'v1.0.0'
 
+import logging
+
+from generators.adc_channel_mapper import adc_channels_to_gpios, adc_patterns_to_gpios
+
+logger = logging.getLogger(__name__)
+
 # Define valid ADC configuration values
 VALID_ADC_ROLES = ['continuous', 'oneshot']
 # Map string roles to enum values
@@ -352,3 +358,74 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     except Exception as e:
         # Catch any other exceptions and provide context
         raise ValueError(f"Error parsing ADC peripheral '{name}': {e}")
+
+
+def extract_metadata(name: str, raw_config: dict, parse_result: dict, context: dict) -> dict:
+    chip_name = context.get('chip')
+    struct_init = parse_result.get('struct_init', {})
+    cfg_union = struct_init.get('cfg', {})
+
+    if 'oneshot' in cfg_union:
+        oneshot_cfg = cfg_union.get('oneshot', {})
+        unit_id = oneshot_cfg.get('unit_cfg', {}).get('unit_id', 'ADC_UNIT_1')
+        channel_id = oneshot_cfg.get('channel_id')
+        if channel_id is None:
+            return {'io': {}}
+        try:
+            mapped_channel = adc_channels_to_gpios(chip_name, unit_id, [channel_id])[0]
+        except FileNotFoundError as e:
+            logger.warning(
+                "Skipping ADC metadata extraction for peripheral '%s' on chip '%s': %s",
+                name,
+                chip_name,
+                e,
+            )
+            return {'io': {}}
+        return {'io': {'channel_id': mapped_channel}}
+
+    continuous_cfg = cfg_union.get('continuous', {})
+    cfg_mode = continuous_cfg.get('cfg_mode')
+    cfg = continuous_cfg.get('cfg', {})
+
+    if cfg_mode == 'PERIPH_ADC_CONTINUOUS_CFG_MODE_PATTERN':
+        try:
+            mapped_channels = adc_patterns_to_gpios(chip_name, cfg.get('patterns', []))
+        except FileNotFoundError as e:
+            logger.warning(
+                "Skipping ADC metadata extraction for peripheral '%s' on chip '%s': %s",
+                name,
+                chip_name,
+                e,
+            )
+            return {'io': {}}
+        return {
+            'io': {
+                'channel': mapped_channels,
+            }
+        }
+
+    single_unit_cfg = cfg.get('single_unit', {})
+    channels = single_unit_cfg.get('channel_id', [])
+    if not channels:
+        return {'io': {}}
+
+    try:
+        mapped_channels = adc_channels_to_gpios(
+            chip_name,
+            single_unit_cfg.get('unit_id', 'ADC_UNIT_1'),
+            channels,
+        )
+    except FileNotFoundError as e:
+        logger.warning(
+            "Skipping ADC metadata extraction for peripheral '%s' on chip '%s': %s",
+            name,
+            chip_name,
+            e,
+        )
+        return {'io': {}}
+
+    return {
+        'io': {
+            'channel_id': mapped_channels,
+        }
+    }

@@ -6,6 +6,13 @@
 # UART device config parser
 VERSION = 'v1.0.0'
 
+PERIPH_UART_IO_LIST = [
+    'tx_io_num',
+    'rx_io_num',
+    'rts_io_num',
+    'cts_io_num',
+]
+
 # Define valid enum values for UART configuration
 VALID_UART_ENUMS = {
     'data_bits': [

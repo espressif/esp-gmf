@@ -6,6 +6,11 @@
 # I2C peripheral config parser
 VERSION = 'v1.0.0'
 
+PERIPH_I2C_IO_LIST = [
+    'sda_io_num',
+    'scl_io_num',
+]
+
 import sys
 from typing import Union
 

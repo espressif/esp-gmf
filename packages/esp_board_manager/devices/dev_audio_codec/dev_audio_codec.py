@@ -6,10 +6,15 @@
 # Audio codec device config parser
 VERSION = 'v1.0.0'
 
+import logging
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from generators.adc_channel_mapper import adc_channels_to_gpios, adc_patterns_to_gpios
+
+logger = logging.getLogger(__name__)
 
 def get_includes() -> list:
     """Return list of required include headers for audio codec device"""
@@ -371,3 +376,60 @@ def parse(name: str, config: dict, peripherals_dict=None) -> dict:
         }
     }
     return result
+
+
+def extract_metadata(name: str, raw_config: dict, parse_result: dict, context: dict) -> dict:
+    chip_name = context.get('chip')
+    adc_cfg = parse_result.get('struct_init', {}).get('adc_cfg', {})
+
+    if adc_cfg.get('periph_name'):
+        return {'io': {}}
+
+    cfg_mode = adc_cfg.get('cfg_mode')
+    cfg = adc_cfg.get('cfg', {})
+
+    if cfg_mode == 'BOARD_CODEC_ADC_CFG_MODE_PATTERN':
+        patterns = cfg.get('patterns', [])
+        if not patterns:
+            return {'io': {}}
+        try:
+            mapped_channels = adc_patterns_to_gpios(chip_name, patterns)
+        except FileNotFoundError as e:
+            logger.warning(
+                "Skipping ADC metadata extraction for device '%s' on chip '%s': %s",
+                name,
+                chip_name,
+                e,
+            )
+            return {'io': {}}
+        return {
+            'io': {
+                'channel': mapped_channels,
+            }
+        }
+
+    single_unit_cfg = cfg.get('single_unit', {})
+    channels = single_unit_cfg.get('channel_id', [])
+    if not channels:
+        return {'io': {}}
+
+    try:
+        mapped_channels = adc_channels_to_gpios(
+            chip_name,
+            single_unit_cfg.get('unit_id', 'ADC_UNIT_1'),
+            channels,
+        )
+    except FileNotFoundError as e:
+        logger.warning(
+            "Skipping ADC metadata extraction for device '%s' on chip '%s': %s",
+            name,
+            chip_name,
+            e,
+        )
+        return {'io': {}}
+
+    return {
+        'io': {
+            'channel_id': mapped_channels,
+        }
+    }

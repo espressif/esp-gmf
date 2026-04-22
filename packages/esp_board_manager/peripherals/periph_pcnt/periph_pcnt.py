@@ -264,3 +264,27 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     }
 
     return result
+
+
+def extract_metadata(name: str, raw_config: dict, parse_result: dict, context: dict) -> dict:
+    channel_list = parse_result.get('struct_init', {}).get('channel_list', [])
+    edge_gpio_nums = []
+    level_gpio_nums = []
+
+    for item in channel_list:
+        channel_cfg = item.get('channel_config', {})
+        edge_gpio_num = channel_cfg.get('edge_gpio_num', -1)
+        level_gpio_num = channel_cfg.get('level_gpio_num', -1)
+
+        if isinstance(edge_gpio_num, int) and edge_gpio_num >= 0 and edge_gpio_num not in edge_gpio_nums:
+            edge_gpio_nums.append(edge_gpio_num)
+        if isinstance(level_gpio_num, int) and level_gpio_num >= 0 and level_gpio_num not in level_gpio_nums:
+            level_gpio_nums.append(level_gpio_num)
+
+    io = {}
+    if edge_gpio_nums:
+        io['edge_gpio_num'] = edge_gpio_nums
+    if level_gpio_nums:
+        io['level_gpio_num'] = level_gpio_nums
+
+    return {'io': io}

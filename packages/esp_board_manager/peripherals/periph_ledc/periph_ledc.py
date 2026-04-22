@@ -6,6 +6,10 @@
 # LEDC peripheral config parser
 VERSION = 'v1.0.0'
 
+PERIPH_LEDC_IO_LIST = [
+    'gpio_num',
+]
+
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'generators'))

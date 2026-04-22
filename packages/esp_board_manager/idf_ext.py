@@ -247,6 +247,7 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
 
     def board_manager_global_callback(ctx, global_args, tasks):
         """Inject ``board_manager.defaults`` into SDKCONFIG_DEFAULTS when ``sdkconfig`` is absent; otherwise warn-only sdkconfig consistency check."""
+        print(f"[Board Manager] Running global callback for tasks: {', '.join(t.name for t in tasks)}")
         task_names = tuple(t.name for t in tasks)
         _validate_mixed_bmgr_tasks(task_names)
         if not _global_callback_needs_config(tasks):

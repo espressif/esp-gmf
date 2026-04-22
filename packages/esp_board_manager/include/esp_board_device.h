@@ -41,14 +41,15 @@ typedef int (*esp_board_device_callback_register_func)(void *dev_handle, const v
  * @brief  Structure representing a device descriptor
  */
 typedef struct esp_board_device_desc {
-    const struct esp_board_device_desc  *next;               /*!< Pointer to next device descriptor */
-    const char                          *name;               /*!< Device name */
-    const char                          *chip;               /*!< Device chip type */
-    const char                          *type;               /*!< Device type */
-    const void                          *cfg;                /*!< Device configuration data */
-    uint16_t                             cfg_size;           /*!< Size of configuration data */
-    uint8_t                              init_skip : 1;      /*!< Skip initialization when manager initializes all devices */
-    const char                          *power_ctrl_device;  /*!< Power control device name for this device */
+    const struct esp_board_device_desc *next;               /*!< Pointer to next device descriptor */
+    const char                         *name;               /*!< Device name */
+    const char                         *chip;               /*!< Device chip type */
+    const char                         *type;               /*!< Device type */
+    const char                         *sub_type;           /*!< Device sub-type */
+    const void                         *cfg;                /*!< Device configuration data */
+    uint16_t                            cfg_size;           /*!< Size of configuration data */
+    uint8_t                             init_skip : 1;      /*!< Skip initialization when manager initializes all devices */
+    const char                         *power_ctrl_device;  /*!< Power control device name for this device */
 } esp_board_device_desc_t;
 
 /**
@@ -129,6 +130,58 @@ esp_err_t esp_board_device_get_config(const char *name, void **config);
  *       - ESP_BOARD_ERR_DEVICE_NOT_FOUND    If device handle or configuration not found
  */
 esp_err_t esp_board_device_get_config_by_handle(void *device_handle, void **config);
+
+/**
+ * @brief  Override a device configuration at runtime
+ *
+ *         This function stores a shallow copy of the provided configuration in RAM
+ *         and uses it for future get_config, init, and callback_register calls.
+ *         Pointer fields inside the configuration are not deep-copied; the caller
+ *         must keep any referenced memory valid until restore_config is called.
+ *
+ *         This API stores the provided byte buffer as-is and forwards the exact
+ *         pointer and config_size to future init and callback_register calls.
+ *         The framework does not require config_size to match the generated
+ *         descriptor size, which allows device-specific alternate config layouts.
+ *         Whether a particular device implementation accepts that alternate size
+ *         is determined by the device driver itself.
+ *
+ *         For same-layout overrides, the recommended usage pattern is to fetch the
+ *         current config, copy it by value, modify only the desired fields, then
+ *         set the override.
+ *
+ *         If the device has already been initialized, the new configuration will
+ *         not affect the running instance immediately. Deinitialize and initialize
+ *         the device again to apply the new configuration to the driver.
+ *
+ * @param[in]  name         Device name
+ * @param[in]  config       Pointer to the new configuration
+ * @param[in]  config_size  Size of the configuration structure
+ *
+ * @return
+ *       - ESP_OK                              On success
+ *       - ESP_ERR_NO_MEM                      If memory allocation fails
+ *       - ESP_BOARD_ERR_DEVICE_INVALID_ARG    If name/config is NULL or config_size is 0
+ *       - ESP_BOARD_ERR_DEVICE_NOT_FOUND      If device is not found
+ *       - ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED  If device has no generated configuration
+ */
+esp_err_t esp_board_device_override_config(const char *name, const void *config, uint16_t config_size);
+
+/**
+ * @brief  Restore the generated configuration for a device
+ *
+ *         Removes the RAM override created by esp_board_device_override_config() and
+ *         restores the generated read-only configuration for future operations.
+ *         This function does not deinitialize the device automatically.
+ *
+ * @param[in]  name  Device name
+ *
+ * @return
+ *       - ESP_OK                            On success
+ *       - ESP_ERR_NOT_FOUND                 If no runtime override exists for the device
+ *       - ESP_BOARD_ERR_DEVICE_INVALID_ARG  If name is NULL
+ */
+esp_err_t esp_board_device_restore_config(const char *name);
 
 /**
  * @brief  Set device initialization and deinitialization functions
