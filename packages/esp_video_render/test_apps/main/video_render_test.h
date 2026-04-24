@@ -55,6 +55,8 @@ esp_vui_widget_t *esp_vui_widget_clock_init(esp_vui_container_handle_t container
 
 esp_video_render_err_t esp_vui_widget_clock_update(esp_vui_widget_t *widget);
 
+void video_render_reconfig_lcd(void);
+
 int create_video_render(uint8_t fps);
 
 void video_render_use_lvgl(bool use_lvgl);

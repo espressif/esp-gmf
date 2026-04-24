@@ -2,13 +2,13 @@
   extends:
     - .target_test_template
   variables:
-    IDF_VERSION_TAG: v5.5.3
     IDF_TAG_FLAG: true
     TARGET_DIR_TYPE: "test_apps"
   artifacts:
     when: always
     paths:
       - XUNIT_RESULT.xml
+      - "**/pytest_log/**/dut.txt"
       - pytest-embedded/
     reports:
       junit: XUNIT_RESULT.xml
@@ -16,12 +16,17 @@
   script:
     - cd $CI_PROJECT_DIR
     - pip install pytest pytest-embedded-idf pytest-embedded-serial-esp pytest-rerunfailures pytest-timeout idf_build_apps
-    - eval "$(python ${CI_PROJECT_DIR}/tools/ci/build_apps.py ${TEST_DIR} --find --target-dir-type ${TARGET_DIR_TYPE} --target ${IDF_TARGET} -vv)"
+    # Run build_apps.py --find as a separate assignment so set -e aborts the job
+    # when it crashes (e.g. dependency mismatch). Using `eval "$(...)"` directly
+    # would swallow the failure and silently produce an empty APP_LIST.
+    - APP_LIST_CMD=$(python ${CI_PROJECT_DIR}/tools/ci/build_apps.py ${TEST_DIR} --find --target-dir-type ${TARGET_DIR_TYPE} --target ${IDF_TARGET} -vv)
+    - eval "$APP_LIST_CMD"
+    - '[ "${#APP_LIST[@]}" -gt 0 ] || { echo "ERROR APP_LIST is empty, build_apps.py produced no apps"; exit 1; }'
     - pytest "${APP_LIST[@]}"
       --target ${IDF_TARGET}
       --junitxml=XUNIT_RESULT.xml
-      --parallel-count ${CI_NODE_TOTAL:-1}
-      --parallel-index ${CI_NODE_INDEX:-1}
+      --parallel-count 1
+      --parallel-index 1
       ${PYTEST_EXTRA_FLAGS}
 
 .pytest_components_dir_template:
@@ -32,13 +37,15 @@
     TEST_DIR: ${CI_PROJECT_DIR}/gmf_core
     BUILD_JOB_PREFIX: build_pytest_components_
     IDF_TARGET: esp32s3
-  retry: 2
+  retry: 1
 
 ut_gmf_core_esp32s3:
   extends:
     - .pytest_components_dir_template
+    - .matrix_template
   needs:
     - 'build_ut_gmf_core_esp32s3: [v5.5.3, 1/1]'
+    - 'build_ut_gmf_core_esp32s3: [release/v6.1, 1/1]'
   variables:
     TEST_DIR: ${CI_PROJECT_DIR}/gmf_core
   tags: [ ESP32S3, ESP_GMF_COMPONENT ]
@@ -46,8 +53,10 @@ ut_gmf_core_esp32s3:
 ut_gmf_elements_esp32s3:
   extends:
     - .pytest_components_dir_template
+    - .matrix_template
   needs:
     - 'build_ut_gmf_elements_esp32s3: [v5.5.3, 1/1]'
+    - 'build_ut_gmf_elements_esp32s3: [release/v6.1, 1/1]'
   variables:
     TEST_DIR: ${CI_PROJECT_DIR}/elements
   tags: [ ESP32S3, ESP_GMF_COMPONENT ]
@@ -55,8 +64,76 @@ ut_gmf_elements_esp32s3:
 ut_gmf_packages_esp32s3:
   extends:
     - .pytest_components_dir_template
+    - .matrix_template
   needs:
     - 'build_ut_gmf_packages_esp32s3: [v5.5.3, 1/1]'
+    - 'build_ut_gmf_packages_esp32s3: [release/v6.1, 1/1]'
   variables:
     TEST_DIR: ${CI_PROJECT_DIR}/packages
   tags: [ ESP32S3, ESP_GMF_COMPONENT ]
+
+ut_gmf_core_esp32p4:
+  extends:
+    - .pytest_components_dir_template
+    - .matrix_template_v6_1
+  needs:
+    - 'build_ut_gmf_core_esp32p4: [release/v6.1, 1/1]'
+  variables:
+    TEST_DIR: ${CI_PROJECT_DIR}/gmf_core
+    IDF_TARGET: esp32p4
+  tags: [ ESP32P4, ESP_GMF_COMPONENT ]
+
+ut_gmf_elements_esp32p4:
+  extends:
+    - .pytest_components_dir_template
+    - .matrix_template_v6_1
+  needs:
+    - 'build_ut_gmf_elements_esp32p4: [release/v6.1, 1/1]'
+  variables:
+    TEST_DIR: ${CI_PROJECT_DIR}/elements
+    IDF_TARGET: esp32p4
+  tags: [ ESP32P4, ESP_GMF_COMPONENT ]
+
+ut_gmf_packages_esp32p4:
+  extends:
+    - .pytest_components_dir_template
+    - .matrix_template_v6_1
+  needs:
+    - 'build_ut_gmf_packages_esp32p4: [release/v6.1, 1/1]'
+  variables:
+    TEST_DIR: ${CI_PROJECT_DIR}/packages
+    IDF_TARGET: esp32p4
+  tags: [ ESP32P4, ESP_GMF_COMPONENT ]
+
+ut_gmf_core_esp32s31:
+  extends:
+    - .pytest_components_dir_template
+    - .matrix_template_v6_1
+  needs:
+    - 'build_ut_gmf_core_esp32s31: [release/v6.1, 1/1]'
+  variables:
+    TEST_DIR: ${CI_PROJECT_DIR}/gmf_core
+    IDF_TARGET: esp32s31
+  tags: [ ESP32S31, ESP_GMF_COMPONENT ]
+
+ut_gmf_elements_esp32s31:
+  extends:
+    - .pytest_components_dir_template
+    - .matrix_template_v6_1
+  needs:
+    - 'build_ut_gmf_elements_esp32s31: [release/v6.1, 1/1]'
+  variables:
+    TEST_DIR: ${CI_PROJECT_DIR}/elements
+    IDF_TARGET: esp32s31
+  tags: [ ESP32S31, ESP_GMF_COMPONENT ]
+
+ut_gmf_packages_esp32s31:
+  extends:
+    - .pytest_components_dir_template
+    - .matrix_template_v6_1
+  needs:
+    - 'build_ut_gmf_packages_esp32s31: [release/v6.1, 1/1]'
+  variables:
+    TEST_DIR: ${CI_PROJECT_DIR}/packages
+    IDF_TARGET: esp32s31
+  tags: [ ESP32S31, ESP_GMF_COMPONENT ]

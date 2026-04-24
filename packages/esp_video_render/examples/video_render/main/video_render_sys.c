@@ -21,6 +21,12 @@
 #include "esp_lcd_panel_ops.h"
 #include "video_render.h"
 #ifdef VIDEO_RENDER_LVGL_SUPPORT
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+#include "esp_lcd_panel_rgb.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
+#include "esp_lcd_mipi_dsi.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
 #include "lvgl.h"
 #include "esp_lvgl_port.h"
 #endif  /* VIDEO_RENDER_LVGL_SUPPORT */
@@ -61,6 +67,29 @@ void video_render_use_lvgl(bool use)
     use_lvgl_backend = use;
 }
 
+void video_render_reconfig_lcd(void)
+{
+    dev_display_lcd_config_t lcd_cfg;
+    dev_display_lcd_config_t *origin_cfg = NULL;
+    esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, (void **)&origin_cfg);
+    if (origin_cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to get display config");
+        return;
+    }
+    memcpy(&lcd_cfg, origin_cfg, sizeof(dev_display_lcd_config_t));
+    if (strcmp(origin_cfg->sub_type, "rgb") == 0) {
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+        lcd_cfg.sub_cfg.rgb.panel_config.num_fbs = 2;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+    } else if (strcmp(origin_cfg->sub_type, "dsi") == 0) {
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
+        lcd_cfg.sub_cfg.dsi.dpi_config.num_fbs = 2;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
+    }
+    esp_board_device_override_config(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, &lcd_cfg, sizeof(dev_display_lcd_config_t));
+    ESP_LOGI(TAG, "LCD configuration overridden");
+}
+
 static int get_display_cfg(esp_video_render_lcd_cfg_t *cfg, const dev_display_lcd_config_t **dev_cfg)
 {
     const dev_display_lcd_config_t *lcd_cfg = NULL;
@@ -88,7 +117,10 @@ static int get_display_cfg(esp_video_render_lcd_cfg_t *cfg, const dev_display_lc
         cfg->out_format = ESP_VIDEO_RENDER_FORMAT_RGB565_BE;
     } else if (strcmp(lcd_cfg->sub_type, "rgb") == 0) {
         cfg->lcd_type = ESP_VIDEO_RENDER_LCD_TYPE_RGB;
-        cfg->out_format = ESP_VIDEO_RENDER_FORMAT_RGB565_BE;
+        cfg->out_format = ESP_VIDEO_RENDER_FORMAT_RGB565;
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+       cfg->fb_num = lcd_cfg->sub_cfg.rgb.panel_config.num_fbs;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
     } else if (strcmp(lcd_cfg->sub_type, "i80") == 0) {
         cfg->lcd_type = ESP_VIDEO_RENDER_LCD_TYPE_I80;
         cfg->out_format = ESP_VIDEO_RENDER_FORMAT_RGB565;
@@ -106,6 +138,51 @@ static int get_display_cfg(esp_video_render_lcd_cfg_t *cfg, const dev_display_lc
 }
 
 #ifdef VIDEO_RENDER_LVGL_SUPPORT
+
+static void lvgl_detach_panel_callbacks(void)
+{
+    dev_display_lcd_config_t *lcd_cfg = NULL;
+    dev_display_lcd_handles_t *lcd_handle = NULL;
+    esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, (void **)&lcd_handle);
+    esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, (void **)&lcd_cfg);
+    if (lcd_handle == NULL || lcd_handle->panel_handle == NULL || lcd_cfg == NULL) {
+        return;
+    }
+
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+    if (strcmp(lcd_cfg->sub_type, "rgb") == 0) {
+        const esp_lcd_rgb_panel_event_callbacks_t cbs = {};
+        esp_err_t ret = esp_lcd_rgb_panel_register_event_callbacks(lcd_handle->panel_handle, &cbs, NULL);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to detach RGB panel callback: %s", esp_err_to_name(ret));
+        }
+        return;
+    }
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
+    if (strcmp(lcd_cfg->sub_type, "dsi") == 0) {
+        const esp_lcd_dpi_panel_event_callbacks_t cbs = {};
+        esp_err_t ret = esp_lcd_dpi_panel_register_event_callbacks(lcd_handle->panel_handle, &cbs, NULL);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to detach DPI panel callback: %s", esp_err_to_name(ret));
+        }
+    }
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
+}
+
+static void lvgl_port_deinit_sync(void)
+{
+    esp_err_t ret = lvgl_port_deinit();
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "LVGL port deinit returned %s", esp_err_to_name(ret));
+    }
+    ret = lvgl_port_task_wake(LVGL_PORT_EVENT_DISPLAY, NULL);
+    if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "Failed to wake LVGL task for deinit: %s", esp_err_to_name(ret));
+    }
+    vTaskDelay(pdMS_TO_TICKS(100));
+}
 
 // Weak declaration to fetch IO handle from board layer if available
 static int lvgl_init_ref = 0;
@@ -151,13 +228,30 @@ lv_disp_t *init_lvgl_display_from_board(esp_video_render_lcd_cfg_t *cfg, const d
             break;
         }
         case ESP_VIDEO_RENDER_LCD_TYPE_DPI: {
-            disp_cfg.buffer_size = cfg->width * 50;  // Porting from p4 function ev board
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
+            disp_cfg.buffer_size = cfg->width * 50;
             const lvgl_port_display_dsi_cfg_t dpi_cfg = {
                 .flags = {
-                    .avoid_tearing = false,
+                    .avoid_tearing = dev_cfg->sub_cfg.dsi.dpi_config.num_fbs > 1,
                 }};
+            disp_cfg.flags.direct_mode = dpi_cfg.flags.avoid_tearing;
             disp = lvgl_port_add_disp_dsi(&disp_cfg, &dpi_cfg);
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
             break;
+        }
+        case ESP_VIDEO_RENDER_LCD_TYPE_RGB: {
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+            disp_cfg.buffer_size = cfg->width * 50;
+            lvgl_port_display_rgb_cfg_t rgb_cfg = {
+                .flags = {
+                    .bb_mode = dev_cfg->sub_cfg.rgb.panel_config.bounce_buffer_size_px > 0,
+                    .avoid_tearing = dev_cfg->sub_cfg.rgb.panel_config.num_fbs > 1,
+                },
+            };
+            disp_cfg.flags.direct_mode = rgb_cfg.flags.avoid_tearing;
+            disp = lvgl_port_add_disp_rgb(&disp_cfg, &rgb_cfg);
+            break;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
         }
         default:
             ESP_LOGE(TAG, "Unsupported LCD bus type: %d", cfg->lcd_type);
@@ -167,7 +261,7 @@ lv_disp_t *init_lvgl_display_from_board(esp_video_render_lcd_cfg_t *cfg, const d
     if (disp == NULL) {
         lvgl_init_ref--;
         if (lvgl_init_ref == 0) {
-            lvgl_port_deinit();
+            lvgl_port_deinit_sync();
         }
     }
     return disp;
@@ -189,7 +283,7 @@ static int create_default_pool(esp_gmf_pool_handle_t *pool)
         esp_gmf_video_overlay_init(NULL, &el);
         BREAK_ON_FAIL(esp_gmf_pool_register_element(*pool, el, NULL));
         // Only add ppa for P4
-#if CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
         el = NULL;
         esp_gmf_video_ppa_init(NULL, &el);
         BREAK_ON_FAIL(esp_gmf_pool_register_element(*pool, el, NULL));
@@ -210,7 +304,7 @@ static int create_default_pool(esp_gmf_pool_handle_t *pool)
             .color_space_std = ESP_IMGFX_COLOR_SPACE_STD_BT601};
         esp_gmf_video_color_convert_init(&color_convert_cfg, &el);
         BREAK_ON_FAIL(esp_gmf_pool_register_element(*pool, el, NULL));
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
         return 0;
     } while (0);
     if (el) {
@@ -334,13 +428,15 @@ void destroy_video_render(void)
         lvgl_init_ref--;
         if (lvgl_init_ref == 0) {
             if (disp_handle) {
+                lvgl_port_stop();
+                vTaskDelay(50 / portTICK_PERIOD_MS);
+                lvgl_detach_panel_callbacks();
+                vTaskDelay(10 / portTICK_PERIOD_MS);
                 lvgl_port_remove_disp(disp_handle);
                 disp_handle = NULL;
             }
             ESP_LOGI(TAG, "LVGL port deinit");
-            lvgl_port_deinit();
-            // Delay here to wait for thread is quit complete
-            vTaskDelay(100 / portTICK_PERIOD_MS);
+            lvgl_port_deinit_sync();
         }
     }
 #endif  /* VIDEO_RENDER_LVGL_SUPPORT */

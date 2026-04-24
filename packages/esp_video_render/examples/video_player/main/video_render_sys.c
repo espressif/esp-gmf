@@ -67,7 +67,7 @@ static int create_default_pool(esp_gmf_pool_handle_t *pool)
         BREAK_ON_FAIL(esp_gmf_pool_register_element(*pool, el, NULL));
 
         // Only add ppa for P4
-#if CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
         el = NULL;
         esp_gmf_video_ppa_init(NULL, &el);
         BREAK_ON_FAIL(esp_gmf_pool_register_element(*pool, el, NULL));
@@ -99,6 +99,29 @@ static int create_default_pool(esp_gmf_pool_handle_t *pool)
         *pool = NULL;
     }
     return -1;
+}
+
+void video_render_sys_reconfig_lcd(void)
+{
+    dev_display_lcd_config_t lcd_cfg;
+    dev_display_lcd_config_t *origin_cfg = NULL;
+    esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, (void **)&origin_cfg);
+    if (origin_cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to get display config");
+        return;
+    }
+    memcpy(&lcd_cfg, origin_cfg, sizeof(dev_display_lcd_config_t));
+    if (strcmp(origin_cfg->sub_type, "rgb") == 0) {
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+        lcd_cfg.sub_cfg.rgb.panel_config.num_fbs = 2;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+    }  else if (strcmp(origin_cfg->sub_type, "dsi") == 0) {
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
+        lcd_cfg.sub_cfg.dsi.dpi_config.num_fbs = 2;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
+    }
+    esp_board_device_override_config(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, &lcd_cfg, sizeof(dev_display_lcd_config_t));
+    ESP_LOGI(TAG, "LCD configuration overridden");
 }
 
 int video_render_sys_create(uint8_t fps)
@@ -140,7 +163,10 @@ int video_render_sys_create(uint8_t fps)
                 backend_cfg.out_format = ESP_VIDEO_RENDER_FORMAT_RGB565_BE;
             } else if (strcmp(lcd_cfg->sub_type, "rgb") == 0) {
                 backend_cfg.lcd_type = ESP_VIDEO_RENDER_LCD_TYPE_RGB;
-                backend_cfg.out_format = ESP_VIDEO_RENDER_FORMAT_RGB565_BE;
+                backend_cfg.out_format = ESP_VIDEO_RENDER_FORMAT_RGB565;
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+                backend_cfg.fb_num = lcd_cfg->sub_cfg.rgb.panel_config.num_fbs;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
             } else if (strcmp(lcd_cfg->sub_type, "i80") == 0) {
                 backend_cfg.lcd_type = ESP_VIDEO_RENDER_LCD_TYPE_I80;
                 backend_cfg.out_format = ESP_VIDEO_RENDER_FORMAT_RGB565;

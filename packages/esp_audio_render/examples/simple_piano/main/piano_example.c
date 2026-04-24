@@ -24,7 +24,13 @@
 
 #define TAG "PIANO_EXAMPLE"
 
-#define SUPPORT_REALTIME_TRACK
+/**
+ * @brief  Enable real-time piano track
+ *
+ * @note  In default, real-time piano track is disabled
+ *        To enable it, uncomment the following line:
+ */
+// #define SUPPORT_REALTIME_TRACK
 
 // Classic song: "Twinkle Twinkle Little Star" with harmony
 static const piano_note_t melody_notes[] = {

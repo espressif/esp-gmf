@@ -10,3 +10,11 @@ dependencies:
     override_path: "../../../../elements/gmf_audio"
   espressif/gmf_app_utils:
     override_path: "../../../../packages/gmf_app_utils"
+  espressif/esp_hosted:
+    version: ^2.4.2
+    rules:
+    - if: target in [esp32p4]
+  espressif/esp_wifi_remote:
+    version: ^1.0.0
+    rules:
+    - if: target in [esp32p4]

@@ -34,6 +34,10 @@ Example usage:
 
 Note: Build rules in .build_test_rules.yml files may exclude some applications
       based on target, configuration or other criteria.
+
+      By default idf_build_apps includes IDF preview targets in manifest defaults
+      (same idea as idf.py --preview). Pass --disable-preview-targets to restrict
+      to non-preview targets only.
 """
 
 import argparse
@@ -44,7 +48,12 @@ from pathlib import Path
 from typing import List
 import tempfile
 import logging
-from idf_build_apps import App, build_apps, find_apps, setup_logging, utils, CMakeApp
+
+try:
+    from idf_build_apps import App, build_apps, find_apps, setup_logging, utils, CMakeApp
+except ImportError:
+    print('Warning: Exception in importing package idf_build_apps')
+    sys.exit(1)
 
 PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 APPS_BUILD_PER_JOB = 30
@@ -128,8 +137,18 @@ def get_cmake_apps(
     config_rules_str,
     default_build_targets,
     build_dir='build_@t_@w',
-):  # type: (List[str], str, List[str], List[str], str) -> List[App]
+    enable_preview_targets=True,
+):  # type: (List[str], str, List[str], List[str], str, bool) -> List[App]
     use_new_api = _check_idf_build_apps_version()
+
+    if enable_preview_targets and not use_new_api:
+        print_warning(
+            f'{WARNING_ICON} enable_preview_targets is ignored (requires idf_build_apps 2.x)'
+        )
+
+    preview_kw = {}
+    if enable_preview_targets and use_new_api:
+        preview_kw['enable_preview_targets'] = True
 
     if use_new_api:
         # Newer API with build_log_filename
@@ -145,6 +164,7 @@ def get_cmake_apps(
             no_preserve=False,
             default_build_targets=default_build_targets,
             manifest_files=[str(p) for p in Path(os.environ['PROJECT_PATH']).glob('**/.build_test_rules.yml')],
+            **preview_kw,
         )
     else:
         # Older API with build_log_path
@@ -304,7 +324,14 @@ def _with_board_manager_sdkconfig_defaults(apps):
 def _handle_find_mode(args, filtered_paths) -> List[str]:
     """Handle find mode: list filtered applications without building"""
     default_build_targets = args.default_build_targets.split(',') if args.default_build_targets else None
-    apps = get_cmake_apps(filtered_paths, args.target, args.config, default_build_targets, args.build_dir)
+    apps = get_cmake_apps(
+        filtered_paths,
+        args.target,
+        args.config,
+        default_build_targets,
+        args.build_dir,
+        enable_preview_targets=getattr(args, 'enable_preview_targets', True),
+    )
 
     exclude_apps = getattr(args, 'exclude_apps', [])
     if exclude_apps:
@@ -351,7 +378,14 @@ def _handle_build_mode(args, filtered_paths):
         print_info(COLLECTED_PATHS_MSG.format(len(filtered_paths)))
 
     default_build_targets = args.default_build_targets.split(',') if args.default_build_targets else None
-    apps = get_cmake_apps(filtered_paths, args.target, args.config, default_build_targets, args.build_dir)
+    apps = get_cmake_apps(
+        filtered_paths,
+        args.target,
+        args.config,
+        default_build_targets,
+        args.build_dir,
+        enable_preview_targets=getattr(args, 'enable_preview_targets', True),
+    )
 
     # Check for apps removed by build rules
     removed_apps = _get_removed_apps(filtered_paths, apps)
@@ -391,7 +425,8 @@ def get_app_paths(
     path: str,
     target: str = 'esp32',
     target_dir_type: str = APP_TYPE_TEST_APPS,
-    exclude_apps: List[str] = None
+    exclude_apps: List[str] = None,
+    enable_preview_targets: bool = True,
 ) -> List[str]:
     """Get application paths based on directory type"""
     args = argparse.Namespace(
@@ -404,7 +439,8 @@ def get_app_paths(
         exclude_apps = exclude_apps or [],
         find = True,
         no_require_pytest = True,
-        verbose = 0
+        verbose = 0,
+        enable_preview_targets = enable_preview_targets,
     )
 
     filtered_paths, _ = find_apps_with_filter(args.paths, target_dir_type=args.target_dir_type)
@@ -477,6 +513,20 @@ if __name__ == '__main__':
         default=None,
         help='default build targets used in manifest files',
     )
+    _preview = parser.add_mutually_exclusive_group()
+    _preview.add_argument(
+        '--enable-preview-targets',
+        dest='enable_preview_targets',
+        action='store_true',
+        help='Include IDF preview targets in idf_build_apps manifest defaults (default: on).',
+    )
+    _preview.add_argument(
+        '--disable-preview-targets',
+        dest='enable_preview_targets',
+        action='store_false',
+        help='Use only non-preview IDF targets for idf_build_apps manifest defaults.',
+    )
+    parser.set_defaults(enable_preview_targets=True)
     parser.add_argument(
         '--build-dir',
         default='build_@t_@w',

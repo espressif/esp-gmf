@@ -582,7 +582,7 @@ int video_capture_run_with_customized_process(int duration)
         }
 
         const char *vid_elements[] = {"vid_color_cvt", "vid_fps_cvt", "vid_enc"};
-#ifdef CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
         vid_elements[0] = "vid_ppa";
 #endif
         ret = esp_capture_sink_build_pipeline(sink, ESP_CAPTURE_STREAM_TYPE_VIDEO,

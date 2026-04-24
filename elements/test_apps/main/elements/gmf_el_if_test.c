@@ -600,7 +600,7 @@ void test_esp_gmf_audio_muxer_if()
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
-TEST_CASE("Test element if check", "[ESP_GMF_IF_CHECK]")
+TEST_CASE("Test element if check", "[ESP_GMF_IF_CHECK][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     test_esp_gmf_alc_if();

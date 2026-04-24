@@ -9,6 +9,11 @@
 - Added `HOWL` capability definition
 - Added `DOA` capability definition (`ESP_GMF_CAPS_AUDIO_DOA`)
 
+### Bug Fixes
+
+- Fixed IO task hold race that could stop the task and cause databus read timeout
+- Fixed data_bus reset not restoring write semaphore, which could leave IO task stuck in `acquire_write`
+
 ## v0.8.4
 
 ### Features

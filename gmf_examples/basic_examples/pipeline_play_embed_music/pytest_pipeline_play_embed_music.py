@@ -8,7 +8,7 @@ import os
 from pytest_embedded import Dut
 from audio_test_package.audio_recorder.recorder_stream import Recorder
 
-@pytest.mark.esp32
+@pytest.mark.parametrize('target', ['esp32'], indirect=True)
 @pytest.mark.AUDIO_LOOPBACK_ENV
 def test_pipeline_play_embed_music_similarity_compare(dut: Dut)-> None:
     script_path = os.path.abspath(__file__)
@@ -31,6 +31,6 @@ def test_pipeline_play_embed_music_similarity_compare(dut: Dut)-> None:
     url = f'{media_ci_server}/upload/?pipeline_id={pipeline_id}&job_id={job_id}&target_file=ff-16b-1c-44100hz.mp3'
     recorder.request_audio_similarity(url)
 
-@pytest.mark.esp32s3
+@pytest.mark.parametrize('target', ['esp32s3', 'esp32s31'], indirect=True)
 def test_pipeline_play_embed_music_str_detect(dut: Dut)-> None:
     dut.expect(r'ESP_GMF_EMBED_FLASH: Closed, pos: 231725/231725', timeout=30)

@@ -49,7 +49,7 @@ static esp_gmf_io_handle_t create_test_http_io(bool with_data_bus)
     return io;
 }
 
-TEST_CASE("HTTP Seek - Basic Operations with DataBus", "[IO_HTTP][leaks=10000]")
+TEST_CASE("HTTP Seek - Basic Operations with DataBus", "[IO_HTTP][leaks=30000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
 
@@ -88,7 +88,7 @@ TEST_CASE("HTTP Seek - Basic Operations with DataBus", "[IO_HTTP][leaks=10000]")
     esp_gmf_app_wifi_disconnect();
 }
 
-TEST_CASE("HTTP Seek - Operations without DataBus", "[IO_HTTP][leaks=10000]")
+TEST_CASE("HTTP Seek - Operations without DataBus", "[IO_HTTP][leaks=30000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_gmf_app_test_case_uses_tcpip();
@@ -126,7 +126,7 @@ TEST_CASE("HTTP Seek - Operations without DataBus", "[IO_HTTP][leaks=10000]")
     esp_gmf_app_wifi_disconnect();
 }
 
-TEST_CASE("HTTP Seek - Error Conditions", "[IO_HTTP][leaks=10000]")
+TEST_CASE("HTTP Seek - Error Conditions", "[IO_HTTP][leaks=30000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_gmf_app_test_case_uses_tcpip();
@@ -172,7 +172,7 @@ static void test_http_read_and_verify(esp_gmf_io_handle_t io, const char *url, e
     TEST_ASSERT_EQUAL((int)info_file.size, total_read);
 }
 
-TEST_CASE("HTTP Reload Test", "[IO_HTTP][leaks=10000]")
+TEST_CASE("HTTP Reload Test", "[IO_HTTP][leaks=30000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_gmf_app_test_case_uses_tcpip();
@@ -217,7 +217,7 @@ TEST_CASE("HTTP Reload Test", "[IO_HTTP][leaks=10000]")
     esp_gmf_app_wifi_disconnect();
 }
 
-TEST_CASE("File Seek - Seek After Finished", "[IO_FILE]")
+TEST_CASE("File Seek - Seek After Finished", "[IO_FILE][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);

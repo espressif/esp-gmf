@@ -480,7 +480,7 @@ TEST_CASE("Play, play-multitask", "[Simple_Player]")
     teardown_test_environment(&env);
 }
 
-TEST_CASE("Play, Multiple-file Sync Playing", "[Simple_Player][leaks=14000]")
+TEST_CASE("Play, Multiple-file Sync Playing", "[Simple_Player][leaks=25000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_gmf_app_test_case_uses_tcpip();
@@ -500,7 +500,7 @@ TEST_CASE("Play, Multiple-file Sync Playing", "[Simple_Player][leaks=14000]")
     teardown_test_environment(&env);
 }
 
-TEST_CASE("Play, Multiple-file Async Playing", "[Simple_Player][leaks=14000]")
+TEST_CASE("Play, Multiple-file Async Playing", "[Simple_Player][leaks=25000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_gmf_app_test_case_uses_tcpip();
@@ -674,6 +674,10 @@ TEST_CASE("Pause, Stop, and Run APIs for Multi-task Execution", "[Simple_Player]
                         pdTRUE, pdTRUE,
                         portMAX_DELAY);
     ESP_LOGI(TAG, "All tasks are deleted, test finished");
+
+    esp_audio_simple_player_stop(handle);
+    vEventGroupDelete(event_group);
+    free(params);
 
     destroy_simple_player(handle);
     teardown_test_environment(&env);

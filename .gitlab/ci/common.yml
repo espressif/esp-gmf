@@ -27,10 +27,10 @@ variables:
 
 .target_test_template:
   stage: target_test
-  image: "$CI_DOCKER_REGISTRY/target-test-env-v5.4:2"
+  image: ${TEST_IMAGE}
   interruptible: true
-  timeout: 1 hour
-  retry: 2
+  timeout: 2 hours
+  retry: 1
   cache:
     # Usually do not need submodule-cache in target_test
     - key: pip-cache

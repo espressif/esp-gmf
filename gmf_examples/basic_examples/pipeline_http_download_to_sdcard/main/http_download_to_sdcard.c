@@ -21,6 +21,8 @@
 
 #define PIPELINE_BLOCK_BIT    BIT(0)
 #define PIPELINE_OPENING_BIT  BIT(1)
+/* Full-file HTTP download (~2.6 MB) needs more than the default 20s on CI Wi-Fi */
+#define HTTP_DOWNLOAD_PIPELINE_TIMEOUT_MS  (100000)
 // Set to true to test HTTP download speed only (no SD card writing), false for full pipeline with SD card storage
 #define ONLY_ENABLE_HTTP      (false)
 
@@ -93,7 +95,7 @@ void app_main(void)
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto cleanup, "Failed to create pipeline task");
     ret = esp_gmf_pipeline_bind_task(pipe, work_task);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto cleanup, "Failed to bind task to pipeline");
-    ret = esp_gmf_task_set_timeout(work_task, 20000);
+    ret = esp_gmf_task_set_timeout(work_task, HTTP_DOWNLOAD_PIPELINE_TIMEOUT_MS);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto cleanup, "Failed to set task timeout");
     ret = esp_gmf_pipeline_loading_jobs(pipe);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto cleanup, "Failed to load linked element jobs");

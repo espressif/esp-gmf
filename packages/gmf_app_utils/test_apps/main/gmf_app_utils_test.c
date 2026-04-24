@@ -54,7 +54,7 @@ TEST_CASE("esp_gmf_app_sys_monitor_lifecycle", "[gmf_app_utils][sys][leaks=14000
     ESP_LOGI(TAG, "Monitor lifecycle test completed");
 }
 
-TEST_CASE("esp_gmf_app_sdcard_lifecycle", "[gmf_app_utils][peripheral]")
+TEST_CASE("esp_gmf_app_sdcard_lifecycle", "[gmf_app_utils][peripheral][leaks=13000]")
 {
     ESP_LOGI(TAG, "Testing SD card lifecycle");
 

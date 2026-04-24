@@ -33,6 +33,12 @@ extern "C" {
 void video_render_use_lvgl(bool use);
 
 /**
+ * @brief  Reconfiguration for LCD
+ *         Reconfiguration LCD to use 2 framebuffer to improve rendering performance
+ */
+void video_render_reconfig_lcd(void);
+
+/**
  * @brief  Create video render instance
  *
  * @param[in]  fps  Frame rate (frames per second)

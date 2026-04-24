@@ -105,6 +105,12 @@ esp_gmf_err_t esp_gmf_rb_reset(esp_gmf_rb_handle_t handle)
     rb->abort_write = 0;
     xSemaphoreTake(rb->can_read, 0);
     xSemaphoreTake(rb->can_write, 0);
+    if (rb->fill_cnt > 0) {
+        xSemaphoreGive(rb->can_read);
+    }
+    if (rb->fill_cnt < rb->size) {
+        xSemaphoreGive(rb->can_write);
+    }
     return ESP_GMF_ERR_OK;
 }
 

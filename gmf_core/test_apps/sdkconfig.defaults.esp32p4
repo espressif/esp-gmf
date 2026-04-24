@@ -1,0 +1,4 @@
+# See gmf_core/test_apps/sdkconfig.defaults.esp32p4 for rationale: route console
+# over USB-Serial-JTAG so pytest-embedded's writes to /dev/ttyACM0 reach the unity menu.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y

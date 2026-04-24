@@ -24,6 +24,8 @@ void setUp(void)
 void tearDown(void)
 {
     unity_utils_evaluate_leaks_direct(LEAKS);
+    /* USB-Serial-JTAG console may buffer Unity tail output without an explicit flush */
+    fflush(stdout);
 }
 
 void app_main(void)

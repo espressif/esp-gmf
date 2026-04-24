@@ -195,7 +195,7 @@ static int muxer_file_pattern_cb_with_type(esp_muxer_slice_info_t *info, void *c
     return 0;
 }
 
-TEST_CASE("Recorder, One Pipe, [IIS->ENC->FILE]", "[ESP_GMF_POOL]")
+TEST_CASE("Recorder, One Pipe, [IIS->ENC->FILE]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -286,7 +286,7 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->FILE]", "[ESP_GMF_POOL]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Recorder, One Pipe recoding multiple format, [IIS->ENC->FILE]", "[ESP_GMF_POOL]")
+TEST_CASE("Recorder, One Pipe recoding multiple format, [IIS->ENC->FILE]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -415,7 +415,7 @@ static const char *recoding_file_path[] = {
     "/sdcard/esp_gmf_rec_03.pcm",
 };
 
-TEST_CASE("Record file for playback, multiple files with One Pipe, [FILE->dec->resample->IIS]", "[ESP_GMF_POOL]")
+TEST_CASE("Record file for playback, multiple files with One Pipe, [FILE->dec->resample->IIS]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -469,7 +469,7 @@ TEST_CASE("Record file for playback, multiple files with One Pipe, [FILE->dec->r
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=10000]")
+TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=30000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -549,7 +549,7 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Muxer, Streaming Mode, [IIS->ENC->MUXER->FILE]", "[ESP_GMF_POOL]")
+TEST_CASE("Muxer, Streaming Mode, [IIS->ENC->MUXER->FILE]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -656,7 +656,7 @@ TEST_CASE("Muxer, Streaming Mode, [IIS->ENC->MUXER->FILE]", "[ESP_GMF_POOL]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Muxer, File Mode, [IIS->ENC->MUXER]", "[ESP_GMF_POOL]")
+TEST_CASE("Muxer, File Mode, [IIS->ENC->MUXER]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);

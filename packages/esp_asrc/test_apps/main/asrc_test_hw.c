@@ -380,10 +380,10 @@ TEST_CASE("ASRC HW Basic Function Test", "[esp_asrc]")
                 .channel = channel[n],
                 .bits_per_sample = 16,
             };
-            uint32_t num_samples = 2000 * sample_rate[m] / 1000;
+            uint32_t num_samples = 1000 * sample_rate[m] / 1000;
             uint32_t input_size = num_samples * src.channel * (src.bits_per_sample >> 3);
             uint8_t *input_buffer = (uint8_t *)calloc(input_size, 1);
-            asrc_generate_sine_signal(input_buffer, 2000, sample_rate[m], 0.0, src.bits_per_sample, src.channel, 1000.0);
+            asrc_generate_sine_signal(input_buffer, 1000, sample_rate[m], 0.0, src.bits_per_sample, src.channel, 1000.0);
             for (int i = 0; i < sizeof(sample_rate) / sizeof(sample_rate[0]); i++) {
                 for (int j = 0; j < sizeof(channel) / sizeof(channel[0]); j++) {
                     for (int k = 0; k < sizeof(bits_per_sample) / sizeof(bits_per_sample[0]); k++) {

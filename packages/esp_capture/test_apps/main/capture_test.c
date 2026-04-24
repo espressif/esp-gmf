@@ -1199,12 +1199,12 @@ int manual_video_only_path_test(int timeout, bool dual)
         };
         ret = esp_capture_sink_setup(capture_sys.capture, 0, &sink_cfg, &capture_sys.capture_sink[0]);
         BREAK_ON_FAIL(ret);
-#if CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
         // We know that only need encoder so we only add video encoder into it
-        const char *vid_elements[] = {"vid_fps_cvt", "vid_enc"};
+        const char *vid_elements[] = {"vid_fps_cvt","vid_ppa", "vid_enc"};
 #else
         const char *vid_elements[] = {"vid_fps_cvt", "vid_color_cvt", "vid_enc"};
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+#endif   /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
         ret = esp_capture_sink_build_pipeline(capture_sys.capture_sink[0], ESP_CAPTURE_STREAM_TYPE_VIDEO,
                                               vid_elements, ELEMS(vid_elements));
         BREAK_ON_FAIL(ret);
@@ -1219,11 +1219,11 @@ int manual_video_only_path_test(int timeout, bool dual)
             };
             ret = esp_capture_sink_setup(capture_sys.capture, 1, &sink_cfg_1, &capture_sys.capture_sink[1]);
             // TODO need test remove venc also works?
-#if CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
             const char *vid_elements_1[] = {"vid_fps_cvt", "vid_ppa", "vid_enc"};
 #else
             const char *vid_elements_1[] = {"vid_fps_cvt", "vid_scale", "vid_color_cvt", "vid_enc"};
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
             ret = esp_capture_sink_build_pipeline(capture_sys.capture_sink[1], ESP_CAPTURE_STREAM_TYPE_VIDEO,
                                                   vid_elements_1, ELEMS(vid_elements_1));
             BREAK_ON_FAIL(ret);
@@ -1557,12 +1557,11 @@ int manual_av_path_test(int timeout, bool dual)
         ret = esp_capture_sink_build_pipeline(capture_sys.capture_sink[0], ESP_CAPTURE_STREAM_TYPE_AUDIO,
                                               aud_elements, ELEMS(aud_elements));
         BREAK_ON_FAIL(ret);
-#if CONFIG_IDF_TARGET_ESP32P4
-        // We know that only need encoder so we only add video encoder into it
-        const char *vid_elements[] = {"vid_fps_cvt", "vid_enc"};
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
+        const char *vid_elements[] = {"vid_ppa", "vid_fps_cvt", "vid_enc"};
 #else
         const char *vid_elements[] = {"vid_fps_cvt", "vid_color_cvt", "vid_enc"};
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
         ret = esp_capture_sink_build_pipeline(capture_sys.capture_sink[0], ESP_CAPTURE_STREAM_TYPE_VIDEO,
                                               vid_elements, ELEMS(vid_elements));
         BREAK_ON_FAIL(ret);
@@ -1587,11 +1586,11 @@ int manual_av_path_test(int timeout, bool dual)
                                                   aud_elements_1, ELEMS(aud_elements_1));
             BREAK_ON_FAIL(ret);
             // We know that only need encoder so we only add video encoder into it
-#if CONFIG_IDF_TARGET_ESP32P4
-            const char *vid_elements_1[] = {"vid_fps_cvt", "vid_ppa", "vid_enc"};
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
+            const char *vid_elements_1[] = {"vid_ppa", "vid_fps_cvt", "vid_ppa", "vid_enc"};
 #else
             const char *vid_elements_1[] = {"vid_fps_cvt", "vid_scale", "vid_color_cvt", "vid_enc"};
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31*/
             ret = esp_capture_sink_build_pipeline(capture_sys.capture_sink[1], ESP_CAPTURE_STREAM_TYPE_VIDEO,
                                                   vid_elements_1, ELEMS(vid_elements_1));
             BREAK_ON_FAIL(ret);

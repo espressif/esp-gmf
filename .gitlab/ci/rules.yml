@@ -47,20 +47,40 @@
 .if-label-skip-pre-check: &if-label-skip-pre-check
   if: '$BOT_LABEL_SKIP_PRE_TEST || $CI_MERGE_REQUEST_LABELS =~ /^(?:[^,\n\r]+,)*skip_pre_check(?:,[^,\n\r]+)*$/i'
 
-.idf-version-tag-v5-3: &idf-version-tag-v5-3
+.if-not-example-test-ref: &if-not-example-test-ref
+  if: '$CI_PIPELINE_SOURCE !~ /^(web|merge_request_event)$/ && $CI_COMMIT_REF_NAME != "main" && $CI_COMMIT_BRANCH !~ /^release\/v/ && $CI_COMMIT_TAG !~ /^v\d+\.\d+(\.\d+)?($|-)/'
+
+.if-not-unit-test-ref: &if-not-unit-test-ref
+  if: '$CI_PIPELINE_SOURCE !~ /^(web|trigger|schedule)$/ && $CI_COMMIT_REF_NAME != "main" && $CI_COMMIT_BRANCH !~ /^release\/v/ && $CI_COMMIT_TAG !~ /^v\d+\.\d+(\.\d+)?($|-)/'
+
+.idf-version-tag-alpha: &idf-version-tag-alpha
   if: '$IDF_VERSION_TAG == "v5.3"'
   variables:
-    IMAGE: "$CI_DOCKER_IMAGE_REGISTRY/env_v5.3:1"
+    IMAGE: "$NEW_CI_IDF_DOCKER_REGISTRY/ci/images/idf-v5.3:1"
+    TEST_IMAGE: "$NEW_CI_IDF_DOCKER_REGISTRY/ci/images/idf-v5.3-target-test:1"
 
-.idf-version-tag-v5-4: &idf-version-tag-v5-4
+.idf-version-tag-beta: &idf-version-tag-beta
   if: '$IDF_VERSION_TAG == "v5.4.3"'
   variables:
-    IMAGE: "$CI_IDF_DOCKER_REGISTRY/esp-env-v5.4:2"
-
-.idf-version-tag-v5-5: &idf-version-tag-v5-5
+    IMAGE: "$NEW_CI_IDF_DOCKER_REGISTRY/ci/images/idf-v5.4:1"
+    TEST_IMAGE: "$NEW_CI_IDF_DOCKER_REGISTRY/ci/images/idf-v5.4-target-test:1"
+.idf-version-tag-gamma: &idf-version-tag-gamma
   if: '$IDF_VERSION_TAG == "v5.5.3"'
   variables:
-    IMAGE: "$CI_IDF_DOCKER_REGISTRY/esp-env-v5.5:3"
+    IMAGE: "$NEW_CI_IDF_DOCKER_REGISTRY/ci/images/idf-v5.5:1"
+    TEST_IMAGE: "$NEW_CI_IDF_DOCKER_REGISTRY/ci/images/idf-v5.5-target-test:1"
+    # alsa-capable image for the audio loopback test; v5.3 image (py3.9) works for v5.5.x.
+    AUDIO_LOOPBACK_TEST_IMAGE: "$CI_DOCKER_IMAGE_REGISTRY/target_test_env_v5.3:2"
+    AUDIO_LOOPBACK_PYTHONPATH: "/usr/local/lib/python3.9/dist-packages"
+
+.idf-version-tag-delta: &idf-version-tag-delta
+  if: '$IDF_VERSION_TAG == "release/v6.1"'
+  variables:
+    IMAGE: "$NEW_CI_IDF_DOCKER_REGISTRY/ci/images/idf-v6.1:1"
+    TEST_IMAGE: "$NEW_CI_IDF_DOCKER_REGISTRY/ci/images/idf-v6.1-target-test:1"
+    # alsa-capable image for the audio loopback test; v6.0 image (py3.10) is needed for IDF v6.1.
+    AUDIO_LOOPBACK_TEST_IMAGE: "$CI_DOCKER_IMAGE_REGISTRY/target_test_env_v6.0:1"
+    AUDIO_LOOPBACK_PYTHONPATH: "/usr/local/lib/python3.10/dist-packages"
 
 .rules:ref:main-schedule:
   rules:
@@ -87,13 +107,29 @@
     - <<: *if-merge_request_event
       when: never
 
+.rules:build:idf-version-tag:
+  rules:
+    - <<: *idf-version-tag-alpha
+    - <<: *idf-version-tag-beta
+    - <<: *idf-version-tag-gamma
+    - <<: *idf-version-tag-delta
+
+.rules:build:idf-version-tag-changes:
+  rules:
+    - <<: *idf-version-tag-alpha
+      changes: *patterns-build_components
+    - <<: *idf-version-tag-beta
+      changes: *patterns-build_components
+    - <<: *idf-version-tag-gamma
+      changes: *patterns-build_components
+    - <<: *idf-version-tag-delta
+      changes: *patterns-build_components
+
 .rules:build:protected-merge-requests-pipeline:
   rules:
     - <<: *if-dev-push
       when: never
-    - <<: *idf-version-tag-v5-3
-    - <<: *idf-version-tag-v5-4
-    - <<: *idf-version-tag-v5-5
+    - !reference [".rules:build:idf-version-tag", rules]
     - <<: *if-web
     - <<: *if-trigger
     - <<: *if-pipeline
@@ -112,9 +148,9 @@
       when: never
     - <<: *if-label-skip_example
       when: never
-    - <<: *if-web
-    - <<: *if-protected
-    - <<: *if-merge_request_event
+    - <<: *if-not-example-test-ref
+      when: never
+    - !reference [".rules:build:idf-version-tag", rules]
 
 .rules:build:enable-gmf-unit-test:
   rules:
@@ -122,8 +158,36 @@
       when: never
     - <<: *if-label-skip_unit_test
       when: never
-    - <<: *if-web
-    - <<: *if-protected
-    - <<: *if-trigger
-    - <<: *if-schedule
-    - changes: *patterns-build_components
+    - !reference [".rules:build:idf-version-tag-changes", rules]
+    - <<: *if-not-unit-test-ref
+      when: never
+    - !reference [".rules:build:idf-version-tag", rules]
+
+.matrix_template:
+  parallel:
+    matrix:
+      - IDF_VERSION_TAG: ['v5.5.3', 'release/v6.1']
+        parallel: [ 1/1 ]
+
+.matrix_template_v6_1:
+  parallel:
+    matrix:
+      - IDF_VERSION_TAG: ['release/v6.1']
+        parallel: [ 1/1 ]
+
+# Two-shard variant: splits the per-IDF-version build into two parallel runners.
+# Used for example sets whose single-shard wall time approaches the 2h CI cap
+# (e.g. esp32s3 examples).
+.matrix_template_2shard:
+  parallel:
+    matrix:
+      - IDF_VERSION_TAG: ['v5.5.3', 'release/v6.1']
+        parallel: [ '1/2', '2/2' ]
+
+# Two-shard, release/v6.1-only variant. Same rationale as .matrix_template_2shard,
+# but for boards whose target only builds against IDF v6.1 (e.g. esp32s31).
+.matrix_template_v6_1_2shard:
+  parallel:
+    matrix:
+      - IDF_VERSION_TAG: ['release/v6.1']
+        parallel: [ '1/2', '2/2' ]

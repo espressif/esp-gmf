@@ -109,6 +109,7 @@ static void write_task(void *param)
         fflush(f);
         esp_gmf_fifo_release_read(fifo, &blk, 0);
         if (blk.is_last) {
+            write_run = false;
             break;
         }
     }

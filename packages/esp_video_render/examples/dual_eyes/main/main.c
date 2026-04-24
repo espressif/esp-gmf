@@ -64,6 +64,7 @@ void app_main()
     // Prepare board related
 #ifndef DUAL_EYES_ON_DUAL_DISPLAY
     board_init_optional_gpio_expander();
+    video_render_reconfig_lcd();
     int ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize LCD");

@@ -455,6 +455,12 @@ esp_gmf_err_t esp_gmf_block_reset(esp_gmf_block_handle_t handle)
     hd->_is_abort = 0;
     xSemaphoreTake(hd->can_read, 0);
     xSemaphoreTake(hd->can_write, 0);
+    if (hd->fill_size > 0) {
+        xSemaphoreGive(hd->can_read);
+    }
+    if (hd->fill_size < hd->total_size) {
+        xSemaphoreGive(hd->can_write);
+    }
     ESP_LOGD(TAG, "esp_gmf_block_reset, %p", hd);
     esp_gmf_oal_mutex_unlock(hd->lock);
     return ESP_GMF_ERR_OK;

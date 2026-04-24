@@ -61,6 +61,7 @@ static esp_err_t board_init_optional_gpio_expander(void)
 void app_main()
 {
     board_init_optional_gpio_expander();
+    video_render_reconfig_lcd();
     int ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize LCD");
@@ -93,4 +94,5 @@ void app_main()
     }
     vTaskDelay(pdMS_TO_TICKS(2000));
     trace_for_leak(false);
+    ESP_LOGI(TAG, "Video render test finished");
 }

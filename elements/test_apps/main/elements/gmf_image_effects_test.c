@@ -144,7 +144,7 @@ static esp_gmf_err_io_t imgfx_release_write(void *handle, esp_gmf_data_bus_block
     return ESP_GMF_ERR_OK;
 }
 
-TEST_CASE("Test for all software video effects", "[ESP_GMF_Effects]")
+TEST_CASE("Test for all software video effects", "[ESP_GMF_Effects][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -217,7 +217,7 @@ TEST_CASE("Test for all software video effects", "[ESP_GMF_Effects]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("ERROR: Input load is NULL", "[ESP_GMF_Effects]")
+TEST_CASE("ERROR: Input load is NULL", "[ESP_GMF_Effects][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);

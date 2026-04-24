@@ -72,6 +72,7 @@ typedef struct {
     bool                      is_end;
     bool                      is_first_open;
     bool                      is_do_open_set;
+    bool                      is_do_proc_set;
     int32_t                   cfg_task_prio;
 } audio_el_res_t;
 

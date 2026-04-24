@@ -38,17 +38,13 @@
         --parallel-count ${parallel##*/} \
         --parallel-index ${parallel%%/*}
 
-.matrix_template: &matrix_template
-  parallel:
-    matrix:
-      - IDF_VERSION_TAG: ['v5.5.3']
-        parallel: [ 1/1 ]
-
 build_examples_esp32_lyrat_mini_v1_1:
   extends:
     - .rules:build:protected-merge-requests-pipeline
     - .build_cmake_template
-    - .matrix_template
+    # 2-shard matrix: 19 esp32 example apps were hitting the 2h CI cap on
+    # release/v6.1 IDF; splitting halves wall time to ~1h per shard.
+    - .matrix_template_2shard
   variables:
     IDF_TARGET: esp32
     AUDIO_BOARD: lyrat_mini_v1_1
@@ -66,7 +62,32 @@ build_examples_esp32s3_korvo_v2:
   extends:
     - .rules:build:protected-merge-requests-pipeline
     - .build_cmake_template
-    - .matrix_template
+    # Use 2-shard matrix: esp32s3 example set (~22 apps) was hitting the 2h
+    # CI cap with single-shard sequential builds; splitting into 2 parallel
+    # runners brings each shard to ~1h.
+    - .matrix_template_2shard
   variables:
     IDF_TARGET: esp32s3
     AUDIO_BOARD: esp32_s3_korvo2_v3
+
+build_examples_esp32p4_function_ev:
+  extends:
+    - .rules:build:protected-merge-requests-pipeline
+    - .build_cmake_template
+    # 2-shard, release/v6.1-only matrix: 21 p4 example apps were ~53 min on a
+    # single runner; splitting halves wall time to ~30 min per shard.
+    - .matrix_template_v6_1_2shard
+  variables:
+    IDF_TARGET: esp32p4
+    AUDIO_BOARD: esp32_p4_function_ev
+
+build_examples_esp32s31:
+  extends:
+    - .rules:build:protected-merge-requests-pipeline
+    - .build_cmake_template
+    # 2-shard, release/v6.1-only matrix: 22 s31 example apps were hitting the 2h CI
+    # cap on release/v6.1 IDF; splitting halves wall time to ~1h per shard.
+    - .matrix_template_v6_1_2shard
+  variables:
+    IDF_TARGET: esp32s31
+    AUDIO_BOARD: esp32_s31_korvo1

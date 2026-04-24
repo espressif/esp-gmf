@@ -71,21 +71,24 @@ int verify_two_files(const char *src_path, const char *dest_path)
     }
     uint32_t pos = 0;
     uint32_t max_len = (dest_siz.st_size > src_siz.st_size ? dest_siz.st_size : src_siz.st_size);
-    bool run = true;
-    while (run) {
-        fread(src_buf, 1, len, src_file);
-        fread(dest_buf, 1, len, dest_file);
-        for (int i = 0; i < len; ++i) {
+    while (pos < max_len && result == ESP_OK) {
+        uint32_t chunk = max_len - pos;
+        if (chunk > (uint32_t)len) {
+            chunk = len;
+        }
+        if (fread(src_buf, 1, chunk, src_file) != chunk
+            || fread(dest_buf, 1, chunk, dest_file) != chunk) {
+            ESP_LOGE(TAG, "Short read at:%ld, chunk:%ld", pos, chunk);
+            result = ESP_FAIL;
+            break;
+        }
+        for (uint32_t i = 0; i < chunk; ++i) {
             if (src_buf[i] != dest_buf[i]) {
                 ESP_LOGE(TAG, "Unexepect data at:%ld, src:%x, dest:%x, max_len:%ld", pos, src_buf[i], dest_buf[i], max_len);
                 result = ESP_FAIL;
                 break;
             }
             pos++;
-            if (pos == max_len) {
-                run = false;
-                break;
-            }
         }
     }
 verify_two_files_err:
@@ -115,7 +118,7 @@ void esp_gmf_ut_setup_sdmmc(sdmmc_card_t **out_card)
     sd_pwr_ctrl_ldo_config_t ldo_config = {
         .ldo_chan_id = 4,
     };
-    static sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
+    sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
     esp_err_t ret = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create a new on-chip LDO power control driver");
@@ -152,9 +155,16 @@ void esp_gmf_ut_setup_sdmmc(sdmmc_card_t **out_card)
 
 void esp_gmf_ut_teardown_sdmmc(sdmmc_card_t *card)
 {
+#if SOC_SDMMC_IO_POWER_EXTERNAL
+    // Cache the LDO handle BEFORE unmount: esp_vfs_fat_sdcard_unmount frees
+    // the card struct, and with CONFIG_HEAP_POISONING_COMPREHENSIVE the freed
+    // memory is filled with 0xfe, turning card->host.pwr_ctrl_handle into a
+    // wild pointer (causes a load-access-fault in sd_pwr_ctrl_del_on_chip_ldo).
+    sd_pwr_ctrl_handle_t pwr_ctrl_handle = card->host.pwr_ctrl_handle;
+#endif  /* SOC_SDMMC_IO_POWER_EXTERNAL */
     TEST_ESP_OK(esp_vfs_fat_sdcard_unmount("/sdcard", card));
 #if SOC_SDMMC_IO_POWER_EXTERNAL
-    int ret = sd_pwr_ctrl_del_on_chip_ldo(card->host.pwr_ctrl_handle);
+    int ret = sd_pwr_ctrl_del_on_chip_ldo(pwr_ctrl_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to delete the on-chip LDO power control driver");
     }

@@ -1,0 +1,23 @@
+# See gmf_core/test_apps/sdkconfig.defaults.esp32p4 for rationale: route console
+# over USB-Serial-JTAG so pytest-embedded's writes to /dev/ttyACM0 reach the unity menu.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+
+#
+# Chip revision
+#
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=n
+CONFIG_ESP32P4_REV_MIN_301=y
+
+#
+# SPI RAM config
+#
+CONFIG_IDF_EXPERIMENTAL_FEATURES=y
+CONFIG_SPIRAM_SPEED_250M=y
+
+#
+# Wi-Fi Remote
+#
+CONFIG_SLAVE_IDF_TARGET_ESP32C6=y
+CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y
+CONFIG_EXAMPLE_CONNECT_WIFI=y

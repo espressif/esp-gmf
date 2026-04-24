@@ -1,9 +1,6 @@
 .target_example_test_template:
   extends:
     - .target_test_template
-  parallel:
-    matrix:
-      - IDF_VERSION_TAG: ['v5.5.3']
   variables:
     GIT_DEPTH: 1
     SUBMODULES_TO_FETCH: "none"
@@ -16,6 +13,7 @@
     paths:
       - XUNIT_RESULT.xml
       - "**/*.log"
+      - "**/pytest_log/**/dut.txt"
       - $LOG_PATH
       - "$CI_PROJECT_DIR/**/output.wav"
     reports:
@@ -27,22 +25,36 @@
     - .target_example_test_template
   script:
     - pip install pytest pytest-embedded-idf pytest-embedded-serial-esp pytest-rerunfailures pytest-timeout idf_build_apps
-    - eval "$(python ${CI_PROJECT_DIR}/tools/ci/build_apps.py ${TEST_DIR} --find --target-dir-type ${TARGET_DIR_TYPE} --target ${IDF_TARGET} -vv)"
+    # Run build_apps.py --find as a separate assignment so set -e aborts the job
+    # when it crashes (e.g. dependency mismatch). Using `eval "$(...)"` directly
+    # would swallow the failure and silently produce an empty APP_LIST.
+    - APP_LIST_CMD=$(python ${CI_PROJECT_DIR}/tools/ci/build_apps.py ${TEST_DIR} --find --target-dir-type ${TARGET_DIR_TYPE} --target ${IDF_TARGET} -vv)
+    - eval "$APP_LIST_CMD"
+    - '[ "${#APP_LIST[@]}" -gt 0 ] || { echo "ERROR APP_LIST is empty, build_apps.py produced no apps"; exit 1; }'
     - pytest "${APP_LIST[@]}" --target ${IDF_TARGET} -m "${tags}" --junitxml=XUNIT_RESULT.xml --parallel-count 1 --parallel-index 1
 
 .pytest_audio_loopback_template:
-  image: "$CI_DOCKER_IMAGE_REGISTRY/target_test_env_v5.3:2"
+  # NOTE: must NOT use ${TEST_IMAGE}; the regular target-test images do not
+  # bundle alsa-utils. The audio loopback runner needs `arecord` to capture
+  # the device's audio output, so we keep the dedicated audio-capable image.
+  # Image is selected per IDF version via AUDIO_LOOPBACK_TEST_IMAGE
+  # (rules.yml): v5.5.x -> v5.3 image (py3.9), release/v6.1 -> v6.0 image (py3.10).
+  image: "$AUDIO_LOOPBACK_TEST_IMAGE"
   extends:
     - .rules:build:enable-gmf-example-test
     - .target_example_test_template
   script:
-    - export PYTHONPATH="/usr/local/lib/python3.9/dist-packages:$PYTHONPATH"
+    # Per-IDF-version site-packages path (AUDIO_LOOPBACK_PYTHONPATH from rules.yml).
+    - export PYTHONPATH="$AUDIO_LOOPBACK_PYTHONPATH:$PYTHONPATH"
     - pip install pytest pytest-embedded-idf pytest-embedded-serial-esp pytest-rerunfailures pytest-timeout idf_build_apps
     - arecord -l
-    - eval "$(python ${CI_PROJECT_DIR}/tools/ci/build_apps.py ${TEST_DIR} --find --target-dir-type ${TARGET_DIR_TYPE} --target ${IDF_TARGET} -vv)"
+    - APP_LIST_CMD=$(python ${CI_PROJECT_DIR}/tools/ci/build_apps.py ${TEST_DIR} --find --target-dir-type ${TARGET_DIR_TYPE} --target ${IDF_TARGET} -vv)
+    - eval "$APP_LIST_CMD"
+    - '[ "${#APP_LIST[@]}" -gt 0 ] || { echo "ERROR APP_LIST is empty, build_apps.py produced no apps"; exit 1; }'
     - pytest "${APP_LIST[@]}" --target ${IDF_TARGET} -m "${tags}" --junitxml=XUNIT_RESULT.xml --parallel-count 1 --parallel-index 1
   variables:
     TEST_DIR: "${EXAMPLES_PATH}"
+    TARGET_DIR_TYPE: "example"
 
 .pytest_examples_dir_template:
   extends:
@@ -50,21 +62,58 @@
     - .pytest_template
   variables:
     TEST_DIR: "${EXAMPLES_PATH}"
+    TARGET_DIR_TYPE: "example"
 
 audio_playback_test_esp32:
   extends:
     - .pytest_audio_loopback_template
+    - .matrix_template
   variables:
     IDF_TARGET: esp32
   needs:
-    - 'build_examples_esp32_lyrat_mini_v1_1: [v5.5.3, 1/1]'
+    # esp32 lyrat_mini builds are sharded 2-ways (see build_examples_esp32_lyrat_mini_v1_1).
+    # Depend on both shards per IDF version so artifacts for all apps are available.
+    - 'build_examples_esp32_lyrat_mini_v1_1: [v5.5.3, 1/2]'
+    - 'build_examples_esp32_lyrat_mini_v1_1: [v5.5.3, 2/2]'
+    - 'build_examples_esp32_lyrat_mini_v1_1: [release/v6.1, 1/2]'
+    - 'build_examples_esp32_lyrat_mini_v1_1: [release/v6.1, 2/2]'
   tags: [ esp32, AUDIO_LOOPBACK_ENV ]
 
 example_test_esp32s3:
   extends:
     - .pytest_examples_dir_template
+    - .matrix_template
   variables:
     IDF_TARGET: esp32s3
   needs:
-    - 'build_examples_esp32s3_korvo_v2: [v5.5.3, 1/1]'
+    # The S3 example builds are sharded 2-ways (see build_examples_esp32s3_korvo_v2).
+    # Depend on both shards per IDF version so artifacts for all apps are available.
+    - 'build_examples_esp32s3_korvo_v2: [v5.5.3, 1/2]'
+    - 'build_examples_esp32s3_korvo_v2: [v5.5.3, 2/2]'
+    - 'build_examples_esp32s3_korvo_v2: [release/v6.1, 1/2]'
+    - 'build_examples_esp32s3_korvo_v2: [release/v6.1, 2/2]'
   tags: [ esp32s3 ]
+
+example_test_esp32p4:
+  extends:
+    - .pytest_examples_dir_template
+    - .matrix_template_v6_1
+  variables:
+    IDF_TARGET: esp32p4
+  needs:
+    # P4 example builds are sharded 2-ways (see build_examples_esp32p4_function_ev).
+    # Depend on both shards so artifacts for all apps are available.
+    - 'build_examples_esp32p4_function_ev: [release/v6.1, 1/2]'
+    - 'build_examples_esp32p4_function_ev: [release/v6.1, 2/2]'
+  tags: [ esp32p4 ]
+
+example_test_esp32s31:
+  extends:
+    - .pytest_examples_dir_template
+    - .matrix_template_v6_1
+  variables:
+    IDF_TARGET: esp32s31
+  needs:
+    - 'build_examples_esp32s31: [release/v6.1, 1/2]'
+    - 'build_examples_esp32s31: [release/v6.1, 2/2]'
+  tags: [ ESP32S31 ]

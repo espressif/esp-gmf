@@ -280,6 +280,9 @@ static esp_capture_err_t video_path_prepare(gmf_capture_path_res_t *mngr_res)
         }
         esp_gmf_element_register_out_port(res->venc_el, res->sink_port);
     }
+    if (res->raw_consume_sema) {
+        capture_sema_lock(res->raw_consume_sema, 0);
+    }
     return ESP_CAPTURE_ERR_OK;
 }
 

@@ -173,7 +173,7 @@ static esp_video_render_err_t prepare_lcd_panel(lcd_backend_t *lcd, esp_video_re
         case ESP_VIDEO_RENDER_LCD_TYPE_DPI:
 #if CONFIG_IDF_TARGET_ESP32P4
             if (fb_num > 1) {
-                GET_FRAME_BUFFER(esp_lcd_rgb_panel_get_frame_buffer, cfg->lcd_handle, fb_num, lcd);
+                GET_FRAME_BUFFER(esp_lcd_dpi_panel_get_frame_buffer, cfg->lcd_handle, fb_num, lcd);
             }
             esp_lcd_dpi_panel_event_callbacks_t dpi_cb = {
                 .on_color_trans_done = dpi_draw_finished,

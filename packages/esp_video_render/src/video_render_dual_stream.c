@@ -225,8 +225,10 @@ esp_video_render_err_t esp_video_render_dual_stream_open(esp_video_render_dual_s
             ret = ESP_VIDEO_RENDER_ERR_NO_RESOURCE;
             break;
         }
+        bool same_render = (cfg->render[0] == cfg->render[1]);
         eyes->fps = cfg->fps;
-        eyes->render_async = cfg->render_async;
+        // Force to render async if use same render
+        eyes->render_async = cfg->render_async || same_render;
         for (int i = 0; i < 2; i++) {
             render_eyes_info_t *eye_info = &eyes->eye_info[i];
             if (cfg->render[i] == NULL) {

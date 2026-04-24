@@ -1,3 +1,8 @@
+#
+# Bootloader config
+#
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
+
 # Enable SPIRAM
 CONFIG_SPIRAM=y
 
@@ -22,6 +27,7 @@ CONFIG_IDF_EXPERIMENTAL_FEATURES=y
 
 # Use customer partition table
 CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_OFFSET=0xA000
 
 #
 # Compiler options

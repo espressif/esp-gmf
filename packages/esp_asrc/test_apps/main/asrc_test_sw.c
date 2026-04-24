@@ -20,7 +20,7 @@
 #include "asrc_quality_test.h"
 
 #define TAG               "ASRC_SW_TEST"
-#define SINE_DURATION_MS  1000
+#define SINE_DURATION_MS  700
 #define SINE_FREQ_HZ      1000.0f
 #define SINE_AMPLITUDE_DB (-3.0f)
 

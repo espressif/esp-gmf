@@ -36,11 +36,28 @@ logging.basicConfig(
     format='%(message)s'
 )
 
+def _target_is_idf_preview(target: str) -> bool:
+    """True if *target* is an ESP-IDF preview chip (requires idf.py --preview)."""
+    try:
+        from esp_bool_parser import PREVIEW_TARGETS
+        return target in PREVIEW_TARGETS
+    except Exception:
+        return False
+
+
+def _idf_py_cmd(target: str, *idf_args: str) -> List[str]:
+    """Build idf.py argv; insert --preview when *target* is a preview chip."""
+    if _target_is_idf_preview(target):
+        return ['idf.py', '--preview', *idf_args]
+    return ['idf.py', *idf_args]
+
+
 def get_app_list(
     project_path: str,
     target: str,
     target_dir_type: str = APP_TYPE_ALL,
-    no_require_pytest: bool = False
+    no_require_pytest: bool = False,
+    enable_preview_targets: bool = True,
 ) -> List[str]:
     """
     Get application list using build_apps.py's get_app_paths API.
@@ -51,6 +68,7 @@ def get_app_list(
         target_dir_type: Application directory type (APP_TYPE_ALL/APP_TYPE_EXAMPLE/APP_TYPE_TEST_APPS)
         no_require_pytest: Whether to require pytest files
                          (Note: get_app_paths internally sets no_require_pytest=True)
+        enable_preview_targets: Forwarded to idf_build_apps (preview chips like idf.py --preview).
 
     Returns:
         List of application paths
@@ -70,7 +88,8 @@ def get_app_list(
             path=project_path,
             target=target,
             target_dir_type=target_dir_type,
-            exclude_apps=None
+            exclude_apps=None,
+            enable_preview_targets=enable_preview_targets,
         )
 
         if not app_list:
@@ -175,7 +194,7 @@ def set_target_for_app(app_path: str, target: str, dry_run: bool = False) -> Non
         target: Target chip
         dry_run: Whether to simulate execution only
     """
-    cmd = ['idf.py', 'set-target', target]
+    cmd = _idf_py_cmd(target, 'set-target', target)
     _execute_command_for_app(app_path, cmd, dry_run, use_warning_for_failure=False)
 
 
@@ -218,7 +237,7 @@ def _is_depending_on_esp_board_manager(app_path: str) -> bool:
         return False
 
 
-def set_board_for_app(app_path: str, board: str, dry_run: bool = False) -> None:
+def set_board_for_app(app_path: str, board: str, dry_run: bool = False, idf_target: str = '') -> None:
     """
     Execute idf.py bmgr (or legacy gen-bmgr-config) for a single application.
     Only executes if the project depends on esp_board_manager component.
@@ -227,6 +246,7 @@ def set_board_for_app(app_path: str, board: str, dry_run: bool = False) -> None:
         app_path: Application path
         board: Target board
         dry_run: Whether to simulate execution only
+        idf_target: Chip target (used to add idf.py --preview for preview SoCs)
     """
     if not _is_depending_on_esp_board_manager(app_path):
         return
@@ -325,6 +345,21 @@ Examples:
              '"example" - only example applications (excluding test_apps)'
     )
 
+    _preview = parser.add_mutually_exclusive_group()
+    _preview.add_argument(
+        '--enable-preview-targets',
+        dest='enable_preview_targets',
+        action='store_true',
+        help='Include IDF preview targets when resolving apps (default: on).',
+    )
+    _preview.add_argument(
+        '--disable-preview-targets',
+        dest='enable_preview_targets',
+        action='store_false',
+        help='Restrict app discovery to non-preview IDF targets only.',
+    )
+    parser.set_defaults(enable_preview_targets=True)
+
     args = parser.parse_args()
 
     # Determine project path
@@ -348,13 +383,20 @@ Examples:
     print_info(f'Application type: {args.target_dir_type}\n')
 
     # Step 1: Get application list
-    app_list = get_app_list(project_path, args.target, args.target_dir_type, args.no_require_pytest)
+    app_list = get_app_list(
+        project_path,
+        args.target,
+        args.target_dir_type,
+        args.no_require_pytest,
+        enable_preview_targets=args.enable_preview_targets,
+    )
 
     if not app_list:
         print_warning('No applications found, exiting')
         return
 
     # Process each application: set target chip (optional) and configure board
+    idf_bin = 'idf.py --preview' if _target_is_idf_preview(args.target) else 'idf.py'
     if not args.skip_set_target:
         print_info(f'\n[Step 2] Executing idf.py set-target {args.target} and idf.py bmgr -b {args.board} for applications...')
     else:
@@ -366,7 +408,7 @@ Examples:
         if not args.skip_set_target:
             set_target_for_app(app_path, args.target, args.dry_run)
 
-        set_board_for_app(app_path, args.board, args.dry_run)
+        set_board_for_app(app_path, args.board, args.dry_run, idf_target=args.target)
 
     if args.dry_run:
         print_info('\nThis was a dry run. Remove --dry-run to execute actual changes')

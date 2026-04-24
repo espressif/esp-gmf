@@ -29,9 +29,5 @@ dependencies:
     matches:
       - if: "$CONFIG{ESP_BT_AUDIO_GMF_IO_SUPPORT} == True"
 
-targets:
-  - esp32
-  - esp32s31
-
 examples:
   - path: "./examples/bt_audio"

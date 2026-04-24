@@ -1,4 +1,9 @@
 #
+# Bootloader config
+#
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
+
+#
 # Serial flasher config
 #
 CONFIG_ESPTOOLPY_FLASH_MODE_AUTO_DETECT=y

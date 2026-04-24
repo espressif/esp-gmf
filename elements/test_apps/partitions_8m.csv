@@ -1,5 +1,6 @@
-# Espressif ESP32 Partition Table
+# 8MB flash layout for CI ESP32-S3 boards (must end at 0x800000)
+# AI-audio UT (with srmodels) lives in elements/gmf_ai_audio/test_apps; this app
+# no longer embeds models, so factory uses the whole flash after nvs.
 # Name,  Type, SubType, Offset,   Size
-nvs,     data, nvs,     0x9000,   0x6000,
-factory, app,  factory, 0x010000, 0x420000
-model,   data, spiffs,  ,         0x3D0000,
+nvs,     data, nvs,     0xB000,   0x4000,
+factory, app,  factory, 0x010000, 0x7F0000,

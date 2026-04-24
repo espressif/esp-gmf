@@ -1,4 +1,5 @@
+# 4MB flash layout. No srmodels here (AI-audio UT moved out), so factory
+# uses the whole flash after nvs.
 # Name,   Type, SubType, Offset,  Size, Flags
-nvs,      data, nvs,     0x9000,  0x6000
-factory,  app,  factory, 0x10000, 3M,
-model,    data, spiffs,         , 528k,
+nvs,      data, nvs,     0xB000,  0x4000
+factory,  app,  factory, 0x10000, 0x3F0000,

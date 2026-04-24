@@ -232,7 +232,7 @@ static esp_gmf_err_io_t aec_release_write(void *handle, esp_gmf_payload_t *load,
     return ESP_GMF_IO_OK;
 }
 
-TEST_CASE("Test gmf aec process", "[ESP_GMF_AEC]")
+TEST_CASE("Test gmf aec process", "[ESP_GMF_AEC][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -342,7 +342,7 @@ static void afe_manager_dummy_result_cb(afe_fetch_result_t *result, void *user_c
     (void)user_ctx;
 }
 
-TEST_CASE("Test gmf afe manager create", "[ESP_GMF_AFE_MANAGER]")
+TEST_CASE("Test gmf afe manager create", "[ESP_GMF_AFE_MANAGER][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -406,7 +406,7 @@ static int32_t afe_manager_config_read_cb(void *buffer, int buf_sz, void *user_c
     return buf_sz;
 }
 
-TEST_CASE("Test gmf afe manager result_cb from create config", "[ESP_GMF_AFE_MANAGER]")
+TEST_CASE("Test gmf afe manager result_cb from create config", "[ESP_GMF_AFE_MANAGER][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -540,7 +540,7 @@ void esp_gmf_afe_event_cb(esp_gmf_obj_handle_t obj, esp_gmf_afe_evt_t *event, vo
     }
 }
 
-TEST_CASE("Test gmf afe process", "[ESP_GMF_AFE]")
+TEST_CASE("Test gmf afe process", "[ESP_GMF_AFE][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1009,7 +1009,7 @@ static void esp_gmf_wn_event_cb(esp_gmf_obj_handle_t obj, int32_t trigger_ch, vo
     xEventGroupSetBits(g_event_group, WAKEUP_DETECTED);
 }
 
-TEST_CASE("Test gmf wakenet process", "[ESP_GMF_WN]")
+TEST_CASE("Test gmf wakenet process", "[ESP_GMF_WN][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);

@@ -431,6 +431,12 @@ esp_gmf_err_t esp_gmf_fifo_reset(esp_gmf_fifo_handle_t handle)
     fifo->_is_abort = 0;
     xSemaphoreTake(fifo->can_read, 0);
     xSemaphoreTake(fifo->can_write, 0);
+    if (fifo->fill_head != NULL) {
+        xSemaphoreGive(fifo->can_read);
+    }
+    if (fifo->empty_head != NULL) {
+        xSemaphoreGive(fifo->can_write);
+    }
     return ESP_GMF_ERR_OK;
 }
 

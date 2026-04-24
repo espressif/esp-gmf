@@ -3,10 +3,10 @@ menu "GMF Video Effects"
     config GMF_VIDEO_EFFECTS_INIT_PPA
         bool "Initialize Video PPA"
         default n
-        depends on IDF_TARGET_ESP32P4
+        depends on IDF_TARGET_ESP32P4 || IDF_TARGET_ESP32S31
         help
             Initialize the video PPA element
-            This feature is only available on ESP32-P4
+            This feature is available on ESP32-P4 and ESP32-S31
 
     config GMF_VIDEO_EFFECTS_INIT_FPS_CONVERT
         bool "Initialize Video FPS Convert"
@@ -19,10 +19,10 @@ menu "GMF Video Effects"
         default n
         help
             Initialize the video overlay element
-    
+
     rsource "kconfig.video_effects.color_convert"
     rsource "kconfig.video_effects.scale"
     rsource "kconfig.video_effects.crop"
     rsource "kconfig.video_effects.rotate"
-    
+
 endmenu
