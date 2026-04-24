@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.1
+
+### Bug Fixes
+
+- Fixed compilation errors on IDF v6.0+
+
 ## v0.8.0
 
 ### Features

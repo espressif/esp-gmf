@@ -30,22 +30,25 @@ typedef struct {
     esp_gmf_io_cfg_t  io_cfg;      /*!< IO configuration for task and buffer */
 } file_io_cfg_t;
 
-#define FILE_IO_CFG_DEFAULT()  {        \
-    .dir    = ESP_GMF_IO_DIR_READER,    \
-    .name   = NULL,                     \
-    .io_cfg = {                         \
-        .thread = {                     \
-            .stack        = 0,          \
-            .prio         = 0,          \
-            .core         = 0,          \
-            .stack_in_ext = false,      \
-        },                              \
-        .buffer_cfg = {                 \
-            .io_size     = 0,           \
-            .buffer_size = 0,           \
-        },                              \
-        .enable_speed_monitor = false,  \
-    },                                  \
+#define FILE_IO_CFG_DEFAULT()  {          \
+    .dir        = ESP_GMF_IO_DIR_READER,  \
+    .name       = NULL,                   \
+    .cache_size = 0,                      \
+    .cache_caps = 0,                      \
+    .io_cfg     = {                       \
+        .thread = {                       \
+            .stack        = 0,            \
+            .prio         = 0,            \
+            .core         = 0,            \
+            .stack_in_ext = false,        \
+        },                                \
+        .buffer_cfg = {                   \
+            .io_size     = 0,             \
+            .buffer_size = 0,             \
+            .read_filter = NULL,          \
+        },                                \
+        .enable_speed_monitor = false,    \
+    },                                    \
 }
 
 /**

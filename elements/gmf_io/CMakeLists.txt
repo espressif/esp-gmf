@@ -20,4 +20,4 @@ endif()
 idf_component_register(SRCS ${io_srcs}
                        INCLUDE_DIRS ./include ${io_inc} "http_lib/gzip/" "http_lib/gzip/include"
                        PRIV_INCLUDE_DIRS ""
-                       REQUIRES "driver" "esp_http_client")
+                       REQUIRES "driver" "esp_http_client" "esp_driver_i2s")

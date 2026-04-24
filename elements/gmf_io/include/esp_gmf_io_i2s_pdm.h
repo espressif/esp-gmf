@@ -38,6 +38,7 @@ typedef struct {
         .buffer_cfg = {                      \
             .io_size     = 0,                \
             .buffer_size = 0,                \
+            .read_filter = NULL,             \
         },                                   \
         .enable_speed_monitor = false,       \
     },                                       \
