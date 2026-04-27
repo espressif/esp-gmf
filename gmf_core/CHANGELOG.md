@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.8.2
+
+### Features
+
+- Added `TS`, `CAF` and `G722` fourcc
+
+### Bug Fixes
+
+- Modified `FLV` fourcc
+
 ## v0.8.1
 
 ### Bug Fixes

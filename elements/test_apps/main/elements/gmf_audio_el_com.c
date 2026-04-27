@@ -504,11 +504,13 @@ void encoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
     esp_gmf_element_get_state(el, &event_state);
     uint32_t bitrate_read = 0;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    uint32_t set_bitrate = res->is_first_open == true ? 70000 : 80000;
+    uint32_t set_bitrate = res->is_first_open == true ? 90000 : 100000;
     if (res->in_inst[0].src_info.format_id == ESP_AUDIO_TYPE_AMRNB) {
         set_bitrate = res->is_first_open == true ? 5900 : 6700;
     } else if (res->in_inst[0].src_info.format_id == ESP_AUDIO_TYPE_AMRWB) {
         set_bitrate = res->is_first_open == true ? 12650 : 14250;
+    } else if (res->in_inst[0].src_info.format_id == ESP_AUDIO_TYPE_G722) {
+        set_bitrate = res->is_first_open == true ? 56000 : 64000;
     }
     if (event_state < ESP_GMF_EVENT_STATE_OPENING) {
         if (res->is_first_open == true) {
@@ -519,11 +521,12 @@ void encoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
             if (get_cfg->type == ESP_AUDIO_TYPE_AMRNB || get_cfg->type == ESP_AUDIO_TYPE_AMRWB) {
                 TEST_ASSERT_EQUAL(ESP_GMF_ERR_FAIL, audio_el_test_set_encoder_bitrate(el, 60000));
             }
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_encoder_bitrate(el, set_bitrate));
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_encoder_bitrate(el, &bitrate_read));
             if (get_cfg->type == ESP_AUDIO_TYPE_AAC || get_cfg->type == ESP_AUDIO_TYPE_LC3 ||
                 get_cfg->type == ESP_AUDIO_TYPE_OPUS || get_cfg->type == ESP_AUDIO_TYPE_AMRNB ||
+                get_cfg->type == ESP_AUDIO_TYPE_G722 ||
                 get_cfg->type == ESP_AUDIO_TYPE_AMRWB) {
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_encoder_bitrate(el, set_bitrate));
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_encoder_bitrate(el, &bitrate_read));
                 uint32_t diff = (set_bitrate > bitrate_read) ? (set_bitrate - bitrate_read) : (bitrate_read - set_bitrate);
                 TEST_ASSERT_LESS_THAN(1000, diff);
             }
@@ -535,6 +538,7 @@ void encoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
                 TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_encoder_bitrate(el, &bitrate_read));
                 if (get_cfg->type == ESP_AUDIO_TYPE_AAC || get_cfg->type == ESP_AUDIO_TYPE_LC3 ||
                     get_cfg->type == ESP_AUDIO_TYPE_OPUS || get_cfg->type == ESP_AUDIO_TYPE_AMRNB ||
+                    get_cfg->type == ESP_AUDIO_TYPE_G722 ||
                     get_cfg->type == ESP_AUDIO_TYPE_AMRWB) {
                     uint32_t diff = (set_bitrate > bitrate_read) ? (set_bitrate - bitrate_read) : (bitrate_read - set_bitrate);
                     TEST_ASSERT_LESS_THAN(1000, diff);
@@ -549,6 +553,7 @@ void encoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
                 TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_encoder_bitrate(el, &bitrate_read));
                 if (get_cfg->type == ESP_AUDIO_TYPE_AAC || get_cfg->type == ESP_AUDIO_TYPE_LC3 ||
                     get_cfg->type == ESP_AUDIO_TYPE_OPUS || get_cfg->type == ESP_AUDIO_TYPE_AMRNB ||
+                    get_cfg->type == ESP_AUDIO_TYPE_G722 ||
                     get_cfg->type == ESP_AUDIO_TYPE_AMRWB) {
                     uint32_t diff = (set_bitrate > bitrate_read) ? (set_bitrate - bitrate_read) : (bitrate_read - set_bitrate);
                     TEST_ASSERT_LESS_THAN(1000, diff);
@@ -568,11 +573,11 @@ void encoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
             if (get_cfg->type == ESP_AUDIO_TYPE_AMRNB || get_cfg->type == ESP_AUDIO_TYPE_AMRWB) {
                 TEST_ASSERT_EQUAL(ESP_GMF_ERR_FAIL, audio_el_test_set_encoder_bitrate(el, 60000));
             }
-            if (audio_el_test_set_encoder_bitrate(el, set_bitrate) == ESP_GMF_ERR_OK &&
-                audio_el_test_get_encoder_bitrate(el, &bitrate_read) == ESP_GMF_ERR_OK) {
-                if (get_cfg->type == ESP_AUDIO_TYPE_AAC || get_cfg->type == ESP_AUDIO_TYPE_LC3 ||
-                    get_cfg->type == ESP_AUDIO_TYPE_OPUS || get_cfg->type == ESP_AUDIO_TYPE_AMRNB ||
-                    get_cfg->type == ESP_AUDIO_TYPE_AMRWB) {
+            if (get_cfg->type == ESP_AUDIO_TYPE_AAC || get_cfg->type == ESP_AUDIO_TYPE_LC3 ||
+                get_cfg->type == ESP_AUDIO_TYPE_OPUS || get_cfg->type == ESP_AUDIO_TYPE_AMRNB ||
+                get_cfg->type == ESP_AUDIO_TYPE_G722 || get_cfg->type == ESP_AUDIO_TYPE_AMRWB) {
+                if (audio_el_test_set_encoder_bitrate(el, set_bitrate) == ESP_GMF_ERR_OK &&
+                    audio_el_test_get_encoder_bitrate(el, &bitrate_read) == ESP_GMF_ERR_OK) {
                     uint32_t diff = (set_bitrate > bitrate_read) ? (set_bitrate - bitrate_read) : (bitrate_read - set_bitrate);
                     TEST_ASSERT_LESS_THAN(1000, diff);
                 }

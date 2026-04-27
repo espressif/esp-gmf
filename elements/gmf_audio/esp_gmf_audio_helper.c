@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
  * See LICENSE file for details.
@@ -8,6 +8,7 @@
 #include <string.h>
 #include "esp_log.h"
 #include "esp_gmf_audio_helper.h"
+#include "esp_audio_types.h"
 #include "esp_fourcc.h"
 
 static const char *TAG = "ESP_GMF_AUDIO_HELPER";
@@ -48,9 +49,13 @@ esp_gmf_err_t esp_gmf_audio_helper_get_audio_type_by_uri(const char *uri, uint32
     } else if (strncasecmp(ext, "wav", 3) == 0) {
         *format_id = ESP_FOURCC_WAV;
     } else if (strncasecmp(ext, "ts", 2) == 0) {
-        *format_id = ESP_FOURCC_M2TS;
+        *format_id = ESP_FOURCC_TS;
     } else if (strncasecmp(ext, "flac", 4) == 0) {
         *format_id = ESP_FOURCC_FLAC;
+    } else if (strncasecmp(ext, "ogg", 3) == 0) {
+        *format_id = ESP_FOURCC_OGG;
+    } else if (strncasecmp(ext, "g722", 4) == 0) {
+        *format_id = ESP_FOURCC_G722;
     } else {
         *format_id = 0;
         ESP_LOGE(TAG, "Not support audio codec type, %s", uri);

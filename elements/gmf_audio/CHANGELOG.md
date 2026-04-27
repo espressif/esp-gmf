@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.2
+
+### Features
+
+- Updated `esp_audio_codec` to `v2.5.0`
+- Added support for `G722` encoding and decoding
+- Added support for decoding `OGG` files
+
+### Bug Fixes
+
+- Improved the accuracy of `SBC` bitrate configuration
+
 ## v0.8.1
 
 ### Bug Fixes

@@ -95,8 +95,7 @@ static inline esp_gmf_err_t dupl_esp_gmf_audio_enc_cfg(esp_audio_enc_config_t *c
     memcpy(*new_config, config, sizeof(*config));
     if (config->cfg && (config->cfg_sz > 0)) {
         sub_cfg = esp_gmf_oal_calloc(1, config->cfg_sz);
-        ESP_GMF_MEM_VERIFY(TAG, sub_cfg, {esp_gmf_oal_free(*new_config); return ESP_GMF_ERR_MEMORY_LACK;},
-                           "audio encoder configuration", (int)config->cfg_sz);
+        ESP_GMF_MEM_VERIFY(TAG, sub_cfg, {esp_gmf_oal_free(*new_config); return ESP_GMF_ERR_MEMORY_LACK;}, "audio encoder configuration", (int)config->cfg_sz);
         memcpy(sub_cfg, config->cfg, config->cfg_sz);
         (*new_config)->cfg = sub_cfg;
     }
@@ -177,6 +176,11 @@ static inline void audio_enc_change_audio_info(esp_audio_enc_config_t *enc_cfg, 
             }
             break;
         }
+        case ESP_AUDIO_TYPE_G722: {
+            esp_g722_enc_config_t *g722_enc_cfg = (esp_g722_enc_config_t *)enc_cfg->cfg;
+            SET_ENC_BASIC_INFO(g722_enc_cfg, info);
+            break;
+        }
         default:
             break;
     }
@@ -237,15 +241,46 @@ static inline esp_gmf_err_t audio_enc_set_bitrate_to_cfg(esp_audio_enc_config_t 
                 return ESP_GMF_ERR_INVALID_ARG;
             }
             int bitpool = 0;
-            int channel = ((sbc_enc_cfg->ch_mode == ESP_SBC_CH_MODE_MONO) ? (1) : (2));
-            if ((sbc_enc_cfg->ch_mode == ESP_SBC_CH_MODE_STEREO) || (sbc_enc_cfg->ch_mode == ESP_SBC_CH_MODE_JOINT_STEREO)) {
-                int bitnum_per_subband = bitrate * sbc_enc_cfg->sub_bands_num / sbc_enc_cfg->sample_rate;
-                bitpool = bitnum_per_subband - ((32 + (sbc_enc_cfg->sub_bands_num * channel << 2) + ((sbc_enc_cfg->ch_mode - 2) * sbc_enc_cfg->sub_bands_num)) / sbc_enc_cfg->block_length);
+            int channel_mode = sbc_enc_cfg->ch_mode;
+            int num_channels = (channel_mode == ESP_SBC_CH_MODE_MONO) ? 1 : 2;
+            int num_subbands = sbc_enc_cfg->sub_bands_num;
+            int num_blocks = sbc_enc_cfg->block_length;
+            uint32_t sample_rate = sbc_enc_cfg->sample_rate;
+            if ((channel_mode == ESP_SBC_CH_MODE_JOINT_STEREO) || (channel_mode == ESP_SBC_CH_MODE_STEREO)) {
+                bitpool = (int)((bitrate * num_subbands) / sample_rate)
+                    - ((32 + 4 * num_subbands * num_channels + ((channel_mode - 2) * num_subbands)) / num_blocks);
+                int frame_len = 4 + (4 * num_subbands * num_channels) / 8
+                    + (((channel_mode - 2) * num_subbands) + num_blocks * bitpool) / 8;
+                int actual_bitrate = (int)((8 * frame_len * sample_rate) / (num_subbands * num_blocks));
+                if (actual_bitrate > (int)bitrate) {
+                    bitpool--;
+                }
+                if (num_subbands == 8) {
+                    if (bitpool > 255) {
+                        bitpool = 255;
+                    }
+                } else {
+                    if (bitpool > 128) {
+                        bitpool = 128;
+                    }
+                }
             } else {
-                int bitnum_per_subband = bitrate * sbc_enc_cfg->sub_bands_num / (sbc_enc_cfg->sample_rate);
-                bitpool = bitnum_per_subband - (((32) + (sbc_enc_cfg->sub_bands_num << 2)) / sbc_enc_cfg->block_length);
+                bitpool = (int)((num_subbands * bitrate) / (sample_rate * num_channels))
+                    - (((32 / num_channels) + (4 * num_subbands)) / num_blocks);
+                int max_bitpool = 16 * num_subbands;
+                if (bitpool > max_bitpool) {
+                    bitpool = max_bitpool;
+                }
+            }
+            if (bitpool < 0) {
+                bitpool = 0;
             }
             sbc_enc_cfg->bitpool = (uint16_t)bitpool;
+            break;
+        }
+        case ESP_AUDIO_TYPE_G722: {
+            esp_g722_enc_config_t *g722_enc_cfg = (esp_g722_enc_config_t *)enc_cfg->cfg;
+            g722_enc_cfg->bitrate = bitrate;
             break;
         }
         default:
@@ -308,6 +343,11 @@ static inline esp_gmf_err_t audio_enc_get_bitrate_from_cfg(esp_audio_enc_config_
                 ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to get SBC frame info");
                 *bitrate = (frame_info.out_frame_size * sbc_enc_cfg->sample_rate << 3) / (sbc_enc_cfg->sub_bands_num * sbc_enc_cfg->block_length);
             }
+            break;
+        }
+        case ESP_AUDIO_TYPE_G722: {
+            esp_g722_enc_config_t *g722_enc_cfg = (esp_g722_enc_config_t *)enc_cfg->cfg;
+            *bitrate = g722_enc_cfg->bitrate;
             break;
         }
         default: {
@@ -416,6 +456,13 @@ static esp_gmf_err_t audio_enc_reconfig_enc_by_sound_info(esp_gmf_element_handle
                 sbc_enc_cfg.ch_mode = ESP_SBC_CH_MODE_INVALID;
             }
             ret = audio_enc_set_subcfg(cfg, &sbc_enc_cfg, sizeof(esp_sbc_enc_config_t));
+            break;
+        }
+        case ESP_AUDIO_TYPE_G722: {
+            esp_g722_enc_config_t g722_enc_cfg = ESP_G722_ENC_CONFIG_DEFAULT();
+            SET_ENC_BASIC_INFO(&g722_enc_cfg, info);
+            g722_enc_cfg.bitrate = (info->bitrate == 0) ? 64000 : info->bitrate;
+            ret = audio_enc_set_subcfg(cfg, &g722_enc_cfg, sizeof(esp_g722_enc_config_t));
             break;
         }
         default:

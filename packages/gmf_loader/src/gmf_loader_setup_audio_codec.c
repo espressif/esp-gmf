@@ -145,7 +145,20 @@ static esp_gmf_err_t gmf_loader_setup_default_enc(esp_gmf_pool_handle_t pool)
 #endif  /* (CONFIG_GMF_AUDIO_CODEC_ENC_SBC_MODE == ESP_SBC_MODE_STD) */
     enc_cfg.cfg = &sbc_enc_cfg;
     enc_cfg.cfg_sz = sizeof(esp_sbc_enc_config_t);
-#else   /*CONFIG_GMF_AUDIO_CODEC_ENCODER_TYPE_AAC*/
+#elif defined(CONFIG_GMF_AUDIO_CODEC_ENCODER_TYPE_G722)
+    enc_cfg.type = ESP_AUDIO_TYPE_G722;
+    esp_g722_enc_config_t g722_enc_cfg = ESP_G722_ENC_CONFIG_DEFAULT();
+    g722_enc_cfg.sample_rate = CONFIG_GMF_AUDIO_CODEC_ENC_G722_SAMPLE_RATE;
+    g722_enc_cfg.bitrate = CONFIG_GMF_AUDIO_CODEC_ENC_G722_BITRATE;
+#ifdef CONFIG_GMF_AUDIO_CODEC_ENC_G722_PACKED
+    g722_enc_cfg.packed = true;
+#else
+    g722_enc_cfg.packed = false;
+#endif  /* CONFIG_GMF_AUDIO_CODEC_ENC_G722_PACKED */
+    g722_enc_cfg.frame_duration = CONFIG_GMF_AUDIO_CODEC_ENC_G722_FRAME_DURATION;
+    enc_cfg.cfg = &g722_enc_cfg;
+    enc_cfg.cfg_sz = sizeof(esp_g722_enc_config_t);
+#else
     enc_cfg.type = ESP_AUDIO_TYPE_UNSUPPORT;
     enc_cfg.cfg = NULL;
     enc_cfg.cfg_sz = 0;
@@ -204,6 +217,8 @@ static esp_gmf_err_t gmf_loader_setup_default_dec(esp_gmf_pool_handle_t pool)
     dec_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_M4A;
 #elif defined(CONFIG_GMF_AUDIO_CODEC_DECODER_TYPE_TS)
     dec_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_TS;
+#elif defined(CONFIG_GMF_AUDIO_CODEC_DECODER_TYPE_OGG)
+    dec_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_OGG;
 #elif defined(CONFIG_GMF_AUDIO_CODEC_DECODER_TYPE_RAW_OPUS)
     dec_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_RAW_OPUS;
     esp_opus_dec_cfg_t opus_dec_cfg = ESP_OPUS_DEC_CONFIG_DEFAULT();
@@ -284,6 +299,19 @@ static esp_gmf_err_t gmf_loader_setup_default_dec(esp_gmf_pool_handle_t pool)
     esp_alac_dec_cfg_t alac_dec_cfg = ESP_ALAC_DEC_CONFIG_DEFAULT();
     dec_cfg.dec_cfg = &alac_dec_cfg;
     dec_cfg.cfg_size = sizeof(esp_alac_dec_cfg_t);
+#elif defined(CONFIG_GMF_AUDIO_CODEC_DECODER_TYPE_G722)
+    dec_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_G722;
+    esp_g722_dec_cfg_t g722_dec_cfg = {
+        .sample_rate = CONFIG_GMF_AUDIO_CODEC_DEC_G722_SAMPLE_RATE,
+        .bitrate = CONFIG_GMF_AUDIO_CODEC_DEC_G722_BITRATE,
+#ifdef CONFIG_GMF_AUDIO_CODEC_DEC_G722_PACKED
+        .packed = true,
+#else
+        .packed = false,
+#endif  /* CONFIG_GMF_AUDIO_CODEC_DEC_G722_PACKED */
+    };
+    dec_cfg.dec_cfg = &g722_dec_cfg;
+    dec_cfg.cfg_size = sizeof(esp_g722_dec_cfg_t);
 #else
     dec_cfg.dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_NONE;
     dec_cfg.dec_cfg = NULL;

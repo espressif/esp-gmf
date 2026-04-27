@@ -43,6 +43,9 @@ config GMF_AUDIO_CODEC_INIT_ENCODER
         config GMF_AUDIO_CODEC_ENCODER_TYPE_LC3
             bool "LC3 Encoder"
             depends on AUDIO_ENCODER_LC3_SUPPORT
+        config GMF_AUDIO_CODEC_ENCODER_TYPE_G722
+            bool "G722 Encoder"
+            depends on AUDIO_ENCODER_G722_SUPPORT
     endchoice
 
     menu "AMR-NB Encoder Configuration"
@@ -648,6 +651,64 @@ config GMF_AUDIO_CODEC_INIT_ENCODER
                 Enable this option if the LC3 encoded data is prefixed with a 2-byte frame length.
                 If set to true, a frame size of two bytes (not including this two bytes) will be added
                 at the beginning of each frame with using big end storage.
+    endmenu
+
+    menu "G722 Encoder Configuration"
+        depends on GMF_AUDIO_CODEC_ENCODER_TYPE_G722
+
+        choice
+            prompt "G722 Encoder Sample Rate"
+            default GMF_AUDIO_CODEC_ENC_G722_SAMPLE_RATE_16K
+            help
+                Configure the input sample rate for the G722 encoder.
+
+            config GMF_AUDIO_CODEC_ENC_G722_SAMPLE_RATE_8K
+                bool "8 kHz"
+
+            config GMF_AUDIO_CODEC_ENC_G722_SAMPLE_RATE_16K
+                bool "16 kHz"
+        endchoice
+
+        config GMF_AUDIO_CODEC_ENC_G722_SAMPLE_RATE
+            int
+            default 8000 if GMF_AUDIO_CODEC_ENC_G722_SAMPLE_RATE_8K
+            default 16000 if GMF_AUDIO_CODEC_ENC_G722_SAMPLE_RATE_16K
+
+        choice
+            prompt "G722 Encoder Bitrate"
+            default GMF_AUDIO_CODEC_ENC_G722_BITRATE_64K
+            help
+                Configure the bitrate for the G722 encoder.
+
+            config GMF_AUDIO_CODEC_ENC_G722_BITRATE_48K
+                bool "48 Kbps"
+
+            config GMF_AUDIO_CODEC_ENC_G722_BITRATE_56K
+                bool "56 Kbps"
+
+            config GMF_AUDIO_CODEC_ENC_G722_BITRATE_64K
+                bool "64 Kbps"
+        endchoice
+
+        config GMF_AUDIO_CODEC_ENC_G722_BITRATE
+            int
+            default 48000 if GMF_AUDIO_CODEC_ENC_G722_BITRATE_48K
+            default 56000 if GMF_AUDIO_CODEC_ENC_G722_BITRATE_56K
+            default 64000 if GMF_AUDIO_CODEC_ENC_G722_BITRATE_64K
+
+        config GMF_AUDIO_CODEC_ENC_G722_PACKED
+            bool "G722 Encoder Packed Output"
+            default y
+            help
+                Enable packed mode for 48/56 Kbps streams.
+                Disable to output 8-bit codewords directly.
+
+        config GMF_AUDIO_CODEC_ENC_G722_FRAME_DURATION
+            int "G722 Encoder Frame Duration (ms)"
+            default 20
+            range 1 120
+            help
+                Configure the input PCM frame duration in milliseconds.
     endmenu
 
 

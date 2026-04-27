@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
  * See LICENSE file for details.
@@ -93,6 +93,8 @@ static inline bool audio_dec_check_type(const uint8_t *buf, uint32_t buf_len, es
                 }
             }
             return false;
+        case ESP_AUDIO_SIMPLE_DEC_TYPE_OGG:
+            return MATCH_HEADER(buf, 0, "OggS");
         case ESP_AUDIO_SIMPLE_DEC_TYPE_AAC:
             return audio_check_with_parser(buf, buf_len, ESP_ES_PARSE_TYPE_AAC);
         case ESP_AUDIO_SIMPLE_DEC_TYPE_MP3:
@@ -142,7 +144,8 @@ static esp_gmf_err_t _dec_caps_iter_fun(uint32_t attr_index, esp_gmf_cap_attr_t 
     switch (attr_index) {
         case 0: {
             const static uint32_t support_dec_type[] = {ESP_FOURCC_MP3, ESP_FOURCC_AAC, ESP_FOURCC_OPUS, ESP_FOURCC_FLAC, ESP_FOURCC_AMRNB, ESP_FOURCC_AMRWB, ESP_FOURCC_ALAC,
-                                                        ESP_FOURCC_M4A, ESP_FOURCC_ALAW, ESP_FOURCC_ULAW, ESP_FOURCC_LC3, ESP_FOURCC_SBC, ESP_FOURCC_PCM, ESP_FOURCC_VORBIS};
+                                                        ESP_FOURCC_M4A, ESP_FOURCC_ALAW, ESP_FOURCC_ULAW, ESP_FOURCC_LC3, ESP_FOURCC_SBC, ESP_FOURCC_PCM,
+                                                        ESP_FOURCC_VORBIS, ESP_FOURCC_OGG, ESP_FOURCC_G722};
             ESP_GMF_CAP_ATTR_SET_DISCRETE(attr, ESP_FOURCC_TO_INT('T', 'Y', 'P', 'E'),  (uint32_t *) &support_dec_type,
                                           sizeof(support_dec_type) / sizeof(uint32_t), sizeof(uint32_t));
             break;
@@ -220,6 +223,7 @@ static esp_gmf_err_t audio_dec_reconfig_dec_by_sound_info(esp_gmf_element_handle
         case ESP_AUDIO_SIMPLE_DEC_TYPE_WAV:
         case ESP_AUDIO_SIMPLE_DEC_TYPE_M4A:
         case ESP_AUDIO_SIMPLE_DEC_TYPE_TS:
+        case ESP_AUDIO_SIMPLE_DEC_TYPE_OGG:
             break;
         case ESP_AUDIO_SIMPLE_DEC_TYPE_AAC:
             if (dec_cfg->dec_cfg == NULL) {
@@ -304,6 +308,22 @@ static esp_gmf_err_t audio_dec_reconfig_dec_by_sound_info(esp_gmf_element_handle
                 ESP_LOGW(TAG, "ALAC decoder initialized with default config. Please use `esp_gmf_audio_dec_reconfig` to set ALAC configuration for successful decoding");
             }
             break;
+        case ESP_AUDIO_SIMPLE_DEC_TYPE_G722:
+            if (dec_cfg->dec_cfg == NULL) {
+                esp_g722_dec_cfg_t g722_cfg = {
+                    .sample_rate = 16000,
+                    .bitrate = 64000,
+                    .packed = true,
+                };
+                ret = audio_dec_set_subcfg(dec_cfg, &g722_cfg, sizeof(esp_g722_dec_cfg_t));
+                ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to set G722 decoder configuration");
+            }
+            esp_g722_dec_cfg_t *g722_cfg = (esp_g722_dec_cfg_t *)dec_cfg->dec_cfg;
+            g722_cfg->sample_rate = info->sample_rates > 0 ? info->sample_rates : g722_cfg->sample_rate;
+            if (info->bitrate > 0) {
+                g722_cfg->bitrate = info->bitrate;
+            }
+            break;
         default:
             dec_cfg->dec_type = ESP_AUDIO_SIMPLE_DEC_TYPE_NONE;
             ESP_LOGW(TAG, "Not support for simple decoder type %ld", info->format_id);
@@ -348,7 +368,7 @@ static esp_gmf_job_err_t esp_gmf_audio_dec_open(esp_gmf_element_handle_t self, v
     audio_dec->need_reopen = false;
 __aud_dec_open_exit:
     esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
-    ESP_LOGD(TAG, "Open, el: %p, cfg: %p, type: %d", self, dec_cfg, dec_cfg->dec_type);
+    ESP_LOGD(TAG, "Open, el: %p, cfg: %p, type: %s", self, dec_cfg, esp_audio_simple_dec_get_name(dec_cfg->dec_type));
     return ret;
 }
 
@@ -402,6 +422,7 @@ static esp_gmf_job_err_t esp_gmf_audio_dec_process(esp_gmf_element_handle_t self
                 audio_dec_reconfig_dec_by_sound_info(self, &aud_info);
                 dec_cfg = (esp_audio_simple_dec_cfg_t *)OBJ_GET_CFG(self);
             }
+            ESP_LOGD(TAG, "Detected audio type: %s", esp_audio_simple_dec_get_name(dec_cfg->dec_type));
             esp_audio_simple_dec_open(dec_cfg, &audio_dec->dec_hd);
             ESP_GMF_CHECK(TAG, audio_dec->dec_hd, {return ESP_GMF_JOB_ERR_FAIL;}, "Failed to open simple decoder handle");
             audio_dec->is_opened = true;

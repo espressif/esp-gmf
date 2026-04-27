@@ -120,7 +120,7 @@ static const int dec_test_type[] = {
     ESP_FOURCC_FLAC,
     ESP_FOURCC_AMRNB,
     ESP_FOURCC_M4A,
-    ESP_FOURCC_M2TS,
+    ESP_FOURCC_TS,
     ESP_FOURCC_WAV,
 };
 

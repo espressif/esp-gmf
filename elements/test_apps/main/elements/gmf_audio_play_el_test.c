@@ -55,6 +55,7 @@ static const char *dec_file_path[] = {
     "/sdcard/test.flac",
     "/sdcard/test.wav",
     "/sdcard/test.m4a",
+    "/sdcard/test.ogg",
 };
 
 #define ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT (4096)
