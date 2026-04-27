@@ -10,6 +10,30 @@
 # When IDF_PATH is set, layout is taken from soc_caps.h; otherwise esp32/esp32s2 -> v1, else v2.
 VERSION = 'v1.0.0'
 
+PERIPH_I2S_IO_LIST = {
+    'std': [
+        'mclk',
+        'bclk',
+        'ws',
+        'dout',
+        'din',
+    ],
+    'tdm': [
+        'mclk',
+        'bclk',
+        'ws',
+        'dout',
+        'din',
+    ],
+    'pdm': [
+        'clk',
+        'dout',
+        'dout2',
+        'din',
+        'dins',
+    ],
+}
+
 import sys
 
 import os
@@ -286,6 +310,17 @@ def pdm_slot_supports_data_fmt() -> bool:
     return get_idf_version() >= (5, 5, 0)
 
 
+def std_clk_supports_bclk_div() -> bool:
+    """Whether current ESP-IDF exposes ``bclk_div`` in ``i2s_std_clk_config_t``.
+
+    The field is present starting from IDF 5.5.x. When version cannot be resolved,
+    prefer omitting the field so generated config remains compatible with older IDF.
+    """
+    from generators.utils.idf_version import get_idf_version
+
+    return get_idf_version() >= (5, 5, 0)
+
+
 def validate_pdm_data_fmt_compat(cfg: dict) -> None:
     """Reject explicit RAW/advanced PDM data format on older IDF branches."""
     if pdm_slot_supports_data_fmt():
@@ -486,26 +521,19 @@ def parse(name: str, config: dict) -> dict:
 
         # Add mode-specific config
         if format_config['config_type'] == 'std':
-            # Clock config — i2s_std_clk_config_t: v2 adds ext_clk_freq_hz before mclk_multiple
+            # Clock config — ``ext_clk_freq_hz`` depends on HW layout; ``bclk_div`` depends on IDF version.
             sr = int(cfg.get('sample_rate_hz', 48000))
             clk_src = get_enum_value(cfg.get('clk_src'), 'I2S_CLK_SRC_DEFAULT', 'clk_src')
             mclk_mul = 'I2S_MCLK_MULTIPLE_' + str(cfg.get('mclk_multiple', 256))
-            bclk_div = int(cfg.get('bclk_div', 8))
+            clk_cfg = {
+                'sample_rate_hz': sr,
+                'clk_src': clk_src,
+            }
             if hw_version == 2:
-                clk_cfg = {
-                    'sample_rate_hz': sr,
-                    'clk_src': clk_src,
-                    'ext_clk_freq_hz': int(cfg.get('ext_clk_freq_hz', 0)),
-                    'mclk_multiple': mclk_mul,
-                    'bclk_div': bclk_div,
-                }
-            else:
-                clk_cfg = {
-                    'sample_rate_hz': sr,
-                    'clk_src': clk_src,
-                    'mclk_multiple': mclk_mul,
-                    'bclk_div': bclk_div,
-                }
+                clk_cfg['ext_clk_freq_hz'] = int(cfg.get('ext_clk_freq_hz', 0))
+            clk_cfg['mclk_multiple'] = mclk_mul
+            if std_clk_supports_bclk_div():
+                clk_cfg['bclk_div'] = int(cfg.get('bclk_div', 8))
 
             config_dict['struct_init']['i2s_cfg']['std'] = {
                 'clk_cfg': clk_cfg,

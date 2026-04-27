@@ -6,6 +6,10 @@
 # MCPWM peripheral config parser
 VERSION = 'v1.1.0'
 
+PERIPH_MCPWM_IO_LIST = [
+    'gen_gpio_num',
+]
+
 import sys
 
 import os

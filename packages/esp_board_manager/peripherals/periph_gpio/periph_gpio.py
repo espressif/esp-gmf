@@ -7,9 +7,12 @@
 VERSION = 'v1.0.0'
 
 import sys
+import re
 
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'generators'))
+
+PIN_BIT_MASK_RE = re.compile(r'BIT64\((\d+)\)')
 
 def get_includes() -> list:
     """Return list of required include headers for GPIO peripheral"""
@@ -102,3 +105,20 @@ def parse(name: str, config: dict) -> dict:
     except Exception as e:
         # Catch any other exceptions and provide context
         raise ValueError(f"Error parsing GPIO peripheral '{name}': {e}")
+
+
+def extract_metadata(name: str, raw_config: dict, parse_result: dict, context: dict) -> dict:
+    gpio_config = parse_result.get('struct_init', {}).get('gpio_config', {})
+    pin_bit_mask = gpio_config.get('pin_bit_mask')
+    if not isinstance(pin_bit_mask, str):
+        return {'io': {}}
+
+    match = PIN_BIT_MASK_RE.fullmatch(pin_bit_mask.strip())
+    if not match:
+        return {'io': {}}
+
+    return {
+        'io': {
+            'pin': int(match.group(1)),
+        }
+    }

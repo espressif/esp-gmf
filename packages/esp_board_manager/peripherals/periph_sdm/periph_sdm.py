@@ -6,6 +6,10 @@
 # SDM peripheral config parser
 VERSION = 'v1.0.0'
 
+PERIPH_SDM_IO_LIST = [
+    'gpio_num',
+]
+
 import sys
 
 import os

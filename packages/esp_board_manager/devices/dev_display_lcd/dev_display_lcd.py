@@ -6,6 +6,24 @@
 # LCD Display device config parser
 VERSION = 'v1.0.0'
 
+DEV_DISPLAY_LCD_IO_LIST = {
+    'dsi': [
+        'reset_gpio_num',
+    ],
+    'spi': [
+        'cs_gpio_num',
+        'dc_gpio_num',
+        'reset_gpio_num',
+    ],
+    'parlio': [
+        'dc_gpio_num',
+        'clk_gpio_num',
+        'cs_gpio_num',
+        'data_gpio_nums',
+        'reset_gpio_num',
+    ],
+}
+
 def _iter_peripheral_names(peripherals_list):
     """Yield normalized peripheral names from YAML list items."""
     if not peripherals_list:

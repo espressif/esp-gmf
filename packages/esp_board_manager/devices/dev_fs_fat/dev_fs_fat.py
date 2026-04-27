@@ -6,6 +6,26 @@
 # FS_FAT device config parser
 VERSION = 'v1.0.0'
 
+DEV_FS_FAT_IO_LIST = {
+    'sdmmc': [
+        'clk',
+        'cmd',
+        'd0',
+        'd1',
+        'd2',
+        'd3',
+        'd4',
+        'd5',
+        'd6',
+        'd7',
+        'cd',
+        'wp',
+    ],
+    'spi': [
+        'cs_gpio_num',
+    ],
+}
+
 # Define valid enum values for SDMMC configuration
 VALID_SDMMC_ENUMS = {
     'slot': [

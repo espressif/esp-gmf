@@ -24,6 +24,15 @@ extern const esp_board_periph_desc_t g_esp_board_peripherals[];
 extern esp_board_periph_entry_t g_esp_board_periph_handles[];
 
 /**
+ * @brief  Release every pending device configuration override
+ *
+ *         Internal helper used by the board manager deinit path to drop all
+ *         override nodes installed via esp_board_device_override_config().
+ *         Not part of the public API.
+ */
+void esp_board_device_restore_all_configs(void);
+
+/**
  * @brief  Find device handle by name
  *
  *         Searches through the global device handles array to find a device
@@ -72,7 +81,7 @@ static inline const esp_board_device_desc_t *esp_board_find_device_desc(const ch
     }
 
     const esp_board_device_desc_t *desc = g_esp_board_devices;
-    while (desc) {
+    while (desc && desc->name) {
         if (strcmp(desc->name, name) == 0) {
             return desc;
         }
@@ -101,7 +110,7 @@ static inline const esp_board_periph_desc_t *esp_board_find_periph_desc(const ch
     }
 
     const esp_board_periph_desc_t *desc = g_esp_board_peripherals;
-    while (desc) {
+    while (desc && desc->name) {
         if (strcmp(desc->name, name) == 0) {
             return desc;
         }

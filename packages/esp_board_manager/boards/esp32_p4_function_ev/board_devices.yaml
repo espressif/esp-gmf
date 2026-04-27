@@ -95,7 +95,7 @@ devices:
         out_color_format: LCD_COLOR_FMT_RGB565
         num_fbs: 1
         flags:
-          use_dma2d: false
+          use_dma2d: true
           disable_lp: false
         video_timing:
           h_size: 1024

@@ -77,6 +77,14 @@ def test_adc_continuous_single_unit_accepts_matching_explicit_conv_mode(bmgr_roo
     assert result['struct_init']['cfg']['continuous']['conv_mode'] == 'ADC_CONV_SINGLE_UNIT_1'
 
 
+def test_adc_channel_mapper_rejects_zero_unit_string(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from generators.adc_channel_mapper import _normalize_unit
+
+    with pytest.raises(ValueError, match='Unsupported ADC unit value: ADC_UNIT_0'):
+        _normalize_unit('ADC_UNIT_0')
+
+
 def test_i2c_rejects_lp_port_with_regular_clk_source(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from peripherals.periph_i2c import periph_i2c as mod
@@ -138,6 +146,63 @@ def test_i2c_basic_parse_returns_i2c_master_bus_config(bmgr_root):
     assert result['struct_init']['i2c_port'] == 'I2C_NUM_0'
     assert result['struct_init']['sda_io_num'] == 18
     assert result['struct_init']['scl_io_num'] == 23
+
+
+def test_dependency_manager_treats_null_devices_as_empty(bmgr_root, tmp_path):
+    sys.path.insert(0, str(bmgr_root))
+    from generators.dependency_manager import DependencyManager
+
+    dev_yaml = tmp_path / 'board_devices.yaml'
+    dev_yaml.write_text('# Devices Configuration\ndevices:\n', encoding='utf-8')
+
+    manager = DependencyManager(bmgr_root)
+    assert manager.extract_device_dependencies(str(dev_yaml)) == {}
+
+
+def test_process_peripherals_rejects_unsupported_role_from_public_enum_list(bmgr_root, tmp_path):
+    sys.path.insert(0, str(bmgr_root))
+    from gen_bmgr_config_codes import BoardConfigGenerator
+
+    generator = BoardConfigGenerator(bmgr_root)
+    generator.set_project_dir(str(tmp_path))
+
+    board_yaml = bmgr_root / 'test_apps' / 'components' / 'test_component_2' / 'path1' / 'test_board_c' / 'board_peripherals.yaml'
+    with pytest.raises(ValueError, match="Unsupported peripheral role 'console'"):
+        generator.process_peripherals(str(board_yaml))
+
+
+def test_process_devices_codegen_emits_chip_in_descriptors_and_handles(bmgr_root, tmp_path):
+    sys.path.insert(0, str(bmgr_root))
+    from gen_bmgr_config_codes import BoardConfigGenerator
+
+    periph_yaml = tmp_path / 'board_peripherals.yaml'
+    periph_yaml.write_text('peripherals: []\n', encoding='utf-8')
+
+    dev_yaml = tmp_path / 'board_devices.yaml'
+    dev_yaml.write_text(
+        """
+devices:
+  - name: motor_driver
+    type: custom
+    chip: mx16161
+    config:
+      test_int: 123
+""".strip()
+        + '\n',
+        encoding='utf-8',
+    )
+
+    generator = BoardConfigGenerator(bmgr_root)
+    generator.set_project_dir(str(tmp_path))
+
+    peripherals_dict, periph_name_map, _ = generator.process_peripherals(str(periph_yaml))
+    generator.process_devices(str(dev_yaml), peripherals_dict, periph_name_map)
+
+    config_c = (tmp_path / 'components' / 'gen_bmgr_codes' / 'gen_board_device_config.c').read_text(encoding='utf-8')
+    handles_c = (tmp_path / 'components' / 'gen_bmgr_codes' / 'gen_board_device_handles.c').read_text(encoding='utf-8')
+
+    assert '.chip = "mx16161",' in config_c
+    assert '.chip = "mx16161",' in handles_c
 
 
 def test_camera_dvp_requires_i2c_peripheral(bmgr_root):
@@ -405,6 +470,38 @@ def test_lyrat_mini_peripheral_generation_keeps_structs_aligned(bmgr_root, tmp_p
         ('gpio_sd_detect', 'esp_bmgr_gpio_sd_detect_cfg'),
         ('adc_button', 'esp_bmgr_adc_button_cfg'),
     ]
+
+
+def test_device_descriptor_generation_emits_desc_level_sub_type(bmgr_root, tmp_path):
+    sys.path.insert(0, str(bmgr_root))
+    from gen_bmgr_config_codes import BoardConfigGenerator
+
+    generator = BoardConfigGenerator(bmgr_root)
+    generator.project_root = str(tmp_path)
+
+    board_dir = bmgr_root / 'test_apps' / 'components' / 'test_board_e'
+    periph_yaml = board_dir / 'board_peripherals.yaml'
+    dev_yaml = board_dir / 'board_devices.yaml'
+
+    peripherals_dict, periph_name_map, _ = generator.process_peripherals(str(periph_yaml))
+    generator.process_devices(str(dev_yaml), peripherals_dict, periph_name_map)
+
+    generated = tmp_path / 'components' / 'gen_bmgr_codes' / 'gen_board_device_config.c'
+    content = generated.read_text(encoding='utf-8')
+
+    sdcard_desc = re.search(
+        r'\.name = "sdcard_fat",.*?\.type = "fs_fat",.*?\.sub_type = "spi",',
+        content,
+        re.S,
+    )
+    motor_desc = re.search(
+        r'\.name = "motor_driver",.*?\.type = "custom",.*?\.sub_type = NULL,',
+        content,
+        re.S,
+    )
+
+    assert sdcard_desc is not None
+    assert motor_desc is not None
 
 
 def test_process_peripherals_fails_fast_when_parser_is_missing(bmgr_root, tmp_path, monkeypatch):

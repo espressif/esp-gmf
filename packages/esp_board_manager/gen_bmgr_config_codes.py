@@ -17,13 +17,14 @@ Now also includes Kconfig generation functionality that can be optionally enable
 """
 
 import os
+import re
 import shutil
 import sys
 import argparse
 import logging
 import yaml
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 # Add current directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -40,6 +41,7 @@ from generators.parser_loader import load_parsers
 from generators.peripheral_parser import PeripheralParser
 from generators.device_parser import DeviceParser
 from generators.name_validator import parse_component_name
+from generators.board_metadata_generator import BoardMetadataGenerator
 from generators.utils.board_schema_version import (
     warn_if_invalid_board_yaml_schema_version,
     resolved_board_info_version_string,
@@ -100,6 +102,10 @@ class BoardConfigGenerator(LoggerMixin):
         # Initialize parsers with root_dir
         self.peripheral_parser = PeripheralParser(self.root_dir)
         self.device_parser = DeviceParser(self.root_dir)
+        self.metadata_generator = BoardMetadataGenerator()
+        self._last_peripheral_metadata_artifacts = []
+        self._last_device_metadata_artifacts = []
+        self._valid_periph_roles: Optional[Set[str]] = None
 
     def set_project_dir(self, project_dir: Optional[str]) -> None:
         """Update the effective project directory shared across helpers."""
@@ -383,13 +389,41 @@ class BoardConfigGenerator(LoggerMixin):
         return True
 
     def _role_to_enum(self, role_str: str) -> str:
-        """Convert role string to enum value by generating ESP_BOARD_PERIPH_ROLE_<ROLE>"""
+        """Convert role string to enum value after validating it against the public enum list."""
         if not role_str:
             return 'ESP_BOARD_PERIPH_ROLE_NONE'
 
-        # Convert role string to uppercase and replace underscores
-        role_upper = role_str.upper().replace('-', '_')
+        normalized_role = role_str.strip().lower().replace('-', '_')
+        valid_roles = self._load_valid_periph_roles()
+        if normalized_role not in valid_roles:
+            raise ValueError(
+                f"Unsupported peripheral role '{role_str}'. "
+                f"Allowed roles: {', '.join(sorted(valid_roles))}"
+            )
+
+        role_upper = normalized_role.upper()
         return f'ESP_BOARD_PERIPH_ROLE_{role_upper}'
+
+    def _load_valid_periph_roles(self) -> Set[str]:
+        """Load valid peripheral role names from the public board manager enum definition."""
+        if self._valid_periph_roles is not None:
+            return self._valid_periph_roles
+
+        defs_path = self.root_dir / 'include' / 'esp_board_manager_defs.h'
+        try:
+            defs_text = defs_path.read_text(encoding='utf-8')
+        except OSError as exc:
+            raise RuntimeError(f'Failed to read peripheral role definitions from {defs_path}: {exc}') from exc
+
+        roles = {
+            match.group(1).lower()
+            for match in re.finditer(r'ESP_BOARD_PERIPH_ROLE_([A-Z0-9_]+)\s*=', defs_text)
+        }
+        if not roles:
+            raise RuntimeError(f'No peripheral roles found in {defs_path}')
+
+        self._valid_periph_roles = roles
+        return roles
 
     def write_periph_c(self, generated_peripherals, periph_parsers, out_path: str):
         """Write peripheral configuration C file"""
@@ -566,7 +600,9 @@ class BoardConfigGenerator(LoggerMixin):
                 f.write('    {\n')
                 f.write('        .next = NULL,\n')
                 f.write('        .name = NULL,\n')
+                f.write('        .chip = NULL,\n')
                 f.write('        .type = NULL,\n')
+                f.write('        .sub_type = NULL,\n')
                 f.write('        .cfg = NULL,\n')
                 f.write('        .cfg_size = 0,\n')
                 f.write('        .init_skip = false,\n')
@@ -603,12 +639,23 @@ class BoardConfigGenerator(LoggerMixin):
                 struct_var = 'esp_bmgr_' + d.name.replace('-', '_') + '_cfg'
                 # Get init_skip value, default to false (do not skip initialization)
                 init_skip = getattr(d, 'init_skip', False)
+                chip = getattr(d, 'chip', None)
                 # Get power_ctrl_device value, default to None
                 power_ctrl_device = getattr(d, 'power_ctrl_device', None)
+                # Get sub_type value, default to None
+                sub_type = getattr(d, 'sub_type', None)
                 f.write('    {\n')
                 f.write(f'        .next = {next_str},\n')
                 f.write(f'        .name = "{d.name}",\n')
+                if chip is not None:
+                    f.write(f'        .chip = "{chip}",\n')
+                else:
+                    f.write('        .chip = NULL,\n')
                 f.write(f'        .type = "{d.type}",\n')
+                if sub_type is not None:
+                    f.write(f'        .sub_type = "{sub_type}",\n')
+                else:
+                    f.write('        .sub_type = NULL,\n')
                 f.write(f'        .cfg = &{struct_var},\n')
                 f.write(f'        .cfg_size = sizeof({struct_var}),\n')
                 f.write(f'        .init_skip = {str(init_skip).lower()},\n')
@@ -696,6 +743,7 @@ class BoardConfigGenerator(LoggerMixin):
                 f.write('    {\n')
                 f.write('        .next = NULL,\n')
                 f.write('        .name = NULL,\n')
+                f.write('        .chip = NULL,\n')
                 f.write('        .type = NULL,\n')
                 f.write('        .device_handle = NULL,\n')
                 f.write('        .init = NULL,\n')
@@ -713,9 +761,14 @@ class BoardConfigGenerator(LoggerMixin):
                     next_str = f'&g_esp_board_device_handles[{i+1}]'
                 else:
                     next_str = 'NULL'
+                chip = getattr(d, 'chip', None)
                 f.write('    {\n')
                 f.write(f'        .next = {next_str},\n')
                 f.write(f'        .name = "{d.name}",\n')
+                if chip is not None:
+                    f.write(f'        .chip = "{chip}",\n')
+                else:
+                    f.write('        .chip = NULL,\n')
                 f.write(f'        .type = "{d.type}",\n')
                 f.write('        .device_handle = NULL,\n')
                 f.write(f'        .init = dev_{d.type}_init,\n')
@@ -775,6 +828,7 @@ class BoardConfigGenerator(LoggerMixin):
         """Process peripherals from YAML and generate C configuration files, returns peripherals dict, name map, and types"""
         self.logger.debug('   Parsing peripheral YAML file...')
         peripherals = self.peripheral_parser.parse_peripherals_yaml_legacy(periph_yaml_path)
+        self._last_peripheral_metadata_artifacts = []
 
         # Flatten the list of peripherals to handle nested lists
         self.logger.debug('   📋 Flattening peripheral configurations...')
@@ -827,6 +881,21 @@ class BoardConfigGenerator(LoggerMixin):
                     f"Failed to generate configuration for peripheral '{p.name}' (type: {p.type}): {e}"
                 ) from e
             generated_peripherals.append((p, result))
+            self._last_peripheral_metadata_artifacts.append({
+                'name': p.name,
+                'type': p.type,
+                'role': p.role,
+                'format': p.format,
+                'raw': {
+                    'name': p.name,
+                    'type': p.type,
+                    'role': p.role,
+                    'format': p.format,
+                    'config': p.config,
+                },
+                'result': result,
+                'parse_func': parse_func,
+            })
 
         if len(generated_peripherals) != len(flattened_peripherals):
             raise RuntimeError(
@@ -849,6 +918,7 @@ class BoardConfigGenerator(LoggerMixin):
         """Process devices from YAML and generate C configuration files, returns device types set"""
         self.logger.debug('   Parsing device YAML file...')
         device_parsers = load_parsers([], prefix='dev_', base_dir=str(self.devices_dir))
+        self._last_device_metadata_artifacts = []
 
         self.logger.debug(f"   Debug: peripherals_dict keys: {list(peripherals_dict.keys()) if peripherals_dict else 'None'}")
 
@@ -883,6 +953,21 @@ class BoardConfigGenerator(LoggerMixin):
                         device_subtypes[d.type] = set()
                     device_subtypes[d.type].add(d.sub_type)
 
+        from generators.device_parser import load_yaml_with_includes
+        dev_yml = load_yaml_with_includes(dev_yaml_path)
+        raw_devices_by_name = {}
+        raw_devices = dev_yml.get('devices') or []
+        for dev in raw_devices:
+            raw_name = dev.get('name')
+            if not raw_name:
+                continue
+            normalized_name = raw_name
+            try:
+                normalized_name = parse_component_name(raw_name).name
+            except ValueError:
+                pass
+            raw_devices_by_name[normalized_name] = dev
+
         self.logger.debug('   ⚙️  Generating device structures...')
         for d in devices:
             parse_entry = device_parsers.get(d.type)
@@ -890,48 +975,55 @@ class BoardConfigGenerator(LoggerMixin):
                 self.logger.warning(f'⚠️  WARNING: No parser for device type {d.type}')
                 continue
             version, parse_func, _ = parse_entry  # Unpack only what we need here
+            raw_dev = raw_devices_by_name.get(d.name, {})
+
             # Create full config with peripherals
             full_config = {
+                'name': d.name,
                 'type': d.type,
                 'config': d.config,
                 'peripherals': []  # Convert peripheral references to list
             }
 
-            # Read the YAML file to get peripheral configurations and other device-level fields
-            from generators.device_parser import load_yaml_with_includes
-            dev_yml = load_yaml_with_includes(dev_yaml_path)
-            for dev in dev_yml.get('devices', []):
-                if dev.get('name') == d.name:
-                    # Add device-level fields like chip and sub_type
-                    if 'chip' in dev:
-                        full_config['chip'] = dev['chip']
-                    if 'sub_type' in dev:
-                        full_config['sub_type'] = dev['sub_type']
-                    # Parse peripheral names in the config
-                    peripherals = []
+            # Add device-level fields like chip and sub_type
+            if 'chip' in raw_dev:
+                full_config['chip'] = raw_dev['chip']
+            if 'sub_type' in raw_dev:
+                full_config['sub_type'] = raw_dev['sub_type']
 
-                    # Get device-level peripherals
-                    raw_peripherals = dev.get('peripherals', [])
-                    flattened_peripherals = self.peripheral_parser.flatten_peripherals(raw_peripherals)
-                    for periph in flattened_peripherals:
-                        if isinstance(periph, dict):
-                            periph_name = periph.get('name')
-                            if periph_name:
-                                # Use the mapped name if available
-                                mapped_name = periph_name_map.get(periph_name, periph_name)
-                                periph_copy = periph.copy()
-                                periph_copy['name'] = mapped_name
-                                peripherals.append(periph_copy)
-                        else:
-                            # For string peripheral references
-                            mapped_name = periph_name_map.get(periph, periph)
-                            peripherals.append({'name': mapped_name})
-                    full_config['peripherals'] = peripherals
-                    break
+            peripherals = []
+            raw_peripherals = raw_dev.get('peripherals', [])
+            flattened_peripherals = self.peripheral_parser.flatten_peripherals(raw_peripherals)
+            for periph in flattened_peripherals:
+                if isinstance(periph, dict):
+                    periph_name = periph.get('name')
+                    if periph_name:
+                        mapped_name = periph_name_map.get(periph_name, periph_name)
+                        periph_copy = periph.copy()
+                        periph_copy['name'] = mapped_name
+                        peripherals.append(periph_copy)
+                else:
+                    mapped_name = periph_name_map.get(periph, periph)
+                    peripherals.append({'name': mapped_name})
+            full_config['peripherals'] = peripherals
 
             try:
                 result = parse_func(d.name, full_config, peripherals_dict)
                 device_structs.append(result)
+                self._last_device_metadata_artifacts.append({
+                    'name': d.name,
+                    'type': d.type,
+                    'sub_type': full_config.get('sub_type'),
+                    'peripherals': [
+                        periph.get('name')
+                        for periph in peripherals
+                        if isinstance(periph, dict) and periph.get('name')
+                    ],
+                    'dependencies': raw_dev.get('dependencies', {}) if isinstance(raw_dev, dict) else {},
+                    'raw': raw_dev,
+                    'result': result,
+                    'parse_func': parse_func,
+                })
             except ValueError as e:
                 raise
             except Exception as e:
@@ -958,6 +1050,16 @@ class BoardConfigGenerator(LoggerMixin):
     def _get_gen_bmgr_codes_dir(self, project_root: str) -> str:
         """Get the gen_bmgr_codes directory path"""
         return os.path.join(project_root, 'components', 'gen_bmgr_codes')
+
+    def write_board_metadata(self, board_name: str, chip_name: str, out_path: str) -> dict:
+        """Write unified board metadata YAML."""
+        return self.metadata_generator.write_metadata_file(
+            output_path=out_path,
+            board_name=board_name,
+            chip_name=chip_name,
+            device_artifacts=self._last_device_metadata_artifacts,
+            peripheral_artifacts=self._last_peripheral_metadata_artifacts,
+        )
 
     def _delete_files_by_extension(self, gen_bmgr_codes_dir: str, extensions: Optional[tuple]) -> List[str]:
         """Delete files with specified extensions in gen_bmgr_codes directory
@@ -1595,6 +1697,13 @@ idf_component_set_property(${COMPONENT_NAME} WHOLE_ARCHIVE TRUE)
             self.write_board_info(all_boards[selected_board], out_path=os.path.join(gen_bmgr_codes_dir, 'gen_board_info.c'))
         else:
             self.logger.warning(f'⚠️  Cannot write board info: board "{selected_board}" not found in all_boards')
+
+        metadata_path = os.path.join(gen_bmgr_codes_dir, 'gen_board_metadata.yaml')
+        self.write_board_metadata(
+            board_name=selected_board,
+            chip_name=chip_name,
+            out_path=metadata_path,
+        )
 
         # Setup components/gen_bmgr_codes directory and build system
         if not self.setup_gen_bmgr_codes_component(project_artifact_root, board_path, device_dependencies, selected_board):

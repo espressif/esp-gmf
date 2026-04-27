@@ -354,7 +354,7 @@
 #    - PDM TX dual-line mode is supported on most chips except ESP32
 
 # 2. Clock Configuration:
-#    - Standard mode: No bclk_div parameter
+#    - Standard mode: bclk_div is available on ESP-IDF >= 5.5
 #    - TDM mode: Includes bclk_div parameter
 #    - PDM TX mode: Includes up_sample_fp/fs parameters
 #    - PDM RX mode: Includes dn_sample_mode parameter

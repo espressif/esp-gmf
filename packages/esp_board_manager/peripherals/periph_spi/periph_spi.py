@@ -6,6 +6,18 @@
 # SPI peripheral config parser
 VERSION = 'v1.0.0'
 
+PERIPH_SPI_IO_LIST = [
+    'mosi_io_num',
+    'miso_io_num',
+    'sclk_io_num',
+    'quadwp_io_num',
+    'quadhd_io_num',
+    'data4_io_num',
+    'data5_io_num',
+    'data6_io_num',
+    'data7_io_num',
+]
+
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'generators'))

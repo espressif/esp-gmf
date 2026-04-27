@@ -5,6 +5,8 @@
  * See LICENSE file for details.
  */
 
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "esp_system.h"
@@ -20,6 +22,57 @@ static const char *TAG = "BOARD_DEVICE";
 
 extern const esp_board_device_desc_t g_esp_board_devices[];
 extern esp_board_device_handle_t     g_esp_board_device_handles[];
+
+typedef struct cfg_override_node {
+    struct cfg_override_node *next;
+    const char               *name;
+    void                     *cfg;
+    uint16_t                  cfg_size;
+} cfg_override_node_t;
+
+static cfg_override_node_t *s_cfg_override_list = NULL;
+
+void esp_board_device_restore_all_configs(void)
+{
+    cfg_override_node_t *node = s_cfg_override_list;
+
+    while (node) {
+        cfg_override_node_t *next = node->next;
+        free(node);
+        node = next;
+    }
+
+    s_cfg_override_list = NULL;
+}
+
+static cfg_override_node_t **find_cfg_override_link(const char *name)
+{
+    cfg_override_node_t **link = &s_cfg_override_list;
+
+    while (*link) {
+        if (strcmp((*link)->name, name) == 0) {
+            return link;
+        }
+        link = &(*link)->next;
+    }
+    return NULL;
+}
+
+static const void *find_effective_cfg(const char *name, const esp_board_device_desc_t *desc, uint16_t *out_size)
+{
+    for (cfg_override_node_t *node = s_cfg_override_list; node; node = node->next) {
+        if (strcmp(node->name, name) == 0) {
+            if (out_size) {
+                *out_size = node->cfg_size;
+            }
+            return node->cfg;
+        }
+    }
+    if (out_size) {
+        *out_size = desc->cfg_size;
+    }
+    return desc->cfg;
+}
 
 esp_err_t esp_board_device_init(const char *name)
 {
@@ -52,7 +105,10 @@ esp_err_t esp_board_device_init(const char *name)
         ESP_LOGI(TAG, "Device %s already initialized, ref_count: %d", name, handle->ref_count);
         return ESP_OK;
     } else {
-        ret = handle->init((void *)desc->cfg, desc->cfg_size, &handle->device_handle);
+        uint16_t cfg_size = 0;
+        const void *cfg = find_effective_cfg(name, desc, &cfg_size);
+
+        ret = handle->init((void *)cfg, cfg_size, &handle->device_handle);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to init device: %s", name);
             handle->ref_count--;  /* Decrement ref_count on failure */
@@ -93,26 +149,30 @@ esp_err_t esp_board_device_get_config(const char *name, void **config)
         return ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED;
     }
 
-    *config = (void *)desc->cfg;
-    ESP_LOGI(TAG, "Device %s config found: %p (size: %d)", name, desc->cfg, desc->cfg_size);
+    uint16_t cfg_size = 0;
+    const void *effective_cfg = find_effective_cfg(name, desc, &cfg_size);
+
+    *config = (void *)effective_cfg;
+    ESP_LOGI(TAG, "Device %s config found: %p (size: %d)", name, effective_cfg, cfg_size);
     return ESP_OK;
 }
 
 esp_err_t esp_board_device_get_config_by_handle(void *device_handle, void **config)
 {
-    if (device_handle == NULL) {
+    if (device_handle == NULL || config == NULL) {
         ESP_LOGE(TAG, "Invalid parameters");
         return ESP_BOARD_ERR_DEVICE_INVALID_ARG;
     }
+    *config = NULL;
     const esp_board_device_handle_t *board_device = esp_board_device_find_by_handle(device_handle);
     if (board_device == NULL) {
         ESP_LOGE(TAG, "Device handle[%p] not found", device_handle);
         return ESP_BOARD_ERR_DEVICE_NOT_FOUND;
     }
-    esp_board_device_get_config(board_device->name, config);
-    if (*config == NULL) {
+    esp_err_t ret = esp_board_device_get_config(board_device->name, config);
+    if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Get device %s config failed", board_device->name);
-        return ESP_BOARD_ERR_DEVICE_NOT_FOUND;
+        return ret;
     }
     return ESP_OK;
 }
@@ -131,6 +191,63 @@ esp_err_t esp_board_device_set_ops(const char *name, esp_board_device_init_func 
     ESP_LOGI(TAG, "Set functions for device: %s", name);
 
     return ESP_OK;
+}
+
+esp_err_t esp_board_device_override_config(const char *name, const void *config, uint16_t config_size)
+{
+    ESP_BOARD_RETURN_ON_FALSE(name && config && config_size, ESP_BOARD_ERR_DEVICE_INVALID_ARG, TAG, "Invalid args");
+
+    const esp_board_device_desc_t *desc = esp_board_find_device_desc(name);
+    ESP_BOARD_RETURN_ON_DEVICE_NOT_FOUND(desc, name, TAG, "Device %s not found", name);
+    ESP_BOARD_RETURN_ON_FALSE(desc->cfg && desc->cfg_size, ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED, TAG, "Device %s has no config", name);
+
+    if (config_size != desc->cfg_size) {
+        ESP_LOGW(TAG, "Device %s override size differs from generated config size, default: %u, override: %u",
+                 name, desc->cfg_size, config_size);
+    }
+
+    cfg_override_node_t **old_link = find_cfg_override_link(name);
+    cfg_override_node_t *old_node = old_link ? *old_link : NULL;
+    cfg_override_node_t *node = malloc(sizeof(cfg_override_node_t) + config_size);
+    ESP_BOARD_RETURN_ON_FALSE(node, ESP_ERR_NO_MEM, TAG, "Failed to allocate config override for %s", name);
+
+    node->name = desc->name;
+    node->cfg_size = config_size;
+    node->cfg = (void *)(node + 1);
+    memcpy(node->cfg, config, config_size);
+
+    if (old_node) {
+        node->next = old_node->next;
+        *old_link = node;
+        free(old_node);
+    } else {
+        node->next = s_cfg_override_list;
+        s_cfg_override_list = node;
+    }
+
+    ESP_LOGI(TAG, "Config override set for device %s", name);
+    return ESP_OK;
+}
+
+esp_err_t esp_board_device_restore_config(const char *name)
+{
+    ESP_BOARD_RETURN_ON_FALSE(name, ESP_BOARD_ERR_DEVICE_INVALID_ARG, TAG, "name is null");
+
+    cfg_override_node_t **link = &s_cfg_override_list;
+
+    while (*link) {
+        cfg_override_node_t *node = *link;
+        if (strcmp(node->name, name) == 0) {
+            *link = node->next;
+            free(node);
+            ESP_LOGI(TAG, "Config override reset for device %s", name);
+            return ESP_OK;
+        }
+        link = &node->next;
+    }
+
+    ESP_LOGW(TAG, "Config override for device %s not found", name);
+    return ESP_ERR_NOT_FOUND;
 }
 
 esp_err_t esp_board_device_deinit(const char *name)
@@ -292,11 +409,13 @@ esp_err_t esp_board_device_power_ctrl(const char *name, bool power_on)
     }
     const esp_board_device_desc_t *power_ctrl_desc = esp_board_find_device_desc(desc->power_ctrl_device);
     ESP_BOARD_RETURN_ON_DEVICE_NOT_FOUND(power_ctrl_desc, desc->power_ctrl_device, TAG, "Device %s not found", name);
-    dev_power_ctrl_config_t *power_ctrl_cfg = (dev_power_ctrl_config_t *)power_ctrl_desc->cfg;
+    const char *sub_type = power_ctrl_desc->sub_type;
+    ESP_BOARD_RETURN_ON_FALSE(sub_type, ESP_BOARD_ERR_MANAGER_INVALID_ARG, TAG,
+                              "Power control device %s has no sub_type", desc->power_ctrl_device);
 
     /* Get the power control function by name */
     char power_ctrl_func_name[40];
-    snprintf(power_ctrl_func_name, sizeof(power_ctrl_func_name), "%s_power_ctrl", power_ctrl_cfg->sub_type);
+    snprintf(power_ctrl_func_name, sizeof(power_ctrl_func_name), "%s_power_ctrl", sub_type);
     void *extra_func = NULL;
     if (esp_board_extra_func_get(power_ctrl_func_name, &extra_func) != 0) {
         ESP_LOGE(TAG, "Power control function %s not found for device %s", power_ctrl_func_name, desc->power_ctrl_device);
@@ -343,7 +462,10 @@ esp_err_t esp_board_device_callback_register(const char *name, void *call_back_f
 
     /* Cast to appropriate function pointer type and call */
     esp_board_device_callback_register_func register_func = (esp_board_device_callback_register_func)extra_func;
-    err = register_func(dev_handle, dev_desc->cfg, dev_desc->cfg_size, call_back_func, user_data);
+    uint16_t cfg_size = 0;
+    const void *cfg = find_effective_cfg(name, dev_desc, &cfg_size);
+
+    err = register_func(dev_handle, cfg, cfg_size, call_back_func, user_data);
     if (err != 0) {
         ESP_LOGE(TAG, "Device callback registration failed for %s, ", name);
         return ESP_BOARD_ERR_DEVICE_INIT_FAILED;

@@ -235,6 +235,7 @@ class DeviceParser(LoggerMixin):
             type: str
             config: dict
             peripherals: list
+            chip: str = None  # Optional device chip identifier
             init_skip: bool = False  # Default to False (do not skip initialization)
             sub_type: str = None  # Optional sub_type for devices that support it
             power_ctrl_device: str = None  # Optional power control device reference
@@ -242,7 +243,9 @@ class DeviceParser(LoggerMixin):
         # Load YAML with includes; empty merged file / missing devices / devices: [] are valid.
         data = self._load_yaml_with_includes(yaml_path)
 
-        devices = data.get('devices', [])
+        devices = data.get('devices')
+        if devices is None:
+            devices = []
         if not isinstance(devices, list):
             raise BoardConfigYamlError(
                 yaml_path,
@@ -316,6 +319,7 @@ class DeviceParser(LoggerMixin):
                     type=dev.get('type', ''),
                     config=dev.get('config', {}),
                     peripherals=periph_list,
+                    chip=dev.get('chip', None),  # Extract chip if present
                     init_skip=dev.get('init_skip', False),  # Default to False (do not skip initialization)
                     sub_type=dev.get('sub_type', None),  # Extract sub_type if present
                     power_ctrl_device=dev.get('power_ctrl_device', None)  # Extract power_ctrl_device if present

@@ -37,7 +37,11 @@ class DependencyManager(LoggerMixin):
         dependencies: Dict[str, str] = {}
         # Same merge/parse rules as device generation (anchors across sibling .yaml files).
         data = load_yaml_with_includes(dev_yaml_path)
-        for device in data.get('devices', []):
+        if not isinstance(data, dict):
+            data = {}
+
+        devices = data.get('devices') or []
+        for device in devices:
             # Only process explicit dependencies
             if 'dependencies' in device:
                 device_deps = device['dependencies']
@@ -273,4 +277,3 @@ class DependencyManager(LoggerMixin):
 
         self.logger.info(f'✅ All {len(used_configs)} extra_dev configurations are properly referenced')
         return True
-
