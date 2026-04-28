@@ -80,6 +80,7 @@ typedef struct {
         .buffer_cfg = {                                  \
             .io_size     = HTTP_STREAM_BUFFER_SIZE,      \
             .buffer_size = HTTP_STREAM_RINGBUFFER_SIZE,  \
+            .read_filter = NULL,                         \
         },                                               \
         .enable_speed_monitor = false,                   \
     },                                                   \
