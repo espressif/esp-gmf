@@ -12,6 +12,18 @@
   disable:
     - if: TARGET_DIR_TYPE == "test_apps" AND IDF_TARGET == "esp32"
 
+.disable_test_apps_esp32c3: &disable_test_apps_esp32c3
+  disable:
+    - if: TARGET_DIR_TYPE == "test_apps" AND IDF_TARGET == "esp32c3"
+
+.disable_test_apps_esp32c5: &disable_test_apps_esp32c5
+  disable:
+    - if: TARGET_DIR_TYPE == "test_apps" AND IDF_TARGET == "esp32c5"
+
+.disable_example_esp32: &disable_example_esp32
+  disable:
+    - if: TARGET_DIR_TYPE == "example" AND IDF_TARGET == "esp32"
+
 .disable_example_esp32s3: &disable_example_esp32s3
   disable:
     - if: TARGET_DIR_TYPE == "example" AND IDF_TARGET == "esp32s3"
@@ -39,3 +51,13 @@ packages/esp_bt_audio:
   <<: *disable_example_esp32c3
   <<: *disable_example_esp32c5
   <<: *disable_example_esp32p4
+
+packages/gmf_fft/test_apps:
+  <<: *disable_test_apps_esp32
+  <<: *disable_test_apps_esp32c3
+  <<: *disable_test_apps_esp32c5
+
+packages/gmf_fft/examples/fft_spectrum_print:
+  <<: *disable_example_esp32
+  <<: *disable_example_esp32c3
+  <<: *disable_example_esp32c5

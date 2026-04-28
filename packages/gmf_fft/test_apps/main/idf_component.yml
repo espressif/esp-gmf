@@ -1,0 +1,4 @@
+dependencies:
+  espressif/gmf_fft:
+    version: "*"
+    override_path: "../.."
