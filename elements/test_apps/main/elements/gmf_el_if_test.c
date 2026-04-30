@@ -14,6 +14,7 @@
 #include "esp_gmf_fade.h"
 #include "esp_gmf_mixer.h"
 #include "esp_gmf_rate_cvt.h"
+#include "esp_gmf_asrc.h"
 #include "esp_gmf_drc.h"
 #include "esp_gmf_mbc.h"
 #include "esp_gmf_sonic.h"
@@ -379,6 +380,27 @@ void test_esp_gmf_rate_cvt_if()
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
+void test_esp_gmf_asrc_if()
+{
+    esp_asrc_cfg_t config = DEFAULT_ESP_GMF_ASRC_CONFIG();
+    esp_gmf_obj_handle_t handle;
+    uint32_t sample_rate = 48000;
+    uint8_t dest_ch = 1;
+    uint8_t dest_bits = 16;
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_init(&config, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_rate(NULL, sample_rate), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_rate(handle, sample_rate), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_ch(NULL, dest_ch), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_ch(handle, dest_ch), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_bits(NULL, dest_bits), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_bits(handle, dest_bits), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+}
+
 void test_esp_gmf_sonic_if()
 {
     esp_ae_sonic_cfg_t config = DEFAULT_ESP_GMF_SONIC_CONFIG();
@@ -592,6 +614,7 @@ TEST_CASE("Test element if check", "[ESP_GMF_IF_CHECK]")
     test_esp_gmf_interleave_if();
     test_esp_gmf_mixer_if();
     test_esp_gmf_rate_cvt_if();
+    test_esp_gmf_asrc_if();
     test_esp_gmf_sonic_if();
     test_esp_gmf_dec_if();
     test_esp_gmf_enc_if();

@@ -32,6 +32,7 @@ The GMF Loader is a helper component that allows users to easily customize their
   - Channel conversion
   - Bit depth conversion
   - Sample rate conversion
+  - Adaptive audio format conversion (ASRC)
   - Fade effects
   - Sonic effects
   - Channel interleave/deinterleave
@@ -129,6 +130,7 @@ ESP GMF Loader
 │   │   ├── Channel Conversion [Y]
 │   │   ├── Bit Depth Conversion [Y]
 │   │   ├── Sample Rate Conversion [Y]
+│   │   ├── ASRC [N]
 │   │   ├── Channel Interleave [N]
 │   │   ├── Channel Deinterleave [N]
 │   │   ├── Audio Mixing [N]

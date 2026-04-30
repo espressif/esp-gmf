@@ -14,6 +14,7 @@ ESP GMF Audio is a collection of GMF elements related to audio processing, inclu
 |  RATE_CVT|aud_rate_cvt |Audio sampling rate adjustment|`set_dest_rate`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  BIT_CVT |aud_bit_cvt |Audio bit-depth conversion|`set_dest_bits`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  CH_CVT  |aud_ch_cvt |Audio channel conversion|`set_dest_ch`|Single|Single|Maximum delay|Maximum delay|Yes|
+|  AUD_ASRC |aud_asrc |Adaptive audio conversion module combining hardware ASRC with software sample-rate, bit-depth, and channel converters|`set_dest_rate`<br>`set_dest_ch`<br>`set_dest_bits`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  ALC     |aud_alc |Audio volume adjustment|`set_gain`<br>`get_gain`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  EQ      |aud_eq |Audio equalizer adjustment|`set_para`<br>`get_para`<br>`enable_filter`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  FADE    |aud_fade |Audio fade-in and fade-out effects|`set_mode`<br>`get_mode`<br>`reset`|Single|Single|Maximum delay|Maximum delay|Yes|

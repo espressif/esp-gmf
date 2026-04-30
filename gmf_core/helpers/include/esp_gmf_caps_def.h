@@ -70,7 +70,6 @@ static inline void gmf_eightcc_to_str(uint64_t eightcc, char out[9])
 #define ESP_GMF_CAPS_AUDIO_MUXER                STR_2_EIGHTCC("AUDMUXER")
 #define ESP_GMF_CAPS_AUDIO_HOWL                 STR_2_EIGHTCC("AUDHOWL")
 
-
 /***************************************************************************/
 /*                      Definition of Video Capabilities                   */
 /***************************************************************************/

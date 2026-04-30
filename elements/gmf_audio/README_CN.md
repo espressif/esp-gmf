@@ -14,6 +14,7 @@ ESP GMF Audio 是 GMF 音频处理相关元素的集合，包括音频编码，�
 |  RATE_CVT| aud_rate_cvt | 音频采样率调节  | `set_dest_rate` |  单个 |  单个  |最大延迟 |最大延迟| 是 |
 |  BIT_CVT | aud_bit_cvt | 音频比特位转换  | `set_dest_bits`| 单个 |  单个  |最大延迟 |最大延迟| 是 |
 |  CH_CVT  | aud_ch_cvt | 音频声道数转换   | `set_dest_ch`|  单个 |  单个  |最大延迟 |最大延迟| 是 |
+|  AUD_ASRC | aud_asrc | 自适应音频信息转换模块，结合硬件 ASRC 与软件采样率、位深度、声道转换能力 | `set_dest_rate`<br>`set_dest_ch`<br>`set_dest_bits` | 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  ALC     | aud_alc | 音频音量调节    | `set_gain`<br>`get_gain`| 单个 |  单个  |最大延迟 |最大延迟| 是 |
 |  EQ      | aud_eq | 音频均衡器调节  |`set_para`<br>`get_para`<br>`enable_filter`  |单个 |单个|最大延迟 |最大延迟|是 |
 |  FADE    | aud_fade | 音频淡入淡出效果    |`set_mode`<br>`get_mode`<br>`reset` | 单个 |  单个  |最大延迟 |最大延迟 |是 |

@@ -6,6 +6,7 @@
 
 - Added `aud_muxer` element
 - Added `aud_howl` element
+- Added `aud_asrc` element
 
 ## v0.8.3
 

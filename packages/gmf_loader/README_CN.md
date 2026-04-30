@@ -32,6 +32,7 @@ GMF Loader 是一个辅助组件，允许用户通过 menuconfig 轻松自定义
   - 声道转换
   - 位深度转换
   - 采样率转换
+  - 自适应音频格式转换 (ASRC)
   - 淡入淡出效果
   - 音速效果
   - 声道交织/解交织
@@ -129,6 +130,7 @@ ESP GMF Loader
 │   │   ├── Channel Conversion [Y]
 │   │   ├── Bit Depth Conversion [Y]
 │   │   ├── Sample Rate Conversion [Y]
+│   │   ├── ASRC [N]
 │   │   ├── Channel Interleave [N]
 │   │   ├── Channel Deinterleave [N]
 │   │   ├── Audio Mixing [N]

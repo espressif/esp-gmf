@@ -78,6 +78,83 @@ menu "GMF Audio Effects"
             default 0 if GMF_AUDIO_EFFECT_RATE_CVT_PERF_TYPE_MEMORY
             default 1 if GMF_AUDIO_EFFECT_RATE_CVT_PERF_TYPE_SPEED
 
+    config GMF_AUDIO_EFFECT_INIT_ASRC
+        bool "Initialize GMF Audio Effect ASRC"
+        default n
+        help
+            Initialize GMF Audio effect ASRC (sample rate, channel, and bit depth conversion)
+
+        config GMF_AUDIO_EFFECT_ASRC_DEST_RATE
+            int "ASRC Destination Sample Rate"
+            depends on GMF_AUDIO_EFFECT_INIT_ASRC
+            default 48000
+            help
+                The sample rate of the output audio stream
+
+        config GMF_AUDIO_EFFECT_ASRC_DEST_CH
+            int "ASRC Destination Channel"
+            depends on GMF_AUDIO_EFFECT_INIT_ASRC
+            default 2
+            help
+                Channel number for the output audio stream
+
+        config GMF_AUDIO_EFFECT_ASRC_DEST_BITS
+            int "ASRC Destination Bits"
+            depends on GMF_AUDIO_EFFECT_INIT_ASRC
+            default 16
+            help
+                Audio sample bits of the destination stream
+
+        config GMF_AUDIO_EFFECT_ASRC_COMPLEXITY
+            int "ASRC Complexity"
+            depends on GMF_AUDIO_EFFECT_INIT_ASRC
+            default 2
+            range 1 3
+            help
+                Resampling algorithm complexity level. Range: 1~3
+
+        choice GMF_AUDIO_EFFECT_ASRC_PERF
+            prompt "ASRC Performance Type"
+            depends on GMF_AUDIO_EFFECT_INIT_ASRC
+            default GMF_AUDIO_EFFECT_ASRC_PERF_TYPE_AUTO
+            help
+                Select the performance type for ASRC
+
+            config GMF_AUDIO_EFFECT_ASRC_PERF_TYPE_AUTO
+                bool "Auto"
+                help
+                    Automatically select the optimal performance mode
+
+            config GMF_AUDIO_EFFECT_ASRC_PERF_TYPE_HW_ONLY
+                bool "Hardware Only"
+                help
+                    Use hardware ASRC only
+
+            config GMF_AUDIO_EFFECT_ASRC_PERF_TYPE_SW_MEMORY
+                bool "Software Memory Optimized"
+                help
+                    Use software ASRC optimized for memory usage
+
+            config GMF_AUDIO_EFFECT_ASRC_PERF_TYPE_SW_SPEED
+                bool "Software Speed Optimized"
+                help
+                    Use software ASRC optimized for speed
+        endchoice
+
+        config GMF_AUDIO_EFFECT_ASRC_PERF_TYPE
+            int
+            default 0 if GMF_AUDIO_EFFECT_ASRC_PERF_TYPE_AUTO
+            default 1 if GMF_AUDIO_EFFECT_ASRC_PERF_TYPE_HW_ONLY
+            default 2 if GMF_AUDIO_EFFECT_ASRC_PERF_TYPE_SW_MEMORY
+            default 3 if GMF_AUDIO_EFFECT_ASRC_PERF_TYPE_SW_SPEED
+
+        config GMF_AUDIO_EFFECT_ASRC_TIMEOUT_MS
+            int "ASRC Timeout (ms)"
+            depends on GMF_AUDIO_EFFECT_INIT_ASRC
+            default -1
+            help
+                ASRC timeout threshold for handling one audio frame. -1 means wait for the maximum delay
+
     config GMF_AUDIO_EFFECT_INIT_DEINTERLEAVE
         bool "Initialize GMF Audio Effect Deinterleave"
         default n

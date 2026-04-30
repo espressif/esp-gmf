@@ -55,6 +55,7 @@
 #include "esp_gmf_fade.h"
 #include "esp_gmf_mixer.h"
 #include "esp_gmf_rate_cvt.h"
+#include "esp_gmf_asrc.h"
 #include "esp_gmf_drc.h"
 #include "esp_gmf_mbc.h"
 #include "esp_gmf_sonic.h"
@@ -106,12 +107,13 @@ extern const uint8_t test_flac_end[] asm("_binary_test_48000hz_16bit_2ch_5000ms_
 }
 
 typedef struct {
-    uint32_t   in_port_num;
-    uint32_t   out_port_num;
-    uint64_t  *caps_cc;
-    uint8_t    el_cnt;
-    uint32_t   src_size;
-    void       (*config_func)(esp_gmf_element_handle_t, void *);
+    uint32_t     in_port_num;
+    uint32_t     out_port_num;
+    uint64_t    *caps_cc;
+    const char **elements;
+    uint8_t      el_cnt;
+    uint32_t     src_size;
+    void        (*config_func)(esp_gmf_element_handle_t, void *);
 } audio_el_res_cfg_t;
 
 static void SAFE_FREE(void *ptr)
@@ -429,11 +431,12 @@ static void audio_el_res_init(audio_el_res_cfg_t *cfg, audio_el_res_t **res)
     (*res)->el_cnt = cfg->el_cnt;
     audio_el_pool_init(*res);
     char **elements = NULL;
-    if (cfg->caps_cc) {
+    if (cfg->elements || cfg->caps_cc) {
         elements = (char **)heap_caps_calloc(cfg->el_cnt, sizeof(char *), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         TEST_ASSERT_NOT_EQUAL(NULL, elements);
         for (int i = 0; i < cfg->el_cnt; i++) {
-            elements[i] = (char *)audio_el_get_element_name_by_caps(*res, cfg->caps_cc[i]);
+            elements[i] = cfg->elements ? (char *)cfg->elements[i] :
+                          (char *)audio_el_get_element_name_by_caps(*res, cfg->caps_cc[i]);
             TEST_ASSERT_NOT_EQUAL(NULL, elements[i]);
         }
     }
@@ -1254,6 +1257,42 @@ TEST_CASE("Audio RATE_CVT Element Test", "[ESP_GMF_AUDIO]")
     test_element_run_with_multi_task(&cfg, rate_cvt_config_callback);
     // Test for config task with different priorities
     test_element_cfg_task_priority(&cfg, rate_cvt_config_callback);
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Audio ASRC Element Test", "[ESP_GMF_AUDIO]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+    audio_el_res_cfg_t cfg = DEFAULT_SINGLE_IN_SINGLE_OUT_CONFIG();
+    cfg.elements = (const char *[]) {"aud_asrc"};
+    audio_el_res_t *res = NULL;
+    audio_el_res_init(&cfg, &res);
+    res->config_func         = asrc_config_callback;
+    uint32_t rate_pairs[][2] = {{44100, 48000}, {48000, 44100}, {44100, 16000}, {16000, 44100}};
+    for (int i = 0; i < sizeof(rate_pairs) / sizeof(rate_pairs[0]); i++) {
+        audio_el_set_audio_info(res);
+        res->in_inst[0].src_info.sample_rates  = rate_pairs[i][0];
+        res->out_inst[0].out_info.sample_rates = rate_pairs[i][1];
+        test_element_run_stop(res);
+    }
+    for (int i = 0; i < sizeof(rate_pairs) / sizeof(rate_pairs[0]); i++) {
+        audio_el_set_audio_info(res);
+        res->in_inst[0].src_info.sample_rates  = rate_pairs[i][0];
+        res->out_inst[0].out_info.sample_rates = rate_pairs[i][1];
+        test_element_run_finish(res);
+    }
+    for (int i = 0; i < sizeof(rate_pairs) / sizeof(rate_pairs[0]); i++) {
+        audio_el_set_audio_info(res);
+        res->in_inst[0].src_info.sample_rates  = rate_pairs[i][0];
+        res->out_inst[0].out_info.sample_rates = rate_pairs[i][1];
+        test_element_reopen_parameter_persistence(res);
+    }
+    test_element_run_error_open(res);
+    test_element_run_error_process(res);
+    audio_el_res_deinit(res);
+    test_element_run_with_multi_task(&cfg, asrc_config_callback);
+    test_element_cfg_task_priority(&cfg, asrc_config_callback);
     ESP_GMF_MEM_SHOW(TAG);
 }
 

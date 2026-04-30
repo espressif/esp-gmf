@@ -6,6 +6,7 @@
 
 - Added configurable audio muxer support in `gmf_loader_setup_audio_muxer`
 - Added configurable audio howl support in `gmf_loader_setup_audio_howl`
+- Added configurable audio asrc support in `gmf_loader_setup_audio_asrc`
 
 ## v0.8.3
 

@@ -12,6 +12,7 @@
 #include "esp_gmf_ch_cvt.h"
 #include "esp_gmf_bit_cvt.h"
 #include "esp_gmf_rate_cvt.h"
+#include "esp_gmf_asrc.h"
 #include "esp_gmf_sonic.h"
 #include "esp_gmf_alc.h"
 #include "esp_gmf_eq.h"
@@ -202,6 +203,27 @@ static esp_gmf_err_t gmf_loader_setup_default_rate_cvt(esp_gmf_pool_handle_t poo
     return ret;
 }
 #endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_RATE_CVT */
+
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_ASRC
+static esp_gmf_err_t gmf_loader_setup_default_asrc(esp_gmf_pool_handle_t pool)
+{
+    ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_element_handle_t hd = NULL;
+    esp_asrc_cfg_t asrc_cfg = DEFAULT_ESP_GMF_ASRC_CONFIG();
+    asrc_cfg.dest_info.sample_rate     = CONFIG_GMF_AUDIO_EFFECT_ASRC_DEST_RATE;
+    asrc_cfg.dest_info.channel         = CONFIG_GMF_AUDIO_EFFECT_ASRC_DEST_CH;
+    asrc_cfg.dest_info.bits_per_sample = CONFIG_GMF_AUDIO_EFFECT_ASRC_DEST_BITS;
+    asrc_cfg.complexity                = CONFIG_GMF_AUDIO_EFFECT_ASRC_COMPLEXITY;
+    asrc_cfg.perf_type                 = (esp_asrc_perf_type_t)CONFIG_GMF_AUDIO_EFFECT_ASRC_PERF_TYPE;
+    asrc_cfg.timeout_ms                = CONFIG_GMF_AUDIO_EFFECT_ASRC_TIMEOUT_MS;
+    ret                                = esp_gmf_asrc_init(&asrc_cfg, &hd);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init audio ASRC");
+    ret = esp_gmf_pool_register_element(pool, hd, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_element_deinit(hd); return ret;}, "Failed to register element in pool");
+    return ret;
+}
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_ASRC */
 
 #ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_FADE
 static esp_gmf_err_t gmf_loader_setup_default_fade(esp_gmf_pool_handle_t pool)
@@ -416,6 +438,11 @@ esp_gmf_err_t gmf_loader_setup_audio_effects_default(esp_gmf_pool_handle_t pool)
     ret = gmf_loader_setup_default_rate_cvt(pool);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register rate cvt");
 #endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_RATE_CVT */
+
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_ASRC
+    ret = gmf_loader_setup_default_asrc(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register ASRC");
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_ASRC */
 
 #ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_FADE
     ret = gmf_loader_setup_default_fade(pool);

@@ -22,6 +22,7 @@
 #include "esp_audio_dec_default.h"
 #include "esp_audio_simple_dec_default.h"
 #include "esp_gmf_rate_cvt.h"
+#include "esp_gmf_asrc.h"
 #include "esp_gmf_bit_cvt.h"
 #include "esp_gmf_ch_cvt.h"
 #include "decoder/impl/esp_pcm_dec.h"
@@ -1086,5 +1087,39 @@ void muxer_config_callback(esp_gmf_element_handle_t self, void *ctx)
     if (cfg) {
         TEST_ASSERT_NOT_EQUAL(ESP_MUXER_TYPE_MAX, cfg->muxer_type);
         TEST_ASSERT_TRUE(cfg->output_type == ESP_GMF_AUDIO_MUXER_OUTPUT_STREAMING || cfg->output_type == ESP_GMF_AUDIO_MUXER_OUTPUT_FILE);
+    }
+}
+
+void asrc_config_callback(esp_gmf_element_handle_t self, void *ctx)
+{
+    audio_el_res_t *res = (audio_el_res_t *)ctx;
+    esp_gmf_event_state_t event_state = 0;
+    esp_gmf_element_get_state(self, &event_state);
+    uint32_t set_rate = res->is_first_open == true ? 48000 : 44100;
+    uint8_t set_bits = res->is_first_open == true ? 16 : 32;
+    uint8_t set_channels = res->is_first_open == true ? 4 : 2;
+    if (event_state < ESP_GMF_EVENT_STATE_OPENING) {
+        if (res->is_first_open == true) {
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_rate(self, set_rate));
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_bits(self, set_bits));
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_ch(self, set_channels));
+        } else if (res->is_first_open == false) {
+            esp_asrc_cfg_t *cfg = (esp_asrc_cfg_t *)OBJ_GET_CFG(self);
+            TEST_ASSERT_EQUAL(set_rate, cfg->dest_info.sample_rate);
+            TEST_ASSERT_EQUAL(set_bits, cfg->dest_info.bits_per_sample);
+            TEST_ASSERT_EQUAL(set_channels, cfg->dest_info.channel);
+        }
+    } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
+        if (res->is_first_open == true) {
+            esp_asrc_cfg_t *cfg = (esp_asrc_cfg_t *)OBJ_GET_CFG(self);
+            TEST_ASSERT_EQUAL(set_rate, cfg->dest_info.sample_rate);
+            TEST_ASSERT_EQUAL(set_bits, cfg->dest_info.bits_per_sample);
+            TEST_ASSERT_EQUAL(set_channels, cfg->dest_info.channel);
+            res->is_first_open = false;
+        } else if (res->is_first_open == false) {
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_rate(self, set_rate));
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_bits(self, set_bits));
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_ch(self, set_channels));
+        }
     }
 }
