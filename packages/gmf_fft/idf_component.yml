@@ -1,0 +1,14 @@
+## ESP-IDF Component Manager
+## https://docs.espressif.com/projects/idf-component-manager/en/latest/
+
+version: "0.1.0"
+description: Espressif Fast Fourier Transform
+url: https://github.com/espressif/esp-gmf/tree/main/packages/gmf_fft
+documentation: https://github.com/espressif/esp-gmf/blob/main/packages/gmf_fft/README.md
+issues: https://github.com/espressif/esp-gmf/issues
+
+tags:
+  - fft
+  - ifft
+  - gmf
+  - signal-processing
