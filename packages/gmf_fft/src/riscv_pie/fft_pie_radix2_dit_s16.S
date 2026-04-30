@@ -5,7 +5,7 @@
  */
 
 # -----------------------------------------------------------------------------
-# ESP32-P4: radix-2 DIT Q15 FFT helpers (PIE vector instructions)
+# ESP32 RISCV PIE: radix-2 DIT Q15 FFT helpers (PIE vector instructions)
 #
 # Layout (matches fft_power2_q15.c):
 #   - data: interleaved int16 [re0,im0, re1,im1, ...], length 2*N int16s; buffer must meet PIE alignment.
@@ -15,7 +15,7 @@
 # -----------------------------------------------------------------------------
 # void fft_radix2_bit_reverse_s16(int16_t *data, int32_t cpx_points, int32_t log2N);
 # Bit-reverse permute the spectrum by log2N bits; inner block touches 16 complex samples per pattern.
-    .section .tcm.text
+    .section .text
     .global fft_radix2_bit_reverse_s16
     .type   fft_radix2_bit_reverse_s16, @function
 fft_radix2_bit_reverse_s16:
@@ -58,7 +58,7 @@ fft_radix2_bit_reverse_s16:
 # Multi-stage radix-2 butterflies (forward FFT). Twiddle layout matches twiddle_win from esp_gmf_fft_init.
 # x12=arithmetic right-shift count (ssr), x13=total stages; subtract 3 then loop main + three tail butterfly blocks.
 # x25=16 byte twiddle stride; x29=inner PIE iterations per box (related to complex count per box).
-    .section .tcm.text
+    .section .text
     .global fft_radix2_fft_bf_s16
     .type   fft_radix2_fft_bf_s16, @function
 fft_radix2_fft_bf_s16:
@@ -71,7 +71,6 @@ fft_radix2_fft_bf_s16:
     sw x25, 12(sp)
     sw x26, 16(sp)
     sw x27, 20(sp)
-    mv  x30, x15
     esp.movx.w.sar x12                                                        # fixed-point scaling (Q format)
     mv x27, x11                                                               # twiddle base for this stage
     addi x13, x13, -3                                                         # main loop runs (num_stages - 3) stages
@@ -156,7 +155,6 @@ fft_radix2_fft_bf_s16:
         esp.fft.cmul.s16.ld.xp q1, x9, x25, q5, q4, q2, 4    # [b3]
         esp.fft.cmul.s16.st.xp q4, q2, q5, x24, x25, 6, 2, 1 # [x11 x12 b3 b4]
         1:
-    mv  x10, x30   
     lw x8, 0(sp)
     lw x9, 4(sp)
     lw x24, 8(sp)
@@ -170,7 +168,7 @@ fft_radix2_fft_bf_s16:
 # void fft_radix2_ifft_bf_s16(same 5 args as fft_bf);
 # Inverse butterflies: symmetric dataflow; esp.fft.cmul.s16.* immediates differ (often 1/3/5/7 vs forward 0/2/4/6).
 # Main loop / box layout matches fft_bf; same three tail blocks.
-    .section .tcm.text
+    .section .text
     .global fft_radix2_ifft_bf_s16
     .type   fft_radix2_ifft_bf_s16, @function
 fft_radix2_ifft_bf_s16:
@@ -278,7 +276,7 @@ fft_radix2_ifft_bf_s16:
 # void fft_radix2_fftr_s16(int16_t *data, int16_t *twiddle_win2, int32_t cpx_points, int32_t shift);
 # Post-forward-FFT real-spectrum / conjugate-pack step; twiddle_win2 is Q14 cos/sin from fft_power2_q15.
 # x10= spectrum base; x9~high-half / symmetry boundary; x8 scans backward; buffer needs +1 complex tail (C plan ensures this).
-    .section .tcm.text
+    .section .text
     .global fft_radix2_fftr_s16
     .type   fft_radix2_fftr_s16, @function
 fft_radix2_fftr_s16:
@@ -342,7 +340,7 @@ fft_radix2_fftr_s16:
 # -----------------------------------------------------------------------------
 # void fft_radix2_ffti_s16(int16_t *data, int16_t *twiddle_win2, int32_t cpx_points, int32_t shift);
 # Inverse of fftr: call before inverse FFT; AMS path mirrors fftr, some immediates use 1 where fftr uses 0.
-    .section .tcm.text
+    .section .text
     .global fft_radix2_ffti_s16
     .type   fft_radix2_ffti_s16, @function
 fft_radix2_ffti_s16:
