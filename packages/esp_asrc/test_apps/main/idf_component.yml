@@ -1,0 +1,4 @@
+dependencies:
+  espressif/esp_asrc:
+    require: public
+    override_path: ../../../esp_asrc

@@ -29,6 +29,7 @@ jobs:
             esp_video_render: ./packages/esp_video_render
             esp_bt_audio: ./packages/esp_bt_audio
             gmf_fft: ./packages/gmf_fft
+            esp_asrc: ./packages/esp_asrc
             gmf_examples: ./gmf_examples
           namespace: "espressif"
           api_token: ${{ secrets.IDF_COMPONENT_API_TOKEN }}

@@ -1,0 +1,22 @@
+version: "1.0.0"
+
+description: Espressif ASRC (Audio Sample Rate Converter) Module
+url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_asrc
+documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_asrc/README.md"
+issues: "https://github.com/espressif/esp-gmf/issues"
+
+tags:
+   - "gmf"
+   - "asrc"
+   - "resample"
+   - "rate_conversion"
+   - "channel_conversion"
+   - "bit_conversion"
+
+examples:
+   - path: ./examples/asrc_demo
+
+dependencies:
+  espressif/esp_audio_effects:
+    require: public
+    version: "~1.3"
