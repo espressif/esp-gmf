@@ -424,10 +424,14 @@ def build_pdm_rx_slot_config(cfg: dict, hw_version: int) -> dict:
     if pdm_slot_supports_data_fmt():
         slot_cfg['data_fmt'] = get_enum_value(cfg.get('data_fmt'), 'I2S_PDM_DATA_FMT_PCM', 'pdm_data_fmt')
 
-    # Add hardware version specific fields
-    if hw_version == 2:  # SOC_I2S_HW_VERSION_2 (all other chips) - only these chips support HP filter
+    # PDM RX HP filter fields are gated by SOC_I2S_SUPPORTS_PDM_RX_HP_FILTER,
+    # which is currently only set on ESP32-P4. HW_VERSION_2 alone is not
+    # enough — ESP32-S3 is HW_VERSION_2 but lacks the cap, so emitting the
+    # fields breaks its build. Restrict emission to chips that actually
+    # support the cap.
+    chip_supports_pdm_rx_hp_filter = get_effective_chip_name() in ('esp32p4',)
+    if hw_version == 2 and chip_supports_pdm_rx_hp_filter:
         slot_cfg['hp_en'] = bool(cfg.get('hp_en', True))
-        # Validate HP filter cut-off frequency (23.3Hz ~ 185Hz)
         hp_freq = float(cfg.get('hp_cut_off_freq_hz', 35.5))
         if hp_freq < 23.3 or hp_freq > 185.0:
             print(f'⚠️  WARNING: HP filter cut-off frequency {hp_freq}Hz is out of range (23.3Hz ~ 185Hz), clamping to valid range')
