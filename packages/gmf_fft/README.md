@@ -13,7 +13,8 @@
 
 ## Supported Targets
 
-v0.1.0 supports ESP32-S3 and ESP32-P4.
+- v0.1.0 supports ESP32-S3 and ESP32-P4.
+- v1.0.0 supports all ESP32 series chips.
 
 ## API
 
