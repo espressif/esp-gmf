@@ -2,7 +2,13 @@
 
 - [中文版](./README_CN.md)
 
-The Espressif General Multimedia Framework (ESP-GMF) is a lightweight and versatile software framework developed by Espressif specifically for IoT multimedia applications. It is highly flexible and scalable and tailored for IoT chips, with RAM usage as low as 7 KB. ESP-GMF supports applications in audio, image, and video processing, as well as any data-streaming product.
+Build multimedia products for Espressif chips with a framework that is lightweight, modular, and easy to grow with.
+
+The Espressif General Multimedia Framework (ESP-GMF) is a lightweight and versatile software framework developed by Espressif specifically for IoT multimedia applications. It is highly flexible and scalable and tailored for IoT chips, with RAM usage as low as 7 KB. ESP-GMF supports applications in audio, image, and video processing, as well as any data-streaming product. Whether you are building a first demo or a production-ready multimedia pipeline, ESP-GMF is designed to help you start small and move forward with confidence.
+
+> **⭐ If ESP-GMF has been helpful to you, we'd love your support.**<br>
+> [⭐ Star on GitHub](https://github.com/espressif/esp-gmf) · [💡 Open an issue](https://github.com/espressif/esp-gmf/issues) · Share your use case with the community<br>
+> **🚀 Every Star, example, bug report, and contribution helps ESP-GMF grow and helps others build faster.**
 
 ESP-GMF consists of four modules: GMF-Core, Elements, Packages, and GMF-Examples.
 
@@ -10,6 +16,19 @@ ESP-GMF consists of four modules: GMF-Core, Elements, Packages, and GMF-Examples
 - **Elements** implements various functional elements based on GMF-Core, such as codec algorithms, audio processing algorithms, and more.
 - **Packages** implements high-level functional components based on GMF-Pipeline, such as the **ESP Audio Simple Player**, which is a basic audio decoding player.
 - **GMF-Examples** provides examples of how to use GMF-Pipeline to implement simple functionalities, such as playing music from flash or an SD card.
+
+## Why ESP-GMF
+
+- **Lightweight for IoT**: Built for resource-constrained chips.
+- **Modular by design**: Combine only the pieces you need, or extend the framework with your own elements and IOs.
+- **Scales with your project**: Start with a simple playback flow, then grow into richer audio, image, and video products.
+- **Friendly to real development work**: Use ready-made packages and examples to shorten bring-up time and reduce integration effort.
+
+## Choose Your Starting Point
+
+- **Want the fastest path to a working application?** Start with the **[Advanced Components](#advanced-components)** and the examples in this repository.
+- **Need full control over a custom multimedia pipeline?** Build with the **[Basic Components](#basic-components)**.
+- **Want to create reusable infrastructure or custom elements?** Extend **[GMF-Core](#gmf-core-component)**.
 
 # ESP-GMF Component Overview
 
@@ -19,6 +38,8 @@ ESP-GMF modules exist as components, which are categorized by functionality into
 <img src="./docs/_static/GMF_System_Diagram.png" width="600" alt="ESP-GMF System Diagram">
 </div>
 
+<a id="gmf-core-component"></a>
+
 ## GMF Core component
 
 The GMF core component is the essential foundation of ESP-GMF. It provides the underlying infrastructure such as pipeline management, task scheduling, and data flow control. Most users will not need to interact with this component directly, as it is abstracted by higher-level components. However, it is essential for developers who want to extend the framework or create custom elements.
@@ -26,6 +47,8 @@ The GMF core component is the essential foundation of ESP-GMF. It provides the u
 | Component Name | Function | Example | Dependent Components |
 | :------------: | :------------: | :------------ | :------------ |
 | [gmf_core](./gmf_core) | Core framework for GMF | [test_apps](./gmf_core/test_apps) | None |
+
+<a id="basic-components"></a>
 
 ## Basic Components
 
@@ -40,6 +63,8 @@ Basic components are intermediate-layer modules in ESP-GMF that handle data proc
 | [gmf_io](./elements/gmf_io) | Input/output for files, flash, and HTTP | [test_apps](./elements/test_apps) | - `gmf_core`<br>- `esp_codec_dev` |
 | [gmf_ai_audio](./elements/gmf_ai_audio) | Elements for intelligence audio processing<br>and speech recognition | [examples](./elements/gmf_ai_audio/examples) | - `esp-sr`<br>- `gmf_core` |
 | [gmf_video](./elements/gmf_video) | Elements for video encoding, decoding,<br>and video effects processing | [test_apps](./elements/test_apps) | - `gmf_core`<br>- `esp_video_codec` |
+
+<a id="advanced-components"></a>
 
 ## Advanced Components
 
@@ -62,6 +87,12 @@ Advanced components are encapsulation modules in ESP-GMF that target specific ap
 # ESP-GMF Usage Guide
 
 For usage examples, please refer to the `examples` or `test_apps` directory of each component listed above.
+
+## Help ESP-GMF Grow
+
+- If ESP-GMF saved you time, please give the project a [GitHub Star](https://github.com/espressif/esp-gmf).
+- If something is missing or unclear, open a [GitHub issue](https://github.com/espressif/esp-gmf/issues). Requests for examples, documentation, and feature ideas are all welcome.
+- If you built something useful, consider contributing an example, a board adaptation, or a documentation improvement. Small contributions help the next developer move faster.
 
 # Frequently Asked Questions
 
