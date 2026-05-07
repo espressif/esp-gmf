@@ -61,3 +61,9 @@ packages/gmf_fft/examples/fft_spectrum_print:
   <<: *disable_example_esp32
   <<: *disable_example_esp32c3
   <<: *disable_example_esp32c5
+
+packages/esp_video_render:
+  <<: *disable_test_apps_esp32
+  <<: *disable_example_esp32
+  <<: *disable_example_esp32c3
+  <<: *disable_example_esp32c5

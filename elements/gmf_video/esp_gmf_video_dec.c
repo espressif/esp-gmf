@@ -30,6 +30,13 @@
     offset += size;
 
 /**
+ * @brief  Video decoder output buffer pixel alignment
+ */
+#define VIDEO_PIXELS_ALIGNMENT  (16)
+
+#define ALIGN_UP(a, align)  (((a) + ((align) - 1)) & ~((align) - 1))
+
+/**
  * @brief  Video decoder definition
  */
 typedef struct {
@@ -205,9 +212,13 @@ static esp_gmf_job_err_t vdec_el_process(esp_gmf_video_element_handle_t self, vo
                 ret = ESP_GMF_JOB_ERR_CONTINUE;
                 break;
             }
+            esp_video_codec_resolution_t res = {
+                .width = ALIGN_UP(frame_info.res.width, VIDEO_PIXELS_ALIGNMENT),
+                .height = ALIGN_UP(frame_info.res.height, VIDEO_PIXELS_ALIGNMENT),
+            };
             ESP_LOGI(TAG, "Dec frame size %dx%d", (int)frame_info.res.width, (int)frame_info.res.height);
             // Update output frame size
-            uint32_t out_frame_size = esp_video_codec_get_image_size(vdec->out_format, &frame_info.res);
+            uint32_t out_frame_size = esp_video_codec_get_image_size(vdec->out_format, &res);
             out_frame_size = GMF_VIDEO_ALIGN_UP(out_frame_size, out_frame_align);
             ESP_GMF_ELEMENT_GET(vdec)->out_attr.data_size = out_frame_size;
             // Report info to next element when parse header finished
@@ -240,7 +251,7 @@ static esp_gmf_job_err_t vdec_el_process(esp_gmf_video_element_handle_t self, vo
         out_load->pts = in_load->pts;
         ret = ESP_GMF_JOB_ERR_OK;
     } while (0);
- __vid_proc_release:
+__vid_proc_release:
     if (out_load) {
         out_load->is_done = in_load->is_done;
         esp_gmf_port_release_out(out, out_load, 0);

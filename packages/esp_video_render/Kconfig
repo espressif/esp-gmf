@@ -1,0 +1,28 @@
+menu "Video Render Configuration"
+    config ESP_VIDEO_RENDER_LVGL_BACKEND_SUPPORT
+        bool "Video render LVGL backend support"
+        default n
+     config ESP_VIDEO_RENDER_WIDGET_SUPPORT
+        bool "Video render widget support"
+        default y
+     config ESP_VIDEO_RENDER_TEXT_WIDGET_SUPPORT
+        bool "Video render text widget support"
+        depends on ESP_VIDEO_RENDER_WIDGET_SUPPORT
+        default n
+
+    config ESP_VIDEO_RENDER_BLEND_THREAD_STACK_SIZE
+        int "Video render blend thread stack size"
+        default 20480
+
+    config ESP_VIDEO_RENDER_BLEND_THREAD_CORE_ID
+        int "Video render blend thread core id"
+        default 0
+
+    config ESP_VIDEO_RENDER_BLEND_THREAD_PRIORITY
+        int "Video render blend thread priority"
+        default 8
+
+    config VIDEO_RENDER_MEASURE_ENABLE
+        bool "Video render measurement enable"
+        default n
+endmenu

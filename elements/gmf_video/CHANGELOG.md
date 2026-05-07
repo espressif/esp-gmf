@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.8.3
+
+### Bug Fixes
+
+- Use aligned buffer alignment for all video elements
+- Fixed can not decode when video output not 16 pixels alignment
+- Added global lock `vid_ppa` to avoid racing condition on PPA access
+- Fixed rotate not take effect if angle is 180 for `vid_ppa`
+
 ## v0.8.2
 
 ### Bug Fixes
