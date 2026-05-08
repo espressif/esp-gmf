@@ -7,12 +7,15 @@
 
 #pragma once
 #include "driver/pulse_cnt.h"
-#include "soc/soc_caps.h"
 #include "esp_idf_version.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-    #warning "periph_pcnt is not supported in ESP-IDF v6.0.0 and above yet."
-#endif
+#include "hal/pcnt_ll.h"
+#define SOC_PCNT_CHANNELS_PER_UNIT     PCNT_LL_GET(CHANS_PER_UNIT)
+#define SOC_PCNT_THRES_POINT_PER_UNIT  PCNT_LL_GET(THRES_POINT_PER_UNIT)
+#else
+#include "soc/soc_caps.h"
+#endif  /* ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) */
 
 #ifdef __cplusplus
 extern "C" {

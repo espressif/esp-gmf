@@ -276,6 +276,22 @@ def chip_supports_pdm_tx_second_dout_pin(chip_name) -> bool:
     return True
 
 
+def chip_supports_pdm_rx_hp_filter(chip_name) -> bool:
+    """Whether ``i2s_pdm_rx_slot_config_t`` exposes HP filter fields."""
+    from generators.utils.idf_soc_i2s import soc_i2s_cap_from_idf
+
+    cap = soc_i2s_cap_from_idf(chip_name, 'SOC_I2S_SUPPORTS_PDM_RX_HP_FILTER')
+    if cap is not None:
+        return cap
+
+    if not chip_name:
+        return False
+    c = chip_name.strip().lower().replace('-', '')
+    # IDF v5.4/v5.5 expose the cap on P4; IDF v6 adds S31. Prefer a compact
+    # fallback for runs without IDF_PATH, while the active IDF remains authoritative.
+    return c in ('esp32p4', 'esp32s31')
+
+
 def get_i2s_hw_version() -> int:
     """Determine I2S hardware version for generated struct layout.
 
@@ -424,8 +440,9 @@ def build_pdm_rx_slot_config(cfg: dict, hw_version: int) -> dict:
     if pdm_slot_supports_data_fmt():
         slot_cfg['data_fmt'] = get_enum_value(cfg.get('data_fmt'), 'I2S_PDM_DATA_FMT_PCM', 'pdm_data_fmt')
 
-    # Add hardware version specific fields
-    if hw_version == 2:  # SOC_I2S_HW_VERSION_2 (all other chips) - only these chips support HP filter
+    # These fields are gated by SOC_I2S_SUPPORTS_PDM_RX_HP_FILTER, not by
+    # SOC_I2S_HW_VERSION_2. ESP32-S3 is HW_VERSION_2 but lacks the cap.
+    if hw_version == 2 and chip_supports_pdm_rx_hp_filter(get_effective_chip_name()):
         slot_cfg['hp_en'] = bool(cfg.get('hp_en', True))
         # Validate HP filter cut-off frequency (23.3Hz ~ 185Hz)
         hp_freq = float(cfg.get('hp_cut_off_freq_hz', 35.5))

@@ -23,6 +23,7 @@ idf_component_register(
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT}>:test_dev_lcd_init.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_GPIO_CTRL_SUPPORT}>:test_dev_pwr_ctrl.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT}>:test_dev_ledc.c>
+        $<$<BOOL:${CONFIG_ESP_BOARD_DEV_LED_STRIP_SUPPORT}>:test_dev_led_strip.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT}>:test_dev_custom.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT}>:test_dev_gpio_expander.c>
         $<$<BOOL:${CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT}>:test_dev_camera.c>

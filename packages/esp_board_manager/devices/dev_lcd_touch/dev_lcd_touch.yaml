@@ -1,0 +1,42 @@
+# Example board_devices.yaml configuration for LCD Touch device
+# This shows how to integrate the generic LCD touch device into a board configuration.
+# The generic type uses sub_type to select the bus implementation. Only sub_type: i2c
+# is implemented now; sub_type: spi is reserved for a future implementation.
+# I2C addresses are 8-bit / left-shifted values, matching audio_codec and gpio_expander.
+# ESP-IDF I2C runtime APIs receive the selected address after shifting right by one.
+
+- name: lcd_touch          # The name of the device, must be unique
+  chip: generic_touch      # [TO_BE_CONFIRMED] Touch chip type (e.g., cst816s, ft5x06, gt911, tt21100)
+  type: lcd_touch          # Generic LCD touch device type
+  sub_type: i2c            # Touch bus sub-type; only i2c is supported in this phase
+  version: 1.0.0
+  dependencies:
+    espressif/esp_lcd_touch_generic: "*"  # [TO_BE_CONFIRMED] Component dependency for the touch chip
+  config:
+    # esp_lcd_panel_io_i2c_config_t fields for I2C communication
+    io_i2c_config:
+      control_phase_bytes: 1            # Control phase bytes (default: 1)
+      dc_bit_offset: 0                  # DC bit offset in control phase (default: 0)
+      lcd_cmd_bits: 8                   # [TO_BE_CONFIRMED] Bit-width of LCD command (default: 8)
+      lcd_param_bits: 0                 # Bit-width of LCD parameter (default: 0)
+      scl_speed_hz: 100000              # I2C SCL frequency (default: 100kHz)
+      flags:
+        dc_low_on_data: false           # DC level for data transfer (default: false)
+        disable_control_phase: true     # Disable control phase for touch (default: true)
+
+    # esp_lcd_touch_config_t fields for touch configuration
+    touch_config:
+      x_max: 320                        # [TO_BE_CONFIRMED] Maximum X coordinate (default: 320)
+      y_max: 240                        # [TO_BE_CONFIRMED] Maximum Y coordinate (default: 240)
+      rst_gpio_num: -1                  # [IO] Reset GPIO (default: -1, GPIO_NUM_NC)
+      int_gpio_num: -1                  # [IO] Interrupt GPIO (default: -1, GPIO_NUM_NC)
+      levels:
+        reset: 0                        # Reset pin active level (default: 0)
+        interrupt: 0                    # Interrupt pin active level (default: 0)
+      flags:
+        swap_xy: false                  # Swap X and Y coordinates (default: false)
+        mirror_x: false                 # Mirror X coordinates (default: false)
+        mirror_y: false                 # Mirror Y coordinates (default: false)
+  peripherals:
+    - name: i2c_master              # I2C peripheral for touch communication
+      i2c_addr: [0xba]              # [TO_BE_CONFIRMED] I2C address candidates, 8-bit / left-shifted values, up to 4 entries

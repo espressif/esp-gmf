@@ -44,7 +44,7 @@ int dev_fs_fat_sub_sdmmc_init(void *cfg, int cfg_size, void **device_handle)
         ret = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to create a new on-chip LDO power control driver");
-            return -1;
+            goto clean_up;
         }
         handle->host.pwr_ctrl_handle = pwr_ctrl_handle;
     } else {
@@ -97,6 +97,12 @@ int dev_fs_fat_sub_sdmmc_init(void *cfg, int cfg_size, void **device_handle)
     *device_handle = handle;
     return 0;
 clean_up:
+#ifdef SOC_GP_LDO_SUPPORTED
+    if (handle->host.pwr_ctrl_handle) {
+        sd_pwr_ctrl_del_on_chip_ldo(handle->host.pwr_ctrl_handle);
+        handle->host.pwr_ctrl_handle = NULL;
+    }
+#endif  // SOC_GP_LDO_SUPPORTED
     free(handle);
     return -1;
 }
@@ -109,6 +115,15 @@ int dev_fs_fat_sub_sdmmc_deinit(void *device_handle)
     } else {
         ESP_LOGW(TAG, "Mount point or card handle is NULL, skipping unmount");
     }
+#ifdef SOC_GP_LDO_SUPPORTED
+    if (handle->host.pwr_ctrl_handle) {
+        esp_err_t ret = sd_pwr_ctrl_del_on_chip_ldo(handle->host.pwr_ctrl_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to delete on-chip LDO power control driver: %s", esp_err_to_name(ret));
+        }
+        handle->host.pwr_ctrl_handle = NULL;
+    }
+#endif  // SOC_GP_LDO_SUPPORTED
     free(handle);
     return 0;
 }

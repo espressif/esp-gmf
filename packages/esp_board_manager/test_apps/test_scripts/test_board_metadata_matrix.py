@@ -1013,6 +1013,41 @@ DEVICE_CASES = [
         },
     },
     {
+        'id': 'dev_display_lcd_rgb',
+        'chip': 'esp32s31',
+        'peripherals': [],
+        'device': {
+            'name': 'display_lcd',
+            'type': 'display_lcd',
+            'sub_type': 'rgb',
+            'config': {
+                'rgb_panel_config': {
+                    'hsync_gpio_num': 44,
+                    'vsync_gpio_num': 45,
+                    'de_gpio_num': 43,
+                    'pclk_gpio_num': 40,
+                    'disp_gpio_num': -1,
+                    'data_gpio_nums': [8, 9, 10, 11],
+                    'timings': {
+                        'h_res': 800,
+                        'v_res': 480,
+                    },
+                },
+            },
+        },
+        'expected': {
+            'type': 'display_lcd',
+            'sub_type': 'rgb',
+            'io': {
+                'hsync_gpio_num': 44,
+                'vsync_gpio_num': 45,
+                'de_gpio_num': 43,
+                'pclk_gpio_num': 40,
+                'data_gpio_nums': [8, 9, 10, 11],
+            },
+        },
+    },
+    {
         'id': 'dev_fs_fat_sdmmc',
         'chip': 'esp32s3',
         'peripherals': [],
@@ -1155,7 +1190,7 @@ DEVICE_CASES = [
         },
     },
     {
-        'id': 'dev_lcd_touch_i2c',
+        'id': 'dev_lcd_touch',
         'chip': 'esp32s3',
         'peripherals': [
             {
@@ -1166,16 +1201,14 @@ DEVICE_CASES = [
         ],
         'device': {
             'name': 'lcd_touch',
-            'type': 'lcd_touch_i2c',
+            'type': 'lcd_touch',
+            'sub_type': 'i2c',
             'chip': 'generic_touch',
             'dependencies': {
                 'espressif/esp_lcd_touch_generic': '*',
             },
             'config': {
                 'io_i2c_config': {
-                    'peripherals': [
-                        {'name': 'i2c_master'},
-                    ],
                 },
                 'touch_config': {
                     'rst_gpio_num': 8,
@@ -1183,11 +1216,12 @@ DEVICE_CASES = [
                 },
             },
             'peripherals': [
-                {'name': 'i2c_master'},
+                {'name': 'i2c_master', 'i2c_addr': 0xBA},
             ],
         },
         'expected': {
-            'type': 'lcd_touch_i2c',
+            'type': 'lcd_touch',
+            'sub_type': 'i2c',
             'peripherals': ['i2c_master'],
             'dependencies': {
                 'espressif/esp_lcd_touch_generic': '*',
@@ -1249,7 +1283,6 @@ DEVICE_CASES = [
     },
 ]
 
-
 @pytest.mark.parametrize('case', PERIPHERAL_CASES, ids=[case['id'] for case in PERIPHERAL_CASES])
 def test_board_metadata_matrix_for_peripherals(bmgr_root, tmp_path, case):
     metadata = _generate_metadata(
@@ -1262,7 +1295,6 @@ def test_board_metadata_matrix_for_peripherals(bmgr_root, tmp_path, case):
 
     peripheral_name = case['peripherals'][0]['name']
     assert metadata['peripherals'][peripheral_name] == case['expected']
-
 
 @pytest.mark.parametrize('case', DEVICE_CASES, ids=[case['id'] for case in DEVICE_CASES])
 def test_board_metadata_matrix_for_devices(bmgr_root, tmp_path, case):

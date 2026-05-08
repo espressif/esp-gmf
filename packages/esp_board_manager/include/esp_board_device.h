@@ -184,6 +184,25 @@ esp_err_t esp_board_device_override_config(const char *name, const void *config,
 esp_err_t esp_board_device_restore_config(const char *name);
 
 /**
+ * @brief  Get the effective 8-bit I2C address published by an initialized device
+ *
+ *         Some I2C devices can probe multiple candidate addresses at runtime.
+ *         This function returns the final 8-bit (left-shifted) I2C address that
+ *         the device published after successful initialization. If the returned
+ *         address is passed to ESP-IDF I2C master APIs, shift it right by one.
+ *
+ * @param[in]   device_name  Device name
+ * @param[out]  addr         Pointer to store the 8-bit I2C address
+ *
+ * @return
+ *       - ESP_OK                              On success
+ *       - ESP_BOARD_ERR_DEVICE_INVALID_ARG    If device_name or addr is NULL
+ *       - ESP_BOARD_ERR_DEVICE_NOT_FOUND      If device does not exist
+ *       - ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED  If the device has not published an I2C address
+ */
+esp_err_t esp_board_device_get_i2c_effective_addr(const char *device_name, uint16_t *addr);
+
+/**
  * @brief  Set device initialization and deinitialization functions
  *
  *         Associates custom init and deinit functions with a device. This allows

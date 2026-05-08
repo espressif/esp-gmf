@@ -40,6 +40,10 @@
 #include "test_dev_ledc.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
 
+#ifdef CONFIG_ESP_BOARD_DEV_LED_STRIP_SUPPORT
+#include "test_dev_led_strip.h"
+#endif  /* CONFIG_ESP_BOARD_DEV_LED_STRIP_SUPPORT */
+
 #ifdef CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT
 #include "test_dev_custom.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT */
@@ -102,6 +106,14 @@ static void test_ledc_device(void)
     test_dev_ledc_ctrl();
 }
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_DEV_LED_STRIP_SUPPORT
+static void test_led_strip_device(void)
+{
+    ESP_LOGI(TAG, "Starting LED strip device tests...");
+    test_dev_led_strip();
+}
+#endif  /* CONFIG_ESP_BOARD_DEV_LED_STRIP_SUPPORT */
 
 #ifdef CONFIG_ESP_BOARD_DEV_CUSTOM_SUPPORT
 static void test_custom_device(void)
@@ -195,6 +207,10 @@ void app_main(void)
     test_ledc_device();
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
 
+#ifdef CONFIG_ESP_BOARD_DEV_LED_STRIP_SUPPORT
+    test_led_strip_device();
+#endif  /* CONFIG_ESP_BOARD_DEV_LED_STRIP_SUPPORT */
+
 #ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
     lvgl_port_stop();
     test_dev_lcd_touch_deinit();
@@ -211,6 +227,46 @@ void app_main(void)
 
     ESP_LOGI(TAG, "Show all devices and peripherals status");
     esp_board_manager_print();
+
+#ifdef CONFIG_ESP_BOARD_PERIPH_ADC_SUPPORT
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    test_periph_adc();
+#endif  /* CONFIG_ESP_BOARD_PERIPH_ADC_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_PERIPH_ANACMPR_SUPPORT
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    test_periph_anacmpr();
+#endif  /* CONFIG_ESP_BOARD_PERIPH_ANACMPR_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_PERIPH_DAC_SUPPORT
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    test_periph_dac();
+#endif  /* CONFIG_ESP_BOARD_PERIPH_DAC_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_PERIPH_MCPWM_SUPPORT
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    test_periph_mcpwm();
+#endif  /* CONFIG_ESP_BOARD_PERIPH_MCPWM_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_PERIPH_PCNT_SUPPORT
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    test_periph_pcnt();
+#endif  /* CONFIG_ESP_BOARD_PERIPH_PCNT_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_PERIPH_RMT_SUPPORT
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    test_periph_rmt();
+#endif  /* CONFIG_ESP_BOARD_PERIPH_RMT_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_PERIPH_SDM_SUPPORT
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    test_periph_sdm();
+#endif  /* CONFIG_ESP_BOARD_PERIPH_SDM_SUPPORT */
+
+#ifdef CONFIG_ESP_BOARD_PERIPH_UART_SUPPORT
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    test_periph_uart();
+#endif  /* CONFIG_ESP_BOARD_PERIPH_UART_SUPPORT */
 
     ESP_LOGI(TAG, "Starting cleanup...");
     ret = esp_board_manager_deinit();

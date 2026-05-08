@@ -242,8 +242,10 @@ class BoardConfigGenerator(LoggerMixin):
         periph_dir = self.peripherals_dir
         periph_names = []
 
-        for file in sorted(periph_dir.glob('periph_*/periph_*.h')):
-            name = self.get_component_name(file)
+        for periph_folder in sorted(periph_dir.glob('periph_*')):
+            if not periph_folder.is_dir():
+                continue
+            name = periph_folder.name[7:]  # Remove 'periph_' prefix
             # Always default n — board_manager.defaults handles enablement
             kconfig_content += self.generate_kconfig_entry(
                 name,
@@ -870,8 +872,14 @@ class BoardConfigGenerator(LoggerMixin):
                 raise RuntimeError(msg)
             version, parse_func, _ = parse_entry  # Unpack only what we need here
             # Pass complete peripheral information
+            periph_version = getattr(p, 'version', None)
             try:
-                result = parse_func(p.name, {'format': p.format, 'role': p.role, 'config': p.config})
+                result = parse_func(p.name, {
+                    'format': p.format,
+                    'role': p.role,
+                    'config': p.config,
+                    'version': str(periph_version) if periph_version is not None else None,
+                })
             except ValueError as e:
                 raise ValueError(
                     f"Failed to generate configuration for peripheral '{p.name}' (type: {p.type}): {e}"
@@ -892,6 +900,7 @@ class BoardConfigGenerator(LoggerMixin):
                     'role': p.role,
                     'format': p.format,
                     'config': p.config,
+                    'version': str(periph_version) if periph_version is not None else None,
                 },
                 'result': result,
                 'parse_func': parse_func,
@@ -982,7 +991,8 @@ class BoardConfigGenerator(LoggerMixin):
                 'name': d.name,
                 'type': d.type,
                 'config': d.config,
-                'peripherals': []  # Convert peripheral references to list
+                'peripherals': [],  # Convert peripheral references to list
+                'version': str(getattr(d, 'version', None)) if getattr(d, 'version', None) is not None else None,
             }
 
             # Add device-level fields like chip and sub_type
@@ -990,6 +1000,8 @@ class BoardConfigGenerator(LoggerMixin):
                 full_config['chip'] = raw_dev['chip']
             if 'sub_type' in raw_dev:
                 full_config['sub_type'] = raw_dev['sub_type']
+            if 'version' in raw_dev:
+                full_config['version'] = str(raw_dev['version']) if raw_dev['version'] is not None else None
 
             peripherals = []
             raw_peripherals = raw_dev.get('peripherals', [])

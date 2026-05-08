@@ -60,14 +60,29 @@ def get_idf_major_version():
     return get_idf_version()[0]
 
 
-def get_periph_version_dir():
+def get_idf_compat_dirs(min_major=5):
     """
-    Return the peripheral version directory name based on the IDF major version.
+    Return IDF compatibility implementation directories to try.
+
+    Directories are named by the first ESP-IDF major version they support:
+    ``idf5`` applies to IDF 5.x and can be reused by later versions until a
+    newer directory exists, ``idf6`` starts at IDF 6.x, and so on.
 
     Returns:
-        str: 'v2' for IDF v6.0+, 'v1' otherwise.
+        list[str]: Compatibility directories ordered from newest to oldest,
+        e.g. ``['idf7', 'idf6', 'idf5']`` for ESP-IDF 7.x.
     """
     major, _, _ = get_idf_version()
-    if major >= 6:
-        return 'v2'
-    return 'v1'
+    if major < min_major:
+        major = min_major
+    return [f'idf{i}' for i in range(major, min_major - 1, -1)]
+
+
+def get_periph_version_dir():
+    """
+    Return the preferred IDF compatibility directory.
+
+    Kept for backward compatibility. New code should use get_idf_compat_dirs()
+    and fall back per component when the preferred directory is unavailable.
+    """
+    return get_idf_compat_dirs()[0]

@@ -9,6 +9,12 @@ For **user board** YAML, `version` (when used as a parsing contract) means **whi
 
 - **Different meaning:** under `dependencies`, `version` on a component is an **ESP-IDF Component Manager** dependency constraint (e.g. `"*"`, `~1.5`).
 
+### 0.1 IDF compatibility
+
+Device and peripheral implementations may provide ESP-IDF major-version compatibility directories named `idf5`, `idf6` and so on. The directory name means "this implementation is compatible starting from this ESP-IDF major version" and is independent of the YAML schema `version` field above.
+
+When generating parser output or compiling C sources, Board Manager tries the current IDF major first and falls back to older compatible directories before using the default component directory. For example, ESP-IDF 6.x checks `idf6`, then `idf5`, then the unversioned component directory.
+
 ## 1. General YAML File Structure
 
 ### 1.1 Board Level Configuration
@@ -51,7 +57,7 @@ Each peripheral must have the following fields:
 peripherals:
   - name: <peripheral_name>    # Required: Unique identifier
     type: <peripheral_type>    # Required: Type identifier
-    version: <version>         # Optional: Parser version to use
+    version: <version>         # Optional: Board Manager schema generation tag
     role: <role>               # Conditional: operating mode (e.g. master/slave, tx/rx, continuous/oneshot, depends on peripheral type)
     format: <format_string>    # Conditional: data format (currently only used by I2S, e.g. std-out, tdm-in, pdm-out)
     config: <configuration>    # Required: Peripheral-specific config
@@ -84,7 +90,7 @@ devices:
   - name: <device_name>       # Required: Unique identifier
     type: <device_type>       # Required: Type identifier
     chip: <chip_name>         # Conditional: device chip name (e.g. LCD chip, IO expander chip, etc.)
-    version: <version>        # Optional: Parser version to use
+    version: <version>        # Optional: Board Manager schema generation tag
     sub_type: <sub_type>      # Conditional: some devices have sub-types (e.g. LCD has SPI, DSI, ParlIO)
     init_skip: false          # Optional: skip initialization when the manager initializes all devices.
                               # Default is false (do not skip initialization). Set to true to skip automatic initialization.

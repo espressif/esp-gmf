@@ -52,7 +52,25 @@ esp_board_manager/
 
 ## Quick Start
 
-### 1. Add and Activate Component
+### Preferred Setup: Install `esp-bmgr-assist`
+
+Use `esp-bmgr-assist` as the default entry point. It hooks into the `idf.py` startup flow, automatically discovers the ESP Board Manager component in the current project, and add them to `IDF_EXTRA_ACTIONS_PATH`. Install it once in an activated ESP-IDF Python environment(Execute `./install.sh` and `. ./export.sh` under the IDF directory to activate the IDF environment), and any other project using the same environment can use it too. As long as the project has correctly added the `esp_board_manager` dependency, you usually do not need to configure `IDF_EXTRA_ACTIONS_PATH` manually.
+
+Run the following commands in an activated ESP-IDF Python environment:
+
+```bash
+# First-time install
+pip install esp-bmgr-assist
+
+# Upgrade later
+pip install --upgrade esp-bmgr-assist
+```
+
+Tool link: [`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/)
+
+> **Note:** `esp-bmgr-assist` is only used to avoid manual `IDF_EXTRA_ACTIONS_PATH` configuration. Continue reading this document to add the `esp_board_manager` dependency to your project and learn the basic Board Manager commands.
+
+### 1. Add Dependency and Activate Component
 
 #### 1.1 Automatically Download ESP Board Manager Component from Component Registry
 
@@ -68,9 +86,26 @@ espressif/esp_board_manager:
 
 Run `idf.py set-target` or `idf.py menuconfig` to automatically download the **esp_board_manager** component to `YOUR_PROJECT_ROOT_PATH/managed_components/espressif__esp_board_manager`.
 
-> **Note:** Please check the directory `YOUR_PROJECT_ROOT_PATH/managed_components/espressif__esp_board_manager` to ensure the component has been downloaded locally before proceeding.
+If `esp-bmgr-assist` is installed, you can use Board Manager directly after the component is downloaded. You do not need to set `IDF_EXTRA_ACTIONS_PATH` manually, and using Board Manager commands directly can also trigger the component download automatically.
 
-Set the `IDF_EXTRA_ACTIONS_PATH` environment variable to include the ESP Board Manager directory:
+#### 1.2 Use Local ESP Board Manager Component
+
+Add the following content to your `idf_component.yml`:
+
+```yaml
+espressif/esp_board_manager:
+  override_path: /PATH/TO/YOUR_PATH/esp_board_manager
+  version: "*"
+  require: public
+```
+
+If `esp-bmgr-assist` is installed, it will automatically discover this local component path and load the `bmgr` command.
+
+#### Activate the Component
+
+Normally, you do not need this subsection after installing `esp-bmgr-assist`. If Board Manager commands are not recognized, or if you want to check whether the issue comes from automatic discovery, manually set `IDF_EXTRA_ACTIONS_PATH` in this section to verify that Board Manager itself works.
+
+For a component downloaded from the registry, point the path to the managed component directory in your project:
 
 **Ubuntu and Mac:**
 
@@ -90,18 +125,7 @@ $env:IDF_EXTRA_ACTIONS_PATH = "YOUR_PROJECT_ROOT_PATH/managed_components/espress
 set IDF_EXTRA_ACTIONS_PATH=YOUR_PROJECT_ROOT_PATH/managed_components/espressif__esp_board_manager
 ```
 
-#### 1.2 Use Local ESP Board Manager Component
-
-Add the following content to your `idf_component.yml`:
-
-```yaml
-espressif/esp_board_manager:
-  override_path: /PATH/TO/YOUR_PATH/esp_board_manager
-  version: "*"
-  require: public
-```
-
-Set the `IDF_EXTRA_ACTIONS_PATH` environment variable to include the ESP Board Manager directory:
+For a local component, point the path to your local `esp_board_manager` directory:
 
 **Ubuntu and Mac:**
 
@@ -120,8 +144,6 @@ $env:IDF_EXTRA_ACTIONS_PATH = "/PATH/TO/YOUR_PATH/esp_board_manager"
 ```cmd
 set IDF_EXTRA_ACTIONS_PATH=/PATH/TO/YOUR_PATH/esp_board_manager
 ```
-
-> **Note:** IDF action extension auto-discovery is available starting from ESP-IDF v6.0. From IDF v6.0 onwards, there is no need to set `IDF_EXTRA_ACTIONS_PATH` because it automatically discovers the IDF action extension.
 
 ### 2. Scan Boards and Select Board
 
@@ -217,27 +239,7 @@ Metadata rules:
 
 > **Note:** If you encounter problems, refer to the [Troubleshooting](#troubleshooting) section.
 
-### 3. Use Prebuild Script
-
-It is recommended that users read the above steps to understand the usage of `esp_board_manager`. For users wish to simplify the usage process, prebuild script for building the project with `esp_board_manager` is provided in [`tools`](tools).
-
-The first time you compile the project, copy the scripts from [`tools`](tools) to `YOUR_PROJECT_ROOT_PATH`. After you run a script, it first checks whether the ESP-IDF version is supported, then lists the selectable chips so you can pick a target by number. After dependencies are downloaded, it scans component paths and sets `IDF_EXTRA_ACTIONS_PATH` so it includes the ESP Board Manager directory, then lists all boards so you can pick one by number or name.
-
-On Linux / macOS, run following command:
-```bash/zsh
-source prebuild.sh
-```
-
-On Windows, run following command:
-```powershell
-.\prebuild.ps1
-```
-
-For later board changes, you only need to clear the current board configuration and reselect the board.
-
-> **Note:** The prebuild script takes over steps related to [Add and Activate Component](#1-add-and-activate-component) and [Scan Boards and Select Board](#2-scan-boards-and-select-board).
-
-### 4. Use in Your Application
+### 3. Use in Your Application
 
 ```c
 #include <stdio.h>
@@ -263,6 +265,14 @@ void app_main(void)
         ESP_LOGE(TAG, "Failed to get LCD device");
         return;
     }
+    // For optional devices, check existence first to avoid noisy get_handle error logs
+    if (esp_board_manager_check_name("lcd_touch")) {
+        void *touch_handle = NULL;
+        ret = esp_board_manager_get_device_handle("lcd_touch", &touch_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Touch device exists but handle is unavailable");
+        }
+    }
     // Get device configuration, according to the device naming in esp_board_manager/boards/YOUR_TARGET_BOARD/board_devices.yaml
     dev_audio_codec_config_t *device_config;
     ret = esp_board_manager_get_device_config("audio_dac", &device_config);
@@ -284,20 +294,23 @@ void app_main(void)
 
 ### Supported Boards
 
-| Board Name | Chip | Audio | SD Card | LCD | LCD Touch | Camera | Button |
-|---|---|---|---|---|---|---|---|
-| [`ESP VoCat Board V1.0`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp-vocat/user_guide_v1.0.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
-| [`ESP VoCat Board V1.2`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp-vocat/user_guide_v1.2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
-| Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (dual) | - | - | - |
-| [`ESP-BOX-3`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_3/hardware_overview_for_box_3.md) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ GT911 | - | - |
-| [`ESP32-S3 Korvo2 V3`](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100 | ✅ DVP Camera | ✅ ADC button |
-| ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ | ❌ | ❌ |
-| [`Lyrat Mini V1.1`](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/get-started-esp32-lyrat-mini.html) | ESP32 | ✅ ES8388 | ✅ SDMMC | - | - | - | ✅ ADC button |
-| [`ESP32-C5 Spot`](https://oshwhub.com/esp-college/esp-spot) | ESP32-C5 | ✅ ES8311 (dual) | - | - | - | - | - |
-| [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ✅ EK79007 | ✅ GT911 | ✅ CSI Camera | - |
-| [`M5STACK CORES3`](https://docs.m5stack.com/en/core/CoreS3) | ESP32-S3 | ✅ AW88298 + ES7210 | ✅ SDSPI | ✅ ILI9342C | ✅ FT5x06 | ❌ | - |
-| [`M5STACK TAB5`](https://docs.m5stack.com/en/core/Tab5) | ESP32-P4 | ✅ ES8388 + ES7210 | ✅ SDMMC | ✅ ILI9881C | ✅ GT911 | SC202CS | - |
-| [`ESP-BOX-LITE`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_lite/hardware_overview_for_lite.md) | ESP32-S3 | ✅ ES8156 + ES7243E | - | ✅ ST7789 | - | - | - |
+| Board Name | Chip | Audio | SD Card | LCD | LCD Touch | Camera | Button | LED Strip |
+|---|---|---|---|---|---|---|---|---|
+| [`ESP VoCat Board V1.0`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp-vocat/user_guide_v1.0.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - | - |
+| [`ESP VoCat Board V1.2`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp-vocat/user_guide_v1.2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - | - |
+| Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (dual) | - | - | - | - |
+| [`ESP-BOX-3`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_3/hardware_overview_for_box_3.md) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ GT911/TT21100 auto-detect | - | - | - |
+| ESP-HI | ESP32-C3 | ✅ Internal ADC + PDM speaker | - | ✅ ILI9341 | - | - | ✅ GPIO button | - |
+| ESP32-C3 Lyra | ESP32-C3 | ✅ Internal ADC + PDM speaker | - | - | - | - | - | - |
+| [`ESP32-S3 Korvo2 V3`](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100/GT911 auto-detect | ✅ DVP Camera | ✅ ADC button | - |
+| ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ | ❌ | ❌ | - |
+| ESP32-S31 Korvo1 | ESP32-S31 | ✅ ES8389 | - | ✅ RGB LCD | ✅ GT1151 | - | - | ✅ WS2812 |
+| [`Lyrat Mini V1.1`](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/dev-boards/get-started-esp32-lyrat-mini.html) | ESP32 | ✅ ES8388 | ✅ SDMMC | - | - | - | ✅ ADC button | - |
+| [`ESP32-C5 Spot`](https://oshwhub.com/esp-college/esp-spot) | ESP32-C5 | ✅ ES8311 (dual) | - | - | - | - | - | - |
+| [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ✅ EK79007 | ✅ GT911 | ✅ CSI Camera | - | - |
+| [`M5STACK CORES3`](https://docs.m5stack.com/en/core/CoreS3) | ESP32-S3 | ✅ AW88298 + ES7210 | ✅ SDSPI | ✅ ILI9342C | ✅ FT5x06 | ❌ | - | - |
+| [`M5STACK TAB5`](https://docs.m5stack.com/en/core/Tab5) | ESP32-P4 | ✅ ES8388 + ES7210 | ✅ SDMMC | ✅ ILI9881C | ✅ GT911 | SC202CS | - | - |
+| [`ESP-BOX-LITE`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_lite/hardware_overview_for_lite.md) | ESP32-S3 | ✅ ES8156 + ES7243E | - | ✅ ST7789 | - | - | - | - |
 
 Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicates the hardware does not have the corresponding capability.
 
@@ -306,15 +319,16 @@ Note: '✅' indicates supported, '❌' indicates not yet supported, '-' indicate
 | Device Name | Description | Type | Subtype | Peripheral | Reference YAML | Examples |
 |---|---|---|---|---|---|---|
 | `audio_dac`<br/>`audio_adc` | Audio codec | audio_codec | - | i2s<br/>i2c | [`dev_audio_codec`](devices/dev_audio_codec/dev_audio_codec.yaml) | **[`test_dev_audio_codec.c`](test_apps/main/test_dev_audio_codec.c)** <br/>Audio codec with DAC/ADC, SD card playback, recording, and loopback testing |
-| `display_lcd` | LCD | display_lcd | spi<br/>dsi | spi<br/>dsi | [`dev_display_lcd`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>LCD display with LVGL, touch screen, and backlight control |
+| `display_lcd` | LCD | display_lcd | spi<br/>dsi<br/>rgb | spi<br/>dsi | [`dev_display_lcd`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>LCD display with LVGL, touch screen, and backlight control |
 | `fs_fat` | FAT filesystem device | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fs_fat.c`](test_apps/main/test_dev_fs_fat.c)** <br/>SD card operations and FATFS file system testing |
 | `fs_spiffs` | SPIFFS filesystem device | fs_spiffs | - | - | [`dev_fs_spiffs`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) | **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** <br/>SPIFFS file system testing |
-| `lcd_touch` | Touch screen | lcd_touch_i2c | - | i2c | [`dev_lcd_touch_i2c`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>LCD display with LVGL, touch screen, and backlight control |
+| `lcd_touch` | Touch screen | lcd_touch | i2c | i2c | [`dev_lcd_touch`](devices/dev_lcd_touch/dev_lcd_touch.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>LCD display with LVGL, touch screen, and backlight control |
 | `sdcard_power_ctrl` | Power control device | power_ctrl | gpio | gpio | [`dev_power_ctrl`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
 | `lcd_brightness` | LEDC control device | ledc_ctrl | - | ledc | [`dev_ledc_ctrl`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) | **[`test_dev_ledc.c`](test_apps/main/test_dev_ledc.c)** <br/>LEDC device for PWM and backlight control |
 | `gpio_expander` | GPIO expander chip | gpio_expander | - | i2c | [`dev_gpio_expander`](devices/dev_gpio_expander/dev_gpio_expander.yaml) | **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)**<br/>GPIO expander chip testing |
 | `camera` | Camera | camera | dvp<br/>csi | i2c<br/>ldo | [`dev_camera`](devices/dev_camera/dev_camera.yaml) | **[`test_dev_camera.c`](test_apps/main/test_dev_camera.c)** <br/>Testing Camera sensor's video stream capture capability |
 | `button` | Button | button | gpio<br/>adc | gpio<br/>adc | [`dev_button`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>Button testing |
+| `led_strip` | LED strip | led_strip | rmt<br/>spi | - | [`dev_led_strip`](devices/dev_led_strip/dev_led_strip.yaml) | **[`test_dev_led_strip.c`](test_apps/main/test_dev_led_strip.c)** <br/>LED strip initialization and control testing |
 
 > For the same device, we will no longer distinguish types by interface. For example, `dev_fatfs_sdcard` and `dev_fatfs_sdcard_spi` will be unified under `fs_fat` for management, and `dev_display_lcd_spi` will also be changed to use `dev_display_lcd` for management.
 
@@ -471,6 +485,16 @@ Future development plans for ESP Board Manager (prioritized from high to low):
 - **Enhanced Data Structure**: Enhance data or YAML structure to improve performance
 - **Version management**: Board-level and device/peripheral-level version management
 - **Plugin Architecture**: Extensible plugin system for custom device and peripheral support
+
+## AI Skills
+
+To make ESP Board Manager easier to use, the repository provides optional AI Skills under [`tools/AI_SKILLS`](tools/AI_SKILLS). These Skills are task workflows for AI coding assistants. They help an AI assistant understand Board Manager configuration rules and assist with usage guidance, board adaptation, migration, troubleshooting, and other repetitive tasks in a more consistent way.
+
+AI Skills are not required to use Board Manager, and they do not replace the commands or configuration guidance in this README. Read the related documentation first to understand the migration goal and validation steps; if you want an AI assistant to perform or review the work, provide the corresponding Skill to your AI tool.
+
+Available Skills:
+
+- [`lcd-touch-i2c-migration`](tools/AI_SKILLS/lcd_touch_i2c_migration/SKILL.md): Helps migrate legacy `dev_lcd_touch_i2c` / `type: lcd_touch_i2c` configurations to generic `dev_lcd_touch` / `type: lcd_touch` + `sub_type: i2c`. See [Migrating `dev_lcd_touch_i2c` to `dev_lcd_touch`](docs/lcd_touch_i2c_migration.md) for the migration guide.
 
 ## Troubleshooting
 

@@ -9,7 +9,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from generators.utils.idf_soc_i2s import soc_i2s_hw_layout_version_from_idf
+from generators.utils.idf_soc_i2s import (
+    soc_i2s_cap_from_idf,
+    soc_i2s_hw_layout_version_from_idf,
+)
 
 
 @pytest.fixture
@@ -42,3 +45,18 @@ def test_soc_caps_v2_wins_when_both(fake_idf_with_soc: Path) -> None:
 def test_no_idf_path(monkeypatch) -> None:
     monkeypatch.delenv('IDF_PATH', raising=False)
     assert soc_i2s_hw_layout_version_from_idf('esp32c5') is None
+
+def test_soc_caps_boolean_cap_enabled(fake_idf_with_soc: Path) -> None:
+    fake_idf_with_soc.write_text(
+        '#define SOC_I2S_SUPPORTS_PDM_RX_HP_FILTER    (1)\n',
+        encoding='utf-8',
+    )
+    assert soc_i2s_cap_from_idf('esp32foobar', 'SOC_I2S_SUPPORTS_PDM_RX_HP_FILTER') is True
+
+def test_soc_caps_boolean_cap_disabled_when_missing(fake_idf_with_soc: Path) -> None:
+    fake_idf_with_soc.write_text('#define SOC_I2S_SUPPORTS_PDM_RX    (1)\n', encoding='utf-8')
+    assert soc_i2s_cap_from_idf('esp32foobar', 'SOC_I2S_SUPPORTS_PDM_RX_HP_FILTER') is False
+
+def test_soc_caps_boolean_cap_returns_none_without_idf(monkeypatch) -> None:
+    monkeypatch.delenv('IDF_PATH', raising=False)
+    assert soc_i2s_cap_from_idf('esp32foobar', 'SOC_I2S_SUPPORTS_PDM_RX_HP_FILTER') is None

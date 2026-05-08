@@ -6,6 +6,7 @@
  */
 
 #include <inttypes.h>
+#include <stdlib.h>
 #include "esp_log.h"
 #include "esp_check.h"
 #include "esp_board_periph.h"
@@ -13,6 +14,7 @@
 #include "dev_gpio_expander.h"
 #include "esp_io_expander.h"
 #include "esp_board_device.h"
+#include "periph_i2c_internal.h"
 
 static const char *TAG = "DEV_IO_EXPANDER";
 
@@ -35,29 +37,31 @@ int dev_gpio_expander_init(void *cfg, int cfg_size, void **device_handle)
 
     i2c_master_bus_handle_t bus_handle = (i2c_master_bus_handle_t)i2c_handle;
     uint16_t dev_addr = 0xFF;
+    uint16_t effective_addr = 0;
     for (size_t i = 0; i < config->i2c_addr_count; i++) {
         if (i2c_master_probe(bus_handle, config->i2c_addr[i] >> 1, 100) == ESP_OK) {
             ESP_LOGI(TAG, "IO Expander found at address 0x%02x", (unsigned int)config->i2c_addr[i]);
             dev_addr = config->i2c_addr[i] >> 1;
+            effective_addr = config->i2c_addr[i];
             break;
         }
     }
     if (dev_addr == 0xFF) {
         ESP_LOGE(TAG, "No IO Expander found on the I2C bus");
-        return -1;
+        goto init_err_unref_i2c;
     }
 
     esp_io_expander_handle_t *dev = (esp_io_expander_handle_t *)calloc(1, sizeof(esp_io_expander_handle_t));
     if (!dev) {
         ESP_LOGE(TAG, "Failed to allocate memory for io_expander device");
-        return -1;
+        goto init_err_unref_i2c;
     }
 
     ret = io_expander_factory_entry_t(bus_handle, dev_addr, dev);
-    if (ret != ESP_OK || !dev) {
+    if (ret != ESP_OK || !*dev) {
         ESP_LOGE(TAG, "Failed to create IO expander handle\n");
         free(dev);
-        return -1;
+        goto init_err_unref_i2c;
     }
 
     for (uint32_t i = 0; i < config->max_pins; i++) {
@@ -69,7 +73,7 @@ int dev_gpio_expander_init(void *cfg, int cfg_size, void **device_handle)
             ESP_GOTO_ON_ERROR(esp_io_expander_set_level(*dev, pin_mask, level),
                               io_expander_del, TAG, "Set IO expander pin %" PRIu32 " default level failed", i);
             if (config->enable_mode_set) {
-                esp_io_expander_output_mode_t mode = (esp_io_expander_output_mode_t )((config->output_io_mode_mask >> i) & 1);
+                esp_io_expander_output_mode_t mode = (esp_io_expander_output_mode_t)((config->output_io_mode_mask >> i) & 1);
                 ESP_GOTO_ON_ERROR(esp_io_expander_set_output_mode(*dev, pin_mask, mode),
                                   io_expander_del, TAG, "Set IO expander pin %" PRIu32 " output mode failed", i);
             }
@@ -92,28 +96,44 @@ int dev_gpio_expander_init(void *cfg, int cfg_size, void **device_handle)
             ESP_LOGI(TAG, "Enable IO expander pin %" PRIu32 " pull-down", i);
         }
     }
+    ret = periph_i2c_set_effective_addr_internal(config->i2c_name, config->name, effective_addr);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to publish effective I2C addr for %s: %s", config->name, esp_err_to_name(ret));
+    }
     ESP_LOGD(TAG, "Successfully initialized: %s, dev: %p", config->name, dev);
     *device_handle = dev;
     return 0;
 
 io_expander_del:
+    if (*dev) {
+        esp_io_expander_del(*dev);
+    }
     free(dev);
+init_err_unref_i2c:
+    esp_board_periph_unref_handle(config->i2c_name);
     return -1;
 }
 
 int dev_gpio_expander_deinit(void *device_handle)
 {
+    dev_io_expander_config_t *cfg = NULL;
+    esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
+    if (cfg) {
+        esp_err_t ret = periph_i2c_clear_effective_addr_internal(cfg->name);
+        if (ret != ESP_OK && ret != ESP_ERR_NOT_FOUND) {
+            ESP_LOGW(TAG, "Failed to clear effective I2C addr for %s: %s", cfg->name, esp_err_to_name(ret));
+        }
+    }
+
     esp_io_expander_handle_t *io_expander_dev = (esp_io_expander_handle_t *)device_handle;
     if (*io_expander_dev) {
         esp_io_expander_del(*io_expander_dev);
     }
 
-    dev_io_expander_config_t *cfg = NULL;
-    esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
     if (cfg) {
         esp_board_periph_unref_handle(cfg->i2c_name);
     }
-    ESP_LOGD(TAG, "Successfully deinitialized: %s, dev: %p", cfg->name, io_expander_dev);
+    ESP_LOGD(TAG, "Successfully deinitialized: %s, dev: %p", cfg ? cfg->name : "(unknown)", io_expander_dev);
     free(io_expander_dev);
     return 0;
 }

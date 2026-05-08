@@ -15,8 +15,10 @@
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 #include "hal/i2s_ll.h"
-#define SOC_I2S_NUM I2S_LL_GET(INST_NUM)
-#endif
+#ifndef SOC_I2S_NUM
+#define SOC_I2S_NUM  I2S_LL_GET(INST_NUM)
+#endif  /* SOC_I2S_NUM */
+#endif  /* ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) */
 
 #ifdef __cplusplus
 extern "C" {

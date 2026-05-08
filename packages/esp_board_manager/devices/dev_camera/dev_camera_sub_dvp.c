@@ -47,19 +47,22 @@ int dev_camera_sub_dvp_init(void *cfg, int cfg_size, void **device_handle)
     dev_camera_handle_t *handle = calloc(1, sizeof(dev_camera_handle_t));
     if (handle == NULL) {
         ESP_LOGE(TAG, "Failed to allocate memory");
-        return -1;
+        goto cleanup;
     }
     ret = esp_video_init(&cam_config);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize DVP camera driver: %s", esp_err_to_name(ret));
         free(handle);
-        return -1;
+        goto cleanup;
     }
 
     handle->dev_path = ESP_VIDEO_DVP_DEVICE_NAME;
     *device_handle = handle;
     ESP_LOGI(TAG, "DVP camera initialized successfully, dev_path: %s", handle->dev_path);
     return 0;
+cleanup:
+    esp_board_periph_unref_handle(config->sub_cfg.dvp.i2c_name);
+    return -1;
 }
 
 int dev_camera_sub_dvp_deinit(void *device_handle)

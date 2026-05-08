@@ -1,0 +1,56 @@
+# Example board_devices.yaml configuration for LED strip device
+
+- name: led_strip
+  type: led_strip                      # The type of the device, must be led_strip
+  chip: ws2812                         # [TO_BE_CONFIRMED] LED strip chip/model name
+  sub_type: rmt                        # The sub type: rmt or spi
+  version: 1.0.0
+  config:
+    strip_gpio_num: 37                 # [IO] GPIO used to output LED strip data signal
+    max_leds: 1                        # [TO_BE_CONFIRMED] Number of LEDs in the strip
+    led_model: LED_MODEL_WS2812        # [TO_BE_CONFIRMED] LED model timing profile
+    # Valid values include:
+    # - LED_MODEL_WS2812
+    # - LED_MODEL_SK6812
+    # - LED_MODEL_WS2811
+    # - LED_MODEL_WS2816
+    color_component_format: LED_STRIP_COLOR_COMPONENT_FMT_GRB  # [TO_BE_CONFIRMED] Per-pixel color component order
+    # Common values include:
+    # - LED_STRIP_COLOR_COMPONENT_FMT_GRB
+    # - LED_STRIP_COLOR_COMPONENT_FMT_RGB
+    # - LED_STRIP_COLOR_COMPONENT_FMT_GRBW
+    # - LED_STRIP_COLOR_COMPONENT_FMT_RGBW
+    invert_out: false                  # Invert output signal level (default: false)
+    # led_strip_rmt_config_t fields
+    rmt:
+      clk_src: RMT_CLK_SRC_DEFAULT     # RMT clock source (rmt_clock_source_t)
+      resolution_hz: 10000000          # RMT tick resolution in Hz; 0 lets driver use default 10MHz
+      mem_block_symbols: 0             # RMT symbols per channel block; 0 lets driver choose default size
+      with_dma: false                  # Use DMA for RMT transmission when target supports it
+
+- name: ambient_led
+  type: led_strip                      # The type of the device, must be led_strip
+  chip: ws2812                         # [TO_BE_CONFIRMED] LED strip chip/model name
+  sub_type: spi                        # The sub type: rmt or spi
+  version: 1.0.0
+  config:
+    strip_gpio_num: 35                 # [IO] GPIO used as SPI MOSI for LED strip data signal
+    max_leds: 8                        # [TO_BE_CONFIRMED] Number of LEDs in the strip
+    led_model: LED_MODEL_WS2812        # [TO_BE_CONFIRMED] LED model timing profile
+    # Valid values include:
+    # - LED_MODEL_WS2812
+    # - LED_MODEL_SK6812
+    # - LED_MODEL_WS2811
+    # - LED_MODEL_WS2816
+    color_component_format: LED_STRIP_COLOR_COMPONENT_FMT_GRB  # [TO_BE_CONFIRMED] Per-pixel color component order
+    # Common values include:
+    # - LED_STRIP_COLOR_COMPONENT_FMT_GRB
+    # - LED_STRIP_COLOR_COMPONENT_FMT_RGB
+    # - LED_STRIP_COLOR_COMPONENT_FMT_GRBW
+    # - LED_STRIP_COLOR_COMPONENT_FMT_RGBW
+    invert_out: false                  # Invert output signal level (default: false)
+    # led_strip_spi_config_t fields; the led_strip driver initializes this SPI bus internally.
+    spi:
+      clk_src: SPI_CLK_SRC_DEFAULT     # SPI clock source (spi_clock_source_t)
+      spi_bus: SPI2_HOST               # SPI host used by led_strip driver; must not conflict with another initialized SPI bus
+      with_dma: true                   # Use DMA for SPI transmission when target supports it

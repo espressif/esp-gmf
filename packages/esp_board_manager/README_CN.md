@@ -52,7 +52,25 @@ esp_board_manager/
 
 ## 快速开始
 
-### 1. 添加并激活组件
+### 首选方式：安装 `esp-bmgr-assist`
+
+推荐把 `esp-bmgr-assist` 作为默认入口使用。它会接入 `idf.py` 启动流程，自动发现当前工程中的 ESP Board Manager 组件，并将其添加到 `IDF_EXTRA_ACTIONS_PATH`。只需要在激活的 ESP-IDF Python 环境（在 IDF 目录下执行 `./install.sh` 和 `. ./export.sh` 来激活 IDF 环境）中安装一次，后续同一环境下的其他工程都可以直接使用；只要工程已经正确添加 `esp_board_manager` 的依赖，通常就不需要再手动配置 `IDF_EXTRA_ACTIONS_PATH`。
+
+请在已激活的 ESP-IDF Python 环境下运行以下命令：
+
+```bash
+# 首次安装
+pip install esp-bmgr-assist
+
+# 后续升级
+pip install --upgrade esp-bmgr-assist
+```
+
+工具链接：[`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/)
+
+> **注意:** `esp-bmgr-assist` 仅用于免去手动配置 `IDF_EXTRA_ACTIONS_PATH`。您仍需要继续阅读本文档，按下面的步骤给工程添加 `esp_board_manager` 依赖，了解 Board Manager 的基本命令用法。
+
+### 1. 添加依赖和激活组件
 
 #### 1.1 从组件仓库自动下载 ESP Board Manager 组件
 
@@ -68,9 +86,26 @@ espressif/esp_board_manager:
 
 运行 `idf.py set-target` 或 `idf.py menuconfig` 来自动将 **esp_board_manager** 组件下载到 `YOUR_PROJECT_ROOT_PATH/managed_components/espressif__esp_board_manager`。
 
-> **注意:** 请查看目录 `YOUR_PROJECT_ROOT_PATH/managed_components/espressif__esp_board_manager` 确保组件已经被下载到本地后再进行下一步操作。
+如果已经安装 `esp-bmgr-assist`，下载完成后即可直接使用 Board Manager，不需要手动设置 `IDF_EXTRA_ACTIONS_PATH`，或者直接使用 Board Manager 命令也可以自动触发组件下载。
 
-设置 `IDF_EXTRA_ACTIONS_PATH` 环境变量以包含 ESP Board Manager 目录：
+#### 1.2 使用本地的 ESP Board Manager 组件
+
+将以下内容添加到你的 idf_component.yml 文件:
+
+```yaml
+espressif/esp_board_manager:
+  override_path: /PATH/TO/YOUR_PATH/esp_board_manager
+  version: "*"
+  require: public
+```
+
+如果已经安装 `esp-bmgr-assist`，它会自动发现该本地组件路径并加载 `bmgr` 命令。
+
+#### 激活组件
+
+正常情况下，安装 `esp-bmgr-assist` 后不需要执行本小节。如果无法识别 Board Manager命令，或需要判断问题是否来自自动发现流程，可以参考本节手动设置 `IDF_EXTRA_ACTIONS_PATH` 验证 Board Manager 是否可用。
+
+从组件仓库下载时，将路径指向工程内的托管组件目录：
 
 **Ubuntu and Mac:**
 
@@ -90,18 +125,7 @@ $env:IDF_EXTRA_ACTIONS_PATH = "YOUR_PROJECT_ROOT_PATH/managed_components/espress
 set IDF_EXTRA_ACTIONS_PATH=YOUR_PROJECT_ROOT_PATH/managed_components/espressif__esp_board_manager
 ```
 
-#### 1.2 使用本地的 ESP Board Manager 组件
-
-将以下内容添加到你的 idf_component.yml 文件:
-
-```yaml
-espressif/esp_board_manager:
-  override_path: /PATH/TO/YOUR_PATH/esp_board_manager
-  version: "*"
-  require: public
-```
-
-设置 `IDF_EXTRA_ACTIONS_PATH` 环境变量以包含 ESP Board Manager 目录：
+使用本地组件时，将路径指向本地 `esp_board_manager` 目录：
 
 **Ubuntu and Mac:**
 
@@ -120,8 +144,6 @@ $env:IDF_EXTRA_ACTIONS_PATH = "/PATH/TO/YOUR_PATH/esp_board_manager"
 ```cmd
 set IDF_EXTRA_ACTIONS_PATH=/PATH/TO/YOUR_PATH/esp_board_manager
 ```
-
-> **注意:** IDF action 扩展自动发现功能从 ESP-IDF v6.0 开始可用。从 IDF v6.0 开始无需设置 `IDF_EXTRA_ACTIONS_PATH`，因为它会自动发现 IDF action 扩展。
 
 ### 2. 扫描并选择板子
 
@@ -217,29 +239,7 @@ Metadata 规则：
 
 > **注意:** 遇到问题可以查看 [故障排除](#故障排除) 部分
 
-### 3. 使用预编译脚本
-
-建议用户阅读上述步骤了解 `esp_board_manager` 的使用方法。对于希望简化使用过程的用户，在 [`tools`](tools) 路径下提供了使用 `esp_board_manager` 编译工程的预编译脚本。
-
-第一次编译工程时，将 [`tools`](tools) 下的脚本拷贝到 `YOUR_PROJECT_ROOT_PATH`。执行脚本，脚本会首先检查 ESP-IDF 版本是否支持，然后列出可选择的芯片，用户输入序号选择目标芯片后，会将依赖的组件进行下载。下载组件后，脚本会扫描组件的路径，自动设置 `IDF_EXTRA_ACTIONS_PATH` 环境变量以包含 ESP Board Manager 目录。然后脚本会列出所有可选板子，用户输入序号或名称选择板子。
-
-在 Linux / macOS 中运行以下命令：
-
-```bash/zsh
-source prebuild.sh
-```
-
-在 Windows 中运行以下命令：
-
-```powershell
-.\prebuild.ps1
-```
-
-后续更换板子时，仅需清除当前板子配置并重新选择板子。
-
-> **注意:** 预编译脚本接管了上述的[添加并激活组件](#1-添加并激活组件)和[扫描并选择板子](#2-扫描并选择板子)中的步骤。
-
-### 4. 在您的应用程序中使用
+### 3. 在您的应用程序中使用
 
 ```c
 #include <stdio.h>
@@ -265,6 +265,14 @@ void app_main(void)
         ESP_LOGE(TAG, "Failed to get LCD device");
         return;
     }
+    // 对于可选设备，建议先判断是否存在，再尝试 get_handle，避免无意义 error log
+    if (esp_board_manager_check_name("lcd_touch")) {
+        void *touch_handle = NULL;
+        ret = esp_board_manager_get_device_handle("lcd_touch", &touch_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Touch device exists but handle is unavailable");
+        }
+    }
     // 获取设备配置，根据 esp_board_manager/boards/YOUR_TARGET_BOARD/board_devices.yaml 中的设备命名获取设备配置
     dev_audio_codec_config_t *device_config;
     ret = esp_board_manager_get_device_config("audio_dac", &device_config);
@@ -286,20 +294,23 @@ void app_main(void)
 
 ### 支持的板级
 
-| 板子名称 | 芯片 | 音频 | SD卡 | LCD | LCD 触摸 | 摄像头 | 按键 |
-|---|---|---|---|---|---|---|---|
-| [`ESP VoCat Board V1.0`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32s3/esp-vocat/user_guide_v1.0.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
-| [`ESP VoCat Board V1.2`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32s3/esp-vocat/user_guide_v1.2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - |
-| Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (双) | - | - | - |
-| [`ESP-BOX-3`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_3/hardware_overview_for_box_3_cn.md) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ GT911 | - | - |
-| [`ESP32-S3 Korvo2 V3`](https://docs.espressif.com/projects/esp-adf/zh_CN/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100 | ✅ DVP Camera | ✅ ADC button |
-| ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ | ❌ | ❌ |
-| [`Lyrat Mini V1.1`](https://docs.espressif.com/projects/esp-adf/zh_CN/latest/design-guide/dev-boards/get-started-esp32-lyrat-mini.html) | ESP32 | ✅ ES8388 | ✅ SDMMC | - | - | - | ✅ ADC button |
-| [`ESP32-C5 Spot`](https://oshwhub.com/esp-college/esp-spot) | ESP32-C5 | ✅ ES8311 (双) | - | - | - | - | - |
-| [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ✅ EK79007 | ✅ GT911 | ✅ CSI Camera | - |
-| [`M5STACK CORES3`](https://docs.m5stack.com/zh_CN/core/CoreS3) | ESP32-S3 | ✅ AW88298 + ES7210 | ✅ SDSPI | ✅ ILI9342C | ✅ FT5x06 | ❌ | - |
-| [`M5STACK TAB5`](https://docs.m5stack.com/zh_CN/core/Tab5) | ESP32-P4 | ✅ ES8388 + ES7210 | ✅ SDMMC | ✅ ILI9881C | ✅ GT911 | SC202CS | - |
-| [`ESP-BOX-LITE`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_lite/hardware_overview_for_lite.md) | ESP32-S3 | ✅ ES8156 + ES7243E | - | ✅ ST7789 | - | - | - |
+| 板子名称 | 芯片 | 音频 | SD卡 | LCD | LCD 触摸 | 摄像头 | 按键 | LED 灯带 |
+|---|---|---|---|---|---|---|---|---|
+| [`ESP VoCat Board V1.0`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32s3/esp-vocat/user_guide_v1.0.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - | - |
+| [`ESP VoCat Board V1.2`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32s3/esp-vocat/user_guide_v1.2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ CTS816S | - | - | - |
+| Dual Eyes Board V1.0 | ESP32-S3 | ✅ ES8311 | ❌ | ✅ GC9A01 (双) | - | - | - | - |
+| [`ESP-BOX-3`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_3/hardware_overview_for_box_3_cn.md) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ST77916 | ✅ GT911/TT21100 自动探测 | - | - | - |
+| ESP-HI | ESP32-C3 | ✅ 内置 ADC + PDM 扬声器 | - | ✅ ILI9341 | - | - | ✅ GPIO 按键 | - |
+| ESP32-C3 Lyra | ESP32-C3 | ✅ 内置 ADC + PDM 扬声器 | - | - | - | - | - | - |
+| [`ESP32-S3 Korvo2 V3`](https://docs.espressif.com/projects/esp-adf/zh_CN/latest/design-guide/dev-boards/user-guide-esp32-s3-korvo-2.html) | ESP32-S3 | ✅ ES8311 + ES7210 | ✅ SDMMC | ✅ ILI9341 | ✅ TT21100/GT911 自动探测 | ✅ DVP Camera | ✅ ADC button | - |
+| ESP32-S3 Korvo2L | ESP32-S3 | ✅ ES8311 | ✅ SDMMC | ❌ | ❌ | ❌ | ❌ | - |
+| ESP32-S31 Korvo1 | ESP32-S31 | ✅ ES8389 | - | ✅ RGB LCD | ✅ GT1151 | - | - | ✅ WS2812 |
+| [`Lyrat Mini V1.1`](https://docs.espressif.com/projects/esp-adf/zh_CN/latest/design-guide/dev-boards/get-started-esp32-lyrat-mini.html) | ESP32 | ✅ ES8388 | ✅ SDMMC | - | - | - | ✅ ADC button | - |
+| [`ESP32-C5 Spot`](https://oshwhub.com/esp-college/esp-spot) | ESP32-C5 | ✅ ES8311 (双) | - | - | - | - | - | - |
+| [`ESP32-P4 Function-EV`](https://docs.espressif.com/projects/esp-dev-kits/zh_CN/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html) | ESP32-P4 | ✅ ES8311 | ✅ SDMMC | ✅ EK79007 | ✅ GT911 | ✅ CSI Camera | - | - |
+| [`M5STACK CORES3`](https://docs.m5stack.com/zh_CN/core/CoreS3) | ESP32-S3 | ✅ AW88298 + ES7210 | ✅ SDSPI | ✅ ILI9342C | ✅ FT5x06 | ❌ | - | - |
+| [`M5STACK TAB5`](https://docs.m5stack.com/zh_CN/core/Tab5) | ESP32-P4 | ✅ ES8388 + ES7210 | ✅ SDMMC | ✅ ILI9881C | ✅ GT911 | SC202CS | - | - |
+| [`ESP-BOX-LITE`](https://github.com/espressif/esp-box/blob/master/docs/hardware_overview/esp32_s3_box_lite/hardware_overview_for_lite.md) | ESP32-S3 | ✅ ES8156 + ES7243E | - | ✅ ST7789 | - | - | - | - |
 
 注：'✅' 表示已经支持，'❌' 表示尚未支持，'-' 表示硬件不具备相应的能力
 
@@ -308,15 +319,16 @@ void app_main(void)
 | 设备名称 | 描述 | 类型 | 子类型 | 外设 | 参考 YAML | 示例 |
 |---|---|---|---|---|---|---|
 | `audio_dac`<br/>`audio_adc` | 音频编解码器 | audio_codec | - | i2s<br/>i2c | [`dev_audio_codec.yaml`](devices/dev_audio_codec/dev_audio_codec.yaml) | **[`test_dev_audio_codec.c`](test_apps/main/test_dev_audio_codec.c)** <br/>带有 DAC/ADC、SD 卡播放、录音和回环测试的音频编解码器 |
-| `display_lcd` | LCD 显示设备 | display_lcd | spi<br/>dsi | spi<br/>dsi | [`dev_display_lcd.yaml`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>带有 LVGL、触摸屏和背光控制的 LCD 显示屏 |
+| `display_lcd` | LCD 显示设备 | display_lcd | spi<br/>dsi<br/>rgb | spi<br/>dsi | [`dev_display_lcd.yaml`](devices/dev_display_lcd/dev_display_lcd.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>带有 LVGL、触摸屏和背光控制的 LCD 显示屏 |
 | `fs_fat` | FAT 文件系统设备 | fs_fat | sdmmc<br/>spi | sdmmc<br/>spi | [`dev_fs_fat.yaml`](devices/dev_fs_fat/dev_fs_fat.yaml) | **[`test_dev_fs_fat.c`](test_apps/main/test_dev_fs_fat.c)** <br/>SD 卡操作和 FATFS 文件系统测试 |
 | `fs_spiffs` | SPIFFS 文件系统设备 | fs_spiffs | - | - | [`dev_fs_spiffs.yaml`](devices/dev_fs_spiffs/dev_fs_spiffs.yaml) | **[`test_dev_fs_spiffs.c`](test_apps/main/test_dev_fs_spiffs.c)** <br/>SPIFFS 文件系统测试 |
-| `lcd_touch` | 触摸屏 | lcd_touch_i2c | - | i2c | [`dev_lcd_touch_i2c.yaml`](devices/dev_lcd_touch_i2c/dev_lcd_touch_i2c.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>带有 LVGL、触摸屏和背光控制的 LCD 显示屏 |
+| `lcd_touch` | 触摸屏 | lcd_touch | i2c | i2c | [`dev_lcd_touch.yaml`](devices/dev_lcd_touch/dev_lcd_touch.yaml) | **[`test_dev_lcd_lvgl.c`](test_apps/main/test_dev_lcd_lvgl.c)** <br/>带有 LVGL、触摸屏和背光控制的 LCD 显示屏 |
 | `sdcard_power_ctrl` | 电源控制设备 | power_ctrl | gpio | gpio | [`dev_power_ctrl.yaml`](devices/dev_power_ctrl/dev_power_ctrl.yaml) | - |
 | `lcd_brightness` | LEDC 控制设备 | ledc_ctrl | - | ledc | [`dev_ledc_ctrl.yaml`](devices/dev_ledc_ctrl/dev_ledc_ctrl.yaml) | **[`test_dev_ledc.c`](test_apps/main/test_dev_ledc.c)** <br/>用于 PWM 和背光控制的 LEDC 设备 |
 | `gpio_expander` | GPIO 扩展芯片 | gpio_expander | - | i2c | [`dev_gpio_expander.yaml`](devices/dev_gpio_expander/dev_gpio_expander.yaml) | **[`test_dev_gpio_expander.c`](test_apps/main/test_dev_gpio_expander.c)**<br/>GPIO 扩展芯片测试 |
 | `camera` | 摄像头 | camera | dvp<br/>csi | i2c<br/>ldo | [`dev_camera.yaml`](devices/dev_camera/dev_camera.yaml) | **[`test_dev_camera.c`](test_apps/main/test_dev_camera.c)** <br/>测试 Camera sensor 的视频流捕获能力 |
 | `button` | 按键 | button | gpio<br/>adc | gpio<br/>adc | [`dev_button.yaml`](devices/dev_button/dev_button.yaml) | **[`test_dev_button.c`](test_apps/main/test_dev_button.c)** <br/>按钮测试 |
+| `led_strip` | LED 灯带 | led_strip | rmt<br/>spi | - | [`dev_led_strip.yaml`](devices/dev_led_strip/dev_led_strip.yaml) | **[`test_dev_led_strip.c`](test_apps/main/test_dev_led_strip.c)** <br/>LED 灯带初始化和控制测试 |
 
 > 对于同一种设备，我们将不再使用接口类型来区分类型。例如，`dev_fatfs_sdcard` 和 `dev_fatfs_sdcard_spi` 将统一使用 `fs_fat` 进行管理，`dev_display_lcd_spi` 也将改为使用 `dev_display_lcd` 进行管理。
 
@@ -477,6 +489,16 @@ ESP Board Manager 的未来开发计划（优先级从高到低）：
 * **增强数据结构**: 增强数据或 YAML 结构以提高性能
 * **版本管理**: 支持板级和设备/外设级的版本管理
 * **插件架构**: 用于自定义设备和外设支持的可扩展插件系统
+
+## AI SKILLS
+
+为了便于用户使用 Board Manager，仓库在 [`tools/AI_SKILLS`](tools/AI_SKILLS) 下提供了一些可选的 AI Skill。这些 Skill 是面向 AI 编程助手的任务流程说明，可帮助 AI 按固定步骤理解 Board Manager 的配置规则，并辅助完成使用指导、板级适配、迁移和问题排查等工作。
+
+AI Skill 不是使用 Board Manager 的必需步骤，也不会替代本文档中的命令和配置说明。建议先阅读对应文档，明确迁移目标和验证方法；如果希望让 AI 助手协助执行或复查，可以把对应 Skill 提供给 AI 工具使用。
+
+当前提供的 Skill：
+
+- [`lcd-touch-i2c-migration`](tools/AI_SKILLS/lcd_touch_i2c_migration/SKILL.md)：辅助将旧的 `dev_lcd_touch_i2c` / `type: lcd_touch_i2c` 迁移到通用 `dev_lcd_touch` / `type: lcd_touch` + `sub_type: i2c`。迁移说明请参考 [`dev_lcd_touch_i2c` 迁移到 `dev_lcd_touch`](docs/lcd_touch_i2c_migration_cn.md)。
 
 ## 故障排除
 

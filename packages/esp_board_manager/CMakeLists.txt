@@ -1,4 +1,5 @@
 # Include peripheral and device sources functions
+include(${CMAKE_CURRENT_LIST_DIR}/component_version.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/peripherals/CMakeLists.txt)
 include(${CMAKE_CURRENT_LIST_DIR}/devices/CMakeLists.txt)
 

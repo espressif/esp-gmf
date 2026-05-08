@@ -11,9 +11,9 @@
 #include "esp_board_manager_err.h"
 #include "esp_lvgl_port.h"
 #include "esp_lcd_panel_io.h"
-#ifdef CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT
+#if defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT)
 #include "esp_lcd_touch.h"
-#endif  /* CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT */
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT) */
 #include "esp_lcd_types.h"
 #include "esp_board_manager_includes.h"
 
@@ -28,15 +28,15 @@
 #define LVGL_FALLBACK_BUF_LINES  20
 
 // Global handles
-static void                     *lcd_handle   = NULL;
-static void                     *touch_handle = NULL;
-static esp_lcd_panel_handle_t    panel_handle = NULL;
-static esp_lcd_panel_io_handle_t io_handle    = NULL;
-#ifdef CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT
+static void *lcd_handle = NULL;
+static void *touch_handle = NULL;
+static esp_lcd_panel_handle_t panel_handle = NULL;
+static esp_lcd_panel_io_handle_t io_handle = NULL;
+#if defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT)
 static esp_lcd_touch_handle_t tp = NULL;
-#endif  /* CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT */
-static lv_display_t *disp        = NULL;
-static lv_indev_t   *touch_indev = NULL;
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT) */
+static lv_display_t *disp = NULL;
+static lv_indev_t *touch_indev = NULL;
 #ifdef CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
 static periph_ledc_handle_t *ledc_handle = NULL;
 #endif  /* CONFIG_ESP_BOARD_DEV_LEDC_CTRL_SUPPORT */
@@ -183,7 +183,30 @@ esp_err_t test_dev_lcd_lvgl_init(void)
                 ESP_LOGE(TAG, "Failed to add unified DSI LCD display");
                 return ESP_FAIL;
             }
+#else
+            ESP_LOGE(TAG, "DSI LCD display is not supported in this configuration");
+            return ESP_FAIL;
 #endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
+        } else if (strcmp(lcd_cfg->sub_type, ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB) == 0) {
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+            lvgl_port_display_rgb_cfg_t rgb_cfg = {
+                .flags = {
+                    .bb_mode = lcd_cfg->sub_cfg.rgb.panel_config.bounce_buffer_size_px > 0,
+                    .avoid_tearing = lcd_cfg->sub_cfg.rgb.panel_config.num_fbs > 1,
+                },
+            };
+#if LVGL_VERSION_MAJOR >= 9
+            disp_cfg.flags.swap_bytes = false;
+#endif  /* LVGL_VERSION_MAJOR >= 9 */
+            disp = lvgl_port_add_disp_rgb(&disp_cfg, &rgb_cfg);
+            if (disp == NULL) {
+                ESP_LOGE(TAG, "Failed to add unified RGB LCD display");
+                return ESP_FAIL;
+            }
+#else
+            ESP_LOGE(TAG, "RGB LCD display is not supported in this configuration");
+            return ESP_FAIL;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
         } else {
             ESP_LOGE(TAG, "Unknown LCD sub_type: %s", lcd_cfg->sub_type);
             return ESP_FAIL;
@@ -198,8 +221,14 @@ esp_err_t test_dev_lcd_lvgl_init(void)
 
 esp_err_t test_dev_lcd_touch_init(void)
 {
-#ifdef CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT
+#if defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT)
     ESP_LOGI(TAG, "Initializing touch input using Board Manager...");
+
+    if (!esp_board_manager_check_name(ESP_BOARD_DEVICE_NAME_LCD_TOUCH)) {
+        ESP_LOGI(TAG, "Touch device %s is not present on this board, continuing without touch",
+                 ESP_BOARD_DEVICE_NAME_LCD_TOUCH);
+        return ESP_FAIL;
+    }
 
     // Get touch device handle from board manager
     esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_LCD_TOUCH, &touch_handle);
@@ -209,7 +238,11 @@ esp_err_t test_dev_lcd_touch_init(void)
     }
     if (touch_handle) {
         // Cast to the specific device structure
+#ifdef CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT
+        dev_lcd_touch_handles_t *touch_handles = (dev_lcd_touch_handles_t *)touch_handle;
+#else
         dev_lcd_touch_i2c_handles_t *touch_handles = (dev_lcd_touch_i2c_handles_t *)touch_handle;
+#endif  /* CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT */
         tp = touch_handles->touch_handle;
         ESP_LOGI(TAG, "Touch device handle obtained: %p, tp: %p", touch_handle, tp);
         const lvgl_port_touch_cfg_t touch_cfg = {
@@ -228,7 +261,7 @@ esp_err_t test_dev_lcd_touch_init(void)
     } else {
         ESP_LOGW(TAG, "Touch device handle is NULL (continuing without touch)");
     }
-#endif  /* CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT */
+#endif  /* defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT) */
     return ESP_FAIL;
 }
 

@@ -8,7 +8,6 @@ import sys
 
 import pytest
 
-
 def test_adc_continuous_patterns_reject_single_unit_conv_mode_for_mixed_units(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from peripherals.periph_adc import periph_adc as mod
@@ -38,7 +37,6 @@ def test_adc_continuous_patterns_reject_single_unit_conv_mode_for_mixed_units(bm
             },
         )
 
-
 def test_adc_oneshot_rejects_list_channel_id(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from peripherals.periph_adc import periph_adc as mod
@@ -54,7 +52,6 @@ def test_adc_oneshot_rejects_list_channel_id(bmgr_root):
                 },
             },
         )
-
 
 def test_adc_continuous_single_unit_accepts_matching_explicit_conv_mode(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
@@ -76,14 +73,12 @@ def test_adc_continuous_single_unit_accepts_matching_explicit_conv_mode(bmgr_roo
 
     assert result['struct_init']['cfg']['continuous']['conv_mode'] == 'ADC_CONV_SINGLE_UNIT_1'
 
-
 def test_adc_channel_mapper_rejects_zero_unit_string(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from generators.adc_channel_mapper import _normalize_unit
 
     with pytest.raises(ValueError, match='Unsupported ADC unit value: ADC_UNIT_0'):
         _normalize_unit('ADC_UNIT_0')
-
 
 def test_i2c_rejects_lp_port_with_regular_clk_source(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
@@ -104,7 +99,6 @@ def test_i2c_rejects_lp_port_with_regular_clk_source(bmgr_root):
             },
         )
 
-
 def test_i2c_rejects_regular_port_with_lp_clk_source(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from peripherals.periph_i2c import periph_i2c as mod
@@ -123,7 +117,6 @@ def test_i2c_rejects_regular_port_with_lp_clk_source(bmgr_root):
                 },
             },
         )
-
 
 def test_i2c_basic_parse_returns_i2c_master_bus_config(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
@@ -147,7 +140,6 @@ def test_i2c_basic_parse_returns_i2c_master_bus_config(bmgr_root):
     assert result['struct_init']['sda_io_num'] == 18
     assert result['struct_init']['scl_io_num'] == 23
 
-
 def test_dependency_manager_treats_null_devices_as_empty(bmgr_root, tmp_path):
     sys.path.insert(0, str(bmgr_root))
     from generators.dependency_manager import DependencyManager
@@ -157,7 +149,6 @@ def test_dependency_manager_treats_null_devices_as_empty(bmgr_root, tmp_path):
 
     manager = DependencyManager(bmgr_root)
     assert manager.extract_device_dependencies(str(dev_yaml)) == {}
-
 
 def test_process_peripherals_rejects_unsupported_role_from_public_enum_list(bmgr_root, tmp_path):
     sys.path.insert(0, str(bmgr_root))
@@ -169,7 +160,6 @@ def test_process_peripherals_rejects_unsupported_role_from_public_enum_list(bmgr
     board_yaml = bmgr_root / 'test_apps' / 'components' / 'test_component_2' / 'path1' / 'test_board_c' / 'board_peripherals.yaml'
     with pytest.raises(ValueError, match="Unsupported peripheral role 'console'"):
         generator.process_peripherals(str(board_yaml))
-
 
 def test_process_devices_codegen_emits_chip_in_descriptors_and_handles(bmgr_root, tmp_path):
     sys.path.insert(0, str(bmgr_root))
@@ -204,7 +194,6 @@ devices:
     assert '.chip = "mx16161",' in config_c
     assert '.chip = "mx16161",' in handles_c
 
-
 def test_camera_dvp_requires_i2c_peripheral(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from devices.dev_camera import dev_camera as mod
@@ -221,7 +210,6 @@ def test_camera_dvp_requires_i2c_peripheral(bmgr_root):
                 'peripherals': [],
             },
         )
-
 
 def test_button_gpio_rejects_legacy_gpio_name_and_events_keys(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
@@ -245,7 +233,6 @@ def test_button_gpio_rejects_legacy_gpio_name_and_events_keys(bmgr_root):
             },
         )
 
-
 def test_button_gpio_requires_top_level_gpio_peripheral(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from devices.dev_button import dev_button as mod
@@ -265,7 +252,6 @@ def test_button_gpio_requires_top_level_gpio_peripheral(bmgr_root):
             },
         )
 
-
 def test_button_adc_requires_top_level_adc_peripheral(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from devices.dev_button import dev_button as mod
@@ -284,7 +270,6 @@ def test_button_adc_requires_top_level_adc_peripheral(bmgr_root):
                 },
             },
         )
-
 
 def test_camera_csi_allows_missing_ldo_when_dont_init_ldo_false(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
@@ -308,7 +293,6 @@ def test_camera_csi_allows_missing_ldo_when_dont_init_ldo_false(bmgr_root):
 
     assert result['struct_init']['sub_cfg']['csi']['ldo_name'] == ''
 
-
 def test_camera_csi_requires_ldo_when_dont_init_ldo_true(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
     from devices.dev_camera import dev_camera as mod
@@ -329,7 +313,6 @@ def test_camera_csi_requires_ldo_when_dont_init_ldo_true(bmgr_root):
                 ],
             },
         )
-
 
 def test_display_lcd_dsi_finds_dsi_and_ldo_without_order_dependency(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
@@ -361,7 +344,7 @@ def test_display_lcd_dsi_finds_dsi_and_ldo_without_order_dependency(bmgr_root):
     dsi_cfg = result['struct_init']['sub_cfg']['dsi']
     assert dsi_cfg['ldo_name'] == 'ldo_panel'
     assert dsi_cfg['dsi_name'] == 'dsi_panel'
-
+    assert dsi_cfg['dpi_config']['in_color_format'] == 'LCD_COLOR_FMT_RGB565'
 
 def test_display_lcd_spi_fallback_uses_generic_spi_prefix(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
@@ -386,6 +369,190 @@ def test_display_lcd_spi_fallback_uses_generic_spi_prefix(bmgr_root):
 
     assert result['struct_init']['sub_cfg']['spi']['spi_name'] == 'spi_bus_custom'
 
+def test_display_lcd_rgb_idf6_uses_color_formats_and_user_fbs_func(bmgr_root, monkeypatch):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_display_lcd import dev_display_lcd as mod
+
+    monkeypatch.setattr(mod, 'get_idf_version', lambda: (6, 0, 0))
+
+    result = mod.parse(
+        'display_lcd',
+        {
+            'name': 'display_lcd',
+            'type': 'display_lcd',
+            'sub_type': 'rgb',
+            'config': {
+                'rgb_panel_config': {
+                    'data_width': 16,
+                    'in_color_format': 'LCD_COLOR_FMT_RGB565',
+                    'out_color_format': 'LCD_COLOR_FMT_RGB565',
+                    'user_fbs_func': 'lcd_rgb_user_fbs',
+                    'data_gpio_nums': [8, 9, 10, 11],
+                    'timings': {
+                        'h_res': 800,
+                        'v_res': 480,
+                    },
+                },
+            },
+        },
+    )
+
+    rgb_cfg = result['struct_init']['sub_cfg']['rgb']
+    panel_cfg = rgb_cfg['panel_config']
+    assert rgb_cfg['user_fbs_func'] == 'lcd_rgb_user_fbs'
+    assert panel_cfg['in_color_format'] == 'LCD_COLOR_FMT_RGB565'
+    assert panel_cfg['out_color_format'] == 'LCD_COLOR_FMT_RGB565'
+    assert 'bits_per_pixel' not in panel_cfg
+    assert panel_cfg['data_gpio_nums'] == [8, 9, 10, 11]
+    assert result['struct_init']['lcd_width'] == 800
+    assert result['struct_init']['lcd_height'] == 480
+
+def test_display_lcd_rgb_idf5_rejects_user_fbs_func(bmgr_root, monkeypatch):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_display_lcd import dev_display_lcd as mod
+
+    monkeypatch.setattr(mod, 'get_idf_version', lambda: (5, 5, 0))
+
+    with pytest.raises(ValueError, match='user_fbs_func requires ESP-IDF v6.0'):
+        mod.parse(
+            'display_lcd',
+            {
+                'name': 'display_lcd',
+                'type': 'display_lcd',
+                'sub_type': 'rgb',
+                'config': {
+                    'rgb_panel_config': {
+                        'user_fbs_func': 'lcd_rgb_user_fbs',
+                    },
+                },
+            },
+        )
+
+def test_lcd_touch_i2c_uses_8bit_addrs_and_i2c_sub_config(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_lcd_touch import dev_lcd_touch as mod
+
+    result = mod.parse(
+        'lcd_touch',
+        {
+            'type': 'lcd_touch',
+            'chip': 'gt911',
+            'sub_type': 'i2c',
+            'config': {
+                'io_i2c_config': {
+                    'scl_speed_hz': 400000,
+                },
+                'touch_config': {
+                    'x_max': 480,
+                    'y_max': 320,
+                },
+            },
+            'peripherals': [
+                {'name': 'i2c_master', 'i2c_addr': [0xBA, 0x2C]},
+            ],
+        },
+        peripherals_dict={'i2c_master': object()},
+    )
+
+    assert result['struct_type'] == 'dev_lcd_touch_config_t'
+    assert result['struct_init']['sub_type'] == 'i2c'
+    assert result['struct_init']['touch_config']['x_max'] == 480
+    i2c_cfg = result['struct_init']['sub_cfg']['i2c']
+    assert i2c_cfg['i2c_name'] == 'i2c_master'
+    assert i2c_cfg['i2c_addr_count'] == 2
+    assert i2c_cfg['i2c_addr'] == ['0xba', '0x2c', '0x00', '0x00']
+    assert i2c_cfg['io_i2c_config']['dev_addr'] == 0
+    assert i2c_cfg['io_i2c_config']['scl_speed_hz'] == 400000
+
+def test_lcd_touch_i2c_rejects_7bit_addr(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_lcd_touch import dev_lcd_touch as mod
+
+    with pytest.raises(ValueError, match='8-bit left-shifted address'):
+        mod.parse(
+            'lcd_touch',
+            {
+                'type': 'lcd_touch',
+                'chip': 'gt911',
+                'sub_type': 'i2c',
+                'config': {},
+                'peripherals': [
+                    {'name': 'i2c_master', 'i2c_addr': 0x5D},
+                ],
+            },
+            peripherals_dict={'i2c_master': object()},
+        )
+
+def test_lcd_touch_i2c_requires_explicit_addr(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_lcd_touch import dev_lcd_touch as mod
+
+    with pytest.raises(ValueError, match='I2C peripheral requires i2c_addr'):
+        mod.parse(
+            'lcd_touch',
+            {
+                'type': 'lcd_touch',
+                'chip': 'gt911',
+                'sub_type': 'i2c',
+                'config': {
+                    'io_i2c_config': {},
+                },
+                'peripherals': [
+                    {'name': 'i2c_master'},
+                ],
+            },
+            peripherals_dict={'i2c_master': object()},
+        )
+
+def test_lcd_touch_i2c_requires_i2c_peripheral_entry(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_lcd_touch import dev_lcd_touch as mod
+
+    with pytest.raises(ValueError, match='requires one I2C peripheral entry in peripherals'):
+        mod.parse(
+            'lcd_touch',
+            {
+                'type': 'lcd_touch',
+                'chip': 'gt911',
+                'sub_type': 'i2c',
+                'config': {},
+            },
+            peripherals_dict={'i2c_master': object()},
+        )
+
+def test_lcd_touch_i2c_requires_i2c_peripheral_name(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_lcd_touch import dev_lcd_touch as mod
+
+    with pytest.raises(ValueError, match='I2C peripheral requires name'):
+        mod.parse(
+            'lcd_touch',
+            {
+                'type': 'lcd_touch',
+                'chip': 'gt911',
+                'sub_type': 'i2c',
+                'config': {},
+                'peripherals': [
+                    {'i2c_addr': 0xBA},
+                ],
+            },
+            peripherals_dict={'i2c_master': object()},
+        )
+
+def test_lcd_touch_spi_is_reserved_for_now(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_lcd_touch import dev_lcd_touch as mod
+
+    with pytest.raises(ValueError, match='reserved but not implemented yet'):
+        mod.parse(
+            'lcd_touch_spi',
+            {
+                'type': 'lcd_touch',
+                'chip': 'xpt2046',
+                'sub_type': 'spi',
+                'config': {},
+            },
+        )
 
 def test_generate_kconfig_allows_external_only_boards(bmgr_root, tmp_path):
     sys.path.insert(0, str(bmgr_root))
@@ -409,7 +576,6 @@ def test_generate_kconfig_allows_external_only_boards(bmgr_root, tmp_path):
     assert 'config ESP_BOARD_CUSTOM_BOARD' not in kconfig_content
     assert 'menu "Peripheral Support"' in kconfig_content
 
-
 @pytest.mark.parametrize('selected_board', ['esp_box_3', 'custom_board'])
 def test_generate_selected_board_kconfig_projbuild_defines_current_board_only(bmgr_root, tmp_path, selected_board):
     sys.path.insert(0, str(bmgr_root))
@@ -432,7 +598,6 @@ def test_generate_selected_board_kconfig_projbuild_defines_current_board_only(bm
     assert '    bool\n    default y' in projbuild_content
     assert 'config ESP_BOARD_NAME' in projbuild_content
     assert f'    default "{selected_board}"' in projbuild_content
-
 
 def test_lyrat_mini_peripheral_generation_keeps_structs_aligned(bmgr_root, tmp_path):
     sys.path.insert(0, str(bmgr_root))
@@ -471,7 +636,6 @@ def test_lyrat_mini_peripheral_generation_keeps_structs_aligned(bmgr_root, tmp_p
         ('adc_button', 'esp_bmgr_adc_button_cfg'),
     ]
 
-
 def test_device_descriptor_generation_emits_desc_level_sub_type(bmgr_root, tmp_path):
     sys.path.insert(0, str(bmgr_root))
     from gen_bmgr_config_codes import BoardConfigGenerator
@@ -503,7 +667,6 @@ def test_device_descriptor_generation_emits_desc_level_sub_type(bmgr_root, tmp_p
     assert sdcard_desc is not None
     assert motor_desc is not None
 
-
 def test_process_peripherals_fails_fast_when_parser_is_missing(bmgr_root, tmp_path, monkeypatch):
     sys.path.insert(0, str(bmgr_root))
     import gen_bmgr_config_codes as bmgr_module
@@ -527,7 +690,6 @@ def test_process_peripherals_fails_fast_when_parser_is_missing(bmgr_root, tmp_pa
     generated = tmp_path / 'components' / 'gen_bmgr_codes' / 'gen_board_periph_config.c'
     assert not generated.exists()
 
-
 def test_parser_loader_raises_on_import_failure(bmgr_root, tmp_path):
     sys.path.insert(0, str(bmgr_root))
     from generators.parser_loader import load_parsers
@@ -542,7 +704,6 @@ def test_parser_loader_raises_on_import_failure(bmgr_root, tmp_path):
 
     with pytest.raises(RuntimeError, match='periph_bad'):
         load_parsers([], prefix='periph_', base_dir=str(periph_dir))
-
 
 def test_audio_codec_rejects_simultaneous_adc_and_dac_enablement(bmgr_root):
     sys.path.insert(0, str(bmgr_root))
@@ -564,3 +725,26 @@ def test_audio_codec_rejects_simultaneous_adc_and_dac_enablement(bmgr_root):
                 ],
             },
         )
+
+def test_audio_codec_without_pa_uses_disabled_pin_sentinel(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_audio_codec import dev_audio_codec as mod
+
+    result = mod.parse(
+        'audio_codec',
+        {
+            'type': 'audio_codec',
+            'chip': 'es8311',
+            'config': {
+                'dac_enabled': True,
+            },
+            'peripherals': [
+                {'name': 'i2s_audio_out'},
+                {'name': 'i2c_master', 'address': 0x30},
+            ],
+        },
+    )
+
+    pa_cfg = result['struct_init']['pa_cfg']
+    assert pa_cfg['name'] is None
+    assert pa_cfg['port'] == -1

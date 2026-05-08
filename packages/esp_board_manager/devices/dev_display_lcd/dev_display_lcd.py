@@ -6,6 +6,8 @@
 # LCD Display device config parser
 VERSION = 'v1.0.0'
 
+from generators.utils.idf_version import get_idf_version
+
 DEV_DISPLAY_LCD_IO_LIST = {
     'dsi': [
         'reset_gpio_num',
@@ -21,6 +23,14 @@ DEV_DISPLAY_LCD_IO_LIST = {
         'cs_gpio_num',
         'data_gpio_nums',
         'reset_gpio_num',
+    ],
+    'rgb': [
+        'hsync_gpio_num',
+        'vsync_gpio_num',
+        'de_gpio_num',
+        'pclk_gpio_num',
+        'disp_gpio_num',
+        'data_gpio_nums',
     ],
 }
 
@@ -85,19 +95,28 @@ def parse_dsi_sub_config(full_config: dict = None, peripherals_dict=None) -> dic
 
     # Get DPI configuration
     dpi_config = sub_config.get('dpi_config', {})
+
+    pixel_format_val = dpi_config.get('pixel_format')
+    in_color_format_val = dpi_config.get('in_color_format', 'LCD_COLOR_FMT_RGB565')
+
     dpi_config_parsed = {
         'virtual_channel': dpi_config.get('virtual_channel', 0),
         'dpi_clk_src': dpi_config.get('dpi_clk_src', 'MIPI_DSI_DPI_CLK_SRC_DEFAULT'),
         'dpi_clock_freq_mhz': dpi_config.get('dpi_clock_freq_mhz', 48),
-        'pixel_format': dpi_config.get('pixel_format', 'LCD_COLOR_PIXEL_FORMAT_RGB565'),
-        'in_color_format': dpi_config.get('in_color_format', 'LCD_COLOR_FMT_RGB565'),
+        'in_color_format': in_color_format_val,
         'out_color_format': dpi_config.get('out_color_format', 'LCD_COLOR_FMT_RGB565'),
         'num_fbs': dpi_config.get('num_fbs', 1),
         'flags': {
-            'use_dma2d': dpi_config.get('flags', {}).get('use_dma2d', False),
             'disable_lp': dpi_config.get('flags', {}).get('disable_lp', False)
         }
     }
+    use_dma2d_flag = dpi_config.get('flags', {}).get('use_dma2d', False)
+
+    idf_major = get_idf_version()[0]
+    if idf_major < 6:
+        # v5: include legacy pixel_format and use_dma2d struct fields
+        dpi_config_parsed['pixel_format'] = pixel_format_val if pixel_format_val else 'LCD_COLOR_PIXEL_FORMAT_RGB565'
+        dpi_config_parsed['flags']['use_dma2d'] = use_dma2d_flag
 
     # Get video timing configuration
     video_timing = dpi_config.get('video_timing', {})
@@ -140,7 +159,7 @@ def parse_dsi_sub_config(full_config: dict = None, peripherals_dict=None) -> dic
     if not ldo_name:
         raise ValueError(f'LCD display device {device_name} require valid LDO peripherals.')
 
-    return {
+    ret_dict = {
         'dsi_name': dsi_bus_name,
         'ldo_name': ldo_name,
         'reset_gpio_num': reset_gpio_num,
@@ -148,6 +167,11 @@ def parse_dsi_sub_config(full_config: dict = None, peripherals_dict=None) -> dic
         'dbi_config': dbi_config_parsed,
         'dpi_config': dpi_config_parsed
     }
+
+    if idf_major >= 6:
+        ret_dict['use_dma2d'] = use_dma2d_flag
+
+    return ret_dict
 
 def parse_spi_sub_config(full_config: dict = None, peripherals_dict=None) -> dict:
     """Parse SPI sub configuration"""
@@ -268,6 +292,95 @@ def parse_parlio_sub_config(full_config: dict = None, peripherals_dict=None) -> 
         'panel_config': _parse_lcd_panel_dev_config_dict(sub_config),
     }
 
+def _rgb_bits_per_pixel_from_color_format(color_format: str, default: int = 16) -> int:
+    """Best-effort RGB bits-per-pixel from ESP-IDF LCD color format constants."""
+    if not isinstance(color_format, str):
+        return default
+    if 'RGB888' in color_format:
+        return 24
+    if 'RGB666' in color_format:
+        return 18
+    if 'RGB565' in color_format:
+        return 16
+    return default
+
+def _parse_rgb_data_gpio_nums(rgb_config: dict) -> list:
+    data_nums = rgb_config.get('data_gpio_nums')
+    if data_nums is not None:
+        return list(data_nums)
+    return [rgb_config.get(f'data_gpio_{i}', -1) for i in range(int(rgb_config.get('data_width', 16)))]
+
+def parse_rgb_sub_config(full_config: dict = None, peripherals_dict=None) -> dict:
+    """Parse RGB (esp_lcd_new_rgb_panel) sub configuration."""
+    sub_config = full_config.get('config', {})
+    rgb_config = sub_config.get('rgb_panel_config', {})
+    timings = rgb_config.get('timings', {})
+    timing_flags = timings.get('flags', {})
+    flags = rgb_config.get('flags', {})
+    idf_major = get_idf_version()[0]
+
+    user_fbs_func = rgb_config.get('user_fbs_func', sub_config.get('user_fbs_func', ''))
+    if user_fbs_func and idf_major < 6:
+        raise ValueError('RGB user_fbs_func requires ESP-IDF v6.0 or later')
+
+    in_color_format = rgb_config.get('in_color_format', 'LCD_COLOR_FMT_RGB565')
+    out_color_format = rgb_config.get('out_color_format', in_color_format)
+    bits_per_pixel = int(rgb_config.get(
+        'bits_per_pixel',
+        sub_config.get('bits_per_pixel', _rgb_bits_per_pixel_from_color_format(in_color_format)),
+    ))
+
+    panel_config = {
+        'clk_src': rgb_config.get('clk_src', 'LCD_CLK_SRC_DEFAULT'),
+        'timings': {
+            'pclk_hz': int(timings.get('pclk_hz', rgb_config.get('pclk_hz', 18000000))),
+            'h_res': int(timings.get('h_res', sub_config.get('x_max', 800))),
+            'v_res': int(timings.get('v_res', sub_config.get('y_max', 480))),
+            'hsync_pulse_width': int(timings.get('hsync_pulse_width', 1)),
+            'hsync_back_porch': int(timings.get('hsync_back_porch', 40)),
+            'hsync_front_porch': int(timings.get('hsync_front_porch', 20)),
+            'vsync_pulse_width': int(timings.get('vsync_pulse_width', 1)),
+            'vsync_back_porch': int(timings.get('vsync_back_porch', 10)),
+            'vsync_front_porch': int(timings.get('vsync_front_porch', 5)),
+            'flags': {
+                'hsync_idle_low': timing_flags.get('hsync_idle_low', False),
+                'vsync_idle_low': timing_flags.get('vsync_idle_low', False),
+                'de_idle_high': timing_flags.get('de_idle_high', False),
+                'pclk_active_neg': timing_flags.get('pclk_active_neg', True),
+                'pclk_idle_high': timing_flags.get('pclk_idle_high', False),
+            },
+        },
+        'data_width': int(rgb_config.get('data_width', 16)),
+        'num_fbs': int(rgb_config.get('num_fbs', 1)),
+        'bounce_buffer_size_px': int(rgb_config.get('bounce_buffer_size_px', 0)),
+        'dma_burst_size': int(rgb_config.get('dma_burst_size', 64)),
+        'hsync_gpio_num': rgb_config.get('hsync_gpio_num', -1),
+        'vsync_gpio_num': rgb_config.get('vsync_gpio_num', -1),
+        'de_gpio_num': rgb_config.get('de_gpio_num', -1),
+        'pclk_gpio_num': rgb_config.get('pclk_gpio_num', -1),
+        'disp_gpio_num': rgb_config.get('disp_gpio_num', -1),
+        'data_gpio_nums': _parse_rgb_data_gpio_nums(rgb_config),
+        'flags': {
+            'disp_active_low': flags.get('disp_active_low', False),
+            'refresh_on_demand': flags.get('refresh_on_demand', False),
+            'fb_in_psram': flags.get('fb_in_psram', True),
+            'double_fb': flags.get('double_fb', False),
+            'no_fb': flags.get('no_fb', False),
+            'bb_invalidate_cache': flags.get('bb_invalidate_cache', False),
+        },
+    }
+
+    if idf_major >= 6:
+        panel_config['in_color_format'] = in_color_format
+        panel_config['out_color_format'] = out_color_format
+    else:
+        panel_config['bits_per_pixel'] = bits_per_pixel
+
+    return {
+        'user_fbs_func': user_fbs_func,
+        'panel_config': panel_config,
+    }
+
 def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
     """Parse LCD Display device configuration from YAML"""
     sub_type = full_config.get('sub_type')
@@ -278,7 +391,7 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
         raise ValueError(f"LCD Display device '{name}' is missing required 'sub_type' field")
 
     # Validate sub_type value
-    if sub_type not in ['dsi', 'spi', 'parlio']:
+    if sub_type not in ['dsi', 'spi', 'parlio', 'rgb']:
         raise ValueError(f"LCD Display device '{name}' has invalid 'sub_type' value '{sub_type}'")
 
     # Parse sub configuration based on sub_type and extract common parameters
@@ -325,6 +438,25 @@ def parse(name: str, full_config: dict, peripherals_dict=None) -> dict:
         rgb_ele_order = sub_cfg.get('panel_config', {}).get('rgb_ele_order', 'LCD_RGB_ELEMENT_ORDER_RGB')
         data_endian = sub_cfg.get('panel_config', {}).get('data_endian', 'LCD_RGB_DATA_ENDIAN_BIG')
         bits_per_pixel = sub_cfg.get('panel_config', {}).get('bits_per_pixel', 16)
+    elif sub_type == 'rgb':
+        sub_cfg = parse_rgb_sub_config(full_config, peripherals_dict)
+        sub_cfg_union = {'rgb': sub_cfg}
+        panel_config = sub_cfg.get('panel_config', {})
+        timings = panel_config.get('timings', {})
+        lcd_width = timings.get('h_res', 800)
+        lcd_height = timings.get('v_res', 480)
+        swap_xy = full_config.get('config').get('swap_xy', False)
+        mirror_x = full_config.get('config').get('mirror_x', False)
+        mirror_y = full_config.get('config').get('mirror_y', False)
+        need_reset = full_config.get('config').get('need_reset', True)
+        invert_color = full_config.get('config').get('invert_color', False)
+        rgb_ele_order = full_config.get('config').get('rgb_ele_order', 'LCD_RGB_ELEMENT_ORDER_RGB')
+        data_endian = full_config.get('config').get('data_endian', 'LCD_RGB_DATA_ENDIAN_BIG')
+        bits_per_pixel = full_config.get('config').get(
+            'bits_per_pixel',
+            panel_config.get('bits_per_pixel',
+                             _rgb_bits_per_pixel_from_color_format(panel_config.get('in_color_format'), 16)),
+        )
     else:
         raise ValueError(f'Unsupported sub_type: {sub_type}')
 

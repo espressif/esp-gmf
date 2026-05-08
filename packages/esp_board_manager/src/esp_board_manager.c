@@ -79,6 +79,11 @@ esp_err_t esp_board_manager_get_device_handle(const char *dev_name, void **devic
     return ESP_OK;
 }
 
+bool esp_board_manager_check_name(const char *name)
+{
+    return esp_board_find_device_desc(name) != NULL || esp_board_find_periph_desc(name) != NULL;
+}
+
 esp_err_t esp_board_manager_get_device_config(const char *dev_name, void **config)
 {
     ESP_BOARD_RETURN_ON_FALSE(dev_name && config, ESP_BOARD_ERR_MANAGER_INVALID_ARG, TAG, "Invalid arguments");

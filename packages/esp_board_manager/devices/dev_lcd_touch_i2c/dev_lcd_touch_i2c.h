@@ -12,6 +12,12 @@
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_touch.h"
 
+#define DEV_LCD_TOUCH_I2C_DEPRECATED_MSG  "dev_lcd_touch_i2c is deprecated and will be removed in a future release. Use dev_lcd_touch with sub_type: i2c instead."
+
+#if (defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUB_I2C_SUPPORT)) && !defined(ESP_BOARD_DEV_LCD_TOUCH_I2C_COMPAT_INCLUDE)
+#warning "dev_lcd_touch_i2c is deprecated and will be removed in a future release. Use dev_lcd_touch with sub_type: i2c instead."
+#endif  /* (defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT) || defined(CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUB_I2C_SUPPORT)) && !defined(ESP_BOARD_DEV_LCD_TOUCH_I2C_COMPAT_INCLUDE) */
+
 #ifdef __cplusplus
 extern "C" {
 #endif  /* __cplusplus */
@@ -31,7 +37,8 @@ typedef struct {
                                                         Most of the time, the secondary address is not set, only used some devices is the address is not easy to confirm */
     esp_lcd_panel_io_i2c_config_t  io_i2c_config;  /*!< I2C panel IO configuration */
     esp_lcd_touch_config_t         touch_config;   /*!< Touch configuration */
-} dev_lcd_touch_i2c_config_t;
+} dev_lcd_touch_i2c_config_t
+    __attribute__((deprecated(DEV_LCD_TOUCH_I2C_DEPRECATED_MSG)));
 
 /**
  * @brief  LCD touch device handles structure
@@ -41,7 +48,8 @@ typedef struct {
 typedef struct {
     esp_lcd_touch_handle_t     touch_handle;  /*!< LCD touch handle */
     esp_lcd_panel_io_handle_t  io_handle;     /*!< LCD panel IO handle */
-} dev_lcd_touch_i2c_handles_t;
+} dev_lcd_touch_i2c_handles_t
+    __attribute__((deprecated(DEV_LCD_TOUCH_I2C_DEPRECATED_MSG)));
 
 /**
  * @brief  Initialize the I2C LCD touch device
@@ -56,7 +64,7 @@ typedef struct {
  *       - 0               On success
  *       - Negative_value  On failure
  */
-int dev_lcd_touch_i2c_init(void *cfg, int cfg_size, void **device_handle);
+__attribute__((deprecated(DEV_LCD_TOUCH_I2C_DEPRECATED_MSG))) int dev_lcd_touch_i2c_init(void *cfg, int cfg_size, void **device_handle);
 
 /**
  * @brief  Deinitialize the I2C LCD touch device
@@ -69,7 +77,7 @@ int dev_lcd_touch_i2c_init(void *cfg, int cfg_size, void **device_handle);
  *       - 0               On success
  *       - Negative_value  On failure
  */
-int dev_lcd_touch_i2c_deinit(void *device_handle);
+__attribute__((deprecated(DEV_LCD_TOUCH_I2C_DEPRECATED_MSG))) int dev_lcd_touch_i2c_deinit(void *device_handle);
 
 #ifdef __cplusplus
 }

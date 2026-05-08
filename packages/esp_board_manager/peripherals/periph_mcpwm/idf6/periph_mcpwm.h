@@ -7,19 +7,19 @@
 
 #pragma once
 
+#include <stdint.h>
 #include "esp_idf_version.h"
 #include "driver/mcpwm_prelude.h"
+#include "hal/mcpwm_ll.h"
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-    #warning "periph_mcpwm is not supported in ESP-IDF v6.0.0 and above yet."
-#endif
+#define SOC_MCPWM_COMPARATORS_PER_OPERATOR  MCPWM_LL_GET(COMPARATORS_PER_OPERATOR)
 
 #ifdef __cplusplus
 extern "C" {
 #endif  /* __cplusplus */
 
 /**
- * @brief  MCPWM peripheral handle
+ * @brief  MCPWM V2 peripheral handle
  *
  *         This structure represents a MCPWM channel handle including timer, operator,
  *         comparators and generator components.
@@ -33,21 +33,32 @@ typedef struct {
 } periph_mcpwm_handle_t;
 
 /**
- * @brief  MCPWM peripheral configuration structure
+ * @brief  MCPWM V2 extra flags for GPIO configuration
+ */
+typedef struct {
+    uint32_t  invert_pwm : 1;  /*!< Invert PWM output */
+    uint32_t  io_od_mode : 1;  /*!< Enable open drain mode */
+    uint32_t  pull_up    : 1;  /*!< Enable internal pull-up */
+    uint32_t  pull_down  : 1;  /*!< Enable internal pull-down */
+} periph_mcpwm_extra_flags_t;
+
+/**
+ * @brief  MCPWM V2 peripheral configuration structure
  *
  *         This structure includes all necessary configuration for MCPWM peripheral
  *         including timer, operator, comparators and generator settings.
  */
 typedef struct {
-    mcpwm_timer_config_t       timer_config;                                         /*!< MCPWM timer configuration */
-    mcpwm_operator_config_t    operator_config;                                      /*!< MCPWM operator configuration */
-    int                        num_comparators;                                      /*!< Number of comparators to create (0-2) */
-    mcpwm_comparator_config_t  comparator_cfgs[SOC_MCPWM_COMPARATORS_PER_OPERATOR];  /*!< Comparator configurations */
-    mcpwm_generator_config_t   generator_config;                                     /*!< MCPWM generator configuration */
+    mcpwm_timer_config_t        timer_config;                                         /*!< MCPWM timer configuration */
+    mcpwm_operator_config_t     operator_config;                                      /*!< MCPWM operator configuration */
+    int                         num_comparators;                                      /*!< Number of comparators to create (0-2) */
+    mcpwm_comparator_config_t   comparator_cfgs[SOC_MCPWM_COMPARATORS_PER_OPERATOR];  /*!< Comparator configurations */
+    mcpwm_generator_config_t    generator_config;                                     /*!< MCPWM generator configuration */
+    periph_mcpwm_extra_flags_t  extra_flags;                                          /*!< Extra flags for GPIO configuration */
 } periph_mcpwm_config_t;
 
 /**
- * @brief  Initialize the MCPWM peripheral
+ * @brief  Initialize the MCPWM V2 peripheral
  *
  *         This function initializes a MCPWM peripheral using the provided configuration structure.
  *         It creates timer, operator, comparator and generator components and sets up the
@@ -64,7 +75,7 @@ typedef struct {
 int periph_mcpwm_init(void *cfg, int cfg_size, void **periph_handle);
 
 /**
- * @brief  Deinitialize the MCPWM peripheral
+ * @brief  Deinitialize the MCPWM V2 peripheral
  *
  *         This function deinitializes the MCPWM peripheral and frees the allocated resources.
  *

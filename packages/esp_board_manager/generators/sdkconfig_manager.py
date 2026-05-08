@@ -496,6 +496,8 @@ class SDKConfigManager(LoggerMixin):
                 enabled_bmgr_symbols.append(
                     f'CONFIG_ESP_BOARD_DEV_{dev_type.upper()}_SUB_{subtype.upper()}_SUPPORT=y'
                 )
+                if dev_type == 'lcd_touch' and subtype == 'i2c':
+                    enabled_bmgr_symbols.append('CONFIG_ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT=y')
 
         if enabled_bmgr_symbols:
             board_section_content += '\n'
@@ -638,6 +640,8 @@ class SDKConfigManager(LoggerMixin):
             dev_upper = dev_type.upper()
             for subtype in subtypes:
                 expected.add(f'ESP_BOARD_DEV_{dev_upper}_SUB_{subtype.upper()}_SUPPORT')
+                if dev_type == 'lcd_touch' and subtype == 'i2c':
+                    expected.add('ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT')
 
         return expected
 
