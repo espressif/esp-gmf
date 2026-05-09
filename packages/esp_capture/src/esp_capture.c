@@ -874,9 +874,10 @@ esp_capture_err_t esp_capture_sink_enable_muxer(esp_capture_sink_handle_t h, boo
         return ESP_CAPTURE_ERR_INVALID_ARG;
     }
     capture_mutex_lock(path->parent->api_lock, CAPTURE_MAX_LOCK_TIME);
-    esp_capture_err_t ret = ESP_CAPTURE_ERR_NOT_SUPPORTED;
+    esp_capture_err_t ret = ESP_CAPTURE_ERR_OK;
     do {
         if (path->muxer == NULL) {
+            ret = ESP_CAPTURE_ERR_NOT_SUPPORTED;
             break;
         }
         capture_muxer_enable(path->muxer, enable);
