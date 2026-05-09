@@ -18,6 +18,7 @@
 #include "esp_board_periph.h"
 #include "esp_board_manager_defs.h"
 #include "esp_board_device.h"
+#include "periph_i2c_internal.h"
 #if SOC_ADC_SUPPORTED && CONFIG_ESP_BOARD_PERIPH_ADC_SUPPORT
 #include "periph_adc.h"
 #endif  /* SOC_ADC_SUPPORTED && CONFIG_ESP_BOARD_PERIPH_ADC_SUPPORT */
@@ -651,6 +652,16 @@ int dev_audio_codec_init(void *cfg, int cfg_size, void **device_handle)
         ESP_LOGE(TAG, "Create esp_codec_dev failed");
         goto init_err;
     }
+    if (strcmp(codec_cfg->chip, "internal") != 0 &&
+        codec_cfg->i2c_cfg.name != NULL && codec_cfg->i2c_cfg.name[0] != '\0' &&
+        codec_cfg->i2c_cfg.address > 0) {
+        esp_err_t set_ret = periph_i2c_set_effective_addr_internal(codec_cfg->i2c_cfg.name,
+                                                                   codec_cfg->name,
+                                                                   (uint16_t)codec_cfg->i2c_cfg.address);
+        if (set_ret != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to publish effective I2C addr for %s: %s", codec_cfg->name, esp_err_to_name(set_ret));
+        }
+    }
     ESP_LOGI(TAG, "Create esp_codec_dev success, dev:%p, chip:%s", codec_handles->codec_dev, codec_cfg->chip);
     *device_handle = codec_handles;
     return 0;
@@ -728,6 +739,13 @@ int dev_audio_codec_deinit(void *device_handle)
     dev_audio_codec_config_t *cfg = NULL;
     esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
     if (cfg) {
+        if (strcmp(cfg->chip, "internal") != 0 &&
+            cfg->i2c_cfg.name != NULL && cfg->i2c_cfg.name[0] != '\0') {
+            esp_err_t ret = periph_i2c_clear_effective_addr_internal(cfg->name);
+            if (ret != ESP_OK && ret != ESP_ERR_NOT_FOUND) {
+                ESP_LOGW(TAG, "Failed to clear effective I2C addr for %s: %s", cfg->name, esp_err_to_name(ret));
+            }
+        }
         if (cfg->data_if_type == DEV_AUDIO_CODEC_DATA_IF_TYPE_I2S &&
             cfg->i2s_cfg.name != NULL && cfg->i2s_cfg.name[0] != '\0') {
             int n = (cfg->adc_enabled ? 1 : 0) + (cfg->dac_enabled ? 1 : 0);

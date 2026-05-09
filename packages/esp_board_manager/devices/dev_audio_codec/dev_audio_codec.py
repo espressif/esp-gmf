@@ -65,7 +65,7 @@ def _parse_codec_peripherals(device_name: str, peripherals: list, peripherals_di
     # so keep zero/default struct initializers instead of None/NULL.
     pa_cfg = {
         'name': None,
-        'port': 0,
+        'port': -1,
         'active_level': 0,
         'gain': 0.0,
     }

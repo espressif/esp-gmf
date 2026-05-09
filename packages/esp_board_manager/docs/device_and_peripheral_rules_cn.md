@@ -9,6 +9,12 @@
 
 - **另一种含义：** 在 `dependencies` 下，组件上的 `version` 是 **ESP-IDF Component Manager** 的版本约束（例如 `"*"`、`~1.5`）。
 
+### 0.1 IDF 兼容
+
+设备和外设实现可以提供按 ESP-IDF 主版本划分的兼容目录，例如 `idf5`、`idf6` 等。目录名表示“该实现从对应 ESP-IDF 主版本开始兼容”，与上面的 YAML Schema `version` 字段无关。
+
+生成 parser 输出或编译 C 源文件时，Board Manager 会先尝试当前 IDF 主版本目录，再逐级回退到更早的兼容目录，最后回退到组件默认目录。例如 ESP-IDF 6.x 会依次检查 `idf6`、`idf5`，最后检查未带版本的组件目录。
+
 ## 1. YAML 文件通用结构
 
 ### 1.1 开发板级配置
@@ -56,7 +62,7 @@ version: <version>    # Schema 版本标签
 peripherals:
   - name: <peripheral_name>    # 必填：唯一标识符
     type: <peripheral_type>    # 必填：类型标识符
-    version: <version>         # 可选：使用的解析器版本
+    version: <version>         # 可选：Board Manager Schema 代号
     role: <role>               # 条件必填：工作模式（如 master/slave、tx/rx、continuous/oneshot 等，取决于外设类型）
     format: <format_string>    # 条件必填：数据格式（当前仅 I2S 使用，如 std-out、tdm-in、pdm-out）
     config: <configuration>    # 必填：外设专属配置
@@ -93,7 +99,7 @@ devices:
   - name: <device_name>       # 必填：唯一标识符
     type: <device_type>       # 必填：类型标识符
     chip: <chip_name>         # 条件必填：设备芯片名称（如 LCD 芯片、IO 扩展芯片等）
-    version: <version>        # 可选：使用的解析器版本
+    version: <version>        # 可选：Board Manager Schema 代号
     sub_type: <sub_type>      # 条件必填：部分设备存在子类型（如 LCD 分为 SPI、DSI、ParlIO）
     init_skip: false          # 可选：管理器初始化所有设备时是否跳过该设备的初始化。
                               # 默认为 false（不跳过初始化）。设置为 true 则跳过自动初始化。

@@ -12,7 +12,6 @@
 #include "esp_clk_tree.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "hal/adc_ll.h"
 #include "test_dev_audio_codec.h"
 #include "esp_board_manager.h"
 #include "dev_audio_codec.h"

@@ -155,7 +155,8 @@ devices:
   # Touch Panel Configuration
   - name: lcd_touch
     chip: gt911
-    type: lcd_touch_i2c
+    type: lcd_touch
+    sub_type: i2c
     power_ctrl_device: touch_power_ctrl
     version: default
     dependencies:
@@ -163,15 +164,14 @@ devices:
     config:
       # esp_lcd_panel_io_i2c_config_t fields for touch communication
       io_i2c_config:
-        dev_addr: 0x14
         lcd_cmd_bits: 16
-        peripherals:
-          - name: i2c_master                   # I2C peripheral for touch communication
-
       # esp_lcd_touch_config_t fields for touch configuration
       touch_config:
         x_max: 720                        # Maximum X coordinate (BSP_LCD_H_RES)
         y_max: 1280                        # Maximum Y coordinate (BSP_LCD_V_RES)
+    peripherals:
+      - name: i2c_master                   # I2C peripheral for touch communication
+        i2c_addr: [0x28]                   # GT911 8-bit I2C address, from 7-bit 0x14
 
   - name: camera
     type: camera

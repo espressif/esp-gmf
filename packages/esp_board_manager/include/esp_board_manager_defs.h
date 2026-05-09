@@ -30,6 +30,7 @@ extern "C" {
 #define ESP_BOARD_DEVICE_NAME_DISPLAY_LCD       "display_lcd"        /*!< LCD display device base name */
 #define ESP_BOARD_DEVICE_NAME_LCD_POWER         "lcd_power"          /*!< LCD power control device base name */
 #define ESP_BOARD_DEVICE_NAME_LCD_BRIGHTNESS    "lcd_brightness"     /*!< LCD brightness control device base name */
+#define ESP_BOARD_DEVICE_NAME_LED_STRIP         "led_strip"          /*!< LED strip device base name */
 #define ESP_BOARD_DEVICE_NAME_FS_SPIFFS         "fs_spiffs"          /*!< SPIFFS filesystem device base name */
 #define ESP_BOARD_DEVICE_NAME_GPIO_EXPANDER     "gpio_expander"      /*!< GPIO expander device base name */
 #define ESP_BOARD_DEVICE_NAME_CAMERA            "camera"             /*!< Camera device base name */
@@ -52,10 +53,12 @@ extern "C" {
 #define ESP_BOARD_DEVICE_TYPE_AUDIO_CODEC    "audio_codec"    /*!< Audio codec device type */
 #define ESP_BOARD_DEVICE_TYPE_FS_FAT         "fs_fat"         /*!< FAT filesystem device type */
 #define ESP_BOARD_DEVICE_TYPE_FS_SPIFFS      "fs_spiffs"      /*!< SPIFFS filesystem device type */
+#define ESP_BOARD_DEVICE_TYPE_LCD_TOUCH      "lcd_touch"      /*!< LCD touch device type */
 #define ESP_BOARD_DEVICE_TYPE_LCD_TOUCH_I2C  "lcd_touch_i2c"  /*!< LCD touch I2C device type */
 #define ESP_BOARD_DEVICE_TYPE_DISPLAY_LCD    "display_lcd"    /*!< LCD display SPI device type */
 #define ESP_BOARD_DEVICE_TYPE_GPIO_CTRL      "gpio_ctrl"      /*!< GPIO control device type */
 #define ESP_BOARD_DEVICE_TYPE_LEDC_CTRL      "ledc_ctrl"      /*!< LEDC control device type */
+#define ESP_BOARD_DEVICE_TYPE_LED_STRIP      "led_strip"      /*!< LED strip device type */
 #define ESP_BOARD_DEVICE_TYPE_GPIO_EXPANDER  "gpio_expander"  /*!< GPIO expander device type */
 #define ESP_BOARD_DEVICE_TYPE_CAMERA         "camera"         /*!< Camera sensor device type */
 #define ESP_BOARD_DEVICE_TYPE_POWER_CTRL     "power_ctrl"     /*!< Power control device type */

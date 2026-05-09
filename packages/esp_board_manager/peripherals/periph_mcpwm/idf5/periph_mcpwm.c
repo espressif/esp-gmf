@@ -40,7 +40,6 @@ int periph_mcpwm_init(void *cfg, int cfg_size, void **periph_handle)
     // Create MCPWM operator
     err = mcpwm_new_operator(&mcpwm_cfg->operator_config, &handle->operator);
     if (err != ESP_OK) {
-        mcpwm_del_timer(handle->timer);
         ESP_LOGE(TAG, "Call to mcpwm_new_operator failed: %s", esp_err_to_name(err));
         goto cleanup;
     }
@@ -48,8 +47,6 @@ int periph_mcpwm_init(void *cfg, int cfg_size, void **periph_handle)
     // Connect timer and operator
     err = mcpwm_operator_connect_timer(handle->operator, handle->timer);
     if (err != ESP_OK) {
-        mcpwm_del_operator(handle->operator);
-        mcpwm_del_timer(handle->timer);
         ESP_LOGE(TAG, "Call to mcpwm_operator_connect_timer failed: %s", esp_err_to_name(err));
         goto cleanup;
     }

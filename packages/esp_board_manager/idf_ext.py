@@ -87,6 +87,19 @@ def _global_callback_needs_config(tasks) -> bool:
         for task in tasks
     )
 
+_GLOBAL_CALLBACK_RUN_KEYS: Set[Tuple[str, Tuple[str, ...]]] = set()
+
+def _base_actions_have_bmgr(base_actions: Dict) -> bool:
+    actions = base_actions.get('actions', {}) if isinstance(base_actions, dict) else {}
+    if not isinstance(actions, dict):
+        return False
+
+    identifiers = set(actions.keys())
+    for action in actions.values():
+        if isinstance(action, dict):
+            identifiers.update(action.get('aliases', []))
+    return bool({'bmgr', 'gen-bmgr-config'} & identifiers)
+
 
 @dataclass
 class BmgrCommandArgs:
@@ -218,6 +231,13 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
     Returns:
         Dictionary with action extensions for ESP Board Manager
     """
+    if _base_actions_have_bmgr(base_actions):
+        return {
+            'version': '1',
+            'global_action_callbacks': [],
+            'actions': {},
+        }
+
     board_name_cache: Dict[str, Set[str]] = {}
 
     def _collect_known_board_names(project_dir: str) -> Set[str]:
@@ -247,12 +267,17 @@ def action_extensions(base_actions: Dict, project_path: str) -> Dict:
 
     def board_manager_global_callback(ctx, global_args, tasks):
         """Inject ``board_manager.defaults`` into SDKCONFIG_DEFAULTS when ``sdkconfig`` is absent; otherwise warn-only sdkconfig consistency check."""
-        print(f"[Board Manager] Running global callback for tasks: {', '.join(t.name for t in tasks)}")
         task_names = tuple(t.name for t in tasks)
         _validate_mixed_bmgr_tasks(task_names)
         if not _global_callback_needs_config(tasks):
             return
         proj_dir = _resolve_project_dir(global_args, project_path)
+        run_key = (os.path.abspath(proj_dir), task_names)
+        if run_key in _GLOBAL_CALLBACK_RUN_KEYS:
+            return
+        _GLOBAL_CALLBACK_RUN_KEYS.add(run_key)
+
+        print(f"[Board Manager] Running global callback for tasks: {', '.join(t.name for t in tasks)}")
         patch_file = os.path.join(proj_dir, 'components', 'gen_bmgr_codes', 'board_manager.defaults')
         if not os.path.exists(patch_file):
             return

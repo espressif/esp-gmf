@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.5.10
+
+### ⚠️ Breaking Change
+
+- Added generic **lcd_touch** device support with I2C sub_type, and migrated supported boards from legacy LCD touch definitions. Code depending on the legacy `ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT` macro may be incompatible
+
+### Docs
+
+- Updated README quick start to recommend `esp-bmgr-assist` as the preferred setup flow
+- Added `dev_lcd_touch_i2c` to `dev_lcd_touch` migration guides and an optional AI Skill for assisted migration
+- Removed the prebuild script and related documentation; it is no longer a recommended workflow
+
+### Features
+
+- Added IDF-version based component source selection for peripherals, and updated RMT/MCPWM implementations for IDF v6.x compatibility
+- Added I2C effective address tracking and query API for devices that support address probing or override
+- Added **led_strip** device support with RMT and SPI sub_type implementations
+- Added **rgb** sub_type support for **display_lcd**
+- Added support for **esp32_s31_korvo1** board, supported devices includes:
+  Codec, RGB LCD, LCD Touch, LED Strip and Power Control
+
+### Bug Fixes
+
+- Fixed resource cleanup and shared bus reference handling for several devices during init/deinit failure paths
+- Fixed IDF v6.x I2S compatibility when the active target already defines `SOC_I2S_NUM`
+- Fixed audio codec PA default pin handling by using `-1` when no PA control peripheral is configured
+- Fixed PDM RX HP-filter config generation to emit HP-filter fields only when the active chip supports `SOC_I2S_SUPPORTS_PDM_RX_HP_FILTER`
+
 ## 0.5.9
 
 ### ⚠️ Important Change

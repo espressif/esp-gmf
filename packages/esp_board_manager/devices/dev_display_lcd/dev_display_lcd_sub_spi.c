@@ -5,9 +5,9 @@
  * See LICENSE file for details.
  */
 
+#include <stdlib.h>
 #include <string.h>
 #include "esp_log.h"
-#include "driver/spi_master.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_board_periph.h"
@@ -84,7 +84,7 @@ cleanup:
     return -1;
 }
 
-int dev_display_lcd_sub_spi_deinit(void *device_handle)
+int dev_display_lcd_sub_spi_deinit_with_config(void *device_handle, const dev_display_lcd_config_t *cfg)
 {
     if (device_handle == NULL) {
         ESP_LOGE(TAG, "Invalid parameters");
@@ -92,12 +92,8 @@ int dev_display_lcd_sub_spi_deinit(void *device_handle)
     }
 
     dev_display_lcd_handles_t *lcd_handles = (dev_display_lcd_handles_t *)device_handle;
-    dev_display_lcd_config_t *cfg = NULL;
-    esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
     if (cfg == NULL) {
         ESP_LOGE(TAG, "Failed to get device config");
-        free(device_handle);
-        return -1;
     }
 
     if (lcd_handles->panel_handle) {
@@ -110,9 +106,18 @@ int dev_display_lcd_sub_spi_deinit(void *device_handle)
         lcd_handles->io_handle = NULL;
     }
 
-    esp_board_periph_unref_handle(cfg->sub_cfg.spi.spi_name);
+    if (cfg) {
+        esp_board_periph_unref_handle(cfg->sub_cfg.spi.spi_name);
+    }
     free(device_handle);
-    return 0;
+    return cfg ? 0 : -1;
+}
+
+int dev_display_lcd_sub_spi_deinit(void *device_handle)
+{
+    dev_display_lcd_config_t *cfg = NULL;
+    esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
+    return dev_display_lcd_sub_spi_deinit_with_config(device_handle, cfg);
 }
 
 ESP_BOARD_ENTRY_IMPLEMENT(spi, dev_display_lcd_sub_spi_init, dev_display_lcd_sub_spi_deinit);

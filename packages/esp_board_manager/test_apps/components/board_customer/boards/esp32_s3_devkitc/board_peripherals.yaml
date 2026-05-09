@@ -91,8 +91,8 @@ peripherals:
       channel_list:
         - channel: 0
           channel_config:
-            edge_gpio_num: 37
-            level_gpio_num: 38
+            edge_gpio_num: 7
+            level_gpio_num: 8
             flags:
               invert_edge_input: false
               invert_level_input: false
@@ -106,8 +106,8 @@ peripherals:
 
         - channel: 1
           channel_config:
-            edge_gpio_num: 38
-            level_gpio_num: 37
+            edge_gpio_num: 8
+            level_gpio_num: 7
             flags:
               invert_edge_input: false
               invert_level_input: false
@@ -122,24 +122,6 @@ peripherals:
       watch_point_count: 5
       watch_point_list: [-100, -50, 0, 50, 100]
 
-  # - name: gpio_power
-  #   type: gpio
-  #   config:
-  #     pin: 48
-  #     mode: GPIO_MODE_OUTPUT
-  #     default_level: 1
-
-  # - name: spi_master
-  #   type: spi
-  #   role: master
-  #   config:
-  #     spi_bus_config:
-  #       spi_port: SPI2_HOST
-  #       mosi_io_num: 4
-  #       miso_io_num: 5
-  #       sclk_io_num: 2
-  #       max_transfer_sz: 4000
-
   - name: gpio_button
     type: gpio
     config:
@@ -153,18 +135,6 @@ peripherals:
       pin: 13
       mode: GPIO_MODE_OUTPUT
       default_level: 1
-
-  - name: spi_master
-    type: spi
-    role: master
-    config:
-      # spi_bus_config_t fields
-      spi_bus_config:
-        spi_port: SPI2_HOST
-        mosi_io_num: 4
-        miso_io_num: 5
-        sclk_io_num: 2
-        max_transfer_sz: 4000
 
   - name: mcpwm_group_0
     type: mcpwm

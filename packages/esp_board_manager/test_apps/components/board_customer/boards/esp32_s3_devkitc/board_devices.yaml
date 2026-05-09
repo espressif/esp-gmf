@@ -42,3 +42,18 @@ devices:
       short_press_time: 100
     peripherals:
       - name: gpio_button
+
+  - name: led_strip
+    type: led_strip
+    chip: ws2812
+    sub_type: spi
+    config:
+      strip_gpio_num: 48
+      max_leds: 1
+      led_model: LED_MODEL_WS2812
+      color_component_format: LED_STRIP_COLOR_COMPONENT_FMT_GRB
+      invert_out: false
+      spi:
+        clk_src: SPI_CLK_SRC_DEFAULT
+        spi_bus: SPI3_HOST
+        with_dma: true

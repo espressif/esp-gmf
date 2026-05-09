@@ -127,6 +127,65 @@
   peripherals:
     - name: spi_master                  # [TO_BE_CONFIRMED] SPI peripheral for LCD communication
 
+# Example LCD over RGB (esp_lcd_new_rgb_panel), sub_type rgb — no panel IO / chip factory.
+- name: display_lcd
+  type: display_lcd
+  version: 1.0.0
+  sub_type: rgb
+  chip: generic_rgb
+  config:
+    swap_xy: false                      # Swap X/Y coordinates in esp_lcd_panel_swap_xy() after panel init
+    mirror_y: false                     # Mirror panel output on Y axis after panel init
+    mirror_x: false                     # Mirror panel output on X axis after panel init
+    invert_color: false                 # Invert panel colors after panel init (if panel driver supports it)
+    need_reset: true                    # Whether to call esp_lcd_panel_reset() during initialization
+    bits_per_pixel: 16                  # Application-side frame buffer color depth; IDF v5.x emits this into rgb panel config
+    rgb_ele_order: LCD_RGB_ELEMENT_ORDER_RGB  # [TO_BE_CONFIRMED] RGB/BGR byte order expected by panel helper logic
+    data_endian: LCD_RGB_DATA_ENDIAN_BIG      # [TO_BE_CONFIRMED] Endianness for color units larger than 1 byte
+    # esp_lcd_rgb_panel_config_t fields
+    rgb_panel_config:
+      clk_src: LCD_CLK_SRC_DEFAULT      # RGB LCD peripheral clock source (lcd_clock_source_t)
+      data_width: 16                    # Number of RGB data lines wired to the panel, e.g. 8/16/18/24
+      # IDF v6+: in/out color formats are emitted into esp_lcd_rgb_panel_config_t.
+      # IDF v5.x: bits_per_pixel is emitted instead.
+      in_color_format: LCD_COLOR_FMT_RGB565   # IDF v6+: frame buffer storage format consumed by RGB driver
+      out_color_format: LCD_COLOR_FMT_RGB565  # IDF v6+: on-wire format expected by LCD panel; default follows input format
+      num_fbs: 1                         # Number of full-screen frame buffers allocated by driver; 0/1 means single FB
+      bounce_buffer_size_px: 0           # Bounce buffer size in pixels; non-zero enables two internal DMA bounce buffers
+      dma_burst_size: 64                 # DMA burst size in bytes; affects memory alignment/bandwidth behavior
+      hsync_gpio_num: 44                 # [IO] GPIO used for HSYNC signal
+      vsync_gpio_num: 45                 # [IO] GPIO used for VSYNC signal
+      de_gpio_num: 43                    # [IO] GPIO used for DE signal; set -1 if panel does not use DE
+      pclk_gpio_num: 40                  # [IO] GPIO used for pixel clock (PCLK)
+      disp_gpio_num: -1                  # [IO] Optional display enable pin; set -1 if not connected
+      data_gpio_nums: [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 33, 34, 35, 36]  # [IO] RGB data bus GPIOs, ordered from D0 upward
+      # Optional IDF v6+ advanced hook. If set, the function must be registered by
+      # DEVICE_EXTRA_FUNC_REGISTER(name, func) and handle GET/RELEASE actions.
+      user_fbs_func: ""                  # Optional board callback name that provides/reclaims user-owned frame buffers
+      timings:
+        pclk_hz: 18000000                # [TO_BE_CONFIRMED] Pixel clock frequency in Hz; must satisfy panel timing budget
+        h_res: 800                       # [TO_BE_CONFIRMED] Active horizontal resolution in pixels
+        v_res: 480                       # [TO_BE_CONFIRMED] Active vertical resolution in lines
+        hsync_pulse_width: 1             # [TO_BE_CONFIRMED] HSYNC pulse width, unit: PCLK cycles
+        hsync_back_porch: 40             # [TO_BE_CONFIRMED] Horizontal back porch, between HSYNC and active data
+        hsync_front_porch: 20            # [TO_BE_CONFIRMED] Horizontal front porch, between active data end and next HSYNC
+        vsync_pulse_width: 1             # [TO_BE_CONFIRMED] VSYNC pulse width, unit: lines
+        vsync_back_porch: 10             # [TO_BE_CONFIRMED] Vertical back porch, between VSYNC and first active line
+        vsync_front_porch: 5             # [TO_BE_CONFIRMED] Vertical front porch, between last active line and next VSYNC
+        flags:
+          hsync_idle_low: false          # HSYNC idle polarity: false=idle high, true=idle low
+          vsync_idle_low: false          # VSYNC idle polarity: false=idle high, true=idle low
+          de_idle_high: false            # DE idle polarity: false=idle low, true=idle high
+          pclk_active_neg: true          # Sample/launch pixel data on falling edge of PCLK when true
+          pclk_idle_high: false          # Keep PCLK at high level during idle when true
+      flags:
+        disp_active_low: false           # disp_gpio_num active level: false=high turns panel on, true=low turns panel on
+        refresh_on_demand: false         # Disable continuous streaming; refresh only on draw_bitmap/explicit refresh
+        fb_in_psram: true                # Prefer allocating frame buffers in PSRAM when available
+        double_fb: false                 # Convenience flag for two driver-owned frame buffers; conflicts with no_fb
+        no_fb: false                     # Driver does not allocate frame buffer; requires bounce buffer callback workflow
+        bb_invalidate_cache: false       # In bounce-buffer mode, invalidate cache after DMA reads; can be unsafe with concurrent writers
+
 # Example LCD over PARLIO (esp_lcd_new_panel_io_parl), sub_type parlio — no spi_master peripheral.
 # io_parl_config maps to esp_lcd_panel_io_parl_config_t (components/esp_lcd/include/esp_lcd_io_parl.h).
 - name: display_lcd

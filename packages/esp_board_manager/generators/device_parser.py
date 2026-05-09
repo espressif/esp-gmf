@@ -239,6 +239,7 @@ class DeviceParser(LoggerMixin):
             init_skip: bool = False  # Default to False (do not skip initialization)
             sub_type: str = None  # Optional sub_type for devices that support it
             power_ctrl_device: str = None  # Optional power control device reference
+            version: str = None  # Optional Board Manager schema generation tag
 
         # Load YAML with includes; empty merged file / missing devices / devices: [] are valid.
         data = self._load_yaml_with_includes(yaml_path)
@@ -322,7 +323,8 @@ class DeviceParser(LoggerMixin):
                     chip=dev.get('chip', None),  # Extract chip if present
                     init_skip=dev.get('init_skip', False),  # Default to False (do not skip initialization)
                     sub_type=dev.get('sub_type', None),  # Extract sub_type if present
-                    power_ctrl_device=dev.get('power_ctrl_device', None)  # Extract power_ctrl_device if present
+                    power_ctrl_device=dev.get('power_ctrl_device', None),  # Extract power_ctrl_device if present
+                    version=str(dev.get('version')) if dev.get('version') is not None else None  # Extract schema version if present
                 ))
 
             except ValueError as e:

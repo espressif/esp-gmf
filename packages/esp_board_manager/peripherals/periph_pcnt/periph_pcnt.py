@@ -125,6 +125,19 @@ def parse_pcnt_channel_list(channel_list: list) -> list:
         virt_level_io_level = int(flags_raw.get('virt_level_io_level', 0))
         io_loop_back = int(flags_raw.get('io_loop_back', False))
 
+        flags_dict = {
+            'invert_edge_input': invert_edge_input,
+            'invert_level_input': invert_level_input,
+            'virt_edge_io_level': virt_edge_io_level,
+            'virt_level_io_level': virt_level_io_level,
+        }
+
+        from generators.utils.idf_version import get_idf_version
+        if get_idf_version()[0] < 6:
+            flags_dict['io_loop_back'] = io_loop_back
+        elif io_loop_back:
+            print(f"⚠️ YAML WARNING: 'io_loop_back' flag in PCNT configuration '{channel_config.get('name', 'unknown')}' is deprecated in IDF >= 6.0 and will be ignored.")
+
         pos_act = get_enum_value(
             channel_config.get('pos_act'),
             'PCNT_CHANNEL_EDGE_ACTION_INCREASE',
@@ -154,13 +167,7 @@ def parse_pcnt_channel_list(channel_list: list) -> list:
             'channel_config': {
                 'edge_gpio_num': edge_gpio,
                 'level_gpio_num': level_gpio,
-                'flags': {
-                    'invert_edge_input': invert_edge_input,
-                    'invert_level_input': invert_level_input,
-                    'virt_edge_io_level': virt_edge_io_level,
-                    'virt_level_io_level': virt_level_io_level,
-                    'io_loop_back': io_loop_back,
-                }
+                'flags': flags_dict
             },
             'pos_act': pos_act,
             'neg_act': neg_act,

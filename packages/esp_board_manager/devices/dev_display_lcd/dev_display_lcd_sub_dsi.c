@@ -5,6 +5,9 @@
  * See LICENSE file for details.
  */
 
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_board_periph.h"
@@ -31,6 +34,9 @@ int dev_display_lcd_sub_dsi_init(void *cfg, int cfg_size, void **device_handle)
     }
 
     ESP_LOGI(TAG, "Initializing DSI LCD display: %s, chip: %s", lcd_cfg->name, lcd_cfg->chip);
+    bool ldo_acquired = false;
+    bool dsi_acquired = false;
+
     // Get LDO peripheral handle
     esp_ldo_channel_handle_t ldo_handle = NULL;
     if (lcd_cfg->sub_cfg.dsi.ldo_name && strlen(lcd_cfg->sub_cfg.dsi.ldo_name) > 0) {
@@ -39,6 +45,7 @@ int dev_display_lcd_sub_dsi_init(void *cfg, int cfg_size, void **device_handle)
             ESP_LOGE(TAG, "Failed to get LDO peripheral handle: %d", ret);
             goto cleanup;
         }
+        ldo_acquired = true;
     } else {
         ESP_LOGE(TAG, "No LDO name configured for LCD display: %s", lcd_cfg->name);
         goto cleanup;
@@ -52,6 +59,7 @@ int dev_display_lcd_sub_dsi_init(void *cfg, int cfg_size, void **device_handle)
             ESP_LOGE(TAG, "Failed to get DSI peripheral handle: %d", ret);
             goto cleanup;
         }
+        dsi_acquired = true;
     } else {
         ESP_LOGE(TAG, "No DSI name configured for LCD display: %s", lcd_cfg->name);
         goto cleanup;
@@ -60,25 +68,46 @@ int dev_display_lcd_sub_dsi_init(void *cfg, int cfg_size, void **device_handle)
     ret = esp_lcd_new_panel_io_dbi(dsi_handle, &lcd_cfg->sub_cfg.dsi.dbi_config, &lcd_handles->io_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create LCD panel IO: %s", esp_err_to_name(ret));
-        esp_board_periph_unref_handle(lcd_cfg->sub_cfg.dsi.dsi_name);
         goto cleanup;
     }
 
     ret = lcd_dsi_panel_factory_entry_t(dsi_handle, lcd_cfg, lcd_handles);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create LCD panel: %s", esp_err_to_name(ret));
-        esp_lcd_panel_io_del(lcd_handles->io_handle);
-        esp_board_periph_unref_handle(lcd_cfg->sub_cfg.dsi.dsi_name);
         goto cleanup;
     }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    if (lcd_cfg->sub_cfg.dsi.use_dma2d) {
+        ret = esp_lcd_dpi_panel_enable_dma2d(lcd_handles->panel_handle);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to enable DMA2D: %s", esp_err_to_name(ret));
+        } else {
+            ESP_LOGI(TAG, "DMA2D enabled for DSI LCD");
+        }
+    }
+#endif  /* ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) */
+
     *device_handle = lcd_handles;
     return 0;
 cleanup:
+    if (lcd_handles->panel_handle) {
+        esp_lcd_panel_del(lcd_handles->panel_handle);
+    }
+    if (lcd_handles->io_handle) {
+        esp_lcd_panel_io_del(lcd_handles->io_handle);
+    }
+    if (dsi_acquired) {
+        esp_board_periph_unref_handle(lcd_cfg->sub_cfg.dsi.dsi_name);
+    }
+    if (ldo_acquired) {
+        esp_board_periph_unref_handle(lcd_cfg->sub_cfg.dsi.ldo_name);
+    }
     free(lcd_handles);
     return -1;
 }
 
-int dev_display_lcd_sub_dsi_deinit(void *device_handle)
+int dev_display_lcd_sub_dsi_deinit_with_config(void *device_handle, const dev_display_lcd_config_t *cfg)
 {
     if (device_handle == NULL) {
         ESP_LOGE(TAG, "Invalid parameters");
@@ -86,12 +115,8 @@ int dev_display_lcd_sub_dsi_deinit(void *device_handle)
     }
 
     dev_display_lcd_handles_t *lcd_handles = (dev_display_lcd_handles_t *)device_handle;
-    dev_display_lcd_config_t *cfg = NULL;
-    esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
     if (cfg == NULL) {
         ESP_LOGE(TAG, "Failed to get LCD config");
-        free(device_handle);
-        return -1;
     }
 
     if (lcd_handles->panel_handle) {
@@ -104,9 +129,19 @@ int dev_display_lcd_sub_dsi_deinit(void *device_handle)
         lcd_handles->io_handle = NULL;
     }
 
-    esp_board_periph_unref_handle(cfg->sub_cfg.dsi.dsi_name);
+    if (cfg) {
+        esp_board_periph_unref_handle(cfg->sub_cfg.dsi.dsi_name);
+        esp_board_periph_unref_handle(cfg->sub_cfg.dsi.ldo_name);
+    }
     free(device_handle);
-    return 0;
+    return cfg ? 0 : -1;
+}
+
+int dev_display_lcd_sub_dsi_deinit(void *device_handle)
+{
+    dev_display_lcd_config_t *cfg = NULL;
+    esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
+    return dev_display_lcd_sub_dsi_deinit_with_config(device_handle, cfg);
 }
 
 ESP_BOARD_ENTRY_IMPLEMENT(dsi, dev_display_lcd_sub_dsi_init, dev_display_lcd_sub_dsi_deinit);

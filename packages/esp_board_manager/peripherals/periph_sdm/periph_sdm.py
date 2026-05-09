@@ -14,6 +14,7 @@ import sys
 
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'generators'))
+from generators.utils.idf_version import get_idf_version
 
 def get_includes() -> list:
     """Return list of required include headers for SDM peripheral"""
@@ -58,6 +59,23 @@ def parse(name: str, config: dict) -> dict:
         if not isinstance(io_loop_back, bool):
             raise ValueError(f'Invalid io_loop_back value: {io_loop_back}. Must be boolean.')
 
+        # Get allow_pd flag with validation
+        allow_pd = cfg.get('allow_pd', False)
+        if not isinstance(allow_pd, bool):
+            raise ValueError(f'Invalid allow_pd value: {allow_pd}. Must be boolean.')
+
+        flags = {
+            'invert_out': 1 if invert_out else 0,
+        }
+        if get_idf_version()[0] < 6:
+            flags['io_loop_back'] = 1 if io_loop_back else 0
+            if allow_pd:
+                print(f"YAML WARNING: 'allow_pd' flag in SDM peripheral '{name}' is not supported in IDF < 6.0 and will be ignored.")
+        else:
+            flags['allow_pd'] = 1 if allow_pd else 0
+            if io_loop_back:
+                print(f"YAML WARNING: 'io_loop_back' flag in SDM peripheral '{name}' is deprecated in IDF >= 6.0 and will be ignored.")
+
         # Create configuration structure
         result = {
             'struct_type': 'sdm_config_t',
@@ -66,10 +84,7 @@ def parse(name: str, config: dict) -> dict:
                 'gpio_num': gpio_num,
                 'clk_src': clk_src,
                 'sample_rate_hz': sample_rate_hz,
-                'flags': {
-                    'invert_out': 1 if invert_out else 0,
-                    'io_loop_back': 1 if io_loop_back else 0
-                }
+                'flags': flags
             }
         }
 

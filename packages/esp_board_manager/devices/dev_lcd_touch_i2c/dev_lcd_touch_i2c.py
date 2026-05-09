@@ -24,6 +24,11 @@ def get_includes() -> list:
 def parse(name: str, config: dict, peripherals_dict=None) -> dict:
     """Parse LCD touch I2C device configuration from YAML to C structure"""
 
+    print(
+        f"⚠️  WARNING: Device '{name}' uses deprecated type 'lcd_touch_i2c'. "
+        "Use type 'lcd_touch' with sub_type 'i2c' instead."
+    )
+
     # Parse the device name - use name directly for C naming
     c_name = name.replace('-', '_')  # Convert hyphens to underscores for C naming
 

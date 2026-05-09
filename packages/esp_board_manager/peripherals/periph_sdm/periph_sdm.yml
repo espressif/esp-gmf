@@ -19,5 +19,8 @@
     # Invert output signal (default: false)
     invert_out: false
 
-    # IO loop back for debug/test (default: false)
+    # IO loop back for debug/test (IDF < 6.0 only; ignored with a warning on IDF >= 6.0)
     io_loop_back: false
+
+    # Allow SDM power domain to power off during sleep (IDF >= 6.0 only; ignored with a warning on IDF < 6.0)
+    allow_pd: false

@@ -80,7 +80,7 @@ def warn_if_invalid_board_yaml_schema_version(logger, value: Any, where: str) ->
     if schema_version_is_recognized(value):
         return
     logger.warning(
-        '[Board Manager] Unrecognized board YAML schema `version` in %s: %r. '
+        '⚠️  WARNING: Unrecognized board YAML schema `version` in %s: %r. '
         'This Board Manager release implements schema generation %r; omit `version`, '
         'use `version: default` (same as current), or set `version: %r`. '
         'Other values will be reserved for future generations after breaking changes.',

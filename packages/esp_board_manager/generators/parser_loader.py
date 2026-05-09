@@ -31,6 +31,23 @@ def _load_parser_module(module_name: str, script_path: str):
     spec.loader.exec_module(mod)
     return mod
 
+
+def _resolve_component_parser_file(component_folder: Path, component_name: str) -> Optional[Path]:
+    """Resolve the best parser file for the current ESP-IDF compatibility level."""
+    from .utils.idf_version import get_idf_compat_dirs
+
+    for compat_dir in get_idf_compat_dirs():
+        parser_file = component_folder / compat_dir / f'{component_name}.py'
+        if parser_file.exists():
+            return parser_file
+
+    parser_file = component_folder / f'{component_name}.py'
+    if parser_file.exists():
+        return parser_file
+
+    return None
+
+
 def load_parsers(search_dirs: List[str], prefix: str, base_dir: str = None) -> Dict[str, Tuple[str, Callable, Callable]]:
     """
     prefix: 'parse_periph_' for peripherals, 'parse_dev_' for devices
@@ -100,7 +117,9 @@ def load_component_parsers_from_folders(base_dir: Optional[str], prefix: str, di
     """
     Generic function to load component parsers from folder structure.
     Each component type can have its own folder under the component directory.
-    The folder name should match the file name (e.g., periph_spi/periph_spi.py or dev_xxx/dev_xxx.py).
+    The folder name should match the file name (e.g., periph_spi/periph_spi.py
+    or dev_xxx/dev_xxx.py). Versioned IDF compatibility implementations may be
+    placed under idfN subdirectories, e.g. periph_rmt/idf6/periph_rmt.py.
 
     Args:
         base_dir: Base directory to search for component directory (defaults to current directory)
@@ -144,10 +163,10 @@ def load_component_parsers_from_folders(base_dir: Optional[str], prefix: str, di
         # Extract the actual component type by removing prefix
         component_type = component_folder.name[prefix_len:]
 
-        # Look for Python parser file - folder name should match file name
-        parser_file = component_folder / f'{component_folder.name}.py'
-        if not parser_file.exists():
-            print(f'Warning: No parser file found for {dir_name[:-1]} {component_folder.name}: {parser_file}')
+        parser_file = _resolve_component_parser_file(component_folder, component_folder.name)
+
+        if parser_file is None:
+            print(f'Warning: No parser file found for {dir_name[:-1]} {component_folder.name}')
             continue
 
         try:

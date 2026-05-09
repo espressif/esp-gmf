@@ -5,6 +5,7 @@
  * See LICENSE file for details.
  */
 
+#include <string.h>
 #include "esp_log.h"
 #include "esp_board_entry.h"
 #include "esp_board_device.h"
@@ -12,6 +13,70 @@
 #include "esp_lcd_panel_ops.h"
 
 static const char *TAG = "DEV_DISPLAY_LCD";
+
+typedef int (*lcd_deinit_with_config_func_t)(void *device_handle, const dev_display_lcd_config_t *cfg);
+
+typedef struct {
+    const char                    *sub_type;
+    lcd_deinit_with_config_func_t  deinit;
+} lcd_deinit_with_config_entry_t;
+
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
+int dev_display_lcd_sub_dsi_deinit_with_config(void *device_handle, const dev_display_lcd_config_t *cfg);
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_SPI_SUPPORT
+int dev_display_lcd_sub_spi_deinit_with_config(void *device_handle, const dev_display_lcd_config_t *cfg);
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_SPI_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT
+int dev_display_lcd_sub_parlio_deinit_with_config(void *device_handle, const dev_display_lcd_config_t *cfg);
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+int dev_display_lcd_sub_rgb_deinit_with_config(void *device_handle, const dev_display_lcd_config_t *cfg);
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+
+static const lcd_deinit_with_config_entry_t s_lcd_deinit_entries[] = {
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
+    {ESP_BOARD_DEVICE_LCD_SUB_TYPE_DSI, dev_display_lcd_sub_dsi_deinit_with_config},
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_SPI_SUPPORT
+    {ESP_BOARD_DEVICE_LCD_SUB_TYPE_SPI, dev_display_lcd_sub_spi_deinit_with_config},
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_SPI_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT
+    {ESP_BOARD_DEVICE_LCD_SUB_TYPE_PARLIO, dev_display_lcd_sub_parlio_deinit_with_config},
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_PARLIO_SUPPORT */
+#if CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+    {ESP_BOARD_DEVICE_LCD_SUB_TYPE_RGB, dev_display_lcd_sub_rgb_deinit_with_config},
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+    {NULL, NULL},
+};
+
+static int dev_display_lcd_deinit_with_config(void *device_handle, const dev_display_lcd_config_t *cfg)
+{
+    if (cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to get config from device handle");
+        return -1;
+    }
+    if (cfg->sub_type == NULL) {
+        ESP_LOGE(TAG, "Invalid LCD sub_type");
+        return -1;
+    }
+
+    for (const lcd_deinit_with_config_entry_t *entry = s_lcd_deinit_entries; entry->sub_type != NULL; entry++) {
+        if (strcmp(cfg->sub_type, entry->sub_type) != 0) {
+            continue;
+        }
+        int ret = entry->deinit(device_handle, cfg);
+        if (ret != 0) {
+            ESP_LOGE(TAG, "LCD(sub_type: %s) deinit failed with error: %d", cfg->sub_type, ret);
+        } else {
+            ESP_LOGI(TAG, "LCD(sub_type: %s) deinitialized successfully", cfg->sub_type);
+        }
+        return ret;
+    }
+
+    ESP_LOGW(TAG, "No custom deinit function found for sub type '%s'", cfg->sub_type);
+    return -1;
+}
 
 int dev_display_lcd_init(void *cfg, int cfg_size, void **device_handle)
 {
@@ -49,7 +114,7 @@ int dev_display_lcd_init(void *cfg, int cfg_size, void **device_handle)
         ret = esp_lcd_panel_reset(handle->panel_handle);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to reset LCD panel: %s", esp_err_to_name(ret));
-            entry_desc->deinit_func(handle);
+            dev_display_lcd_deinit_with_config(handle, config);
             return -1;
         }
     }
@@ -58,7 +123,7 @@ int dev_display_lcd_init(void *cfg, int cfg_size, void **device_handle)
     ret = esp_lcd_panel_init(handle->panel_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize LCD panel: %s", esp_err_to_name(ret));
-        entry_desc->deinit_func(handle);
+        dev_display_lcd_deinit_with_config(handle, config);
         return -1;
     }
 
@@ -97,20 +162,5 @@ int dev_display_lcd_deinit(void *device_handle)
 
     dev_display_lcd_config_t *cfg = NULL;
     esp_board_device_get_config_by_handle(device_handle, (void **)&cfg);
-    if (cfg) {
-        const esp_board_entry_desc_t *desc = esp_board_entry_find_desc(cfg->sub_type);
-        if (desc && desc->deinit_func) {
-            int ret = desc->deinit_func(device_handle);
-            if (ret != 0) {
-                ESP_LOGE(TAG, "LCD(sub_type: %s) deinit failed with error: %d", cfg->sub_type, ret);
-            } else {
-                ESP_LOGI(TAG, "LCD(sub_type: %s) deinitialized successfully", cfg->sub_type);
-            }
-        } else {
-            ESP_LOGW(TAG, "No custom deinit function found for sub type '%s'", cfg->sub_type);
-        }
-    } else {
-        ESP_LOGE(TAG, "Failed to get config from device handle");
-    }
-    return 0;
+    return dev_display_lcd_deinit_with_config(device_handle, cfg);
 }

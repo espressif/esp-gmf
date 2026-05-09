@@ -5,6 +5,7 @@
  * See LICENSE file for details.
  */
 
+#include <stdbool.h>
 #include <string.h>
 #include "esp_log.h"
 #include "esp_video_init.h"
@@ -50,6 +51,7 @@ int dev_camera_sub_csi_init(void *cfg, int cfg_size, void **device_handle)
     }
 
     esp_cam_sensor_xclk_handle_t xclk_handle = NULL;
+    bool xclk_started = false;
     // Check if XCLK pin is configured (>= 0) and frequency is valid
     // Note: We access esp_clock_router_cfg directly as we assume this mode
     if (config->sub_cfg.csi.xclk_config.esp_clock_router_cfg.xclk_pin != -1 &&
@@ -62,16 +64,16 @@ int dev_camera_sub_csi_init(void *cfg, int cfg_size, void **device_handle)
         ret = esp_cam_sensor_xclk_allocate(ESP_CAM_SENSOR_XCLK_ESP_CLOCK_ROUTER, &xclk_handle);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to allocate XCLK handle");
-            return -1;
+            goto cleanup;
         }
 
         // We can pass the address of xclk_config directly as it matches the type
         ret = esp_cam_sensor_xclk_start(xclk_handle, &config->sub_cfg.csi.xclk_config);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to start XCLK");
-            esp_cam_sensor_xclk_free(xclk_handle);
-            return -1;
+            goto cleanup;
         }
+        xclk_started = true;
     }
 
     esp_video_init_csi_config_t s_csi_config = {
@@ -107,9 +109,15 @@ int dev_camera_sub_csi_init(void *cfg, int cfg_size, void **device_handle)
     ESP_LOGI(TAG, "CSI camera initialized successfully, dev_path: %s", handle->dev_path);
     return 0;
 cleanup:
-    esp_cam_sensor_xclk_stop(xclk_handle);
-    esp_cam_sensor_xclk_free(xclk_handle);
-    esp_board_periph_unref_handle(config->sub_cfg.csi.ldo_name);
+    if (xclk_handle) {
+        if (xclk_started) {
+            esp_cam_sensor_xclk_stop(xclk_handle);
+        }
+        esp_cam_sensor_xclk_free(xclk_handle);
+    }
+    if (config->sub_cfg.csi.ldo_name && strlen(config->sub_cfg.csi.ldo_name) > 0) {
+        esp_board_periph_unref_handle(config->sub_cfg.csi.ldo_name);
+    }
     esp_board_periph_unref_handle(config->sub_cfg.csi.i2c_name);
     return -1;
 }

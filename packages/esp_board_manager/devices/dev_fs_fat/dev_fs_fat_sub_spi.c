@@ -27,16 +27,17 @@ int dev_fs_fat_sub_spi_init(void *cfg, int cfg_size, void **device_handle)
     const dev_fs_fat_config_t *config = (const dev_fs_fat_config_t *)cfg;
     const dev_fs_fat_spi_sub_config_t *spi_cfg = &config->sub_cfg.spi;
     periph_spi_handle_t *spi_handle = NULL;
+    bool spi_bus_refed = false;
     if (spi_cfg->spi_bus_name && spi_cfg->spi_bus_name[0]) {
-        // TODO Use the reference SPI peripheral handle
-        int ret = esp_board_periph_get_handle(spi_cfg->spi_bus_name, (void **)&spi_handle);
+        int ret = esp_board_periph_ref_handle(spi_cfg->spi_bus_name, (void **)&spi_handle);
         if (ret != 0) {
             ESP_LOGE(TAG, "Failed to get SPI peripheral handle: %d", ret);
-            return -1;
+            goto clean_up;
         }
+        spi_bus_refed = true;
     } else {
         ESP_LOGE(TAG, "Invalid SPI bus name");
-        return -1;
+        goto clean_up;
     }
 
     esp_err_t ret = 0;
@@ -71,6 +72,9 @@ int dev_fs_fat_sub_spi_init(void *cfg, int cfg_size, void **device_handle)
     *device_handle = handle;
     return 0;
 clean_up:
+    if (spi_bus_refed) {
+        esp_board_periph_unref_handle(spi_cfg->spi_bus_name);
+    }
     free(handle);
     return -1;
 }

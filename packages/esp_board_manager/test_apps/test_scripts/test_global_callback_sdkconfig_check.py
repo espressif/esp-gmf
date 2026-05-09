@@ -110,6 +110,49 @@ def test_callback_warns_on_inconsistent_sdkconfig(bmgr_root, tmp_path, monkeypat
     assert 'Please run: idf.py bmgr -b test_board' in out
     assert 'legacy: idf.py gen-bmgr-config -b test_board' in out
 
+def test_callback_runs_once_for_duplicate_extension_load(bmgr_root, tmp_path, monkeypatch, capsys):
+    project_dir = _make_project(tmp_path, with_sdkconfig=True)
+    callback, idf_ext = _load_callback(bmgr_root, project_dir)
+    calls = {'count': 0}
+
+    def _fake_check(self, **kwargs):
+        calls['count'] += 1
+        return {'ok': True, 'issues': []}
+
+    monkeypatch.setattr(
+        idf_ext.SDKConfigManager,
+        'ensure_sdkconfig_consistency',
+        _fake_check,
+        raising=True,
+    )
+
+    args = {'project_dir': str(project_dir), 'define_cache_entry': []}
+    tasks = [_Task('all'), _Task('flash'), _Task('monitor')]
+    callback(None, args, tasks)
+    callback(None, args, tasks)
+
+    out = capsys.readouterr().out
+    assert out.count('[Board Manager] Running global callback for tasks: all, flash, monitor') == 1
+    assert out.count('[Board Manager] Checking sdkconfig consistency before action execution...') == 1
+    assert calls['count'] == 1
+
+def test_extension_returns_no_callback_when_bmgr_action_already_loaded(bmgr_root, tmp_path):
+    _, idf_ext = _load_callback(bmgr_root, tmp_path)
+
+    ext = idf_ext.action_extensions(
+        {
+            'actions': {
+                'bmgr': {
+                    'aliases': [],
+                },
+            },
+            'global_action_callbacks': [object()],
+        },
+        str(tmp_path),
+    )
+
+    assert ext['actions'] == {}
+    assert ext['global_action_callbacks'] == []
 
 def test_set_target_runs_sdkconfig_check_when_sdkconfig_present(bmgr_root, tmp_path, capsys):
     """Like build, set-target runs warn-only sdkconfig consistency when sdkconfig exists."""

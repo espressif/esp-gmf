@@ -179,6 +179,50 @@ def test_metadata_yaml_renders_io_lists_inline(bmgr_root, tmp_path):
     assert 'channel_id: [34, 35]' in output_text
     assert 'channel_id:\n' not in output_text
 
+def test_lcd_touch_metadata_extracts_touch_gpio_fields(bmgr_root):
+    sys.path.insert(0, str(bmgr_root))
+    from devices.dev_lcd_touch import dev_lcd_touch as mod
+    from generators.board_metadata_generator import BoardMetadataGenerator
+
+    result = mod.parse(
+        'lcd_touch',
+        {
+            'type': 'lcd_touch',
+            'chip': 'gt911',
+            'sub_type': 'i2c',
+            'config': {
+                'touch_config': {
+                    'rst_gpio_num': 4,
+                    'int_gpio_num': 5,
+                },
+            },
+            'peripherals': [
+                {'name': 'i2c_master', 'i2c_addr': 0xBA},
+            ],
+        },
+        peripherals_dict={'i2c_master': object()},
+    )
+
+    metadata = BoardMetadataGenerator().generate_metadata_dict(
+        board_name='unit_test_board',
+        chip_name='esp32s3',
+        device_artifacts=[
+            {
+                'name': 'lcd_touch',
+                'type': 'lcd_touch',
+                'sub_type': 'i2c',
+                'raw': {},
+                'result': result,
+                'parse_func': mod.parse,
+            }
+        ],
+        peripheral_artifacts=[],
+    )
+
+    assert metadata['devices']['lcd_touch']['io'] == {
+        'rst_gpio_num': 4,
+        'int_gpio_num': 5,
+    }
 
 def test_audio_codec_adc_metadata_skips_io_when_channel_header_is_missing(bmgr_root, monkeypatch):
     sys.path.insert(0, str(bmgr_root))

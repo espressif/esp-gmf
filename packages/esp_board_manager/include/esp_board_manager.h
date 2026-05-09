@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "esp_board_manager_err.h"
 #include "esp_board_device.h"
@@ -80,6 +81,22 @@ esp_err_t esp_board_manager_get_periph_handle(const char *periph_name, void **pe
  *       - ESP_BOARD_ERR_MANAGER_DEVICE_NOT_FOUND  If device not found
  */
 esp_err_t esp_board_manager_get_device_handle(const char *dev_name, void **device_handle);
+
+/**
+ * @brief  Check whether a device or peripheral name exists
+ *
+ *         This function checks whether the given name is declared as either a
+ *         device or a peripheral in the current board configuration. It does
+ *         not initialize anything and does not emit error logs when the name
+ *         does not exist
+ *
+ * @param[in]  name  Device or peripheral name
+ *
+ * @return
+ *       - true   If the name exists in the current board configuration
+ *       - false  If the name does not exist or name is NULL
+ */
+bool esp_board_manager_check_name(const char *name);
 
 /**
  * @brief  Query device configuration

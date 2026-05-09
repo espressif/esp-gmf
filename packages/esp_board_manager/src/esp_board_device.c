@@ -14,6 +14,7 @@
 #include "esp_board_device.h"
 #include "esp_board_manager_err.h"
 #include "esp_board_find_utils.h"
+#include "periph_i2c_internal.h"
 #if CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUPPORT
 #include "dev_power_ctrl.h"
 #endif  /* CONFIG_ESP_BOARD_DEV_POWER_CTRL_SUPPORT */
@@ -31,6 +32,30 @@ typedef struct cfg_override_node {
 } cfg_override_node_t;
 
 static cfg_override_node_t *s_cfg_override_list = NULL;
+
+esp_err_t __attribute__((weak)) periph_i2c_set_effective_addr_internal(const char *i2c_name,
+                                                                       const char *device_name,
+                                                                       uint16_t addr)
+{
+    (void)i2c_name;
+    (void)device_name;
+    (void)addr;
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+esp_err_t __attribute__((weak)) periph_i2c_get_effective_addr_internal(const char *device_name,
+                                                                       uint16_t *addr)
+{
+    (void)device_name;
+    (void)addr;
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+esp_err_t __attribute__((weak)) periph_i2c_clear_effective_addr_internal(const char *device_name)
+{
+    (void)device_name;
+    return ESP_ERR_NOT_SUPPORTED;
+}
 
 void esp_board_device_restore_all_configs(void)
 {
@@ -248,6 +273,23 @@ esp_err_t esp_board_device_restore_config(const char *name)
 
     ESP_LOGW(TAG, "Config override for device %s not found", name);
     return ESP_ERR_NOT_FOUND;
+}
+
+esp_err_t esp_board_device_get_i2c_effective_addr(const char *device_name, uint16_t *addr)
+{
+    ESP_BOARD_RETURN_ON_FALSE(device_name && addr, ESP_BOARD_ERR_DEVICE_INVALID_ARG, TAG, "Invalid args");
+
+    const esp_board_device_desc_t *desc = esp_board_find_device_desc(device_name);
+    ESP_BOARD_RETURN_ON_DEVICE_NOT_FOUND(desc, device_name, TAG, "Device %s not found", device_name);
+
+    esp_err_t ret = periph_i2c_get_effective_addr_internal(device_name, addr);
+    if (ret == ESP_OK) {
+        return ESP_OK;
+    }
+    if (ret == ESP_ERR_INVALID_ARG) {
+        return ESP_BOARD_ERR_DEVICE_INVALID_ARG;
+    }
+    return ESP_BOARD_ERR_DEVICE_NOT_SUPPORTED;
 }
 
 esp_err_t esp_board_device_deinit(const char *name)

@@ -11,10 +11,6 @@
 #include "esp_idf_version.h"
 #include "esp_board_manager_defs.h"
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-    #warning "periph_rmt is not supported in ESP-IDF v6.0.0 and above yet."
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif  /* __cplusplus */

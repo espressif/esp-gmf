@@ -202,6 +202,12 @@ if ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
             Enable display_lcd parlio sub-type support.
             This option enables the display_lcd parlio sub-type driver.
 
+    config ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+        bool "Device 'display_lcd' rgb sub-type support"
+        help
+            Enable display_lcd rgb sub-type support.
+            This option enables the display_lcd rgb sub-type driver.
+
     config ESP_BOARD_DEV_DISPLAY_LCD_SUB_SPI_SUPPORT
         bool "Device 'display_lcd' spi sub-type support"
         help
@@ -254,12 +260,58 @@ config ESP_BOARD_DEV_GPIO_EXPANDER_SUPPORT
         This option enables the gpio_expander device driver.
         The driver is located at: devices/dev_gpio_expander
 
+config ESP_BOARD_DEV_LCD_TOUCH_SUPPORT
+    bool "Device 'lcd_touch' support"
+    help
+        Enable lcd_touch device support.
+        This option enables the lcd_touch device driver.
+        The driver is located at: devices/dev_lcd_touch
+
+if ESP_BOARD_DEV_LCD_TOUCH_SUPPORT
+
+    config ESP_BOARD_DEV_LCD_TOUCH_SUB_I2C_SUPPORT
+        bool "Device 'lcd_touch' i2c sub-type support"
+        help
+            Enable lcd_touch i2c sub-type support.
+            This option enables the lcd_touch i2c sub-type driver.
+
+    config ESP_BOARD_DEV_LCD_TOUCH_SUB_SPI_SUPPORT
+        bool "Device 'lcd_touch' spi sub-type support"
+        help
+            Enable lcd_touch spi sub-type support.
+            This option enables the lcd_touch spi sub-type driver.
+
+endif
+
 config ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT
     bool "Device 'lcd_touch_i2c' support"
     help
         Enable lcd_touch_i2c device support.
         This option enables the lcd_touch_i2c device driver.
         The driver is located at: devices/dev_lcd_touch_i2c
+
+config ESP_BOARD_DEV_LED_STRIP_SUPPORT
+    bool "Device 'led_strip' support"
+    help
+        Enable led_strip device support.
+        This option enables the led_strip device driver.
+        The driver is located at: devices/dev_led_strip
+
+if ESP_BOARD_DEV_LED_STRIP_SUPPORT
+
+    config ESP_BOARD_DEV_LED_STRIP_SUB_RMT_SUPPORT
+        bool "Device 'led_strip' rmt sub-type support"
+        help
+            Enable led_strip rmt sub-type support.
+            This option enables the led_strip rmt sub-type driver.
+
+    config ESP_BOARD_DEV_LED_STRIP_SUB_SPI_SUPPORT
+        bool "Device 'led_strip' spi sub-type support"
+        help
+            Enable led_strip spi sub-type support.
+            This option enables the led_strip spi sub-type driver.
+
+endif
 
 config ESP_BOARD_DEV_LEDC_CTRL_SUPPORT
     bool "Device 'ledc_ctrl' support"
