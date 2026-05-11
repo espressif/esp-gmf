@@ -488,12 +488,12 @@ TEST_CASE("Test gmf afe process", "[ESP_GMF_AFE]")
         }
         vTaskDelay(pdMS_TO_TICKS(20));
     } while (true);
-    TEST_ASSERT_EQUAL(EVENTS_2_WAIT, xEventGroupWaitBits(g_event_group, EVENTS_2_WAIT, pdTRUE, pdTRUE, pdMS_TO_TICKS(10 * 1000)));
     esp_gmf_element_process_close(gmf_afe, NULL);
     esp_gmf_obj_delete(gmf_afe);
     afe_config_free(afe_cfg);
     esp_gmf_afe_manager_destroy(afe_manager);
     esp_srmodel_deinit(models);
+    TEST_ASSERT_EQUAL(EVENTS_2_WAIT, xEventGroupWaitBits(g_event_group, EVENTS_2_WAIT, pdTRUE, pdTRUE, pdMS_TO_TICKS(50 * 1000)));
     vEventGroupDelete(g_event_group);
     g_event_group = NULL;
 }

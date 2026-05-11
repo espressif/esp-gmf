@@ -1,4 +1,4 @@
-version: "0.8.3"
+version: "0.8.4"
 description: Espressif GMF Video Elements Module
 url: https://github.com/espressif/esp-gmf/tree/main/elements/gmf_video
 documentation: "https://github.com/espressif/esp-gmf/blob/main/elements/gmf_video/README.md"
@@ -11,7 +11,7 @@ dependencies:
   espressif/esp_video_codec: "~0.5.2"
   espressif/esp_image_effects:
     require: public
-    version: "~1.0.0"
+    version: "~1.1.0"
   espressif/gmf_core:
     version: "^0.8"
     require: public

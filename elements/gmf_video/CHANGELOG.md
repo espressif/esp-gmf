@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.4
+
+### Features
+
+- Updated `esp_image_effects` dependency to `~1.1.0`
+
 ## v0.8.3
 
 ### Bug Fixes

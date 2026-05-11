@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.3
+
+### Features
+
+- Updated `esp_audio_effects` dependency to `~1.3`
+
 ## v0.8.2
 
 ### Features
