@@ -84,7 +84,7 @@ static uint32_t get_v4l2_type(esp_capture_format_id_t codec)
         case ESP_CAPTURE_FMT_ID_O_UYY_E_VYY:
             return V4L2_PIX_FMT_YUV420;
         case ESP_CAPTURE_FMT_ID_MJPEG:
-            return V4L2_PIX_FMT_MJPEG;
+            return V4L2_PIX_FMT_JPEG;
         case ESP_CAPTURE_FMT_ID_RGB565:
             return V4L2_PIX_FMT_RGB565;
         case ESP_CAPTURE_FMT_ID_RGB565_BE:
@@ -110,9 +110,13 @@ static esp_capture_err_t v4l2_open(esp_capture_video_src_if_t *src)
 {
     v4l2_src_t *v4l2 = (v4l2_src_t *)src;
     do {
+        if (v4l2->fd >= 0) {
+            // Allow pre-open when negotiate
+            return ESP_CAPTURE_ERR_OK;
+        }
         struct v4l2_capability capability;
         v4l2->fd = open(v4l2->dev_name, O_RDONLY);
-        if (v4l2->fd <= 0) {
+        if (v4l2->fd < 0) {
             ESP_LOGE(TAG, "Fail to open device");
             return ESP_FAIL;
         }
@@ -315,7 +319,7 @@ static esp_capture_err_t v4l2_negotiate_caps(esp_capture_video_src_if_t *src, es
     v4l2->need_rgb565_convert = false;
     do {
         if (v4l2->use_fixed_caps) {
-            if (in_cap->format_id != v4l2->nego_result.format_id && (in_cap->format_id != ESP_CAPTURE_FMT_ID_ANY)) {
+            if (in_cap->format_id != v4l2->fixed_info.format_id && (in_cap->format_id != ESP_CAPTURE_FMT_ID_ANY)) {
                 return ESP_CAPTURE_ERR_NOT_SUPPORTED;
             }
             v4l2_try_negotiate(v4l2, &v4l2->fixed_info, out_caps);
@@ -531,10 +535,10 @@ static esp_capture_err_t v4l2_close(esp_capture_video_src_if_t *src)
     if (v4l2 == NULL) {
         return ESP_CAPTURE_ERR_INVALID_ARG;
     }
-    if (v4l2->fd > 0) {
+    if (v4l2->fd >= 0) {
         close(v4l2->fd);
     }
-    v4l2->fd = 0;
+    v4l2->fd = -1;
     return ESP_CAPTURE_ERR_OK;
 }
 
@@ -558,6 +562,7 @@ esp_capture_video_src_if_t *esp_capture_new_video_v4l2_src(esp_capture_video_v4l
     v4l2->base.close = v4l2_close;
     strncpy(v4l2->dev_name, cfg->dev_name, sizeof(v4l2->dev_name));
     v4l2->buf_count = (cfg->buf_count > MAX_BUFS ? MAX_BUFS : cfg->buf_count);
+    v4l2->fd = -1;
     return &v4l2->base;
 }
 

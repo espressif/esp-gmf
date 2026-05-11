@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.2
+
+### Features
+
+- Update dependency `esp-sr` to v2.4
+
+### Bug Fixes
+
+- Fixed `v4l2_src` fixed negotiate may fail use un-saved results
+- Fixed `esp_capture_sink_enable_muxer` wrong return value if not started yet
+- Fixed `v4l2_src` fd leakage if open multiple times
+
 ## v0.8.1
 
 ### Features
