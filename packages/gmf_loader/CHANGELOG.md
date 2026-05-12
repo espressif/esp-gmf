@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.2
+
+### Features
+
+- Added `G722` encoder/decoder and `OGG` decoder configuration support in `gmf_loader_setup_audio_codec`
+
 ## v0.8.1
 
 ### Features

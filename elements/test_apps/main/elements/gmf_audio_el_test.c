@@ -776,7 +776,7 @@ TEST_CASE("Audio ENCODER Element Test", "[ESP_GMF_AUDIO]")
     audio_el_res_init(&cfg, &res);
     res->config_func = encoder_config_callback;
     // Test encoder with different types
-    uint32_t enc_types[] = {ESP_AUDIO_TYPE_AAC, ESP_AUDIO_TYPE_LC3, ESP_AUDIO_TYPE_OPUS,
+    uint32_t enc_types[] = {ESP_AUDIO_TYPE_G722, ESP_AUDIO_TYPE_AAC, ESP_AUDIO_TYPE_LC3, ESP_AUDIO_TYPE_OPUS,
                             ESP_AUDIO_TYPE_SBC, ESP_AUDIO_TYPE_AMRWB, ESP_AUDIO_TYPE_AMRNB,
                             ESP_AUDIO_TYPE_PCM, ESP_AUDIO_TYPE_ADPCM, ESP_AUDIO_TYPE_G711A,
                             ESP_AUDIO_TYPE_G711U};
@@ -795,6 +795,10 @@ TEST_CASE("Audio ENCODER Element Test", "[ESP_GMF_AUDIO]")
                 res->in_inst[0].src_info.channels = 1;
                 res->in_inst[0].src_info.sample_rates = 16000;
                 res->in_inst[0].src_info.bitrate = 23050;
+            } else if (enc_types[i] == ESP_AUDIO_TYPE_G722) {
+                res->in_inst[0].src_info.channels = 1;
+                res->in_inst[0].src_info.sample_rates = 16000;
+                res->in_inst[0].src_info.bitrate = 64000;
             }
             res->in_inst[0].src_size = test_sizes[j];
             test_element_run_stop(res);
@@ -813,6 +817,10 @@ TEST_CASE("Audio ENCODER Element Test", "[ESP_GMF_AUDIO]")
                 res->in_inst[0].src_info.channels = 1;
                 res->in_inst[0].src_info.sample_rates = 16000;
                 res->in_inst[0].src_info.bitrate = 23050;
+            } else if (enc_types[i] == ESP_AUDIO_TYPE_G722) {
+                res->in_inst[0].src_info.channels = 1;
+                res->in_inst[0].src_info.sample_rates = 16000;
+                res->in_inst[0].src_info.bitrate = 64000;
             }
             res->in_inst[0].src_size = test_sizes[j];
             test_element_run_finish(res);
@@ -830,6 +838,10 @@ TEST_CASE("Audio ENCODER Element Test", "[ESP_GMF_AUDIO]")
             res->in_inst[0].src_info.channels = 1;
             res->in_inst[0].src_info.sample_rates = 16000;
             res->in_inst[0].src_info.bitrate = 23050;
+        } else if (enc_types[i] == ESP_AUDIO_TYPE_G722) {
+            res->in_inst[0].src_info.channels = 1;
+            res->in_inst[0].src_info.sample_rates = 16000;
+            res->in_inst[0].src_info.bitrate = 64000;
         }
         test_element_reopen_parameter_persistence(res);
     }

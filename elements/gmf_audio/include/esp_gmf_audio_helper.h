@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
  * See LICENSE file for details.
@@ -26,7 +26,8 @@ static const int esp_gmf_audio_containers[] = {
     ESP_FOURCC_AMRWB,
     ESP_FOURCC_WAV,
     ESP_FOURCC_M4A,
-    ESP_FOURCC_M2TS,
+    ESP_FOURCC_TS,
+    ESP_FOURCC_OGG,
 };
 
 /**

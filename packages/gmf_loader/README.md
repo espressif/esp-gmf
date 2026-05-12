@@ -23,8 +23,8 @@ The GMF Loader is a helper component that allows users to easily customize their
     - HTTP Writer
 
 - Audio codec initialization support:
-  - Decoders: MP3, AAC, AMR-NB/WB, FLAC, WAV, M4A, TS, OPUS, G711, PCM, ADPCM, LC3, SBC，ALAC、VORBIS
-  - Encoders: AAC, AMR-NB/WB, G711, OPUS, ADPCM, PCM, ALAC, LC3, SBC
+  - Decoders: MP3, AAC, AMR-NB/WB, FLAC, WAV, M4A, TS, OGG, OPUS, G711, PCM, ADPCM, LC3, SBC, ALAC, VORBIS, G722
+  - Encoders: AAC, AMR-NB/WB, G711, OPUS, ADPCM, PCM, ALAC, LC3, SBC, G722
 
 - Audio effects configuration:
   - Automatic Level Control (ALC)

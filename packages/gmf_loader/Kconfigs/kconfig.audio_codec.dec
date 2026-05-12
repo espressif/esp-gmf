@@ -35,6 +35,9 @@ config GMF_AUDIO_CODEC_INIT_DECODER
         config GMF_AUDIO_CODEC_DECODER_TYPE_TS
             bool "TS Decoder"
             depends on AUDIO_SIMPLE_DEC_TS_SUPPORT
+        config GMF_AUDIO_CODEC_DECODER_TYPE_OGG
+            bool "OGG Decoder"
+            depends on AUDIO_SIMPLE_DEC_OGG_SUPPORT
         config GMF_AUDIO_CODEC_DECODER_TYPE_RAW_OPUS
             bool "Raw Opus Decoder"
             depends on AUDIO_DECODER_OPUS_SUPPORT
@@ -62,6 +65,9 @@ config GMF_AUDIO_CODEC_INIT_DECODER
         config GMF_AUDIO_CODEC_DECODER_TYPE_ALAC
             bool "ALAC Decoder"
             depends on AUDIO_DECODER_ALAC_SUPPORT
+        config GMF_AUDIO_CODEC_DECODER_TYPE_G722
+            bool "G722 Decoder"
+            depends on AUDIO_DECODER_G722_SUPPORT
     endchoice
 
     config GMF_AUDIO_CODEC_DEC_USE_FRAME_DEC
@@ -400,4 +406,55 @@ config GMF_AUDIO_CODEC_INIT_DECODER
             default y
             help
                 Enable Packet Loss Concealment (PLC) for the LC3 decoder.
+    endmenu
+
+    menu "G722 Decoder Configuration"
+        depends on GMF_AUDIO_CODEC_DECODER_TYPE_G722
+
+        choice
+            prompt "G722 Decoder Sample Rate"
+            default GMF_AUDIO_CODEC_DEC_G722_SAMPLE_RATE_16K
+            help
+                Configure the output PCM sample rate for the G722 decoder.
+
+            config GMF_AUDIO_CODEC_DEC_G722_SAMPLE_RATE_8K
+                bool "8 kHz"
+
+            config GMF_AUDIO_CODEC_DEC_G722_SAMPLE_RATE_16K
+                bool "16 kHz"
+        endchoice
+
+        config GMF_AUDIO_CODEC_DEC_G722_SAMPLE_RATE
+            int
+            default 8000 if GMF_AUDIO_CODEC_DEC_G722_SAMPLE_RATE_8K
+            default 16000 if GMF_AUDIO_CODEC_DEC_G722_SAMPLE_RATE_16K
+
+        choice
+            prompt "G722 Decoder Bitrate"
+            default GMF_AUDIO_CODEC_DEC_G722_BITRATE_64K
+            help
+                Configure expected input bitrate for the G722 decoder.
+
+            config GMF_AUDIO_CODEC_DEC_G722_BITRATE_48K
+                bool "48 Kbps"
+
+            config GMF_AUDIO_CODEC_DEC_G722_BITRATE_56K
+                bool "56 Kbps"
+
+            config GMF_AUDIO_CODEC_DEC_G722_BITRATE_64K
+                bool "64 Kbps"
+        endchoice
+
+        config GMF_AUDIO_CODEC_DEC_G722_BITRATE
+            int
+            default 48000 if GMF_AUDIO_CODEC_DEC_G722_BITRATE_48K
+            default 56000 if GMF_AUDIO_CODEC_DEC_G722_BITRATE_56K
+            default 64000 if GMF_AUDIO_CODEC_DEC_G722_BITRATE_64K
+
+        config GMF_AUDIO_CODEC_DEC_G722_PACKED
+            bool "G722 Decoder Packed Input"
+            default y
+            help
+                Enable if input data uses packed 6/7-bit codewords.
+                Disable when input is unpacked 8-bit codewords.
     endmenu

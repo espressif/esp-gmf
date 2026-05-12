@@ -9,10 +9,15 @@
 
 #include <stdint.h>
 
-#define ESP_FOURCC_VERSION ("v1.0.2")
+#define ESP_FOURCC_VERSION ("v1.0.3")
 
 /**
 # Changelog
+## [v1.0.3]
+    - Fixed incorrect fourcc codes for ESP_FOURCC_TS and ESP_FOURCC_FLV
+    - Added container formats: ESP_FOURCC_M2TS, ESP_FOURCC_CAF
+    - Added audio codec: ESP_FOURCC_G722
+
 ## [v1.0.2]
     - Added VUY444 packed pixel format
 
@@ -64,6 +69,8 @@ static inline void gmf_fourcc_to_str(uint32_t fourcc, char out[5]) {
 #define ESP_FOURCC_AVI              ESP_FOURCC_TO_INT('A', 'V', 'I', ' ') /* Audio Video Interleave */
 #define ESP_FOURCC_OGG              ESP_FOURCC_TO_INT('O', 'G', 'G', ' ') /* Ogg container */
 #define ESP_FOURCC_WEBM             ESP_FOURCC_TO_INT('W', 'E', 'B', 'M') /* WebM container */
+#define ESP_FOURCC_CAF              ESP_FOURCC_TO_INT('C', 'A', 'F', ' ') /* Core Audio Format */
+#define ESP_FOURCC_TS               ESP_FOURCC_TO_INT('T', 'S', ' ', ' ') /* MPEG-2 Transport Stream */
 
 
 /***************************************************************/
@@ -100,6 +107,7 @@ static inline void gmf_fourcc_to_str(uint32_t fourcc, char out[5]) {
 #define ESP_FOURCC_OPUS             ESP_FOURCC_TO_INT('O', 'P', 'U', 'S') /* Raw Opus */
 #define ESP_FOURCC_SPEEX            ESP_FOURCC_TO_INT('S', 'P', 'E', 'X') /* Speex Audio */
 #define ESP_FOURCC_PCM              ESP_FOURCC_TO_INT('P', 'C', 'M', ' ') /* PCM Audio Type*/
+#define ESP_FOURCC_G722             ESP_FOURCC_TO_INT('G', '7', '2', '2') /* G.722 Audio Type*/
 
 
 /***************************************************************/
