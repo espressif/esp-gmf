@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.3
+
+### Features
+
+- Added `esp32s31` target support in `Kconfigs/kconfig.ai_audio` for AEC, WN and AFE elements
+- Updated `esp-dsp` to `~1.8.0` in `test_apps`
+
 ## v0.8.2
 
 ### Features

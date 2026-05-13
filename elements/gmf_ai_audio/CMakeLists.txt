@@ -1,4 +1,7 @@
-if((${IDF_TARGET} STREQUAL "esp32s3") OR (${IDF_TARGET} STREQUAL "esp32p4") OR (${IDF_TARGET} STREQUAL "esp32") OR (${IDF_TARGET} STREQUAL "esp32c3") OR (${IDF_TARGET} STREQUAL "esp32c5") OR (${IDF_TARGET} STREQUAL "esp32c6") OR  (${IDF_TARGET} STREQUAL "esp32s2"))
+set(GMF_AI_AUDIO_SUPPORTED_TARGETS
+    esp32 esp32c3 esp32c5 esp32c6 esp32p4 esp32s2 esp32s3 esp32s31
+)
+if(IDF_TARGET IN_LIST GMF_AI_AUDIO_SUPPORTED_TARGETS)
     set(srcs "./src/esp_gmf_wn.c" "./src/esp_gmf_aec.c" "./src/esp_gmf_afe_manager.c" "./src/esp_gmf_afe.c")
 
     idf_component_register(
