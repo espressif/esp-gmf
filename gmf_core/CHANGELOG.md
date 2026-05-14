@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.3
+
+### Bug Fixes
+
+- Fixed resource leak in `esp_gmf_io_open` when `io->open()` fails, now properly cleans up task, event group and data bus
+
 ## v0.8.2
 
 ### Features

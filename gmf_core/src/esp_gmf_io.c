@@ -338,7 +338,22 @@ esp_gmf_err_t esp_gmf_io_open(esp_gmf_io_handle_t handle)
                  io_cfg == NULL ? -1 : io_cfg->thread.stack, io->task_hd, OBJ_GET_TAG(io->task_hd));
     }
     ret = io->open(io);
-    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "esp_gmf_io_open failed");
+    if (ret != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "esp_gmf_io_open failed");
+        if (io->task_hd) {
+            esp_gmf_task_deinit(io->task_hd);
+            io->task_hd = NULL;
+        }
+        if (io->evt_group) {
+            vEventGroupDelete((EventGroupHandle_t)io->evt_group);
+            io->evt_group = NULL;
+        }
+        if (io->data_bus) {
+            esp_gmf_db_deinit(io->data_bus);
+            io->data_bus = NULL;
+        }
+        return ret;
+    }
     if (io->task_hd) {
         ret = esp_gmf_task_run(io->task_hd);
     }
