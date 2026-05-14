@@ -9,6 +9,7 @@
 #include "esp_heap_caps.h"
 #include "esp_audio_enc_default.h"
 #include "esp_video_enc_default.h"
+#include "esp_video_dec_default.h"
 #include "ts_muxer.h"
 #include "mp4_muxer.h"
 #include "esp_capture.h"
@@ -181,6 +182,11 @@ TEST_CASE("Template video only capture for dual path", "[esp_capture]")
     TEST_ESP_OK(advance_video_only_path_test(1000, true));
 }
 
+TEST_CASE("Capture decode paths (MJPEG ref, all cases)", "[esp_capture]")
+{
+    TEST_ESP_OK(test_capture_with_decode_all());
+}
+
 TEST_CASE("Auto AV capture for one path", "[esp_capture]")
 {
     TEST_ESP_OK(auto_av_path_test(1000, false));
@@ -284,6 +290,7 @@ void app_main(void)
     // Register audio and video codecs
     esp_audio_enc_register_default();
     esp_video_enc_register_default();
+    esp_video_dec_register_default();
     // Register for muxer
     ts_muxer_register();
     mp4_muxer_register();

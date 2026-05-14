@@ -50,6 +50,8 @@ int dynamic_enable_muxer_after_start(int timeout, bool dual_path);
 
 int dynamic_setup_after_start(int timeout, bool dual_path);
 
+int test_capture_with_decode_all(void);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

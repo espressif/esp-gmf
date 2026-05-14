@@ -8,6 +8,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "esp_idf_version.h"
 
 #include "esp_log.h"
 #include "esp_gmf_oal_mem.h"
@@ -50,7 +51,11 @@ esp_gmf_err_t esp_gmf_oal_thread_create(esp_gmf_oal_thread_t *p_handle, const ch
 esp_gmf_err_t esp_gmf_oal_thread_delete(esp_gmf_oal_thread_t p_handle)
 {
     TaskHandle_t task_handle = (TaskHandle_t) p_handle;
+#if (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0))
     uint8_t *task_stack = pxTaskGetStackStart(task_handle);
+#else
+    uint8_t *task_stack = xTaskGetStackStart(task_handle);
+#endif
     ESP_GMF_NULL_CHECK(TAG, task_stack, return ESP_GMF_ERR_INVALID_ARG);
     if (esp_ptr_internal(task_stack) == false) {
         vTaskDeleteWithCaps(task_handle);

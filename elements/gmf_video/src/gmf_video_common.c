@@ -33,6 +33,12 @@ const char *esp_gmf_video_get_format_string(uint32_t codec)
             return "yuv422p";
         case ESP_FOURCC_YUYV:
             return "yuv422";
+        case ESP_FOURCC_YVYU:
+            return "yvyu";
+        case ESP_FOURCC_UYVY:
+            return "uyvy";
+        case ESP_FOURCC_VYUY:
+            return "vyuy";
         case ESP_FOURCC_OUYY_EVYY:
             return "o_uyy_e_vyy";
         default:

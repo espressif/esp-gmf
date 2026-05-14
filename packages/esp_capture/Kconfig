@@ -12,6 +12,11 @@ menu "Espressif Capture Configuration"
         default y
         depends on ESP_CAPTURE_ENABLE_VIDEO
 
+    config ESP_CAPTURE_ENABLE_VIDEO_DECODER
+        bool "Enable Video Decoder for Capture"
+        default n
+        depends on ESP_CAPTURE_ENABLE_VIDEO
+
     config ESP_CAPTURE_ENABLE_PERF_MON
         bool "Enable Performance Monitor for Capture"
         default n

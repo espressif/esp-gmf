@@ -7,7 +7,7 @@
 
 #include <sdkconfig.h>
 #include <string.h>
-#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
 #include "esp_capture_types.h"
 #include "esp_capture_audio_src_if.h"
 #include "esp_capture_defaults.h"

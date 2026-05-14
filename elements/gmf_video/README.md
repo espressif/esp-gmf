@@ -57,7 +57,7 @@ The Video Overlay Mixer module allows users to overlay additional graphics onto 
 Following elements are wrapped for [Video Pixel Processor](https://github.com/espressif/esp-adf-libs/tree/master/esp_image_effects) which implemented software video processing.
 
 #### Video Color Converter
-Element to do software color conversion for video image
+Element to do software color conversion for video image. Supported input/output pairs follow the **IMAGE COLOR CONVERT** matrix in the [`esp_image_effects`](https://components.espressif.com/components/espressif/esp_image_effects) component README (same rules apply when `vid_ppa` uses `esp_imgfx_color_convert_*` for software-wrapped paths).
 
 #### Video Cropper
 Element to do software video cropper for video image

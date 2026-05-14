@@ -37,18 +37,18 @@ static int build_audio_capture(audio_capture_sys_t *capture_sys, bool with_aec)
     // record_handle can be either get from esp_bsp by API `bsp_audio_codec_speaker_init` or use simple `codec_board` API
     if (with_aec) {
         // Test AEC source on esp32s3 and esp32p4
-#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
         esp_capture_audio_aec_src_cfg_t aec_cfg = {
             .record_handle = codec_handle->codec_dev,
-#if CONFIG_IDF_TARGET_ESP32S3
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S31
             .channel = 4,
             .channel_mask = 1 | 2,
-#endif  /* CONFIG_IDF_TARGET_ESP32S3 */
+#endif  /* CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32S31 */
         };
         capture_sys->aud_src = esp_capture_new_audio_aec_src(&aec_cfg);
 #else
         with_aec = false;
-#endif  /* CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4 */
+#endif  /* CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
     }
     if (with_aec == false) {
         esp_capture_audio_dev_src_cfg_t codec_cfg = {

@@ -13,6 +13,7 @@
 #include "esp_gmf_oal_mem.h"
 #include "esp_gmf_oal_sys.h"
 #include "esp_memory_utils.h"
+#include "esp_idf_version.h"
 
 static const char *TAG = "ESP_GMF_OAL_SYS";
 
@@ -20,6 +21,12 @@ static const char *TAG = "ESP_GMF_OAL_SYS";
 
 #ifndef configRUN_TIME_COUNTER_TYPE
 #define configRUN_TIME_COUNTER_TYPE uint32_t
+#endif
+
+#if (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0))
+#define get_stack_start pxTaskGetStackStart
+#else
+#define get_stack_start xTaskGetStackStart
 #endif
 
 const char *task_state[] = {
@@ -146,7 +153,7 @@ esp_gmf_err_t esp_gmf_oal_sys_get_real_time_stats(int elapsed_time_ms, bool mark
                 cur->uxCurrentPriority,
                 (int)cur->usStackHighWaterMark,
                 task_state[(cur->eCurrentState)],
-                task_stack[esp_ptr_internal(pxTaskGetStackStart(cur->xHandle))]);
+                task_stack[esp_ptr_internal(get_stack_start(cur->xHandle))]);
         } else {
             ESP_LOGI("", "│ %-17s │ %-8x │ %-11d │ %6.2f%% │ %-8u │ %-9u │ %-10s │ %-5s │",
                 cur->pcTaskName,
@@ -156,7 +163,7 @@ esp_gmf_err_t esp_gmf_oal_sys_get_real_time_stats(int elapsed_time_ms, bool mark
                 cur->uxCurrentPriority,
                 (int)cur->usStackHighWaterMark,
                 task_state[(cur->eCurrentState)],
-                task_stack[esp_ptr_internal(pxTaskGetStackStart(cur->xHandle))]);
+                task_stack[esp_ptr_internal(get_stack_start(cur->xHandle))]);
         }
     }
     if (markdown == false) {

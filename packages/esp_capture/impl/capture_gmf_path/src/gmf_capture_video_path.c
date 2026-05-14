@@ -193,13 +193,13 @@ static esp_gmf_err_io_t video_sink_acquire(void *handle, esp_gmf_payload_t *load
             .size = load->valid_size,
         };
         int ret = gmf_capture_path_mngr_frame_reached(&res->base, &vid_frame);
-        return ret == ESP_CAPTURE_ERR_OK ? ESP_GMF_IO_OK : ESP_GMF_IO_FAIL;
+        return ret == ESP_CAPTURE_ERR_OK ? ESP_GMF_IO_OK : ESP_GMF_IO_ABORT;
     }
     data_q_t *q = res->video_q;
     int size = sizeof(esp_capture_stream_frame_t) + wanted_size + VIDEO_ENC_OUT_ALIGNMENT;
     esp_capture_stream_frame_t *vid_frame = (esp_capture_stream_frame_t *)data_q_get_buffer(q, size);
     if (vid_frame == NULL) {
-        return ESP_GMF_IO_FAIL;
+        return ESP_GMF_IO_ABORT;
     }
     vid_frame->stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO;
     vid_frame->data = ((void *)vid_frame) + sizeof(esp_capture_stream_frame_t);
@@ -334,7 +334,7 @@ static esp_gmf_err_io_t overlay_acquire(void *handle, esp_gmf_payload_t *load, u
     } else {
         ESP_LOGE(TAG, "Fail to acquire overlay ret %d", ret);
     }
-    return ret >= 0 ? ESP_GMF_IO_OK : ESP_GMF_IO_FAIL;
+    return ret >= 0 ? ESP_GMF_IO_OK : ESP_GMF_IO_ABORT;
 }
 
 static esp_gmf_err_io_t overlay_release(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)

@@ -75,6 +75,7 @@ static esp_gmf_err_io_t in_acquire_fb(void *handle, esp_gmf_payload_t *load, uin
         // Force to be done if receive failed
         load->is_done = true;
         load->valid_size = 0;
+        return ESP_GMF_IO_ABORT;
     }
     return ESP_GMF_IO_OK;
 }
