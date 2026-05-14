@@ -44,6 +44,30 @@ typedef void *esp_gmf_block_handle_t;
 esp_gmf_err_t esp_gmf_block_create(int block_size, int block_cnt, esp_gmf_block_handle_t *handle);
 
 /**
+ * @brief  Reallocate the contiguous backing buffer so its base address meets the requested alignment
+ *
+ * @note  Call after @ref esp_gmf_block_create and before any data transfer via `esp_gmf_block_acquire_read` or
+ *        `esp_gmf_block_acquire_write`. This API frees the existing backing store first, then allocates a new
+ *        zero-filled region (reduces peak heap versus alloc-then-free). If any payload remains in the ring
+ *        (`fill_size` != 0), the call fails so callers do not lose data silently.
+ *
+ * @param[in]  handle      Block buffer handle from @ref esp_gmf_block_create
+ * @param[in]  addr_align  Byte alignment for the backing store base: use `1` for legacy `calloc` allocation;
+ *                         use `0` to substitute `esp_gmf_oal_get_spiram_cache_align()`; values greater than `1`
+ *                         must be a power of two and select aligned heap allocation.
+ * @param[in]  size_align  Rounds the backing store byte length up to a multiple of this value. Use `0` or `1` for no
+ *                         length rounding; values greater than `1` must be a power of two.
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK             On success
+ *       - ESP_GMF_ERR_INVALID_ARG    If handle is NULL or alignment is invalid after resolution
+ *       - ESP_GMF_ERR_INVALID_STATE  If the buffer is not idle (contains in-flight data)
+ *       - ESP_GMF_ERR_MEMORY_LACK    If reallocation fails after the old backing store was freed; the handle has no
+ *                                    buffer — call @ref esp_gmf_block_destroy only, do not use acquire APIs
+ */
+esp_gmf_err_t esp_gmf_block_set_align(esp_gmf_block_handle_t handle, uint8_t addr_align, uint8_t size_align);
+
+/**
  * @brief  Cleanup and free all memory created by esp_gmf_block_create
  *
  * @param[in]  handle  The block handle

@@ -208,7 +208,8 @@ esp_gmf_err_io_t esp_gmf_port_acquire_in(esp_gmf_port_handle_t handle, esp_gmf_p
         }
         if ((port->attr.type == ESP_GMF_PORT_TYPE_BYTE) && ((*load)->buf_length < wanted_size)) {
             // Check whether the buffer length is sufficient for use; if not, reallocate it.
-            ret = esp_gmf_payload_realloc_aligned_buf(*load, port->attr.buf_addr_aligned, wanted_size);
+            ret = esp_gmf_payload_realloc_buffer_with_separate_alignment(*load, port->attr.buf_addr_aligned,
+                                                                         port->attr.buf_size_aligned, wanted_size);
             ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_IO_FAIL, "ACQ IN, reallocate payload buffer failed, ret:%d, %s, p:%p, new_sz:%ld",
                                  ret, __func__, port, wanted_size);
         }
@@ -295,7 +296,8 @@ esp_gmf_err_io_t esp_gmf_port_acquire_out(esp_gmf_port_handle_t handle, esp_gmf_
     }
     if (el && port->reader) {
         if ((*load)->buf_length < wanted_size) {
-            ret = esp_gmf_payload_realloc_aligned_buf(*load, port->attr.buf_addr_aligned, wanted_size);
+            ret = esp_gmf_payload_realloc_buffer_with_separate_alignment(*load, port->attr.buf_addr_aligned,
+                                                                         port->attr.buf_size_aligned, wanted_size);
             ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_IO_FAIL, "ACQ OUT, SET NEXT, reallocate payload buffer failed, el:%s, p:%p, sz:%d, new_sz:%ld",
                                  OBJ_GET_TAG(el), port, port->data_length, wanted_size);
         }
@@ -324,7 +326,8 @@ esp_gmf_err_io_t esp_gmf_port_acquire_out(esp_gmf_port_handle_t handle, esp_gmf_
         port->payload = *load;
         if (port->attr.type == ESP_GMF_PORT_TYPE_BYTE) {
             if ((*load)->buf_length < wanted_size) {
-                ret = esp_gmf_payload_realloc_aligned_buf(*load, port->attr.buf_addr_aligned, wanted_size);
+                ret = esp_gmf_payload_realloc_buffer_with_separate_alignment(*load, port->attr.buf_addr_aligned,
+                                                                             port->attr.buf_size_aligned, wanted_size);
             }
             ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_IO_FAIL, "ACQ OUT, reallocate payload buffer failed, el:%s, p:%p, ld:%p, sz:%d, new_sz:%ld",
                                  OBJ_GET_TAG(el), port, *load, port->data_length, wanted_size);

@@ -43,6 +43,22 @@ typedef void *esp_gmf_pbuf_handle_t;
 esp_gmf_err_t esp_gmf_pbuf_create(int capacity, esp_gmf_pbuf_handle_t *handle);
 
 /**
+ * @brief  Set default alignment for payload buffers allocated on `esp_gmf_pbuf_acquire_write`
+ *
+ * @note  Call before any payload allocation through `esp_gmf_pbuf_acquire_write`. Use `align` 0 to apply the internal default alignment (16 bytes).
+ *        Values greater than 1 must be a power of two.
+ *
+ * @param[in]  handle      Pointer buffer handle
+ * @param[in]  addr_align  Byte alignment for new or grown payloads (`0` applies internal default, typically 16)
+ * @param[in]  size_align  Rounds payload allocation length up to a multiple (`0` or `1` for no length rounding)
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  If handle is NULL or alignment is invalid
+ */
+esp_gmf_err_t esp_gmf_pbuf_set_align(esp_gmf_pbuf_handle_t handle, uint8_t addr_align, uint8_t size_align);
+
+/**
  * @brief  Destroy a pointer buffer and release all associated resources
  *
  * @param[in]  handle  Handle to the pointer buffer to be destroyed

@@ -133,12 +133,70 @@ esp_gmf_err_t esp_gmf_block_create(int block_size, int block_cnt, esp_gmf_block_
     blk->_is_write_done = 0;
     blk->_is_abort = 0;
     *handle = blk;
-    ESP_LOGI(TAG, "The block buf:%p, end:%p", blk->buf, blk->buf_end);
     return ESP_GMF_ERR_OK;
 
 esp_gmf_blk_err:
     _block_handle_free(blk);
     return ret;
+}
+
+esp_gmf_err_t esp_gmf_block_set_align(esp_gmf_block_handle_t handle, uint8_t addr_align, uint8_t size_align)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    uint8_t resolved_addr = addr_align ? addr_align : esp_gmf_oal_get_spiram_cache_align();
+    uint8_t resolved_size = (size_align == 0 || size_align == 1) ? 1 : size_align;
+    if (!ESP_GMF_OAL_ALIGN_BYTES_VALID(resolved_addr)) {
+        ESP_LOGE(TAG, "Invalid addr_align:%u", (unsigned)addr_align);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    if (!ESP_GMF_OAL_ALIGN_BYTES_VALID(resolved_size)) {
+        ESP_LOGE(TAG, "Invalid size_align:%u", (unsigned)size_align);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+
+    esp_gmf_block_t *hd = (esp_gmf_block_t *)handle;
+    esp_gmf_oal_mutex_lock(hd->lock);
+    if (hd->fill_size != 0) {
+        esp_gmf_oal_mutex_unlock(hd->lock);
+        ESP_LOGE(TAG, "Set align failed: buffer not idle");
+        return ESP_GMF_ERR_INVALID_STATE;
+    }
+
+    size_t alloc_total = (size_t)ESP_GMF_OAL_ALIGN_UP((size_t)hd->total_size, (size_t)resolved_size);
+    if (hd->buf) {
+        esp_gmf_oal_free(hd->buf);
+        hd->buf = NULL;
+    }
+
+    uint8_t *new_buf = NULL;
+    if (resolved_addr <= 1) {
+        new_buf = (uint8_t *)esp_gmf_oal_calloc(1, alloc_total);
+    } else {
+        new_buf = (uint8_t *)esp_gmf_oal_malloc_align(resolved_addr, alloc_total);
+        if (new_buf) {
+            memset(new_buf, 0, alloc_total);
+        }
+    }
+    if (!new_buf) {
+        hd->buf_end = NULL;
+        hd->p_rd = NULL;
+        hd->p_wr = NULL;
+        hd->p_wr_end = NULL;
+        esp_gmf_oal_mutex_unlock(hd->lock);
+        ESP_LOGE(TAG, "Set align failed: memory exhausted");
+        return ESP_GMF_ERR_MEMORY_LACK;
+    }
+
+    hd->buf = new_buf;
+    hd->buf_end = new_buf + hd->total_size;
+    hd->p_rd = new_buf;
+    hd->p_wr = new_buf;
+    hd->p_wr_end = new_buf;
+    hd->_is_write_done = 0;
+    hd->_is_abort = 0;
+
+    esp_gmf_oal_mutex_unlock(hd->lock);
+    return ESP_GMF_ERR_OK;
 }
 
 esp_gmf_err_t esp_gmf_block_destroy(esp_gmf_block_handle_t handle)

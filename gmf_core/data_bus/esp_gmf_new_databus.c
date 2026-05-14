@@ -34,13 +34,12 @@ int esp_gmf_db_new_ringbuf(int num, int item_cnt, esp_gmf_db_handle_t *h)
     };
     esp_gmf_data_bus_t *db = NULL;
     if (ESP_GMF_ERR_OK != esp_gmf_db_init(&db_config, (esp_gmf_db_handle_t)&db)) {
-        if (rb) {
-            esp_gmf_rb_destroy(rb);
-        }
+        esp_gmf_rb_destroy(rb);
         return ESP_GMF_ERR_MEMORY_LACK;
     }
     if (db == NULL) {
         ESP_LOGE(TAG, "DATA BUS is NULL");
+        esp_gmf_rb_destroy(rb);
         return ESP_GMF_ERR_FAIL;
     }
     db->op.deinit = esp_gmf_rb_destroy;
@@ -53,6 +52,7 @@ int esp_gmf_db_new_ringbuf(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.reset = esp_gmf_rb_reset;
     db->op.abort = esp_gmf_rb_abort;
     db->op.clear_abort = esp_gmf_rb_clear_abort;
+    db->op.set_align = NULL;
     db->op.get_total_size = esp_gmf_rb_get_size;
     db->op.get_filled_size = esp_gmf_rb_bytes_filled;
     db->op.get_available = esp_gmf_rb_bytes_available;
@@ -76,13 +76,12 @@ int esp_gmf_db_new_block(int num, int item_cnt, esp_gmf_db_handle_t *h)
     };
     esp_gmf_data_bus_t *db = NULL;
     if (ESP_GMF_ERR_OK != esp_gmf_db_init(&db_config, (esp_gmf_db_handle_t)&db)) {
-        if (handle) {
-            esp_gmf_block_destroy(handle);
-        }
+        esp_gmf_block_destroy(handle);
         return ESP_GMF_ERR_MEMORY_LACK;
     }
     if (db == NULL) {
         ESP_LOGE(TAG, "DATA BUS is NULL");
+        esp_gmf_block_destroy(handle);
         return ESP_GMF_ERR_FAIL;
     }
     db->op.deinit = esp_gmf_block_destroy;
@@ -95,6 +94,7 @@ int esp_gmf_db_new_block(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.reset = esp_gmf_block_reset;
     db->op.abort = esp_gmf_block_abort;
     db->op.clear_abort = esp_gmf_block_clear_abort;
+    db->op.set_align = esp_gmf_block_set_align;
     db->op.get_total_size = esp_gmf_block_get_total_size;
     db->op.get_filled_size = esp_gmf_block_get_filled_size;
     db->op.get_available = esp_gmf_block_get_free_size;
@@ -118,13 +118,12 @@ int esp_gmf_db_new_pbuf(int num, int item_cnt, esp_gmf_db_handle_t *h)
     };
     esp_gmf_data_bus_t *db = NULL;
     if (ESP_GMF_ERR_OK != esp_gmf_db_init(&db_config, (esp_gmf_db_handle_t)&db)) {
-        if (handle) {
-            esp_gmf_pbuf_destroy(handle);
-        }
+        esp_gmf_pbuf_destroy(handle);
         return ESP_GMF_ERR_MEMORY_LACK;
     }
     if (db == NULL) {
         ESP_LOGE(TAG, "DATA BUS is NULL");
+        esp_gmf_pbuf_destroy(handle);
         return ESP_GMF_ERR_FAIL;
     }
     db->op.deinit = esp_gmf_pbuf_destroy;
@@ -137,6 +136,7 @@ int esp_gmf_db_new_pbuf(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.reset = esp_gmf_pbuf_reset;
     db->op.abort = esp_gmf_pbuf_abort;
     db->op.clear_abort = esp_gmf_pbuf_clear_abort;
+    db->op.set_align = esp_gmf_pbuf_set_align;
     db->op.get_total_size = NULL;
     db->op.get_filled_size = NULL;
     db->op.get_available = NULL;
@@ -160,13 +160,12 @@ int esp_gmf_db_new_fifo(int num, int item_cnt, esp_gmf_db_handle_t *h)
     };
     esp_gmf_data_bus_t *db = NULL;
     if (ESP_GMF_ERR_OK != esp_gmf_db_init(&db_config, (esp_gmf_db_handle_t)&db)) {
-        if (handle) {
-            esp_gmf_fifo_destroy(handle);
-        }
+        esp_gmf_fifo_destroy(handle);
         return ESP_GMF_ERR_MEMORY_LACK;
     }
     if (db == NULL) {
         ESP_LOGE(TAG, "DATA BUS is NULL");
+        esp_gmf_fifo_destroy(handle);
         return ESP_GMF_ERR_FAIL;
     }
     db->op.deinit = esp_gmf_fifo_destroy;
@@ -179,10 +178,11 @@ int esp_gmf_db_new_fifo(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.reset = esp_gmf_fifo_reset;
     db->op.abort = esp_gmf_fifo_abort;
     db->op.clear_abort = esp_gmf_fifo_clear_abort;
+    db->op.set_align = esp_gmf_fifo_set_align;
     db->op.get_total_size = esp_gmf_fifo_get_total_size;
     db->op.get_filled_size = esp_gmf_fifo_get_filled_size;
     db->op.get_available = esp_gmf_fifo_get_free_size;
-    ESP_LOGI(TAG, "New pbuf, num:%d, item_cnt:%d, db:%p", num, item_cnt, db);
+    ESP_LOGI(TAG, "New fifo, num:%d, item_cnt:%d, db:%p", num, item_cnt, db);
     *h = db;
     return ESP_GMF_ERR_OK;
 }

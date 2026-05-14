@@ -18,6 +18,8 @@
 
 static const char *TAG = "ESP_GMF_PBUF";
 
+#define PBUF_DEFAULT_ALIGNMENT  (16)
+
 #define THREAD_SAFE
 
 #ifdef THREAD_SAFE
@@ -51,7 +53,28 @@ typedef struct _pbuf_ {
     uint32_t     capacity;            /*!< Total capacity of the buffer */
     uint8_t      _is_write_done : 1;  /*!< Flag indicating if writing is complete */
     uint8_t      _is_abort      : 1;  /*!< Flag indicating if an abort operation has been requested */
+    uint8_t      align;               /*!< Base-address alignment for payload allocation */
+    uint8_t      size_align;          /*!< Rounds payload allocation length up to a multiple of this value */
 } esp_gmf_pbuf_t;
+
+static esp_gmf_err_io_t pbuf_alloc_payload_buf(esp_gmf_pbuf_t *pbuf, size_t wanted_size, uint8_t **out_buf)
+{
+    size_t alloc_sz = (size_t)ESP_GMF_OAL_ALIGN_UP(wanted_size, (size_t)pbuf->size_align);
+    uint8_t *buf = NULL;
+    if (pbuf->align <= 1) {
+        buf = (uint8_t *)esp_gmf_oal_calloc(1, alloc_sz);
+    } else {
+        buf = (uint8_t *)esp_gmf_oal_malloc_align(pbuf->align, alloc_sz);
+        if (buf) {
+            memset(buf, 0, alloc_sz);
+        }
+    }
+    if (!buf) {
+        return ESP_GMF_IO_FAIL;
+    }
+    *out_buf = buf;
+    return ESP_GMF_IO_OK;
+}
 
 static inline void _pbuf_handle_free(esp_gmf_pbuf_handle_t handle)
 {
@@ -79,12 +102,33 @@ esp_gmf_err_t esp_gmf_pbuf_create(int capacity, esp_gmf_pbuf_handle_t *handle)
     pbuf->_is_write_done = 0;
     pbuf->_is_abort = 0;
     pbuf->buf_cnt = 0;
+    pbuf->align = 1;
+    pbuf->size_align = 1;
     *handle = pbuf;
     return ESP_GMF_ERR_OK;
 
 esp_gmf_pbuf_err:
     _pbuf_handle_free(pbuf);
     return ret;
+}
+
+esp_gmf_err_t esp_gmf_pbuf_set_align(esp_gmf_pbuf_handle_t handle, uint8_t addr_align, uint8_t size_align)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_pbuf_t *pbuf = (esp_gmf_pbuf_t *)handle;
+    uint8_t res_addr = (addr_align == 0) ? PBUF_DEFAULT_ALIGNMENT : addr_align;
+    uint8_t res_size = (size_align == 0 || size_align == 1) ? 1 : size_align;
+    if (!ESP_GMF_OAL_ALIGN_BYTES_VALID(res_addr)) {
+        ESP_LOGE(TAG, "Invalid pbuf addr_align:%u", (unsigned)addr_align);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    if (!ESP_GMF_OAL_ALIGN_BYTES_VALID(res_size)) {
+        ESP_LOGE(TAG, "Invalid pbuf size_align:%u", (unsigned)size_align);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    pbuf->align = res_addr;
+    pbuf->size_align = res_size;
+    return ESP_GMF_ERR_OK;
 }
 
 esp_gmf_err_t esp_gmf_pbuf_destroy(esp_gmf_pbuf_handle_t handle)
@@ -213,9 +257,13 @@ esp_gmf_err_io_t esp_gmf_pbuf_acquire_write(esp_gmf_pbuf_handle_t handle, esp_gm
         }
         pbuf_list_t *new_pbuf = (pbuf_list_t *)esp_gmf_oal_calloc(1, sizeof(pbuf_list_t));
         ESP_GMF_MEM_CHECK(TAG, new_pbuf, { pbuf_unlock(pbuf->lock); return ESP_GMF_IO_FAIL;});
-        new_pbuf->block.buf = (uint8_t *)esp_gmf_oal_calloc(1, wanted_size);
-        ESP_GMF_MEM_CHECK(TAG, new_pbuf->block.buf, { pbuf_unlock(pbuf->lock); esp_gmf_oal_free(new_pbuf); return ESP_GMF_IO_FAIL;});
-        new_pbuf->block.buf_length = wanted_size;
+        if (pbuf_alloc_payload_buf(pbuf, wanted_size, &new_pbuf->block.buf) != ESP_GMF_IO_OK) {
+            esp_gmf_oal_free(new_pbuf);
+            pbuf_unlock(pbuf->lock);
+            return ESP_GMF_IO_FAIL;
+        }
+        size_t alloc_sz = (size_t)ESP_GMF_OAL_ALIGN_UP((size_t)wanted_size, (size_t)pbuf->size_align);
+        new_pbuf->block.buf_length = alloc_sz;
         new_pbuf->block.valid_size = wanted_size;
         new_pbuf->block.is_last = 0;
         pbuf->empty_head = new_pbuf;
@@ -227,9 +275,12 @@ esp_gmf_err_io_t esp_gmf_pbuf_acquire_write(esp_gmf_pbuf_handle_t handle, esp_gm
         if (pbuf->empty_head->block.buf) {
             esp_gmf_oal_free(pbuf->empty_head->block.buf);
         }
-        pbuf->empty_head->block.buf = esp_gmf_oal_calloc(1, wanted_size);
-        ESP_GMF_MEM_CHECK(TAG, pbuf->empty_head->block.buf, { pbuf_unlock(pbuf->lock); return ESP_GMF_IO_FAIL;});
-        pbuf->empty_head->block.buf_length = wanted_size;
+        if (pbuf_alloc_payload_buf(pbuf, wanted_size, &pbuf->empty_head->block.buf) != ESP_GMF_IO_OK) {
+            pbuf_unlock(pbuf->lock);
+            return ESP_GMF_IO_FAIL;
+        }
+        size_t alloc_sz = (size_t)ESP_GMF_OAL_ALIGN_UP((size_t)wanted_size, (size_t)pbuf->size_align);
+        pbuf->empty_head->block.buf_length = alloc_sz;
         pbuf->empty_head->block.valid_size = wanted_size;
     }
     blk->buf = pbuf->empty_head->block.buf;

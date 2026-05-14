@@ -41,8 +41,22 @@ typedef struct {
     esp_gmf_fifo_node_t *fill_head;           /*!< Pointer to the head of the list of filled buffer nodes that can be read */
     uint8_t              _is_write_done : 1;  /*!< Flag indicating if all writing operations to the FIFO have been completed. Set to 1 when writing is finished */
     uint8_t              _is_abort      : 1;  /*!< Flag indicating if an abort operation has been requested. Set to 1 to signal that FIFO operations should be aborted */
-    uint8_t              align;               /*!< Alignment for the request buffer */
+    uint8_t              align;               /*!< Alignment for the request buffer base address */
+    uint8_t              size_align;          /*!< Rounds each node buffer length up to a multiple of this value */
 } esp_gmf_fifo_t;
+static inline void *fifo_alloc_buf(size_t buf_size, uint8_t align)
+{
+    void *buf = NULL;
+    if (align <= 1) {
+        buf = esp_gmf_oal_calloc(1, buf_size);
+    } else {
+        buf = esp_gmf_oal_malloc_align(align, buf_size);
+        if (buf) {
+            memset(buf, 0, buf_size);
+        }
+    }
+    return buf;
+}
 
 static inline esp_gmf_fifo_node_t *esp_gmf_fifo_node_create(void)
 {
@@ -60,12 +74,11 @@ static inline esp_gmf_fifo_node_t *esp_gmf_fifo_node_with_buf_create(size_t buf_
         return NULL;
     }
     if (buf_size > 0) {
-        node->buffer = esp_gmf_oal_malloc_align(align, buf_size);
+        node->buffer = fifo_alloc_buf(buf_size, align);
         if (!node->buffer) {
             esp_gmf_oal_free(node);
             return NULL;
         }
-        memset(node->buffer, 0, buf_size);
         node->buf_length = buf_size;
     }
     node->is_done = false;
@@ -141,6 +154,7 @@ esp_gmf_err_t esp_gmf_fifo_create(int block_cnt, int block_size, esp_gmf_fifo_ha
     fifo->node_cnt = 0;
     fifo->_is_write_done = 0;
     fifo->align = GMF_FIFO_DEFAULT_ALIGNMENT;
+    fifo->size_align = 1;
     *handle = fifo;
     return ESP_GMF_ERR_OK;
 
@@ -149,11 +163,22 @@ esp_gmf_fifo_err:
     return ESP_GMF_ERR_FAIL;
 }
 
-esp_gmf_err_t esp_gmf_fifo_set_align(esp_gmf_fifo_handle_t handle, uint8_t align)
+esp_gmf_err_t esp_gmf_fifo_set_align(esp_gmf_fifo_handle_t handle, uint8_t addr_align, uint8_t size_align)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_fifo_t *fifo = (esp_gmf_fifo_t *)handle;
-    fifo->align = (align == 0) ? GMF_FIFO_DEFAULT_ALIGNMENT : align;
+    uint8_t res_addr = (addr_align == 0) ? GMF_FIFO_DEFAULT_ALIGNMENT : addr_align;
+    uint8_t res_size = (size_align == 0 || size_align == 1) ? 1 : size_align;
+    if (!ESP_GMF_OAL_ALIGN_BYTES_VALID(res_addr)) {
+        ESP_LOGE(TAG, "Invalid fifo addr_align:%u", (unsigned)addr_align);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    if (!ESP_GMF_OAL_ALIGN_BYTES_VALID(res_size)) {
+        ESP_LOGE(TAG, "Invalid fifo size_align:%u", (unsigned)size_align);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    fifo->align = res_addr;
+    fifo->size_align = res_size;
     return ESP_GMF_ERR_OK;
 }
 
@@ -253,7 +278,8 @@ esp_gmf_err_io_t esp_gmf_fifo_acquire_write(esp_gmf_fifo_handle_t handle, esp_gm
     esp_gmf_oal_mutex_lock(fifo->lock);
     if (fifo->empty_head == NULL) {
         if (fifo->node_cnt < fifo->capacity) {
-            node = esp_gmf_fifo_node_with_buf_create(wanted_size, fifo->align);
+            size_t alloc_sz = (size_t)ESP_GMF_OAL_ALIGN_UP((size_t)wanted_size, (size_t)fifo->size_align);
+            node = esp_gmf_fifo_node_with_buf_create(alloc_sz, fifo->align);
             ESP_GMF_NULL_CHECK(TAG, node, {esp_gmf_oal_mutex_unlock(fifo->lock); return ESP_GMF_ERR_MEMORY_LACK;});
             fifo->empty_head = node;
             fifo->node_cnt++;
@@ -275,7 +301,8 @@ esp_gmf_err_io_t esp_gmf_fifo_acquire_write(esp_gmf_fifo_handle_t handle, esp_gm
     node = fifo->empty_head;
     if (node->buf_length < wanted_size) {
         esp_gmf_oal_free(node->buffer);
-        node->buffer = esp_gmf_oal_malloc(wanted_size);
+        size_t alloc_sz = (size_t)ESP_GMF_OAL_ALIGN_UP((size_t)wanted_size, (size_t)fifo->size_align);
+        node->buffer = fifo_alloc_buf(alloc_sz, fifo->align);
         if (node->buffer == NULL) {
             ESP_LOGE(TAG, "Allocate got NULL Pointer on acquire write, size:%ld", wanted_size);
             fifo->empty_head = node->next;
@@ -284,7 +311,7 @@ esp_gmf_err_io_t esp_gmf_fifo_acquire_write(esp_gmf_fifo_handle_t handle, esp_gm
             esp_gmf_oal_mutex_unlock(fifo->lock);
             return ESP_GMF_ERR_MEMORY_LACK;
         }
-        node->buf_length = wanted_size;
+        node->buf_length = alloc_sz;
     }
 
     blk->buf = node->buffer;

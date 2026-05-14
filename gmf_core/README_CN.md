@@ -53,7 +53,7 @@ GMF-Element 的输入输出端口是 GMF-Port，
 
 ## GMF-DataBus
 GMF-DataBus 是 GMF-Core 存取数据的模块，它使用 Acquire 再 Release 的方式访问数据。 GMF-DataBus 数据传输支持零拷贝和拷贝两种传输方式，也支持阻塞和非阻塞的访问方式。
-目前 GMF-Core 支持了三种类型，分别是 Ringbuffer、PBuffer、FIFO 和 BlockBuffer，其中 PBuffer、FIFO 和 BlockBuffer 数据传输是零拷贝，Ringbuffer、FIFO 和 BlockBuffer 提供阻塞接口。
+目前 GMF-Core 支持了四种类型，分别是 Ringbuffer、PBuffer、FIFO 和 BlockBuffer，其中 PBuffer、FIFO 和 BlockBuffer 数据传输是零拷贝，Ringbuffer、FIFO 和 BlockBuffer 提供阻塞接口。
 
 ## GMF-Task
 GMF-Task 是执行 job 的线程，它从工作列表中取出 job 顺序运行。当工作列表的 job 执行完即进入空闲状态，直到有新的 job 加入。job 是执行工作的最小单位，job 分为一次性和无限次的两种。
