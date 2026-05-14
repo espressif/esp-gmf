@@ -108,7 +108,7 @@ static esp_gmf_err_io_t sink_release(void *handle, esp_gmf_payload_t *load, uint
     audio_proc_t *proc = (audio_proc_t*)handle;
     if (load->buf) {
         int ret = proc->writer(load->buf, load->valid_size, proc->ctx);
-        if (proc->out_pcm) {
+        if (proc->out_pcm && proc->out_pcm == load->buf) {
             load->buf = NULL;
         }
         if (ret != ESP_AUDIO_RENDER_ERR_OK) {
