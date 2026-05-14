@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.8.1
+
+### Bug Fixes
+
+- Fixed wrong memory access for clear of payload buffer which not owned by audio processor
+
+### Features
+
+- Added `esp32s31` support for all example
+
 ## v0.8.0
 
 ### Bug Fixes

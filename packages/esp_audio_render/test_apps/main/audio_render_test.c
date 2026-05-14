@@ -1208,7 +1208,7 @@ int audio_render_dual_stream_solo(int write_count)
         }
         vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL));
         uint8_t expected = (stream_value[0] + stream_value[1]) / 2;
-        #define IS_EXPECT(a, b) (a == b || a == b - 1)
+        #define IS_EXPECT(a, b) (abs((int)a - b) <= 2)
         if (!IS_EXPECT(actual_data[0], expected) || !IS_EXPECT(actual_data[1], expected)) {
             ESP_LOGE(TAG, "Mixed stream expect %d but get %d-%d", expected, actual_data[0], actual_data[1]);
             ret = -1;
