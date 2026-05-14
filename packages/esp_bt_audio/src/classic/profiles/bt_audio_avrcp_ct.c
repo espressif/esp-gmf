@@ -63,8 +63,8 @@ typedef struct {
     uint8_t                     transaction_label;           /**< Transaction label for outgoing commands */
     struct avrcp_ct_key_evt_q   key_evt_q;                   /**< Passthrough key press/release timers awaiting release */
 #if CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED
-    cover_art_ctx_t             cover_art;                   /**< Cover art context */
-#endif /* CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED */
+    cover_art_ctx_t  cover_art;  /**< Cover art context */
+#endif  /* CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED */
 } avrcp_ct_ctx_t;
 
 static const char *TAG = "BT_AUD_AVRC_CT";

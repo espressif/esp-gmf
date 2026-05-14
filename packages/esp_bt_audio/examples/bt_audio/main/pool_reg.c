@@ -106,7 +106,11 @@ esp_gmf_err_t pool_reg(esp_gmf_pool_handle_t pool)
 #endif  /* CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4 */
         .type = AFE_TYPE_VC_8K,
         .mode = AFE_MODE_HIGH_PERF,
+#if CONFIG_IDF_TARGET_ESP32S31
+        .input_format = "RMNN",
+#else
         .input_format = "RM",
+#endif  /* CONFIG_IDF_TARGET_ESP32S31 */
     };
     ret = esp_gmf_aec_init(&aec_cfg, &element);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init AEC");

@@ -1,5 +1,3 @@
-
-
 #
 # Bluetooth
 #
@@ -40,11 +38,6 @@ CONFIG_BT_HFP_USE_EXTERNAL_CODEC=y
 #
 CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY=y
 # end of Bluetooth
-
-#
-# ESP PSRAM
-#
-CONFIG_SPIRAM=y
 
 #
 # SPI RAM config

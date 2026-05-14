@@ -67,6 +67,79 @@ typedef struct {
     uint32_t  a2dp_src_send_task_stack_size;  /*!< A2DP source send task stack size in bytes. If 0, defaults to 4096 */
 } esp_bt_audio_classic_cfg_t;
 
+/**
+ * @brief  Enumeration for LE Audio roles
+ */
+typedef enum {
+    ESP_BT_AUDIO_LE_ROLE_UNICAST_SERVER   = 0x0001,  /*!< LE Audio Unicast Server role */
+    ESP_BT_AUDIO_LE_ROLE_BROADCAST_SINK   = 0x0002,  /*!< LE Audio Broadcast Sink role */
+    ESP_BT_AUDIO_LE_ROLE_BROADCAST_SOURCE = 0x0004,  /*!< LE Audio Broadcast Source role */
+    ESP_BT_AUDIO_LE_ROLE_SCAN_DELEGATOR   = 0x0008,  /*!< LE Audio Scan Delegator role */
+} esp_bt_audio_le_role_t;
+
+/**
+ * @brief  Enumeration for LE Audio use cases
+ */
+typedef enum {
+    ESP_BT_AUDIO_LE_USER_CASE_UNKNOWN,  /*!< Unknown user case */
+    ESP_BT_AUDIO_LE_USER_CASE_TMAP,     /*!< Telephony and Media Audio Profile */
+    ESP_BT_AUDIO_LE_USER_CASE_HAP,      /*!< Hearing Access Profile */
+    ESP_BT_AUDIO_LE_USER_CASE_PBP,      /*!< Public Broadcast Profile */
+} esp_bt_audio_le_user_case_t;
+
+/**
+ * @brief  Structure for LE Audio PACS server configuration
+ */
+typedef struct {
+    uint8_t   sink_enabled;         /*!< Sink capability enabled flag */
+    uint32_t  sink_context_mask;    /*!< Sink context mask */
+    uint32_t  sink_locations;       /*!< Sink locations */
+    uint8_t   source_enabled;       /*!< Source capability enabled flag */
+    uint32_t  source_context_mask;  /*!< Source context mask */
+    uint32_t  source_locations;     /*!< Source locations */
+} esp_bt_audio_le_pacs_cfg_t;
+
+/**
+ * @brief  Structure for LE Audio CSIP set member configuration
+ */
+typedef struct {
+    uint8_t  coordinate_set_size;  /*!< Coordinated set size */
+    uint8_t  rank;                 /*!< Set member rank, starting at 1 */
+    uint8_t  sirk[16];             /*!< Set identity resolving key */
+} esp_bt_audio_le_csip_cfg_t;
+
+/**
+ * @brief  Structure for LE Audio VCP volume renderer configuration
+ */
+typedef struct {
+    uint8_t  step;    /*!< Volume control step size */
+    uint8_t  mute;    /*!< Initial mute state */
+    uint8_t  volume;  /*!< Initial volume level */
+} esp_bt_audio_le_vcp_cfg_t;
+
+/**
+ * @brief  Structure for LE Audio Broadcast Source configuration
+ */
+typedef struct {
+    uint8_t  broadcast_code[16];  /*!< Broadcast code */
+    uint8_t  broadcast_name[32];  /*!< Broadcast name */
+    uint8_t  stream_num;          /*!< Number of streams */
+} esp_bt_audio_le_bsrc_cfg_t;
+
+/**
+ * @brief  Structure for LE Audio configuration
+ */
+typedef struct {
+    uint32_t                    roles;      /*!< LE roles for the selected user case, e.g. ESP_BLE_AUDIO_TMAP_ROLE_* for TMAP */
+    uint32_t                    user_case;  /*!< LE Audio use case, e.g. esp_bt_audio_le_user_case_t */
+    uint8_t                     snk_cnt;    /*!< Number of sink ASEs to register as unicast server */
+    uint8_t                     src_cnt;    /*!< Number of source ASEs to register as unicast server */
+    esp_bt_audio_le_pacs_cfg_t  pacs;       /*!< PACS configuration */
+    esp_bt_audio_le_csip_cfg_t  csip;       /*!< CSIP set member configuration */
+    esp_bt_audio_le_vcp_cfg_t   vcp;        /*!< VCP volume renderer configuration */
+    esp_bt_audio_le_bsrc_cfg_t  bsrc;       /*!< Broadcast source configuration */
+} esp_bt_audio_le_cfg_t;
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

@@ -10,6 +10,7 @@
 
 #include "esp_bt_audio_defs.h"
 #include "esp_bt_audio_event.h"
+#include "esp_bt_audio_le.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,6 +25,7 @@ typedef struct {
     esp_bt_audio_event_cb_t     event_cb;        /*!< Event callback function */
     void                       *event_user_ctx;  /*!< User context for the event callback */
     esp_bt_audio_classic_cfg_t  classic;         /*!< Classic Bluetooth configuration (optional, only available when classic Bluetooth is enabled) */
+    esp_bt_audio_le_cfg_t       le;              /*!< LE Audio configuration */
 } esp_bt_audio_config_t;
 
 /**

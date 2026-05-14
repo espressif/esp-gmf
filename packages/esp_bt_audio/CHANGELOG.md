@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2
+
+### Features
+
+- Support BLE Audio
+
 ## 0.8.1
 
 ### Features

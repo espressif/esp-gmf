@@ -16,6 +16,7 @@
 
 #include "esp_bt_audio_defs.h"
 #include "esp_bt_audio_classic.h"
+#include "esp_bt_audio_le.h"
 #include "esp_bt_audio_vol.h"
 #include "esp_bt_audio_media.h"
 #include "esp_bt_audio_playback.h"
@@ -29,10 +30,10 @@
 #include "cmd_reg.h"
 
 static uint8_t target_device_bda[6] = {0};
-#ifdef CONFIG_GMF_EXAMPLE_A2DP_SOURCE
+#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
 static char target_device_name[32] = {0};
 static const char *TAG = "CMD_REG";
-#endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) */
 
 static int cmd_playback_play(int argc, char **argv)
 {
@@ -203,8 +204,10 @@ static int cmd_volume_down(int argc, char **argv)
     return 0;
 }
 
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
 static int cmd_connect_device(int argc, char **argv)
 {
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
     if (argc != 2) {
         printf("Usage: connect <mac_address>\n");
         printf("Example: connect 01:02:03:04:05:06\n");
@@ -229,10 +232,17 @@ static int cmd_connect_device(int argc, char **argv)
         printf("Failed to connect: %s\n", esp_err_to_name(ret));
     }
     return ret == ESP_OK ? 0 : 1;
+#else
+    (void)argc;
+    (void)argv;
+    printf("Classic connect is disabled in LE example mode\n");
+    return 1;
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 }
 
 static int cmd_disconnect_device(int argc, char **argv)
 {
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
     bool is_bda_empty = true;
     for (int i = 0; i < sizeof(target_device_bda); ++i) {
         if (target_device_bda[i] != 0) {
@@ -256,10 +266,17 @@ static int cmd_disconnect_device(int argc, char **argv)
         printf("Failed to disconnect: %s\n", esp_err_to_name(ret));
     }
     return ret == ESP_OK ? 0 : 1;
+#else
+    (void)argc;
+    (void)argv;
+    printf("Classic disconnect is disabled in LE example mode\n");
+    return 1;
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 }
 
 static int cmd_hf_connect(int argc, char **argv)
 {
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
     if (argc != 2) {
         printf("Usage: hf_connect <mac_address>\n");
         printf("Example: hf_connect 01:02:03:04:05:06\n");
@@ -281,10 +298,17 @@ static int cmd_hf_connect(int argc, char **argv)
         printf("Failed to connect HFP HF: %s\n", esp_err_to_name(ret));
     }
     return ret == ESP_OK ? 0 : 1;
+#else
+    (void)argc;
+    (void)argv;
+    printf("HFP is disabled in LE example mode\n");
+    return 1;
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 }
 
 static int cmd_hf_disconnect(int argc, char **argv)
 {
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
     bool is_bda_empty = true;
     for (int i = 0; i < sizeof(target_device_bda); ++i) {
         if (target_device_bda[i] != 0) {
@@ -305,7 +329,14 @@ static int cmd_hf_disconnect(int argc, char **argv)
         printf("Failed to disconnect HFP HF: %s\n", esp_err_to_name(ret));
     }
     return ret == ESP_OK ? 0 : 1;
+#else
+    (void)argc;
+    (void)argv;
+    printf("HFP is disabled in LE example mode\n");
+    return 1;
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 }
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 
 static int cmd_call_answer(int argc, char **argv)
 {
@@ -400,7 +431,80 @@ static int cmd_pb_fetch(int argc, char **argv)
     return ret == ESP_OK ? 0 : 1;
 }
 
-#ifdef CONFIG_GMF_EXAMPLE_A2DP_SOURCE
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+static int cmd_le_scan_start(int argc, char **argv)
+{
+    uint32_t timeout_ms = CONFIG_GMF_EXAMPLE_LE_SCAN_TIMEOUT_MS;
+
+    if (argc >= 2) {
+        timeout_ms = (uint32_t)strtoul(argv[1], NULL, 0);
+    }
+    esp_err_t ret = esp_bt_audio_le_scan_start(timeout_ms);
+    if (ret == ESP_OK) {
+        printf("LE scan started (%u ms)\n", (unsigned)timeout_ms);
+    } else {
+        printf("Failed to start LE scan: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
+}
+
+static int cmd_le_scan_stop(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    esp_err_t ret = esp_bt_audio_le_scan_stop();
+    if (ret == ESP_OK) {
+        printf("LE scan stopped\n");
+    } else {
+        printf("Failed to stop LE scan: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
+}
+
+static int cmd_le_connect(int argc, char **argv)
+{
+    uint8_t bda[6] = {0};
+    uint8_t addr_type = 0;
+    uint32_t timeout_ms = CONFIG_GMF_EXAMPLE_LE_SCAN_TIMEOUT_MS;
+
+    if (argc < 3) {
+        printf("Usage: le_connect <addr_type> <mac_address> [timeout_ms]\n");
+        printf("Example: le_connect 0 01:02:03:04:05:06 10000\n");
+        return 1;
+    }
+    addr_type = (uint8_t)strtoul(argv[1], NULL, 0);
+    if (sscanf(argv[2], "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+               &bda[0], &bda[1], &bda[2], &bda[3], &bda[4], &bda[5]) != 6) {
+        printf("Invalid MAC address format. Use: XX:XX:XX:XX:XX:XX\n");
+        return 1;
+    }
+    if (argc >= 4) {
+        timeout_ms = (uint32_t)strtoul(argv[3], NULL, 0);
+    }
+    esp_err_t ret = esp_bt_audio_le_connect(addr_type, bda, timeout_ms);
+    if (ret == ESP_OK) {
+        printf("LE connect started (%s)\n", argv[2]);
+    } else {
+        printf("Failed to start LE connect: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
+}
+
+static int cmd_le_disconnect(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    esp_err_t ret = esp_bt_audio_le_disconnect();
+    if (ret == ESP_OK) {
+        printf("LE disconnect requested\n");
+    } else {
+        printf("Failed to disconnect LE link: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
+}
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+
+#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
 static int cmd_start_discovery(int argc, char **argv)
 {
     memset(target_device_name, 0, sizeof(target_device_name));
@@ -460,7 +564,7 @@ static int cmd_stop_media(int argc, char **argv)
     }
     return ret == ESP_OK ? 0 : 1;
 }
-#endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) */
 
 void cli_register_bt(void)
 {
@@ -536,37 +640,47 @@ void cli_register_bt(void)
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&vol_down_cmd));
 
-    const esp_console_cmd_t connect_cmd = {
-        .command = "connect",
-        .help = "Connect to a Bluetooth device",
-        .hint = "<mac_address>",
-        .func = &cmd_connect_device,
-    };
-    ESP_ERROR_CHECK(esp_console_cmd_register(&connect_cmd));
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
+    {
+        const esp_console_cmd_t connect_cmd = {
+            .command = "connect",
+            .help = "Connect to a Bluetooth device",
+            .hint = "<mac_address>",
+            .func = &cmd_connect_device,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&connect_cmd));
+    }
 
-    const esp_console_cmd_t disconnect_cmd = {
-        .command = "disconnect",
-        .help = "Disconnect from current Bluetooth device",
-        .hint = NULL,
-        .func = &cmd_disconnect_device,
-    };
-    ESP_ERROR_CHECK(esp_console_cmd_register(&disconnect_cmd));
+    {
+        const esp_console_cmd_t disconnect_cmd = {
+            .command = "disconnect",
+            .help = "Disconnect from current Bluetooth device",
+            .hint = NULL,
+            .func = &cmd_disconnect_device,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&disconnect_cmd));
+    }
 
-    const esp_console_cmd_t hf_connect_cmd = {
-        .command = "hf_connect",
-        .help = "Connect HFP HF to a Bluetooth device",
-        .hint = "<mac_address>",
-        .func = &cmd_hf_connect,
-    };
-    ESP_ERROR_CHECK(esp_console_cmd_register(&hf_connect_cmd));
+    {
+        const esp_console_cmd_t hf_connect_cmd = {
+            .command = "hf_connect",
+            .help = "Connect HFP HF to a Bluetooth device",
+            .hint = "<mac_address>",
+            .func = &cmd_hf_connect,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&hf_connect_cmd));
+    }
 
-    const esp_console_cmd_t hf_disconnect_cmd = {
-        .command = "hf_disconnect",
-        .help = "Disconnect HFP HF from current Bluetooth device",
-        .hint = NULL,
-        .func = &cmd_hf_disconnect,
-    };
-    ESP_ERROR_CHECK(esp_console_cmd_register(&hf_disconnect_cmd));
+    {
+        const esp_console_cmd_t hf_disconnect_cmd = {
+            .command = "hf_disconnect",
+            .help = "Disconnect HFP HF from current Bluetooth device",
+            .hint = NULL,
+            .func = &cmd_hf_disconnect,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&hf_disconnect_cmd));
+    }
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 
     const esp_console_cmd_t call_answer_cmd = {
         .command = "call_answer",
@@ -600,7 +714,7 @@ void cli_register_bt(void)
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&pb_fetch_cmd));
 
-#ifdef CONFIG_GMF_EXAMPLE_A2DP_SOURCE
+#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
     const esp_console_cmd_t start_discovery_cmd = {
         .command = "start_discovery",
         .help = "Start Bluetooth device discovery with optional auto-connect",
@@ -632,7 +746,49 @@ void cli_register_bt(void)
         .func = &cmd_stop_media,
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&stop_media_cmd));
-#endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) */
+
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+    {
+        const esp_console_cmd_t le_scan_start_cmd = {
+            .command = "le_scan_start",
+            .help = "Start LE scan",
+            .hint = "[timeout_ms]",
+            .func = &cmd_le_scan_start,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&le_scan_start_cmd));
+    }
+
+    {
+        const esp_console_cmd_t le_scan_stop_cmd = {
+            .command = "le_scan_stop",
+            .help = "Stop LE scan",
+            .hint = NULL,
+            .func = &cmd_le_scan_stop,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&le_scan_stop_cmd));
+    }
+
+    {
+        const esp_console_cmd_t le_connect_cmd = {
+            .command = "le_connect",
+            .help = "Connect LE peer",
+            .hint = "<addr_type> <mac_address> [timeout_ms]",
+            .func = &cmd_le_connect,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&le_connect_cmd));
+    }
+
+    {
+        const esp_console_cmd_t le_disconnect_cmd = {
+            .command = "le_disconnect",
+            .help = "Disconnect LE ACL link",
+            .hint = NULL,
+            .func = &cmd_le_disconnect,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&le_disconnect_cmd));
+    }
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 }
 
 static int restart(int argc, char **argv)
@@ -709,7 +865,7 @@ void cli_init()
 
 void cli_bt_device_found(const char *name, const uint8_t *bda)
 {
-#if CONFIG_GMF_EXAMPLE_A2DP_SOURCE
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_A2DP_SOURCE
     if (strlen(target_device_name) > 0) {
         if (strstr(name, target_device_name) != NULL) {
             ESP_LOGI(TAG, "Found target device '%s', initiating auto-connect...", target_device_name);
@@ -723,7 +879,7 @@ void cli_bt_device_found(const char *name, const uint8_t *bda)
             }
         }
     }
-#endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
 }
 
 void cli_bt_device_conn_st_chg(const uint8_t *bda, bool connected)

@@ -10,13 +10,20 @@
 #include "esp_err.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_mac.h"
+#if CONFIG_BT_ENABLED
 #include "esp_bt.h"
+#endif  /* CONFIG_BT_ENABLED */
 
 #include "nvs_flash.h"
 
 #include "esp_bt_audio_defs.h"
 #include "esp_bt_audio_host.h"
 #include "esp_gmf_pool.h"
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+#include "esp_ble_audio_defs.h"
+#include "esp_ble_audio_tmap_api.h"
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 
 #include "esp_codec_dev.h"
 #include "esp_codec_dev_types.h"
@@ -24,6 +31,7 @@
 #include "esp_bt_audio_playback.h"
 #include "esp_bt_audio_tel.h"
 #include "esp_bt_audio_classic.h"
+#include "esp_bt_audio_le.h"
 #include "esp_bt_audio_pb.h"
 #include "esp_bt_audio.h"
 
@@ -110,6 +118,29 @@ static inline const char *tel_event_to_str(esp_bt_audio_tel_event_t type)
     return tel_event_str[i < sizeof(tel_event_str) / sizeof(tel_event_str[0]) ? i : (sizeof(tel_event_str) / sizeof(tel_event_str[0]) - 1)];
 }
 
+static esp_err_t append_mac_suffix_to_device_name(char *device_name, size_t device_name_size)
+{
+    uint8_t mac[6] = {0};
+    char default_name[ESP_BT_AUDIO_HOST_MAX_DEV_NAME_LEN] = {0};
+
+    int written = snprintf(default_name, sizeof(default_name), "%s", device_name);
+    if (written < 0 || (size_t)written >= sizeof(default_name)) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    esp_err_t ret = esp_read_mac(mac, ESP_MAC_BT);
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    written = snprintf(device_name, device_name_size, "%s_%02X%02X", default_name, mac[4], mac[5]);
+    if (written < 0 || (size_t)written >= device_name_size) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+    return ESP_OK;
+}
+
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
 static uint32_t get_classic_roles()
 {
     uint32_t roles = 0;
@@ -136,6 +167,42 @@ static uint32_t get_classic_roles()
 #endif  /* CONFIG_GMF_EXAMPLE_PBAP_PCE */
     return roles;
 }
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
+
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+#if CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT
+#define LE_LOCATION  ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT
+#elif CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
+#define LE_LOCATION  ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT
+#endif  /* CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT || CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT */
+
+#if CONFIG_GMF_EXAMPLE_LE_SOURCE_ENABLE
+#define LE_SOURCE_COUNT         1
+#define LE_SOURCE_ENABLED       1
+#define LE_SOURCE_CONTEXT_MASK  ESP_BLE_AUDIO_CONTEXT_TYPE_ANY
+#define LE_SOURCE_LOCATION      LE_LOCATION
+#else
+#define LE_SOURCE_COUNT         0
+#define LE_SOURCE_ENABLED       0
+#define LE_SOURCE_CONTEXT_MASK  0
+#define LE_SOURCE_LOCATION      0
+#endif  /* CONFIG_GMF_EXAMPLE_LE_SOURCE_ENABLE */
+
+static uint32_t get_le_roles(void)
+{
+    uint32_t roles = 0;
+#if CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_CT
+    roles |= ESP_BLE_AUDIO_TMAP_ROLE_CT;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_CT */
+#if CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMR
+    roles |= ESP_BLE_AUDIO_TMAP_ROLE_UMR;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMR */
+#if CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMR
+    roles |= ESP_BLE_AUDIO_TMAP_ROLE_BMR;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMR */
+    return roles;
+}
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 
 static void media_ctrl_cmd_proc(esp_bt_audio_media_ctrl_cmd_t cmd)
 {
@@ -234,18 +301,18 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
                      conn_st->addr[0], conn_st->addr[1], conn_st->addr[2],
                      conn_st->addr[3], conn_st->addr[4], conn_st->addr[5]);
             if (conn_st->connected) {
-#if defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)
+#if CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK))
                 esp_bt_audio_classic_set_scan_mode(false, false);
-#endif  /* defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK) */
-#ifdef CONFIG_GMF_EXAMPLE_PBAP_PCE
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)) */
+#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_PBAP_PCE)
                 esp_bt_audio_classic_connect(ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE, conn_st->addr);
-#endif  /* CONFIG_GMF_EXAMPLE_PBAP_PCE */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_PBAP_PCE) */
             } else {
-#if defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
+#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
                 esp_bt_audio_classic_set_scan_mode(true, false);
-#elif defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)
+#elif CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)
                 esp_bt_audio_classic_set_scan_mode(true, true);
-#endif  /* defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK) */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) */
             }
             cli_bt_device_conn_st_chg(conn_st->addr, conn_st->connected);
             break;
@@ -275,17 +342,14 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
             uint8_t vol = vol_absolute->vol;
             bool mute = vol_absolute->mute;
             ESP_LOGI(TAG, "ESP_BT_AUDIO_EVENT_VOL_ABSOLUTE vol %d, mute %d, context %d", vol, mute, vol_absolute->context);
-#if CONFIG_GMF_EXAMPLE_A2DP_SINK
             dev_audio_codec_handles_t *codec_handle = NULL;
             esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&codec_handle);
             esp_codec_dev_set_out_vol(codec_handle->codec_dev, vol);
-#endif  /* CONFIG_GMF_EXAMPLE_A2DP_SINK */
             break;
         }
         case ESP_BT_AUDIO_EVENT_VOL_RELATIVE: {
             esp_bt_audio_event_vol_relative_t *vol_relative = (esp_bt_audio_event_vol_relative_t *)event_data;
             ESP_LOGI(TAG, "ESP_BT_AUDIO_EVENT_VOL_RELATIVE up_down %d, context %d", vol_relative->up_down, vol_relative->context);
-#if CONFIG_GMF_EXAMPLE_A2DP_SINK
             dev_audio_codec_handles_t *codec_handle = NULL;
             esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&codec_handle);
             int current_volume = 0;
@@ -298,7 +362,6 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
                 esp_codec_dev_set_out_vol(codec_handle->codec_dev, current_volume);
             }
             ESP_LOGI(TAG, "Volume set to %d", current_volume);
-#endif  /* CONFIG_GMF_EXAMPLE_A2DP_SINK */
             break;
         }
         case ESP_BT_AUDIO_EVENT_TEL_STATUS_CHG: {
@@ -371,6 +434,10 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
                      history->timestamp ? history->timestamp : "");
             break;
         }
+        case ESP_BT_AUDIO_EVENT_BIG_SYNC_LOST: {
+            ESP_LOGI(TAG, "BIG sync lost");
+            break;
+        }
         default:
             ESP_LOGI(TAG, "bt audio event %d", event);
             break;
@@ -419,38 +486,88 @@ void app_main()
     /* Setup pipelines for bluetooth audio */
     stream_proc_init(pool);
 
+#if CONFIG_BT_ENABLED
 #ifdef CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY
     uint32_t btmode = ESP_BT_MODE_CLASSIC_BT;
 #elif CONFIG_BTDM_CTRL_MODE_BLE_ONLY
     uint32_t btmode = ESP_BT_MODE_BLE;
 #elif CONFIG_BTDM_CTRL_MODE_BTDM
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
     uint32_t btmode = ESP_BT_MODE_BTDM;
+#else
+    uint32_t btmode = ESP_BT_MODE_BLE;
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 #else   /* CONFIG_BTDM_CTRL_MODE_BTDM */
     uint32_t btmode = ESP_BT_MODE_BLE;
 #endif  /* CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY */
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_bt_controller_init(&bt_cfg));
     ESP_ERROR_CHECK(esp_bt_controller_enable(btmode));
+#endif  /* CONFIG_BT_ENABLED */
 
     /* Initialize Bluetooth module */
+    void *host_config = NULL;
+#if CONFIG_BT_NIMBLE_ENABLED
+    esp_bt_audio_host_nimble_cfg_t host_cfg = ESP_BT_AUDIO_HOST_NIMBLE_CFG_DEFAULT();
+    ESP_ERROR_CHECK(append_mac_suffix_to_device_name(host_cfg.dev_name, sizeof(host_cfg.dev_name)));
+    host_config = &host_cfg;
+#elif CONFIG_BT_BLUEDROID_ENABLED
     esp_bt_audio_host_bluedroid_cfg_t host_cfg = ESP_BT_AUDIO_HOST_BLUEDROID_CFG_DEFAULT();
+    ESP_ERROR_CHECK(append_mac_suffix_to_device_name(host_cfg.dev_name, sizeof(host_cfg.dev_name)));
+    host_config = &host_cfg;
+#endif  /* CONFIG_BT_NIMBLE_ENABLED */
+
     esp_bt_audio_config_t bt_config = {
-        .host_config = &host_cfg,
+        .host_config = host_config,
         .event_cb = bt_audio_event_cb,
         .event_user_ctx = NULL,
-#ifdef CONFIG_BT_CLASSIC_ENABLED
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
         .classic.roles = get_classic_roles(),
 #ifdef CONFIG_GMF_EXAMPLE_A2DP_SOURCE
         .classic.a2dp_src_send_task_core_id = A2DP_SRC_SEND_TASK_CORE_ID,
         .classic.a2dp_src_send_task_prio = A2DP_SRC_SEND_TASK_PRIO,
         .classic.a2dp_src_send_task_stack_size = A2DP_SRC_SEND_TASK_STACK_SIZE,
 #endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
-#endif  /* CONFIG_BT_CLASSIC_ENABLED */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+        .le.user_case = ESP_BT_AUDIO_LE_USER_CASE_TMAP,
+        .le.roles = get_le_roles(),
+        .le.snk_cnt = 1,
+        .le.src_cnt = LE_SOURCE_COUNT,
+        .le.pacs = {
+            .sink_enabled = 1,
+            .sink_context_mask = ESP_BLE_AUDIO_CONTEXT_TYPE_ANY,
+            .sink_locations = LE_LOCATION,
+            .source_enabled = LE_SOURCE_ENABLED,
+            .source_context_mask = LE_SOURCE_CONTEXT_MASK,
+            .source_locations = LE_SOURCE_LOCATION,
+        },
+        .le.vcp = {
+            .volume = 50,
+            .mute = 0,
+            .step = 10,
+        },
+        .le.csip = {
+            .coordinate_set_size = CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE,
+            .rank = CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_RANK,
+            .sirk = {184, 3, 170, 198, 175, 187, 101, 162, 90, 65, 241, 83, 5, 105, 143, 132},
+        },
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     };
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+    ESP_LOGI(TAG, "LE Audio configuration:");
+    ESP_LOGI(TAG, "  User case: %s", CONFIG_GMF_EXAMPLE_LE_USER_CASE_TMAP ? "TMAP" : "UNKNOWN");
+    ESP_LOGI(TAG, "  Roles: %s", CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_CT ? "CT" : "UNKNOWN");
+    ESP_LOGI(TAG, "  Roles: %s", CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMR ? "UMR" : "UNKNOWN");
+    ESP_LOGI(TAG, "  Roles: %s", CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMR ? "BMR" : "UNKNOWN");
+    ESP_LOGI(TAG, "  Coordinate set size: %d", CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE);
+    ESP_LOGI(TAG, "  Coordinate set rank: %d", CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_RANK);
+    ESP_LOGI(TAG, "  PACS sink locations: %s", LE_LOCATION == ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT ? "Front left" : "Front right");
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     ESP_ERROR_CHECK(esp_bt_audio_init(&bt_config));
-#if defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
+#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
     ESP_ERROR_CHECK(esp_bt_audio_classic_set_scan_mode(true, false));
-#elif defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)
+#elif CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)
     ESP_ERROR_CHECK(esp_bt_audio_classic_set_scan_mode(true, true));
     ESP_ERROR_CHECK(esp_bt_audio_playback_reg_notifications(ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_STATUS_CHANGE |
                                                             ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_CHANGE |
@@ -460,7 +577,7 @@ void app_main()
                                                             ESP_BT_AUDIO_PLAYBACK_EVENT_NOW_PLAYING_CHANGE |
                                                             ESP_BT_AUDIO_PLAYBACK_EVENT_AVAILABLE_PLAYERS_CHANGE |
                                                             ESP_BT_AUDIO_PLAYBACK_EVENT_ADDRESSED_PLAYER_CHANGE));
-#endif  /* defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK) */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) */
 
     /* Initialize console for user interaction */
     cli_init();

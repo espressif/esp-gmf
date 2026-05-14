@@ -32,6 +32,7 @@ typedef enum {
     ESP_BT_AUDIO_EVENT_PHONEBOOK_COUNT,       /*!< Phonebook count event, the event data is uint16_t */
     ESP_BT_AUDIO_EVENT_PHONEBOOK_ENTRY,       /*!< Phonebook entry event, the event data is esp_bt_audio_pb_entry_t */
     ESP_BT_AUDIO_EVENT_PHONEBOOK_HISTORY,     /*!< Phonebook history event, the event data is esp_bt_audio_pb_history_t */
+    ESP_BT_AUDIO_EVENT_BIG_SYNC_LOST,         /*!< LE Audio BIG sync lost event */
 } esp_bt_audio_event_t;
 
 /**
@@ -61,10 +62,17 @@ typedef struct {
     int32_t              rssi;                                      /*!< Signal strength (RSSI) */
     union {
         struct {
-            uint32_t  cod;   /*!< Class of Device (for Classic Bluetooth only) */
-        } classic;           /*!< Classic Bluetooth specific discovery data */
-        uint32_t  reserved;  /*!< Reserved for future use */
-    } disc_data;             /*!< Discovery data union */
+            uint32_t  cod;  /*!< Class of Device (for Classic Bluetooth only) */
+        } classic;          /*!< Classic Bluetooth specific discovery data */
+        struct {
+            uint8_t   addr_type;           /*!< LE peer address type */
+            uint8_t   sid;                 /*!< LE advertising SID */
+            char      broadcast_name[30];  /*!< LE broadcast name if present */
+            uint32_t  broadcast_id;        /*!< LE broadcast ID if present, otherwise 0 */
+            bool      bass_included;       /*!< True if BASS service is advertised */
+            bool      pacs_included;       /*!< True if PACS service is advertised */
+        } le;                              /*!< LE specific discovery data */
+    } disc_data;                           /*!< Discovery data union */
 } esp_bt_audio_event_device_discovered_t;
 
 /**

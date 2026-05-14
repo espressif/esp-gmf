@@ -11,6 +11,7 @@
 #include "esp_err.h"
 
 #include "esp_bt_audio_defs.h"
+#include "esp_bt_audio_le.h"
 #include "esp_bt_audio_tel.h"
 #include "esp_bt_audio_pb.h"
 #include "bt_audio_ops.h"
@@ -20,6 +21,7 @@ typedef struct {
     esp_bt_audio_media_ops_t     media_ops;
     esp_bt_audio_vol_ops_t       vol_ops;
     esp_bt_audio_classic_ops_t   classic_ops;
+    esp_bt_audio_le_ops_t        le_ops;
     esp_bt_audio_call_ops_t      call_ops;
     esp_bt_audio_pb_ops_t        pb_ops;
 } gmf_bt_ops_t;
@@ -142,6 +144,31 @@ esp_err_t bt_audio_ops_set_classic(esp_bt_audio_classic_ops_t *classic_discovery
         memcpy(&bt_ops->classic_ops, classic_discovery_ops, sizeof(esp_bt_audio_classic_ops_t));
     } else {
         bt_ops->classic_ops = (esp_bt_audio_classic_ops_t) {0};
+    }
+    return ESP_OK;
+}
+
+esp_err_t bt_audio_ops_get_le(esp_bt_audio_le_ops_t *le_ops)
+{
+    if (!bt_ops) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!le_ops) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    *le_ops = bt_ops->le_ops;
+    return ESP_OK;
+}
+
+esp_err_t bt_audio_ops_set_le(esp_bt_audio_le_ops_t *le_ops)
+{
+    if (!bt_ops) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (le_ops) {
+        memcpy(&bt_ops->le_ops, le_ops, sizeof(esp_bt_audio_le_ops_t));
+    } else {
+        bt_ops->le_ops = (esp_bt_audio_le_ops_t) {0};
     }
     return ESP_OK;
 }
@@ -372,6 +399,73 @@ esp_err_t esp_bt_audio_classic_set_scan_mode(bool connectable, bool discoverable
         return ESP_ERR_INVALID_STATE;
     }
 }
+
+#if CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO
+esp_err_t esp_bt_audio_le_scan_start(uint32_t timeout_ms)
+{
+    return esp_bt_audio_le_scan_start_ext(NULL, timeout_ms);
+}
+
+esp_err_t esp_bt_audio_le_scan_start_ext(const uint8_t *target, uint32_t timeout_ms)
+{
+    if (bt_ops && bt_ops->le_ops.start_scan) {
+        return bt_ops->le_ops.start_scan(target, timeout_ms);
+    } else {
+        return ESP_ERR_INVALID_STATE;
+    }
+}
+
+esp_err_t esp_bt_audio_le_scan_stop(void)
+{
+    if (bt_ops && bt_ops->le_ops.stop_scan) {
+        return bt_ops->le_ops.stop_scan();
+    } else {
+        return ESP_ERR_INVALID_STATE;
+    }
+}
+
+esp_err_t esp_bt_audio_le_connect(uint8_t addr_type, const uint8_t *bt_dev_addr, uint32_t timeout_ms)
+{
+    if (bt_ops && bt_ops->le_ops.connect) {
+        return bt_ops->le_ops.connect(addr_type, bt_dev_addr, timeout_ms);
+    } else {
+        return ESP_ERR_INVALID_STATE;
+    }
+}
+
+esp_err_t esp_bt_audio_le_disconnect(void)
+{
+    return esp_bt_audio_le_disconnect_peer(NULL);
+}
+
+esp_err_t esp_bt_audio_le_disconnect_peer(const uint8_t *bt_dev_addr)
+{
+    if (bt_ops && bt_ops->le_ops.disconnect) {
+        return bt_ops->le_ops.disconnect(bt_dev_addr);
+    } else {
+        return ESP_ERR_INVALID_STATE;
+    }
+}
+
+esp_err_t esp_bt_audio_le_broadcast_sync(const uint8_t *broadcast_name, const uint8_t *broadcast_code,
+                                         uint32_t bit_field, uint32_t timeout_ms)
+{
+    if (bt_ops && bt_ops->le_ops.broadcast_sync) {
+        return bt_ops->le_ops.broadcast_sync(broadcast_name, broadcast_code, bit_field, timeout_ms);
+    } else {
+        return ESP_ERR_INVALID_STATE;
+    }
+}
+
+esp_err_t esp_bt_audio_le_pa_sync_terminate(void)
+{
+    if (bt_ops && bt_ops->le_ops.pa_sync_terminate) {
+        return bt_ops->le_ops.pa_sync_terminate();
+    } else {
+        return ESP_ERR_INVALID_STATE;
+    }
+}
+#endif  /* CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO */
 
 esp_err_t esp_bt_audio_call_answer(uint8_t idx)
 {
