@@ -210,7 +210,7 @@ menu "GMF AI Audio"
             depends on GMF_AI_AUDIO_AFE_VAD_ENABLE
             default 3 if IDF_TARGET="esp32s3"
             default 3 if IDF_TARGET="esp32p4"
-            default 3 if IDF_TARGET="esp32s31"
+            default 4 if IDF_TARGET="esp32s31"
             default 2
             range 0 4
             help
