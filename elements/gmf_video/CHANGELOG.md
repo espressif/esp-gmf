@@ -37,7 +37,6 @@
 
 - Fixed print error log when acquire data when aborted by stop
 
-
 ## v0.8.4
 
 ### Features
