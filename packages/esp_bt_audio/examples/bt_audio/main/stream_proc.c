@@ -24,6 +24,14 @@
 #include "esp_gmf_io_bt.h"
 #include "esp_gmf_rate_cvt.h"
 #include "esp_gmf_ch_cvt.h"
+#if CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
+#include "esp_board_manager.h"
+#include "esp_board_manager_defs.h"
+#include "esp_board_periph.h"
+#include "esp_codec_dev.h"
+#include "dev_audio_codec.h"
+#include "esp_bt_audio_le_playback_sync.h"
+#endif  /* CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
 
 #include "stream_proc.h"
 #include "codec_defs.h"
@@ -49,6 +57,105 @@ static esp_gmf_pipeline_handle_t codec2bt_pipe = NULL;
 static esp_gmf_task_handle_t local2bt_task = NULL;
 static esp_gmf_pipeline_handle_t local2bt_pipe = NULL;
 static esp_bt_audio_stream_handle_t local2bt_stream = NULL;
+
+#if CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
+static esp_bt_audio_le_playback_sync_handle_t playback_sync = NULL;
+
+static esp_err_t stream_proc_open_dac(dev_audio_codec_handles_t *dac_handle)
+{
+    esp_codec_dev_sample_info_t fs = {
+        .sample_rate = CODEC_DAC_SAMPLE_RATE,
+        .bits_per_sample = CODEC_DAC_BITS_PER_SAMPLE,
+        .channel = CODEC_DAC_CHANNELS,
+    };
+    return esp_codec_dev_open(dac_handle->codec_dev, &fs);
+}
+
+static i2s_chan_handle_t get_i2s_chan_handle(const char *name)
+{
+    i2s_chan_handle_t ch = NULL;
+    dev_audio_codec_config_t *codec_config = NULL;
+    esp_err_t ret = esp_board_manager_get_device_config(name, (void **)&codec_config);
+    ESP_RETURN_ON_FALSE(ret == ESP_OK, NULL, TAG, "get device config failed");
+    ret = esp_board_periph_get_handle(codec_config->i2s_cfg.name, (void **)&ch);
+    ESP_RETURN_ON_FALSE(ret == ESP_OK, NULL, TAG, "get i2s chan handle failed");
+    ESP_LOGI(TAG, "get i2s[%s:%s] handle %p", name, codec_config->i2s_cfg.name, ch);
+    return ch;
+}
+
+static void stream_proc_deinit_playback_sync(void)
+{
+    if (!playback_sync) {
+        return;
+    }
+
+    esp_err_t ret = esp_bt_audio_le_playback_sync_disable(playback_sync);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Playback sync disable failed: %s", esp_err_to_name(ret));
+    }
+    ret = esp_bt_audio_le_playback_sync_deinit(playback_sync);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Playback sync deinit failed: %s", esp_err_to_name(ret));
+    }
+    playback_sync = NULL;
+}
+
+static void stream_proc_prepare_playback_sync(void)
+{
+    if (playback_sync) {
+        return;
+    }
+
+    dev_audio_codec_handles_t *dac_handle = NULL;
+    esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&dac_handle);
+    if (ret != ESP_OK || !dac_handle) {
+        ESP_LOGE(TAG, "get audio dac handle failed");
+        return;
+    }
+
+    ret = esp_codec_dev_close(dac_handle->codec_dev);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "close audio dac failed: %s", esp_err_to_name(ret));
+        return;
+    }
+
+    i2s_chan_handle_t tx_handle = get_i2s_chan_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
+    if (!tx_handle) {
+        ESP_LOGE(TAG, "get i2s tx handle failed");
+        stream_proc_open_dac(dac_handle);
+        return;
+    }
+    ret = esp_bt_audio_le_playback_sync_init(tx_handle, &playback_sync);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Playback sync init failed: %s", esp_err_to_name(ret));
+        stream_proc_open_dac(dac_handle);
+        return;
+    }
+
+    ret = esp_bt_audio_le_playback_sync_enable(playback_sync);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Playback sync enable failed: %s", esp_err_to_name(ret));
+        esp_bt_audio_le_playback_sync_deinit(playback_sync);
+        playback_sync = NULL;
+        stream_proc_open_dac(dac_handle);
+        return;
+    }
+
+    ret = stream_proc_open_dac(dac_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "open audio dac failed: %s", esp_err_to_name(ret));
+        stream_proc_deinit_playback_sync();
+    }
+}
+#else
+static void stream_proc_prepare_playback_sync(void)
+{
+}
+
+static void stream_proc_deinit_playback_sync(void)
+{
+}
+#endif  /* CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
 
 static const char *gmf_state_to_str(int state)
 {
@@ -167,6 +274,7 @@ static void stream_proc_prepare(esp_bt_audio_stream_handle_t stream, stream_user
         esp_gmf_pipeline_get_el_by_name(user_d->pipe, "aud_ch_cvt", &aud_ch_cvt);
         esp_gmf_ch_cvt_set_dest_channel(aud_ch_cvt, 2);
 
+        stream_proc_prepare_playback_sync();
         esp_gmf_pipeline_loading_jobs(user_d->pipe);
     } else {
         uint32_t context = 0;
@@ -266,11 +374,17 @@ void stream_proc_state_chg(esp_bt_audio_stream_handle_t stream, esp_bt_audio_str
                 esp_gmf_pipeline_stop(user_d->pipe);
                 esp_gmf_pipeline_reset(user_d->pipe);
             }
+            if (dir == ESP_BT_AUDIO_STREAM_DIR_SINK) {
+                stream_proc_deinit_playback_sync();
+            }
             break;
         }
         case ESP_BT_AUDIO_STREAM_STATE_RELEASED: {
             stream_user_data_t *user_d = NULL;
             esp_bt_audio_stream_get_local_data(stream, (void **)&user_d);
+            if (dir == ESP_BT_AUDIO_STREAM_DIR_SINK) {
+                stream_proc_deinit_playback_sync();
+            }
             if (user_d) {
                 stream_proc_destroy(user_d);
                 esp_bt_audio_stream_set_local_data(stream, NULL);

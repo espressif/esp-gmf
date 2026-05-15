@@ -18,12 +18,19 @@ In addition, `esp_bt_audio` provides flexible data access methods:
 
 - **Bluetooth host stack**
   - **Classic audio** requires **Bluedroid** to be enabled (`CONFIG_BT_BLUEDROID_ENABLED`)
+  - **LE Audio** requires **NimBLE** with Bluetooth Audio and ISO support (`CONFIG_BT_NIMBLE_ENABLED`, `CONFIG_BT_AUDIO`, `CONFIG_BT_ISO`)
 - **Classic Bluetooth profiles**
   - **A2DP Sink**: receive audio from a source (phone/PC) and render locally
   - **A2DP Source**: send local audio to a remote sink (speaker/headset)
   - **HFP Hands-Free (HF)**: conversational audio use cases
   - **AVRCP Controller/Target**: playback control, metadata, notifications
   - **PBAP Client Equipment**: fetch phonebook and call history from the phone
+- **LE Audio profiles and roles**
+  - **BAP Unicast Server**: expose sink/source ASEs for LE unicast media or conversational audio
+  - **BAP Broadcast Source/Sink**: send or receive LC3 broadcast audio streams
+  - **Scan Delegator**: accept broadcast assistant requests for broadcast discovery and synchronization
+  - **TMAP support**: configure telephony and media role combinations, such as CT, UMR, BMR, and BMS
+  - **VCP/MCP/MICP/CCP/CSIP**: volume, media control, microphone, call control, and coordinated-set support
 - **Event callback model** (`esp_bt_audio_event_cb_t`)
   - connection/discovery state, device discovery
   - stream allocation/start/stop/release
@@ -39,7 +46,7 @@ In addition, `esp_bt_audio` provides flexible data access methods:
 
 ## Architecture
 
-`esp_bt_audio` acts as an **adapter layer** between the application and the Bluetooth protocol stack: it exposes a unified interface and stream abstraction upward, and integrates with the BT host (Bluedroid / NimBLE) and profiles below, converging underlying callbacks and state into a single event and data interface so the application does not need to deal with per-profile or per-host differences.
+`esp_bt_audio` acts as an **adapter layer** between the application and the Bluetooth protocol stack: it exposes a unified interface and stream abstraction upward, and integrates with the BT host (Bluedroid / NimBLE) and profiles below, converging underlying callbacks and state into a single event and data interface so the application does not need to deal with per-profile or per-host differences. Classic and LE Audio streams both use the same stream lifecycle and packet I/O model.
 
 ```mermaid
 flowchart TB
@@ -48,6 +55,7 @@ flowchart TB
   core["esp_bt_audio<br/>(init + role management)"]
   stream["Audio streams"]
   classic["Classic profiles<br/>A2DP / HFP / AVRCP / PBAP"]
+  le["LE Audio profiles<br/>BAP / TMAP / VCP / MCP / CCP"]
   host["BT host<br/>Bluedroid / NimBLE"]
   ctrl["BT controller"]
   gmf["Optional: GMF IO"]
@@ -57,7 +65,9 @@ flowchart TB
   classic -- "callbacks" --> evt;
   host -- "stack callbacks" --> evt;
   core --> classic --> host --> ctrl;
+  core --> le --> host --> ctrl;
   classic --> stream;
+  le --> stream;
   stream -- "state changes" --> evt;
   app --> gmf --> stream;
 ```
@@ -73,12 +83,14 @@ flowchart TB
 | `esp_bt_audio_defs.h` | roles (A2DP/HFP/AVRCP), basic enums/defs |
 | `esp_bt_audio_host.h` | host configuration structures (Bluedroid/NimBLE) |
 | `esp_bt_audio_classic.h` | Classic discovery/connect/scan-mode helpers (Bluedroid) |
+| `esp_bt_audio_le.h` | LE Audio scan/connect/disconnect and broadcast sync helpers (NimBLE) |
 | `esp_bt_audio_stream.h` | stream abstraction: codec info, direction/context, packet APIs |
 | `esp_bt_audio_media.h` | transport control for local media sending (A2DP source) |
 | `esp_bt_audio_playback.h` | playback controller commands + metadata/notification helpers |
 | `esp_bt_audio_vol.h` | absolute/relative volume control + notifications |
 | `esp_bt_audio_tel.h` | telephony: call state, tel status, call control |
 | `esp_bt_audio_pb.h` | phonebook and call history |
+| `esp_bt_audio_le_playback_sync.h` | optional LE Audio playback clock synchronization helpers (`CONFIG_SOC_MODEM_SUPPORT_ETM`) |
 | `io/esp_gmf_io_bt.h` | optional GMF I/O adapter (`CONFIG_ESP_BT_AUDIO_GMF_IO_SUPPORT=y`) |
 
 ### Event types
@@ -101,6 +113,7 @@ flowchart TB
 | `ESP_BT_AUDIO_EVENT_PHONEBOOK_COUNT` | `uint16_t` | total phonebook entry count |
 | `ESP_BT_AUDIO_EVENT_PHONEBOOK_ENTRY` | `esp_bt_audio_pb_entry_t` | one phonebook record: names and number list |
 | `ESP_BT_AUDIO_EVENT_PHONEBOOK_HISTORY` | `esp_bt_audio_pb_history_t` | one call-history record: contact, type, timestamp |
+| `ESP_BT_AUDIO_EVENT_BIG_SYNC_LOST` | none | LE Audio BIG synchronization lost |
 
 #### Typical event flow
 
@@ -177,7 +190,7 @@ Notes:
 
 #### Typical data flows
 
-##### A2DP Sink (remote → ESP)
+##### Audio Sink (remote → ESP)
 
 ```mermaid
 flowchart LR
@@ -190,7 +203,7 @@ flowchart LR
   convert --> codec_dev["codec_dev (I2S/DAC)"];
 ```
 
-##### A2DP Source (ESP → remote)
+##### Audio Source (ESP → remote)
 
 ```mermaid
 flowchart LR
@@ -236,6 +249,16 @@ Classic profile–related source code is compiled only when the corresponding ES
 - `CONFIG_BT_AVRCP_ENABLED`
 - `CONFIG_BT_PBAC_ENABLED`
 
+#### Enable LE Audio in ESP-IDF
+
+LE Audio support is compiled when NimBLE and ESP-IDF Bluetooth Audio/ISO options are enabled:
+
+- `CONFIG_BT_NIMBLE_ENABLED`
+- `CONFIG_BT_AUDIO`
+- `CONFIG_BT_ISO`
+
+Optional LE profile switches use ESP-IDF Bluetooth Audio options, including `CONFIG_BT_BAP_UNICAST_SERVER`, `CONFIG_BT_BAP_BROADCAST_SOURCE`, `CONFIG_BT_BAP_BROADCAST_SINK`, `CONFIG_BT_BAP_SCAN_DELEGATOR`, `CONFIG_BT_VCP_VOL_REND`, `CONFIG_BT_MCC`, `CONFIG_BT_MICP_MIC_DEV`, `CONFIG_BT_TBS_CLIENT`, `CONFIG_BT_CSIP_SET_MEMBER`, and `CONFIG_BT_TMAP`.
+
 #### Enable GMF I/O adapter (optional)
 
 `esp_gmf_io_bt` is compiled only when:
@@ -248,8 +271,8 @@ Typical initialization flow:
 
 1. Initialize NVS (Bluetooth uses it)
 2. Initialize and enable the BT controller (`esp_bt_controller_init` / `enable`)
-3. Prepare host config (`esp_bt_audio_host_bluedroid_cfg_t`)
-4. Call `esp_bt_audio_init()` with roles and event callback
+3. Prepare host config (`esp_bt_audio_host_bluedroid_cfg_t` for Classic, `esp_bt_audio_host_nimble_cfg_t` for LE Audio)
+4. Call `esp_bt_audio_init()` with Classic and/or LE roles plus the event callback
 
 Minimal example skeleton:
 
@@ -354,6 +377,10 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
         // Call log: entry, property (e.g. RECEIVED/DIALED/MISSED), timestamp (e.g. YYYYMMDDTHHMMSSZ)
         break;
     }
+    case ESP_BT_AUDIO_EVENT_BIG_SYNC_LOST: {
+        // LE Audio BIG synchronization was lost; restart broadcast discovery/sync as needed
+        break;
+    }
     default:
         break;
     }
@@ -414,6 +441,14 @@ When Classic + Bluedroid are enabled, `esp_bt_audio_classic.h` provides helper o
 - discovery start/stop
 - connect/disconnect by role + device address
 - set scan mode (connectable/discoverable)
+
+### LE Audio helper APIs
+
+When LE Audio + NimBLE are enabled, `esp_bt_audio_le.h` provides helper operations such as:
+
+- start/stop LE scan (`esp_bt_audio_le_scan_start`, `esp_bt_audio_le_scan_stop`)
+- connect/disconnect LE ACL links (`esp_bt_audio_le_connect`, `esp_bt_audio_le_disconnect`)
+- synchronize to or terminate synchronization with broadcast audio (`esp_bt_audio_le_broadcast_sync`, `esp_bt_audio_le_pa_sync_terminate`)
 
 ## Usage
 

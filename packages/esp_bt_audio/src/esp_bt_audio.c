@@ -17,6 +17,9 @@
 #ifdef CONFIG_BT_CLASSIC_ENABLED
 #include "bt_audio_classic.h"
 #endif  /* CONFIG_BT_CLASSIC_ENABLED */
+#if CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO
+#include "bt_audio_le.h"
+#endif  /* CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO */
 
 #include "bt_audio_ops.h"
 #include "bt_audio_evt_dispatcher.h"
@@ -45,6 +48,11 @@ esp_err_t esp_bt_audio_init(esp_bt_audio_config_t *bt_config)
         ESP_GOTO_ON_ERROR(bt_audio_classic_init(&bt_config->classic), error, TAG, "Classic Audio init failed");
     }
 #endif  /* CONFIG_BT_CLASSIC_ENABLED */
+#if CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO
+    if (bt_config->le.roles) {
+        ESP_GOTO_ON_ERROR(bt_audio_le_init(&bt_config->le), error, TAG, "LE Audio init failed");
+    }
+#endif  /* CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO */
     return ret;
 
 error:
@@ -54,11 +62,14 @@ error:
 
 void esp_bt_audio_deinit(void)
 {
-    bt_audio_ops_deinit();
-    bt_audio_evt_dispatcher_deinit();
 #ifdef CONFIG_BT_CLASSIC_ENABLED
     bt_audio_classic_deinit();
 #endif  /* CONFIG_BT_CLASSIC_ENABLED */
+#if CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO
+    bt_audio_le_deinit();
+#endif  /* CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO */
+    bt_audio_ops_deinit();
+    bt_audio_evt_dispatcher_deinit();
     if (s_bt_host_inited) {
         esp_bt_audio_host_deinit();
         s_bt_host_inited = false;

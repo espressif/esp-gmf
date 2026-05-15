@@ -1,5 +1,5 @@
-version: "0.8.1"
-description: Espressif Bluetooth Audio Module
+version: "0.8.2"
+description: Espressif Bluetooth Audio Module for Classic and LE Audio
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_bt_audio
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_bt_audio/README.md"
 issues: "https://github.com/espressif/esp-gmf/issues"
@@ -17,7 +17,7 @@ dependencies:
   idf : ">=5.5"
   espressif/esp_audio_codec:
     require: "public"
-    version: "^2.4"
+    version: "^2.5"
   espressif/gmf_core:
     require: "public"
     version: "^0.8"
@@ -31,6 +31,7 @@ dependencies:
 
 targets:
   - esp32
+  - esp32s31
 
 examples:
   - path: "./examples/bt_audio"

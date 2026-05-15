@@ -20,6 +20,7 @@ extern "C" {
 typedef enum {
     ESP_BT_AUDIO_EVT_DST_USR,      /*!< Event to user */
     ESP_BT_AUDIO_EVT_DST_CLASSIC,  /*!< Event to Classic Bluetooth */
+    ESP_BT_AUDIO_EVT_DST_LE,       /*!< Event to LE Audio */
     ESP_BT_AUDIO_EVT_DST_MAX,      /*!< Maximum event destination */
 } esp_bt_audio_evt_dst_t;
 

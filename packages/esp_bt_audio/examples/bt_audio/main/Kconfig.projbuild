@@ -1,9 +1,25 @@
 menu "BT Audio Basic Example (GMF)"
 
-    menu "Classic Audio Roles Configuration"
+    config GMF_EXAMPLE_AUDIO_TECH_CLASSIC
+        bool "Enable Classic Bluetooth"
         depends on BT_CLASSIC_ENABLED
+        default y
+        help
+            Enable classic Bluetooth profile examples (A2DP/HFP/AVRCP/PBAP).
+
+    config GMF_EXAMPLE_AUDIO_TECH_LE
+        bool "Enable LE Audio"
+        depends on BT_NIMBLE_ENABLED && BT_AUDIO && BT_ISO
+        default y
+        help
+            Enable LE Audio unicast server example flow. This option can be
+            enabled together with Classic Bluetooth when the selected BT host
+            and controller configuration support both technologies.
+
+    menu "Classic Audio Roles Configuration"
+        depends on BT_CLASSIC_ENABLED && GMF_EXAMPLE_AUDIO_TECH_CLASSIC
         default GMF_EXAMPLE_A2DP_SINK
-        choice GMF_EXAMPLE_A2DP_ROLE
+        choice
             prompt "A2DP role"
             depends on BT_A2DP_ENABLE
 
@@ -46,6 +62,91 @@ menu "BT Audio Basic Example (GMF)"
             default n
             help
                 Enable phone book client equipment role
+    endmenu
+
+    menu "LE Audio Configuration"
+        depends on GMF_EXAMPLE_AUDIO_TECH_LE
+
+        choice
+            prompt "LE Audio user case"
+            default GMF_EXAMPLE_LE_USER_CASE_TMAP
+            help
+                Select the LE Audio user case used by the example.
+
+        config GMF_EXAMPLE_LE_USER_CASE_TMAP
+            bool "TMAP"
+            help
+                Enable the Telephony and Media Audio Profile user case.
+
+        endchoice
+
+        config GMF_EXAMPLE_LE_TMAP_ROLE_CT
+            bool "TMAP call terminal role"
+            depends on GMF_EXAMPLE_LE_USER_CASE_TMAP
+            default y
+            help
+                Enable the TMAP Call Terminal role.
+
+        config GMF_EXAMPLE_LE_TMAP_ROLE_UMR
+            bool "TMAP unicast media receiver role"
+            depends on GMF_EXAMPLE_LE_USER_CASE_TMAP
+            default y
+            help
+                Enable the TMAP Unicast Media Receiver role.
+
+        config GMF_EXAMPLE_LE_TMAP_ROLE_BMR
+            bool "TMAP broadcast media receiver role"
+            depends on GMF_EXAMPLE_LE_USER_CASE_TMAP
+            default y
+            help
+                Enable the TMAP Broadcast Media Receiver role.
+
+        choice
+            prompt "LE Audio location"
+            default GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
+            help
+                Select the audio location advertised by the LE Audio example.
+
+        config GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT
+            bool "Front left"
+            help
+                Advertise the LE Audio location as front left.
+
+        config GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
+            bool "Front right"
+            help
+                Advertise the LE Audio location as front right.
+
+        endchoice
+
+        config GMF_EXAMPLE_LE_SOURCE_ENABLE
+            bool "Enable LE Audio source capability"
+            default y
+            help
+                Enable LE Audio source capability and source ASE count.
+
+        config GMF_EXAMPLE_LE_COORDINATE_SET_SIZE
+            int "LE Audio coordinate set size"
+            default 2
+            range 0 2
+            help
+                Set the CSIP coordinated set size advertised by the LE Audio example.
+
+        config GMF_EXAMPLE_LE_COORDINATE_SET_RANK
+            int
+            default 1 if GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT
+            default 2 if GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
+            range 1 2
+            help
+                Set the CSIP rank for this set member based on the advertised location.
+
+        config GMF_EXAMPLE_LE_SCAN_TIMEOUT_MS
+            int "Default LE scan timeout (ms)"
+            default 10000
+            range 1000 60000
+            help
+                Default timeout used by LE scan command.
+
     endmenu
 
 endmenu

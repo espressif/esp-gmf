@@ -78,6 +78,19 @@ typedef struct {
 } esp_bt_audio_classic_ops_t;
 
 /**
+ * @brief  LE operations
+ */
+typedef struct {
+    esp_err_t (*start_scan)(const uint8_t *target, uint32_t timeout_ms);                       /*!< Start LE scan */
+    esp_err_t (*stop_scan)(void);                                                              /*!< Stop LE scan */
+    esp_err_t (*connect)(uint8_t addr_type, const uint8_t *bt_dev_addr, uint32_t timeout_ms);  /*!< Connect LE peer */
+    esp_err_t (*disconnect)(const uint8_t *bt_dev_addr);                                       /*!< Disconnect LE ACL link */
+    esp_err_t (*broadcast_sync)(const uint8_t *broadcast_name, const uint8_t *broadcast_code,
+                                uint32_t bit_field, uint32_t timeout_ms);  /*!< Sync to LE broadcast */
+    esp_err_t (*pa_sync_terminate)(void);                                  /*!< Terminate PA sync */
+} esp_bt_audio_le_ops_t;
+
+/**
  * @brief  Initialize Bluetooth operations
  *
  * @return
@@ -215,6 +228,30 @@ esp_err_t bt_audio_ops_get_classic(esp_bt_audio_classic_ops_t *classic_ops);
  *       - ESP_ERR_INVALID_STATE  If not initialized
  */
 esp_err_t bt_audio_ops_set_classic(esp_bt_audio_classic_ops_t *classic_ops);
+
+/**
+ * @brief  Get LE operations
+ *
+ * @param[out]  le_ops  Pointer to store LE operations
+ *
+ * @return
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_INVALID_ARG    Invalid argument
+ *       - ESP_ERR_INVALID_STATE  If not initialized
+ */
+esp_err_t bt_audio_ops_get_le(esp_bt_audio_le_ops_t *le_ops);
+
+/**
+ * @brief  Set LE operations
+ *
+ * @param[in]  le_ops  Pointer to LE operations
+ *
+ * @return
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_INVALID_ARG    Invalid argument
+ *       - ESP_ERR_INVALID_STATE  If not initialized
+ */
+esp_err_t bt_audio_ops_set_le(esp_bt_audio_le_ops_t *le_ops);
 
 #ifdef __cplusplus
 }

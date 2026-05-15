@@ -6,13 +6,14 @@
 
 ## 例程简介
 
-本例程通过 `esp_bt_audio` 模块初始化蓝牙音频，并使用 `esp_gmf_io_bt` 将蓝牙音频流与 GMF Pipeline 进行关联，从而实现音频的播放或写入；同时通过串口指令展示蓝牙音频播放与通话的控制。
+本例程通过 `esp_bt_audio` 模块初始化蓝牙音频，并使用 `esp_gmf_io_bt` 将蓝牙音频流与 GMF Pipeline 进行关联，从而实现经典蓝牙播放/写入，以及在目标芯片与蓝牙配置支持时的 LE Audio 单播或广播流程；同时通过串口指令展示蓝牙音频播放、LE 发现/连接与通话控制。
 
 ### 典型场景
 
 - 蓝牙音箱（A2DP Sink）：手机连接设备后播放音乐，支持播放/暂停/上下曲、音量与元数据
 - 蓝牙音源（A2DP Source）：设备发现并连接蓝牙耳机/音响，将本地或 microSD 音频推送到远端播放
 - 蓝牙通话（HFP HF/PBAP Client）：接听/拒接来电、拨号，使用 AEC 提升清晰度，获取通讯录与通话记录
+- LE Audio 音箱/耳机（TMAP）：设备暴露 LE Audio sink/source 能力，用于单播媒体或通话音频，也可按配置作为广播媒体接收端
 
 ### 预备知识
 
@@ -27,9 +28,9 @@
 
 ### 硬件要求
 
-- **开发板**：默认使用 `lyrat_mini_v1_1`，其他基于 ESP32 的音频开发板（带 I2S Codec、microSD 等）同样适用
+- **开发板**：默认经典蓝牙配置使用 `lyrat_mini_v1_1`；LE Audio 需使用支持 BLE ISO/Bluetooth Audio 的 ESP 芯片与 controller 配置，并准备具备 I2S Codec 资源的音频板
 - **外设**：Audio DAC、Audio ADC、I2S、microSD 卡（A2DP Source 角色需存放 `media0.mp3`、`media1.mp3`、`media2.mp3`）
-- **蓝牙**：经典蓝牙（BR/EDR），用于 A2DP、AVRCP、HFP
+- **蓝牙**：经典蓝牙（BR/EDR）用于 A2DP、AVRCP、HFP；LE Audio 需 NimBLE、Bluetooth Audio 与 ISO 支持
 
 ### 默认 IDF 分支
 
@@ -39,6 +40,7 @@
 
 - A2DP Source 角色需在 microSD 卡根目录放置三份测试音频：`media0.mp3`、`media1.mp3`、`media2.mp3`
 - 使用 A2DP Sink 时需手机或其它 A2DP Source 设备；使用 A2DP Source 时需蓝牙耳机或音响
+- 使用 LE Audio 时需开启 `CONFIG_BT_NIMBLE_ENABLED`、`CONFIG_BT_AUDIO`、`CONFIG_BT_ISO` 以及所需的 ESP-IDF LE Audio profile 选项，并准备与所选角色匹配的 LE Audio peer 或广播设备
 
 ## 编译和下载
 
@@ -59,7 +61,17 @@
 cd $YOUR_GMF_PATH/packages/esp_bt_audio/examples/bt_audio
 ```
 
-- 本例程使用 `esp_board_manager` 管理板级资源，需先添加板级支持
+- 本例程使用 `esp_board_manager` 管理板级资源，需先添加板级支持。
+
+> ESP-IDF 支持通过 `SDKCONFIG_DEFAULTS` 追加指定的 sdkconfig defaults 文件。在 S31 上请先选择 Classic 或 LE Audio defaults，再执行 `idf.py set-target` / 编译命令：
+>
+> ```text
+> export SDKCONFIG_DEFAULTS=sdkconfig.defaults.esp32s31.classic
+> # 或：
+> export SDKCONFIG_DEFAULTS=sdkconfig.defaults.esp32s31.le
+> # PowerShell：
+> $env:SDKCONFIG_DEFAULTS = "sdkconfig.defaults.esp32s31.classic"
+> ```
 
 在 Linux / macOS 中：
 
@@ -90,6 +102,8 @@ idf.py menuconfig
 在 menuconfig 中进行以下配置（示例）：
 
 - `BT Audio Basic Example (GMF)` → `Classic Audio Roles Configuration` → 选择 A2DP 角色（A2DP Sink / A2DP Source）或 HFP HF 等
+- `BT Audio Basic Example (GMF)` → `Enable LE Audio` → 在目标芯片支持时开启 LE Audio 例程流程
+- 可选：`LE Audio Configuration` → 选择 LE Audio user case 和 TMAP roles，再配置 LE audio location、source capability 和 coordinated set size
 - 若为 A2DP Source，确保 microSD 相关配置正确，且卡内已放置 `media0.mp3`、`media1.mp3`、`media2.mp3`
 
 > 配置完成后按 `s` 保存，然后按 `Esc` 退出。
@@ -114,12 +128,13 @@ idf.py -p PORT flash monitor
 
 ### 功能和用法
 
-- **角色与指令**：例程支持通过 menuconfig 选配经典蓝牙角色（A2DP Sink、A2DP Source、HFP HF、AVRCP Controller/Target）；编译烧录后，在串口输入 `help` 查看指令列表
+- **角色与指令**：例程支持通过 menuconfig 选配经典蓝牙角色（A2DP Sink、A2DP Source、HFP HF、AVRCP Controller/Target）与 LE Audio TMAP 预设；编译烧录后，在串口输入 `help` 查看指令列表
 - **A2DP Sink**：设备等待手机等连接，连接后可通过串口指令控制播放：`play`、`pause`、`stop`、`next`、`prev`，以及 `vol_set <0-100>` 设置音量
 - **A2DP Source**：通过 `start_discovery`、`connect <mac>` 发现并连接蓝牙音响/耳机，使用 `start_media`、`stop_media` 控制推流启停
 - **HFP HF**：支持来电接听/拒接、拨号，以及通话状态与话务状态上报；通话场景下通过 GMF 管道中的 AEC 元件进行回声消除
 - **PBAP Client**: 通过 `pb_fetch` 指令获取通讯录和通话记录
-- **配合设备**：A2DP Sink 需手机或其它 A2DP Source；A2DP Source 需蓝牙耳机或音响；HFP 需支持 HFP AG 的手机
+- **LE Audio**：使用 `le_scan_start [timeout_ms]` 与 `le_scan_stop` 发现 LE Audio 设备，使用 `le_connect <addr_type> <mac_address> [timeout_ms]` 连接 peer，使用 `le_disconnect` 断开当前 LE ACL 链路。媒体、音量、通话与 stream 事件通过同一套 `esp_bt_audio` 事件路径上报。
+- **配合设备**：A2DP Sink 需手机或其它 A2DP Source；A2DP Source 需蓝牙耳机或音响；HFP 需支持 HFP AG 的手机；LE Audio 需兼容的 LE Audio peer 或广播设备
 
 ### 日志输出
 
@@ -241,6 +256,7 @@ BTAudio >
 - 确认 menuconfig 中蓝牙角色与目标设备角色匹配（Sink 对 Source，Source 对 Sink）
 - 确认设备已配对/连接，且串口无连接失败或 A2DP/AVRCP 错误日志
 - 若为 HFP，确认手机端已授权通话与音频
+- 若为 LE Audio，确认目标芯片支持 BLE ISO/Bluetooth Audio，NimBLE 与所需的 ESP-IDF LE Audio profile 选项已开启，且 peer 角色与所选 TMAP 预设匹配
 
 ### 编译或板级相关错误
 
