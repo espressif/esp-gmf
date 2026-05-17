@@ -39,6 +39,8 @@ ESP GMF Examples 是一个汇集了 GMF 相关 example 的组件，其主要目�
 | [aec_rec](../elements/gmf_ai_audio/examples/aec_rec) | 使用 `gmf_ai_audio` 实现播放 SD 卡音乐的同时完成 AEC 回声消除录制 | 免提通话、会议录音、快速验证 AEC 效果 | 麦克风、Audio ADC、Audio DAC、扬声器、SD 卡 |
 | [wwe](../elements/gmf_ai_audio/examples/wwe) | 使用 `gmf_ai_audio` 实现语音识别（唤醒词、VAD、指令） | 语音唤醒、指令识别 | 麦克风、Audio ADC、Audio DAC、扬声器、SD 卡 |
 | [simple_player](../packages/esp_audio_simple_player/test_apps) | 使用 `esp_audio_simple_player` 实现简单音频播放器示例（SD 卡/Flash/HTTP 播放） | 快速验证多种不同播放源（无需自行搭建 pipeline） | SD 卡或 Wi-Fi、Audio DAC、扬声器 |
+| [audio_player](../packages/esp_player/examples/audio_player) | 使用 `esp_player` 实现完整音频播放（解复用、解码、播放控制；支持多路混音，无需自行搭建 pipeline） | 音频播放、多路音频混音 | SD 卡或 Wi-Fi、Audio DAC、扬声器 |
+| [video_player](../packages/esp_player/examples/video_player) | 使用 `esp_player` 实现完整音视频播放（解复用、解码、A/V 同步、LCD 与扬声器输出，无需自行搭建 pipeline） | 带屏设备媒资播放、验证完整音视频链路 | SD 卡、LCD、Audio DAC、扬声器 |
 | [baidu_rtc](https://github.com/espressif/esp-adf/tree/master/adf_examples/ai_agent/baidu_rtc/solutions/voice_assistant_app) | 使用百度 RTC 实现实时语音对话、ASR/TTS、网络音乐、视频对讲与 3A 音频处理 | 智能音箱、语音交互设备、智能家居、音视频通话 | 麦克风、Audio ADC、Audio DAC、扬声器、Wi-Fi |
 | [coze_ws_app](https://github.com/espressif/esp-adf/tree/master/adf_examples/ai_agent/coze_ws_app) | 使用扣子 WebSocket OpenAPI 实现与智能体双向流式语音对话（直接对话/唤醒/按键打断、3A） | 语音助手、智能体对话 | 麦克风、Audio ADC、Audio DAC、扬声器、Wi-Fi |
 | [esp_audio_analyzer_app](https://github.com/espressif/esp-adf/tree/master/adf_examples/checks/esp_audio_analyzer_app) | 使用 ESP 音频分析工具全面测试麦克风、扬声器及 AEC 功能 | 音频测试、声学调试、AEC 效果验证 | 麦克风、Audio ADC、Audio DAC、扬声器、Wi-Fi |
