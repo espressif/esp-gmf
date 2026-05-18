@@ -15,4 +15,3 @@ dependencies:
   espressif/esp_board_manager:
     require: public
     version: "*"
-    override_path: ../esp_board_manager

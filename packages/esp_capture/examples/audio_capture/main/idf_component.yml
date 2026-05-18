@@ -13,4 +13,3 @@ dependencies:
     override_path: ../../../../esp_capture
   espressif/esp_board_manager:
     version: "*"
-    override_path: ../../../../esp_board_manager

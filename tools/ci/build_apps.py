@@ -269,6 +269,38 @@ def _get_removed_apps(filtered_paths, built_apps):
     built_paths = set(app.app_dir for app in built_apps)
     return [path for path in filtered_paths if path not in built_paths]
 
+def _append_sdkconfig_default(existing_defaults, default_path):
+    """Append default_path to SDKCONFIG_DEFAULTS-style semicolon list once."""
+    defaults = [item for item in existing_defaults.split(';') if item]
+    if default_path not in defaults:
+        defaults.append(default_path)
+    return ';'.join(defaults)
+
+def _board_manager_defaults_for_app(app):
+    defaults_path = os.path.join(app.app_dir, 'components', 'gen_bmgr_codes', 'board_manager.defaults')
+    return defaults_path if os.path.isfile(defaults_path) else None
+
+def _with_board_manager_sdkconfig_defaults(apps):
+    """Add generated board-manager defaults only to apps that have them."""
+    updated_apps = []
+    base_defaults = os.environ.get('SDKCONFIG_DEFAULTS') or 'sdkconfig.defaults'
+
+    for app in apps:
+        bmgr_defaults = _board_manager_defaults_for_app(app)
+        if bmgr_defaults:
+            sdkconfig_defaults = _append_sdkconfig_default(base_defaults, bmgr_defaults)
+            print_info(f'Using SDKCONFIG_DEFAULTS={sdkconfig_defaults} for {app.app_dir}')
+            updated_apps.append(
+                app.__class__.from_another(
+                    app,
+                    sdkconfig_defaults_str=sdkconfig_defaults,
+                )
+            )
+        else:
+            updated_apps.append(app)
+
+    return updated_apps
+
 def _handle_find_mode(args, filtered_paths) -> List[str]:
     """Handle find mode: list filtered applications without building"""
     default_build_targets = args.default_build_targets.split(',') if args.default_build_targets else None
@@ -345,7 +377,7 @@ def _handle_build_mode(args, filtered_paths):
     print_info('')
 
     return build_apps(
-        apps_to_build,
+        _with_board_manager_sdkconfig_defaults(apps_to_build),
         parallel_count=args.parallel_count,
         parallel_index=args.parallel_index,
         dry_run=False,

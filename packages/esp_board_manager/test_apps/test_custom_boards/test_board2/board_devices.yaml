@@ -1,8 +1,0 @@
-
-devices:
-  - name: gpio_ctrl_0
-    type: gpio_ctrl
-    config:
-      enabled: true
-    peripherals:
-      - name: gpio_test_output

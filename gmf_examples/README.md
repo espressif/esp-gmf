@@ -21,9 +21,8 @@ ESP GMF Examples is a component that collects GMF-related examples, mainly desig
 | [pipeline_howl](./basic_examples/pipeline_howl) | Decode backing track from SD card, apply howl suppression (`aud_howl`) on the mic path, mix and play to speaker | KTV / PA howl suppression, multi-pipeline and ringbuf interconnection reference | SD card, microphone, Audio ADC, Audio DAC, speaker |
 | [pipeline_loop_play_no_gap](./basic_examples/pipeline_loop_play_no_gap) | Seamless loop playback of multiple files | Background music loop, continuous playback | SD card, Audio DAC, speaker |
 | [pipeline_play_multi_source_music](./basic_examples/pipeline_play_multi_source_music) | Multi-source audio player; playback from HTTP, SD card, and Flash | Tone insert playback, multi-source switching | SD card, Wi-Fi, Audio DAC, speaker |
-| [play_embed_music](../packages/esp_board_manager/examples/play_embed_music) | Play Flash-embedded WAV with `esp_board_manager` (no GMF) | Board-level playback, quick board verification | Audio DAC, speaker |
-| [play_sdcard_music](../packages/esp_board_manager/examples/play_sdcard_music) | Play SD card music with `esp_board_manager` (no GMF) | Board-level SD card music playback | SD card, Audio DAC, speaker |
-| [record_to_sdcard](../packages/esp_board_manager/examples/record_to_sdcard) | Record and save WAV to SD card with `esp_board_manager` (no GMF) | Board-level recording and WAV save | Microphone, Audio ADC, SD card |
+
+> Note: The board-level examples `play_embed_music`, `play_sdcard_music`, and `record_to_sdcard` (no GMF) have been moved to the [esp-board-manager repository](https://github.com/espressif/esp-board-manager/tree/main/esp_board_manager/examples).
 
 **Advanced Examples**
 

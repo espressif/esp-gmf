@@ -8,7 +8,7 @@
 Script to batch process applications:
 1. Get application list using build_apps.py
 2. Execute idf.py set-target for each application
-3. Execute idf.py gen-bmgr-config for each application
+3. Execute idf.py bmgr for each application (with IDF_EXTRA_ACTIONS_PATH set)
 """
 
 import os
@@ -17,7 +17,7 @@ import json
 import argparse
 import subprocess
 import logging
-from typing import List
+from typing import Dict, List, Optional
 from pathlib import Path
 from build_apps import (
     get_app_paths,
@@ -90,11 +90,39 @@ def get_app_list(
         sys.exit(1)
 
 
+def _find_bmgr_actions_path(app_path: str) -> Optional[str]:
+    """
+    Locate esp_board_manager's idf_ext.py under the app's managed_components.
+
+    After bmgr moved to the IDF Component Registry, IDF 5.x does not auto-load
+    component idf_ext.py unless IDF_EXTRA_ACTIONS_PATH points at the component dir.
+    """
+    candidates = (
+        os.path.join(app_path, 'managed_components', 'espressif__esp_board_manager'),
+        os.path.join(app_path, 'managed_components', 'esp_board_manager'),
+    )
+    for path in candidates:
+        if os.path.isfile(os.path.join(path, 'idf_ext.py')):
+            return path
+    return None
+
+
+def _idf_env_for_app(app_path: str) -> Optional[Dict[str, str]]:
+    """Build subprocess env with IDF_EXTRA_ACTIONS_PATH set to the managed bmgr component."""
+    bmgr_path = _find_bmgr_actions_path(app_path)
+    if not bmgr_path:
+        return None
+    env = os.environ.copy()
+    env['IDF_EXTRA_ACTIONS_PATH'] = bmgr_path
+    return env
+
+
 def _execute_command_for_app(
     app_path: str,
     cmd: List[str],
     dry_run: bool = False,
-    use_warning_for_failure: bool = False
+    use_warning_for_failure: bool = False,
+    env: Optional[Dict[str, str]] = None,
 ) -> None:
     """
     Execute a command for a single application.
@@ -104,6 +132,7 @@ def _execute_command_for_app(
         cmd: Command to execute (as list of strings)
         dry_run: Whether to simulate execution only
         use_warning_for_failure: If True, use print_warning for failures; otherwise use print_error
+        env: Optional environment for subprocess (defaults to os.environ)
     """
     if not os.path.isdir(app_path):
         print_warning(f'  Warning: Directory does not exist, skipping')
@@ -118,6 +147,7 @@ def _execute_command_for_app(
         result = subprocess.run(
             cmd,
             cwd=app_path,
+            env=env if env is not None else os.environ,
             capture_output=True,
             text=True,
             check=False
@@ -170,7 +200,11 @@ def _is_depending_on_esp_board_manager(app_path: str) -> bool:
             project_desc = json.load(f)
 
         build_components = project_desc.get('build_components', [])
-        if 'esp_board_manager' in build_components:
+        # The component may appear as either:
+        #   - 'esp_board_manager'              (legacy in-tree override_path)
+        #   - 'espressif__esp_board_manager'   (managed via the IDF Component Registry)
+        bmgr_aliases = ('esp_board_manager', 'espressif__esp_board_manager')
+        if any(alias in build_components for alias in bmgr_aliases):
             return True
         else:
             print_info(f'  Info: esp_board_manager not found in build_components, skipping gen-bmgr-config')
@@ -186,7 +220,7 @@ def _is_depending_on_esp_board_manager(app_path: str) -> bool:
 
 def set_board_for_app(app_path: str, board: str, dry_run: bool = False) -> None:
     """
-    Execute idf.py gen-bmgr-config for a single application.
+    Execute idf.py bmgr (or legacy gen-bmgr-config) for a single application.
     Only executes if the project depends on esp_board_manager component.
 
     Args:
@@ -194,10 +228,30 @@ def set_board_for_app(app_path: str, board: str, dry_run: bool = False) -> None:
         board: Target board
         dry_run: Whether to simulate execution only
     """
-    # Only execute if esp_board_manager dependency is found
-    if _is_depending_on_esp_board_manager(app_path):
-        cmd = ['idf.py', 'gen-bmgr-config', '-b', board]
-        _execute_command_for_app(app_path, cmd, dry_run, use_warning_for_failure=True)
+    if not _is_depending_on_esp_board_manager(app_path):
+        return
+
+    if not board or not board.strip():
+        print_info('  Info: --board is empty, skipping bmgr board config')
+        return
+
+    idf_env = _idf_env_for_app(app_path)
+    if idf_env is None:
+        print_warning(
+            '  Warning: esp_board_manager is in build_components but '
+            'managed_components/.../idf_ext.py was not found; skipping board config. '
+            'Ensure idf.py set-target completed and the component was downloaded.'
+        )
+        return
+
+    bmgr_path = idf_env['IDF_EXTRA_ACTIONS_PATH']
+    print_info(f'  Info: IDF_EXTRA_ACTIONS_PATH={bmgr_path}')
+
+    # Prefer the new action name; gen-bmgr-config remains a legacy alias in idf_ext.py.
+    cmd = ['idf.py', 'bmgr', '-b', board]
+    _execute_command_for_app(
+        app_path, cmd, dry_run, use_warning_for_failure=True, env=idf_env
+    )
 
 
 def main():
@@ -302,9 +356,9 @@ Examples:
 
     # Process each application: set target chip (optional) and configure board
     if not args.skip_set_target:
-        print_info(f'\n[Step 2] Executing idf.py set-target {args.target} and idf.py gen-bmgr-config -b {args.board} for applications...')
+        print_info(f'\n[Step 2] Executing idf.py set-target {args.target} and idf.py bmgr -b {args.board} for applications...')
     else:
-        print_info(f'\n[Step 2] Executing idf.py gen-bmgr-config -b {args.board} for applications...')
+        print_info(f'\n[Step 2] Executing idf.py bmgr -b {args.board} for applications...')
 
     for i, app_path in enumerate(app_list, 1):
         print_info(f'\n[{i}/{len(app_list)}] Processing: {app_path}')

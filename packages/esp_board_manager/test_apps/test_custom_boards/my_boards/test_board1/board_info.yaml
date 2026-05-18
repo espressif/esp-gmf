@@ -1,4 +1,0 @@
-board: test_board1
-chip: esp32s3
-version: 1.0.0
-description: "Test board for customer path scanning"

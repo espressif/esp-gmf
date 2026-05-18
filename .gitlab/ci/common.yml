@@ -1,6 +1,5 @@
 variables:
   IDF_TAG_FLAG: true
-  IDF_EXTRA_ACTIONS_PATH: ${CI_PROJECT_DIR}/packages/esp_board_manager
 
 .update_source: &update_source
   - source ${CI_PROJECT_DIR}/tools/ci/utils.sh

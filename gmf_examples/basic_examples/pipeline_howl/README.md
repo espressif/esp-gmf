@@ -57,7 +57,9 @@ Short setup steps:
 cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_howl
 ```
 
-- Install `esp-bmgr-assist` on Linux / macOS / Windows:
+This example uses [ESP Board Manager](https://github.com/espressif/esp-board-manager) to manage board-level resources. The [`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/) helper tool is recommended as the default entry point.
+
+- Install once in your activated ESP-IDF Python environment:
 
 ```bash
 pip install esp-bmgr-assist

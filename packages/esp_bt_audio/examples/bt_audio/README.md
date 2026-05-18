@@ -18,7 +18,7 @@ This example initializes Bluetooth audio through the `esp_bt_audio` module and u
 ### Prerequisites
 
 - This example involves Bluetooth concepts and protocols; see the official [Bluetooth Specifications](https://www.bluetooth.com/specifications/specs/)
-- This example uses `esp_board_manager` for board-level resources; see [ESP Board Manager](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md) for setup
+- This example uses `esp_board_manager` for board-level resources; see [ESP Board Manager](https://github.com/espressif/esp-board-manager) for setup
 
 ### Resources
 
@@ -73,23 +73,56 @@ cd $YOUR_GMF_PATH/packages/esp_bt_audio/examples/bt_audio
 > $env:SDKCONFIG_DEFAULTS = "sdkconfig.defaults.esp32s31.classic"
 > ```
 
-On Linux / macOS:
+This example uses [ESP Board Manager](https://github.com/espressif/esp-board-manager) to manage board-level resources. The [`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/) helper tool is recommended as the default entry point.
+
+Install once in your activated ESP-IDF Python environment:
 
 ```bash
-idf.py set-target esp32
-export IDF_EXTRA_ACTIONS_PATH=./managed_components/esp_board_manager
-idf.py gen-bmgr-config -b lyrat_mini_v1_1
+pip install esp-bmgr-assist
+pip install --upgrade esp-bmgr-assist
 ```
 
-On Windows:
+- List supported boards:
 
-```powershell
-idf.py set-target esp32
-$env:IDF_EXTRA_ACTIONS_PATH = ".\managed_components\esp_board_manager"
-idf.py gen-bmgr-config -b lyrat_mini_v1_1
+```bash
+idf.py bmgr -l
 ```
 
-For a custom board, see [Custom board](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board).
+Example output:
+
+```text
+ℹ️  Main Boards:
+  [1] dual_eyes_board_v1_0
+  [2] esp32_c3_lyra
+  [3] esp32_c5_spot
+  [4] esp32_p4_function_ev
+  [5] esp32_s3_korvo2_v3
+  [6] esp32_s3_korvo2l
+  [7] esp_box_3
+  [8] esp_box_lite
+  [9] esp_hi
+```
+
+- Select a board:
+
+```bash
+idf.py bmgr -b <board_index|board_name>
+```
+
+For example, to select `esp32_s3_korvo2_v3`:
+
+```bash
+idf.py bmgr -b 5
+# or
+idf.py bmgr -b esp32_s3_korvo2_v3
+```
+
+On first invocation, the component is downloaded automatically based on the `espressif/esp_board_manager` dependency declared in `main/idf_component.yml`.
+
+> [!NOTE]
+> To switch to a different board supported by `esp_board_manager`, repeat the same steps with the new board name or index.
+> For a custom board, see [How to customize board](https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/docs/how_to_customize_board.md).
+> For more information about `esp_board_manager`, see the [ESP Board Manager Getting Started Guide](https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/README.md).
 
 ### Project Configuration
 
@@ -242,7 +275,8 @@ Connection and media control output may vary. To reduce log noise, use `esp_log_
 
 ### References
 
-- [ESP Board Manager](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md)
+- [ESP Board Manager](https://github.com/espressif/esp-board-manager)
+- [esp-bmgr-assist](https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/docs/esp_bmgr_assist.md)
 - [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/index.html)
 
 ## Troubleshooting
@@ -260,8 +294,8 @@ If the log shows file open or path errors, ensure the microSD card is mounted an
 
 ### Build or Board-Related Errors
 
-- Confirm you have run `idf.py set-target esp32`, set `IDF_EXTRA_ACTIONS_PATH` to the `esp_board_manager` directory, and run `idf.py gen-bmgr-config -b <board>`
-- For a custom board, see [Custom board](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board)
+- Confirm you have installed `esp-bmgr-assist` (`pip install esp-bmgr-assist`), run `idf.py set-target esp32`, and run `idf.py bmgr -b <board>`
+- For a custom board, see [How to customize board](https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/docs/how_to_customize_board.md)
 
 ### Cannot Retrieve Phonebook or Call History
 

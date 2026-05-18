@@ -57,7 +57,6 @@ examples/video_render
 │   ├── video_render.c
 │   └── video_render_sys.c
 ├── CMakeLists.txt
-├── idf_ext.py
 ├── partitions.csv
 ├── README.md
 └── README_CN.md
@@ -86,25 +85,60 @@ examples/video_render
 
 ## 构建与烧录
 
-### 构建准备
+### 选择并配置开发板
 
-开始构建前，请确保已经完成 ESP-IDF 环境安装并执行过导出。
+本示例使用 [ESP Board Manager](https://github.com/espressif/esp-board-manager) 管理板级资源。推荐安装辅助工具 [`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/) 作为默认入口。
 
-```bash
-cd /path/to/esp-gmf/packages/esp_video_render/examples/video_render
-```
-
-在构建前先为目标开发板生成 board-manager 代码，例如：
+在已激活的 ESP-IDF Python 环境下安装（同一环境只需安装一次）：
 
 ```bash
-idf.py gen-bmgr-config -b esp32_p4_function_ev
+pip install esp-bmgr-assist
+pip install --upgrade esp-bmgr-assist
 ```
 
-如果你使用的是其他受支持的开发板，请将 `esp32_p4_function_ev` 替换为对应的板型名称。可通过以下命令列出支持的开发板：
+- 查看支持的板子：
 
 ```bash
-idf.py gen-bmgr-config -l
+idf.py bmgr -l
 ```
+
+输出示例：
+
+```text
+ℹ️  Main Boards:
+  [1] dual_eyes_board_v1_0
+  [2] esp32_c3_lyra
+  [3] esp32_c5_spot
+  [4] esp32_p4_function_ev
+  [5] esp32_s3_korvo2_v3
+  [6] esp32_s3_korvo2l
+  [7] esp_box_3
+  [8] esp_box_lite
+  [9] esp_hi
+```
+
+- 选择开发板：
+
+```bash
+idf.py bmgr -b <board_index|board_name>
+```
+
+例如选择 `esp32_s3_korvo2_v3`：
+
+```bash
+idf.py bmgr -b 5
+# 或
+idf.py bmgr -b esp32_s3_korvo2_v3
+```
+
+首次执行 `idf.py bmgr` 时，组件会根据本工程 `main/idf_component.yml` 中声明的 `espressif/esp_board_manager` 依赖自动下载。
+
+> [!NOTE]
+> 如果切换为其他 `esp_board_manager` 支持的开发板，请按相同步骤执行并替换板型名称/索引。
+> 自定义开发板请参考 [自定义开发板指南](https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/docs/how_to_customize_board_cn.md)。
+> `esp_board_manager` 更多信息请参考 [ESP_BOARD_MANAGER 入门指南](https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/README_CN.md)
+
+### 构建与烧录
 
 生成 board 代码后，再构建并烧录示例：
 

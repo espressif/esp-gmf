@@ -18,4 +18,3 @@ dependencies:
     override_path: "../../../gmf_app_utils"
   espressif/esp_board_manager:
     version: "*"
-    override_path: "../../../esp_board_manager"

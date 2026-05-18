@@ -8,7 +8,7 @@ dependencies:
   espressif/gmf_app_utils:
     override_path: ../../../gmf_app_utils
   espressif/esp_board_manager:
-    override_path: ../../../esp_board_manager
+    version: "*"
   espressif/esp_video_codec: '*'
   # Option A (bitmap color emoji via FreeType): provide libpng so FreeType can decode
   # PNG-compressed embedded bitmaps in CBDT/CBLC fonts.

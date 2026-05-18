@@ -16,4 +16,3 @@ dependencies:
     version: "^0.8"
   espressif/esp_board_manager:
     version: "*"
-    override_path: ../../../../packages/esp_board_manager

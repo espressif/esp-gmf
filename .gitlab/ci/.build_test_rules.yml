@@ -43,9 +43,6 @@
 gmf_core/test_apps:
   <<: *disable_example
 
-packages/esp_board_manager:
-  <<: *disable_test_apps_esp32
-
 packages/esp_bt_audio:
   <<: *disable_example_esp32s3
   <<: *disable_example_esp32c3

@@ -1,8 +1,0 @@
-# Devices Configuration
-devices:
-  - name: lcd_backlight
-    type: ledc_ctrl
-    config:
-      default_percent: 80
-    peripherals:
-      - name: ledc_backlight

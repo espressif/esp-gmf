@@ -21,9 +21,8 @@ ESP GMF Examples 是一个汇集了 GMF 相关 example 的组件，其主要目�
 | [pipeline_howl](./basic_examples/pipeline_howl) | SD 卡伴奏解码后与麦克风（`aud_howl` 啸叫抑制）混音播放 | KTV/扩声啸叫抑制、多路 pipeline 与 ringbuf 互连参考 | SD 卡、麦克风、Audio ADC、Audio DAC、扬声器 |
 | [pipeline_loop_play_no_gap](./basic_examples/pipeline_loop_play_no_gap) | 多文件无缝循环播放 | 背景音乐循环、单曲连续播放 | SD 卡、Audio DAC、扬声器 |
 | [pipeline_play_multi_source_music](./basic_examples/pipeline_play_multi_source_music) | 多源音频播放器，支持从 HTTP、SD 卡、Flash 三种音频源播放音乐 | 提示音插入播放、多源音乐切换 | SD 卡、Wi-Fi、Audio DAC、扬声器 |
-| [play_embed_music](../packages/esp_board_manager/examples/play_embed_music) | 基于 `esp_board_manager` 播放 Flash 内嵌 WAV（不依赖 GMF） | 板级播放、快速验证开发板 | Audio DAC、扬声器 |
-| [play_sdcard_music](../packages/esp_board_manager/examples/play_sdcard_music) | 基于 `esp_board_manager` 播放 SD 卡音乐（不依赖 GMF） | 板级播放 SD 卡音乐 | SD 卡、Audio DAC、扬声器 |
-| [record_to_sdcard](../packages/esp_board_manager/examples/record_to_sdcard) | 基于 `esp_board_manager` 录制并保存 WAV 到 SD 卡（不依赖 GMF） | 板级录音并 WAV 保存 | 麦克风、Audio ADC、SD 卡 |
+
+> 说明：板级例程 `play_embed_music`、`play_sdcard_music`、`record_to_sdcard`（不依赖 GMF）已迁至 [esp-board-manager 仓库](https://github.com/espressif/esp-board-manager/tree/main/esp_board_manager/examples)。
 
 **高级功能示例**
 
