@@ -57,7 +57,7 @@ graph
 - 进入本例程工程目录（以下为示例路径，请改为实际例程路径）：
 
 ```
-cd $YOUR_GMF_PATH/elements/gmf_ai_audio/examples/aec_rec
+cd $YOUR_GMF_PATH/elements/gmf_ai_audio/examples/wwe
 ```
 
 - 执行预编译脚本，根据提示选择编译芯片，自动设置 IDF Action 扩展，通过 `esp_board_manager` 选择支持的开发板，如需选择自定义开发板，详情参考：[自定义板子](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board)

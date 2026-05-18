@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.3
+
+### Features
+
+- Added support for esp32s31
+
 ## v0.8.2
 
 ### Features

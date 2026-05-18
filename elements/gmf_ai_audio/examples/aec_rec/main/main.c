@@ -27,13 +27,16 @@
 #include "esp_gmf_app_cli.h"
 #include "gmf_loader_setup_defaults.h"
 
-#define BOARD_LYRAT_MINI (0)
-#define BOARD_KORVO_2    (1)
+#define BOARD_LYRAT_MINI  (0)
+#define BOARD_KORVO_2     (1)
+#define BOARD_S31_KORVO_1 (2)
 
 #if defined CONFIG_IDF_TARGET_ESP32S3
 #define AUDIO_BOARD (BOARD_KORVO_2)
 #elif defined CONFIG_IDF_TARGET_ESP32
 #define AUDIO_BOARD (BOARD_LYRAT_MINI)
+#elif defined CONFIG_IDF_TARGET_ESP32S31
+#define AUDIO_BOARD (BOARD_S31_KORVO_1)
 #endif  /* defined CONFIG_IDF_TARGET_ESP32S3 */
 
 #if AUDIO_BOARD == BOARD_KORVO_2
@@ -48,6 +51,13 @@
 #define ADC_I2S_CH          (2)
 #define ADC_I2S_BITS        (16)
 #define DAC_I2S_CH          (1)
+#define DAC_I2S_BITS        (16)
+#define INPUT_CH_NUM        (ADC_I2S_CH)
+#define INPUT_CH_BITS       (ADC_I2S_BITS)
+#elif AUDIO_BOARD == BOARD_S31_KORVO_1
+#define ADC_I2S_CH          (4)
+#define ADC_I2S_BITS        (16)
+#define DAC_I2S_CH          (2)
 #define DAC_I2S_BITS        (16)
 #define INPUT_CH_NUM        (ADC_I2S_CH)
 #define INPUT_CH_BITS       (ADC_I2S_BITS)
