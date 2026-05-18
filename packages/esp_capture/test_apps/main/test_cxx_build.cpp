@@ -55,6 +55,7 @@ extern "C" void test_cxx_build(void)
                 .muxer_type = ESP_MUXER_TYPE_MP4,
                 .slice_duration = 60000,
                 .url_pattern = NULL,
+                .url_pattern_ex = NULL,
                 .data_cb = NULL,
                 .ctx = NULL,
                 .ram_cache_size = 16384,

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.3
+
+### Features
+
+- Added support for `esp32s31` v4l2 source
+- Fixed decoder overwrote fps to 0 when decoded fps not set
+- Added software color convert support for `vid_ppa`
+
+### Bug Fixes
+
+- Fixed print error log when acquire data when aborted by stop
+
 ## v0.8.4
 
 ### Features

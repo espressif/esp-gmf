@@ -57,7 +57,7 @@ ESP GMF Video 是一套专为视频编解码和视频转换等设计的视频处
 以下元素是为[视频像素处理器]（https://github.com/espressif/esp-adf-libs/tree/master/esp_image_effects）包装的，它实现了软件视频处理。
 
 #### 视频彩色转换器
-软件实现视频图像不同颜色转换
+软件实现视频图像不同颜色转换。支持的输入/输出组合遵循 [`esp_image_effects`](https://components.espressif.com/components/espressif/esp_image_effects) 组件 README 中的 **IMAGE COLOR CONVERT** 矩阵（`vid_ppa` 在软件回退路径中调用 `esp_imgfx_color_convert_*` 时同样受此限制）。
 
 #### 视频剪辑器
 软件实现视频图像任意位置及大小的裁剪

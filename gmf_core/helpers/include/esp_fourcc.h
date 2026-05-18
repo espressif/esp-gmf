@@ -278,10 +278,10 @@ static inline void gmf_fourcc_to_str(uint32_t fourcc, char out[5]) {
 
 
 /***************************************************************/
-/*                     Grey Pixel formats                      */
+/*                  Grey/Gray Pixel formats                    */
 /***************************************************************/
 /**
- * Grey8
+ * Grey8 alias for Gray8
  * Memory Layout:
  *            | bit7 - bit0 |
  *    Byte 0: |  G7  -  G0  |
@@ -289,7 +289,7 @@ static inline void gmf_fourcc_to_str(uint32_t fourcc, char out[5]) {
 #define ESP_FOURCC_GREY             ESP_FOURCC_TO_INT('G', 'R', 'E', 'Y') /* 8 bpp Greyscale */
 
 /**
- * Grey16
+ * Grey16 alias for Gray16
  * Memory Layout:
  *            | bit7 - bit0 |
  *    Byte 1: |  G15 -  G8  |
@@ -298,7 +298,7 @@ static inline void gmf_fourcc_to_str(uint32_t fourcc, char out[5]) {
 #define ESP_FOURCC_Y16              ESP_FOURCC_TO_INT('Y', '1', '6', 'L') /* 16 bpp Greyscale */
 
 /**
- * Grey16_BE
+ * Grey16_BE alias for Gray16_BE
  * Memory Layout:
  *            | bit7 - bit0 |
  *    Byte 1: |  G7  -  G0  |

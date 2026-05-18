@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.4
+
+### Features
+
+- Fixed build warnings on IDFv6.x
+- Added alias for `Gray` for `Grey` fourcc
+
 ## v0.8.3
 
 ### Bug Fixes

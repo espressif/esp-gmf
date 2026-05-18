@@ -28,6 +28,10 @@
 #include "gmf_loader_setup_defaults.h"
 #include "esp_fourcc.h"
 
+/** Declared in gmf_video_common.c (not always visible via test app includes). */
+const char *esp_gmf_video_get_format_string(uint32_t codec);
+int gmf_video_ppa_test(uint32_t from_codec, int32_t to_codec, uint32_t width, uint32_t height, uint8_t *src, uint8_t *dst, int v);
+
 #define TAG  "VID_EL_TEST"
 
 #if CONFIG_IDF_TARGET_ESP32P4
@@ -114,8 +118,8 @@ static esp_gmf_err_t vid_dec_open_report_probe_cb(esp_gmf_event_pkt_t *pkt, void
 }
 
 typedef struct {
-    esp_gmf_element_handle_t enc_hd;
-    uint32_t                 vid_report_count_from_enc;
+    esp_gmf_element_handle_t  enc_hd;
+    uint32_t                  vid_report_count_from_enc;
 } vid_enc_open_report_probe_t;
 
 static esp_gmf_err_t vid_enc_open_report_probe_cb(esp_gmf_event_pkt_t *pkt, void *ctx)
@@ -367,6 +371,10 @@ static void release_convert_pipeline(convert_res_t *res)
 static int test_color_convert(convert_res_t *res, uint32_t convert_pair[][2], int n)
 {
     for (int i = 0; i < n; i++) {
+        ESP_LOGI(TAG, "test_color_convert case %d/%d: %s -> %s (SW vid_color_cvt or HW per pool)",
+                 i + 1, n,
+                 esp_gmf_video_get_format_string(convert_pair[i][0]),
+                 esp_gmf_video_get_format_string(convert_pair[i][1]));
         // Gen pattern
         allocate_src_pattern(convert_pair[i][0], false);
         video_el_inst.out_res = video_el_inst.src_res;
@@ -390,6 +398,107 @@ static int test_color_convert(convert_res_t *res, uint32_t convert_pair[][2], in
     }
     return 0;
 }
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
+
+TEST_CASE("PPA TEST", "[ESP_GMF_VIDEO]")
+{
+    static const struct {
+        uint32_t  src;
+        uint32_t  dst;
+        const char *const desc;
+    } convert_cases[] = {
+        {ESP_FOURCC_YUYV, ESP_FOURCC_RGB16,
+         "PPA native color: YUYV -> RGB565 (same res, vid_ppa use_ppa=1, no imgfx wrap)"},
+    };
+    for (size_t i = 0; i < ELEMS(convert_cases); i++) {
+        ESP_LOGI(TAG, "PPA TEST case %u: %s", (unsigned)i, convert_cases[i].desc);
+        allocate_src_pattern(convert_cases[i].src, false);
+        video_el_inst.out_res = video_el_inst.src_res;
+        video_el_inst.out_codec = convert_cases[i].dst;
+        esp_video_codec_resolution_t res = {
+            .width = video_el_inst.src_res.width,
+            .height = video_el_inst.src_res.height,
+        };
+        video_el_inst.out_size = esp_video_codec_get_image_size(video_el_inst.out_codec, &res);
+        video_el_inst.out_pixel = esp_gmf_oal_malloc_align(TEST_VIDEO_ALIGNMENT, video_el_inst.out_size);
+        for (int j = 0; j < 1; j++) {
+            memset(video_el_inst.out_pixel, 0, video_el_inst.out_size);
+            ESP_LOGI(TAG, "  swap probe j=%d: %s -> %s", j,
+                     esp_gmf_video_get_format_string(convert_cases[i].src),
+                     esp_gmf_video_get_format_string(convert_cases[i].dst));
+            gmf_video_ppa_test(convert_cases[i].src, convert_cases[i].dst, TEST_PATTERN_WIDTH, TEST_PATTERN_HEIGHT,
+                               video_el_inst.src_pixel, video_el_inst.out_pixel, j);
+            show_result_pattern();
+        }
+        free_video_el_inst();
+    }
+}
+
+TEST_CASE("vid_ppa soft color convert integration", "[ESP_GMF_VIDEO]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    convert_res_t res;
+    memset(&video_el_inst, 0, sizeof(video_el_test_t));
+    TEST_ASSERT_EQUAL(0, prepare_pool(&res));
+    const char *name[] = {"vid_ppa", NULL};
+    TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, name));
+
+    static const struct {
+        uint32_t  src;
+        uint32_t  dst;
+        const char *const desc;
+        bool  scaled_half;  /*!< if true, dst resolution is half of src (forces PPA geometry path) */
+    } cases[] = {
+        {ESP_FOURCC_RGB24, ESP_FOURCC_RGB16,
+         "2D-DMA only: RGB888 -> RGB565 same resolution (check_2ddma_supported, use_ppa=0, no imgfx)", false},
+        {ESP_FOURCC_RGB16, ESP_FOURCC_BGR24,
+         "2D-DMA only: RGB565_LE -> BGR888 same resolution (check_2ddma_supported, use_ppa=0)", false},
+        {ESP_FOURCC_BGR24, ESP_FOURCC_RGB16,
+         "2D-DMA only: BGR888 -> RGB565_LE same resolution (check_2ddma_supported, use_ppa=0)", false},
+        {ESP_FOURCC_RGB16_BE, ESP_FOURCC_BGR24,
+         "2D-DMA only: RGB565_BE -> BGR888 same resolution (check_2ddma_supported, use_ppa=0)", false},
+        {ESP_FOURCC_YUYV, ESP_FOURCC_RGB16,
+         "PPA native: YUYV -> RGB565 (hw_native via PPA, use_ppa=1, soft_in=0 soft_out=0)", false},
+        {ESP_FOURCC_YUV420P, ESP_FOURCC_RGB16,
+         "PPA + software pre-color: YUV420P -> RGB565 (soft_in=1, bridge to PPA src fmt)", false},
+        {ESP_FOURCC_RGB16, ESP_FOURCC_YUYV,
+         "PPA + software post-color: RGB565 -> YUYV (soft_out=1; PPA -> RGB565 bridge per imgfx matrix, then imgfx -> YUYV)", false},
+        {ESP_FOURCC_YUV420P, ESP_FOURCC_YUYV,
+         "PPA + soft same res: YUV420P -> YUYV (esp_imgfx has no YU12→YUYV; bridge via PPA, not imgfx_only)", false},
+        {ESP_FOURCC_YUV420P, ESP_FOURCC_YUYV,
+         "PPA when scaled: YUV420P -> YUYV half res (geom=1, use_ppa=1, soft_in/out as needed for PPA)", true},
+    };
+
+    for (size_t i = 0; i < ELEMS(cases); i++) {
+        ESP_LOGI(TAG, "vid_ppa integration case %u: %s", (unsigned)i, cases[i].desc);
+        allocate_src_pattern(cases[i].src, false);
+        video_el_inst.out_res = video_el_inst.src_res;
+        if (cases[i].scaled_half) {
+            video_el_inst.out_res.width = video_el_inst.src_res.width >> 1;
+            video_el_inst.out_res.height = video_el_inst.src_res.height >> 1;
+        }
+        video_el_inst.out_codec = cases[i].dst;
+        esp_gmf_video_param_set_dst_format(res.convert_hd, cases[i].dst);
+        esp_gmf_video_param_set_dst_resolution(res.convert_hd, &video_el_inst.out_res);
+        esp_gmf_info_video_t info = {
+            .format_id = cases[i].src,
+            .width = TEST_PATTERN_WIDTH,
+            .height = TEST_PATTERN_HEIGHT,
+        };
+        esp_gmf_pipeline_report_info(res.pipe, ESP_GMF_INFO_VIDEO, &info, sizeof(info));
+        esp_gmf_err_t run_ret = esp_gmf_pipeline_run(res.pipe);
+        TEST_ASSERT_MESSAGE(run_ret == ESP_GMF_ERR_OK, cases[i].desc);
+        vTaskDelay(100 / portTICK_RATE_MS);
+        esp_gmf_err_t stop_ret = esp_gmf_pipeline_stop(res.pipe);
+        TEST_ASSERT_MESSAGE(stop_ret == ESP_GMF_ERR_OK, cases[i].desc);
+        show_result_pattern();
+        free_video_el_inst();
+        esp_gmf_pipeline_reset(res.pipe);
+        esp_gmf_pipeline_loading_jobs(res.pipe);
+    }
+    release_convert_pipeline(&res);
+}
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4
 TEST_CASE("Color convert HW", "[ESP_GMF_VIDEO]")
@@ -484,6 +593,10 @@ TEST_CASE("Color convert by caps", "[ESP_GMF_VIDEO]")
 static int test_scale(convert_res_t *res, uint32_t convert_pair[][2], int n)
 {
     for (int i = 0; i < n; i++) {
+        ESP_LOGI(TAG, "test_scale case %d/%d: src %s -> dst %s (half res)",
+                 i + 1, n,
+                 esp_gmf_video_get_format_string(convert_pair[i][0]),
+                 esp_gmf_video_get_format_string(convert_pair[i][1]));
         // Gen pattern
         allocate_src_pattern(convert_pair[i][0], false);
         video_el_inst.out_res.width = video_el_inst.src_res.width >> 1;
@@ -575,6 +688,10 @@ TEST_CASE("Scale SW", "[ESP_GMF_VIDEO]")
 static int test_rotate(convert_res_t *res, uint32_t convert_pair[][2], int n)
 {
     for (int i = 0; i < n; i++) {
+        ESP_LOGI(TAG, "test_rotate case %d/%d: src %s -> dst %s (90/270 deg)",
+                 i + 1, n,
+                 esp_gmf_video_get_format_string(convert_pair[i][0]),
+                 esp_gmf_video_get_format_string(convert_pair[i][1]));
         // Gen pattern
         allocate_src_pattern(convert_pair[i][0], false);
         video_el_inst.out_res.width = video_el_inst.src_res.height;
@@ -666,6 +783,10 @@ TEST_CASE("Rotate SW", "[ESP_GMF_VIDEO]")
 static int test_crop(convert_res_t *res, uint32_t convert_pair[][2], int n)
 {
     for (int i = 0; i < n; i++) {
+        ESP_LOGI(TAG, "test_crop case %d/%d: src %s -> dst %s (quarter crop)",
+                 i + 1, n,
+                 esp_gmf_video_get_format_string(convert_pair[i][0]),
+                 esp_gmf_video_get_format_string(convert_pair[i][1]));
         // Gen pattern
         allocate_src_pattern(convert_pair[i][0], false);
         video_el_inst.out_res.width = video_el_inst.src_res.width >> 1;

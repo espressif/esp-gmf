@@ -11,6 +11,9 @@
 #include "esp_gmf_element.h"
 #include "esp_gmf_pipeline.h"
 #include "esp_gmf_video_enc.h"
+#if CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER
+#include "esp_gmf_video_dec.h"
+#endif
 #include "esp_gmf_video_overlay.h"
 #include "esp_gmf_video_ppa.h"
 #include "esp_gmf_video_fps_cvt.h"
@@ -35,7 +38,8 @@ typedef enum {
     VIDEO_PATH_OPS_RESIZE      = 2,
     VIDEO_PATH_OPS_CLR_CVT     = 3,
     VIDEO_PATH_OPS_ENC         = 4,
-    VIDEO_PATH_OPS_MAX         = 5,
+    VIDEO_PATH_OPS_DEC         = 5,
+    VIDEO_PATH_OPS_MAX         = 6,
 } video_path_ops_t;
 
 typedef struct video_pipeline_t video_pipeline_t;
@@ -91,7 +95,7 @@ static esp_capture_err_t gmf_video_pool_create(esp_capture_pipeline_builder_if_t
         esp_gmf_video_overlay_init(NULL, &el);
         CAPTURE_BREAK_ON_ERR(esp_gmf_pool_register_element(video_pipe->pool, el, NULL));
         // Only add ppa for P4
-#if CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
         esp_gmf_video_ppa_init(NULL, &el);
         CAPTURE_BREAK_ON_ERR(esp_gmf_pool_register_element(video_pipe->pool, el, NULL));
 #else
@@ -109,6 +113,11 @@ static esp_capture_err_t gmf_video_pool_create(esp_capture_pipeline_builder_if_t
         esp_gmf_video_color_convert_init(&color_convert_cfg, &el);
         CAPTURE_BREAK_ON_ERR(esp_gmf_pool_register_element(video_pipe->pool, el, NULL));
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+
+#if CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER
+        esp_gmf_video_dec_init(NULL, &el);
+        CAPTURE_BREAK_ON_ERR(esp_gmf_pool_register_element(video_pipe->pool, el, NULL));
+#endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER */
         return ESP_CAPTURE_ERR_OK;
     } while (0);
     return ESP_CAPTURE_ERR_NO_MEM;
@@ -152,6 +161,9 @@ static void get_max_sink_cfg(video_pipeline_t *video_pipe, esp_capture_video_inf
             if (res_diff < 0 || (res_diff == 0 && !is_encoded(video_pipe->sink_cfg[i].video_info.format_id))) {
                 // Align with auto negotiate logic none encoder path high priority
                 max_sink_info->format_id = video_pipe->sink_cfg[i].video_info.format_id;
+            }
+            if (max_sink_info->fps < video_pipe->sink_cfg[i].video_info.fps) {
+                max_sink_info->fps = video_pipe->sink_cfg[i].video_info.fps;
             }
             MAX_VID_SINK_CFG((*max_sink_info), video_pipe->sink_cfg[i]);
         }
@@ -198,6 +210,8 @@ static void get_element_tag_by_caps(video_pipeline_t *video_pipe)
                 ops = VIDEO_PATH_OPS_RESIZE;
             } else if (caps->cap_eightcc == ESP_GMF_CAPS_VIDEO_ENCODER) {
                 ops = VIDEO_PATH_OPS_ENC;
+            } else if (caps->cap_eightcc == ESP_GMF_CAPS_VIDEO_DECODER) {
+                ops = VIDEO_PATH_OPS_DEC;
             }
             if (ops && video_pipe->ops_tags[ops] == NULL) {
                 video_pipe->ops_tags[ops] = OBJ_GET_TAG(element);
@@ -340,7 +354,9 @@ static esp_capture_err_t auto_negotiate(video_pipeline_t *video_pipe, esp_captur
             CAPTURE_RETURN_ON_FAIL(ret);
         }
         // For simple case we add color convert for all paths
-        src_info->format_id = ESP_CAPTURE_FMT_ID_ANY;
+        if (!is_encoded(src_info->format_id)) {
+            src_info->format_id = ESP_CAPTURE_FMT_ID_ANY;
+        }
     }
     return ret;
 }
@@ -388,6 +404,9 @@ static esp_capture_err_t buildup_pipelines(video_pipeline_t *video_pipe)
             // Add source to same pipeline if only one sink
             if (video_pipe->sink_num == 1 && (have_user_pipe(video_pipe) == false)) {
                 proc_elements[proc_num++] = "vid_src";
+            }
+            if (is_encoded(src_info.format_id) && video_pipe->sink_cfg[i].video_info.format_id != src_info.format_id) {
+                proc_elements[proc_num++] = "vid_dec";
             }
 #ifdef CONFIG_ESP_CAPTURE_ENABLE_VIDEO_OVERLAY
             proc_elements[proc_num++] = "vid_overlay";

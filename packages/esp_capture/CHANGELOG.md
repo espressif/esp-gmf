@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.3
+
+### Features
+
+- Added support for `esp32s31` v4l2 source
+- Added decode support when input format from camera is encoded (MJPEG) but wanted raw format (RGB565) data
+- Added test cases to cover decoder support
+
+### Bug Fixes
+
+- Fixed print error log when acquire data when aborted by stop
+
 ## v0.8.2
 
 ### Features

@@ -30,6 +30,8 @@ typedef struct {
     bool                        is_open;
     bool                        is_start;
     bool                        nego_ok;
+    const uint8_t              *fixed_image;
+    uint32_t                    fixed_image_size;
 } fake_vid_src_t;
 
 static esp_capture_err_t fake_vid_src_close(esp_capture_video_src_if_t *h)
@@ -83,10 +85,6 @@ static esp_capture_err_t src_set_fixed_caps(esp_capture_video_src_if_t *h, const
     if (src->is_start) {
         return ESP_CAPTURE_ERR_INVALID_STATE;
     }
-    if (fake_vid_src_supported(src, fixed_caps->format_id) == false) {
-        ESP_LOGE(TAG, "Set fixed caps not supported format");
-        return ESP_CAPTURE_ERR_NOT_SUPPORTED;
-    }
     src->use_fixed_caps = (fixed_caps->format_id != ESP_CAPTURE_FMT_ID_NONE);
     src->vid_info = *fixed_caps;
     return ESP_CAPTURE_ERR_OK;
@@ -114,7 +112,7 @@ static esp_capture_err_t fake_vid_src_negotiate_caps(esp_capture_video_src_if_t 
         src->nego_ok = true;
         return ESP_CAPTURE_ERR_OK;
     }
-    if (fake_vid_src_supported(src, in_cap->format_id) == false) {
+    if (fake_vid_src_supported(src, in_cap->format_id) == false && src->use_fixed_caps == false) {
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     *out_caps = *in_cap;
@@ -134,7 +132,16 @@ static esp_capture_err_t fake_vid_src_start(esp_capture_video_src_if_t *h)
         .width = src->vid_info.width,
         .height = src->vid_info.height,
     };
-    uint32_t image_size = esp_video_codec_get_image_size((esp_video_codec_pixel_fmt_t)src->vid_info.format_id, &res);
+    uint32_t image_size = 0;
+    if (src->vid_info.format_id == ESP_CAPTURE_FMT_ID_MJPEG) {
+        if (src->fixed_image == NULL || src->fixed_image_size == 0) {
+            ESP_LOGE(TAG, "MJPEG requires esp_capture_fake_vid_src_set_fixed_image first");
+            return ESP_CAPTURE_ERR_NOT_SUPPORTED;
+        }
+        image_size = src->fixed_image_size;
+    } else {
+        image_size = esp_video_codec_get_image_size((esp_video_codec_pixel_fmt_t)src->vid_info.format_id, &res);
+    }
     if (image_size == 0) {
         ESP_LOGE(TAG, "Can not get image size");
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
@@ -150,8 +157,12 @@ static esp_capture_err_t fake_vid_src_start(esp_capture_video_src_if_t *h)
             ret = ESP_CAPTURE_ERR_NO_MEM;
             break;
         }
-        // Fill pattern
-        memset(src->fb[i], 0xFF * (i + 1) / src->fb_count, image_size);
+        // Fill pattern or copy MJPEG template
+        if (src->vid_info.format_id == ESP_CAPTURE_FMT_ID_MJPEG) {
+            memcpy(src->fb[i], src->fixed_image, image_size);
+        } else {
+            memset(src->fb[i], 0xFF * (i + 1) / src->fb_count, image_size);
+        }
 #if CONFIG_IDF_TARGET_ESP32P4
         esp_cache_msync(src->fb[i], real_size, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
@@ -189,12 +200,12 @@ static esp_capture_err_t fake_vid_src_acquire_frame(esp_capture_video_src_if_t *
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     // Simple logic for wait FB is ready
-    int retry = 10;
+    int retry = 50;
     while (retry > 0) {
         if (src->fb_used[src->cur_fb] == false) {
             break;
         }
-        vTaskDelay(30 / portTICK_PERIOD_MS);
+        vTaskDelay(20 / portTICK_PERIOD_MS);
         retry--;
     }
     if (src->fb_used[src->cur_fb]) {
@@ -227,6 +238,27 @@ static esp_capture_err_t fake_vid_src_release_frame(esp_capture_video_src_if_t *
         return ESP_CAPTURE_ERR_NOT_FOUND;
     }
     src->fb_used[fb_idx] = false;
+    return ESP_CAPTURE_ERR_OK;
+}
+
+esp_capture_err_t esp_capture_fake_vid_src_set_fixed_image(esp_capture_video_src_if_t *h, esp_capture_video_info_t *info,
+                                                           const uint8_t *data, uint32_t size)
+{
+    if (h == NULL || data == NULL || size == 0) {
+        return ESP_CAPTURE_ERR_INVALID_ARG;
+    }
+    fake_vid_src_t *src = (fake_vid_src_t *)h;
+    if (src->is_start) {
+        return ESP_CAPTURE_ERR_INVALID_STATE;
+    }
+    if (info != NULL) {
+        esp_capture_err_t err = src_set_fixed_caps(h, info);
+        if (err != ESP_CAPTURE_ERR_OK) {
+            return err;
+        }
+    }
+    src->fixed_image = data;
+    src->fixed_image_size = size;
     return ESP_CAPTURE_ERR_OK;
 }
 

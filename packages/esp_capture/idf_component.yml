@@ -1,4 +1,4 @@
-version: "0.8.2"
+version: "0.8.3"
 description: Espressif Capture is a module for capture media stream from camera and microphone
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_capture
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_capture/README.md"
@@ -27,9 +27,9 @@ dependencies:
     version: "^2.4"
   espressif/esp_video:
     require: public
-    version: "^2.0"
+    version: "^2.1"
     rules:
-      - if: "target in [esp32p4, esp32s3, esp32c3, esp32c5, esp32c6, esp32c61]"
+      - if: "target in [esp32p4, esp32s3, esp32c3, esp32c5, esp32c6, esp32c61, esp32s31]"
   espressif/esp32-camera:
     require: public
     version: "^2.0"

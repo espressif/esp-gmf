@@ -228,6 +228,10 @@ static esp_gmf_job_err_t vdec_el_process(esp_gmf_video_element_handle_t self, vo
                 .height = frame_info.res.height,
                 .fps = frame_info.fps,
             };
+            // Use reported fps if can not parsed
+            if (frame_info.fps == 0) {
+                out_info.fps = vdec->parent.src_info.fps;
+            }
             esp_gmf_element_notify_vid_info(self, &out_info);
             vdec->header_parsed = true;
         }

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdlib.h>
+#include <inttypes.h>
 #include "esp_capture.h"
 #include "esp_capture_sink.h"
 #include "esp_capture_defaults.h"
@@ -21,32 +23,37 @@
 #include "esp_heap_caps.h"
 #include "esp_capture_version.h"
 #include "settings.h"
+#if defined(TEST_WITH_VIDEO)
+#include "esp_video_dec_default.h"
+#include "esp_video_codec_utils.h"
+#endif  /* defined(TEST_WITH_VIDEO) */
 #include "capture_builder.h"
+#include "capture_fake_vid_src.h"
 #include "esp_log.h"
 
-#define TAG "CAPTURE_TEST"
+#define TAG  "CAPTURE_TEST"
 
-#define BREAK_ON_FAIL(ret) if (ret != 0) {                           \
+#define BREAK_ON_FAIL(ret)  if (ret != 0) {                          \
     ESP_LOGE(TAG, "Fail on %s:%d ret:%d", __func__, __LINE__, ret);  \
     break;                                                           \
 }
 
-#define BREAK_ON_FALSE(ret) if (ret == false) {                      \
+#define BREAK_ON_FALSE(ret)  if (ret == false) {                     \
     ESP_LOGE(TAG, "Fail on %s:%d ret:%d", __func__, __LINE__, ret);  \
     break;                                                           \
 }
 
-#define RET_ON_FAIL(ret) if (ret != 0) {                             \
+#define RET_ON_FAIL(ret)  if (ret != 0) {                            \
     ESP_LOGE(TAG, "Fail on %s:%d ret:%d", __func__, __LINE__, ret);  \
     return ret;                                                      \
 }
 
-#define ELEMS(arr)                      sizeof(arr) / sizeof(arr[0])
-#define PTS_TOLERANCE                   400
-#define PTS_IN_TOLERANCE(pts, duration) ((pts < duration + PTS_TOLERANCE) && (pts + duration > PTS_TOLERANCE))
-#define TEST_RESULT_VERIFY_AUDIO        (1 << 0)
-#define TEST_RESULT_VERIFY_VIDEO        (1 << 1)
-#define TEST_RESULT_VERIFY_MUXER        (1 << 2)
+#define ELEMS(arr)                       sizeof(arr) / sizeof(arr[0])
+#define PTS_TOLERANCE                    400
+#define PTS_IN_TOLERANCE(pts, duration)  ((pts < duration + PTS_TOLERANCE) && (pts + duration > PTS_TOLERANCE))
+#define TEST_RESULT_VERIFY_AUDIO         (1 << 0)
+#define TEST_RESULT_VERIFY_VIDEO         (1 << 1)
+#define TEST_RESULT_VERIFY_MUXER         (1 << 2)
 
 static bool skip_storage_test = false;
 
@@ -318,7 +325,7 @@ int demo_capture_one_shot(int timeout, bool dual_path)
     return ret;
 }
 
-#define FILE_SLICE_STORAGE_PATTERN "/sdcard/J_%d.mp4"
+#define FILE_SLICE_STORAGE_PATTERN  "/sdcard/J_%d.mp4"
 
 static int file_start_slice = 0;
 static int file_end_slice = 0;
@@ -1027,9 +1034,9 @@ static esp_capture_err_t capture_event_hdlr(esp_capture_event_t event, void *ctx
             break;
         case ESP_CAPTURE_EVENT_VIDEO_PIPELINE_BUILT: {
             // Do extra setting for video pipeline here
-            if (VIDEO_SINK_FMT_0  == ESP_CAPTURE_FMT_ID_H264) {
+            if (VIDEO_SINK_FMT_0 == ESP_CAPTURE_FMT_ID_H264) {
                 // Setting for GOP and QOP use video encoder element
-                 esp_gmf_element_handle_t venc_hd = NULL;
+                esp_gmf_element_handle_t venc_hd = NULL;
                 esp_capture_sink_get_element_by_tag(capture_sys->capture_sink[0], ESP_CAPTURE_STREAM_TYPE_VIDEO, "vid_enc", &venc_hd);
                 if (venc_hd) {
                     esp_gmf_video_enc_set_bitrate(venc_hd, 2000000);
@@ -1042,7 +1049,6 @@ static esp_capture_err_t capture_event_hdlr(esp_capture_event_t event, void *ctx
     }
     return ESP_CAPTURE_ERR_OK;
 }
-
 
 int auto_av_path_test(int timeout, bool dual)
 {
@@ -1200,7 +1206,7 @@ int auto_av_path_dynamic_enable_test(int timeout, bool dual)
             esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_DISABLE);
             esp_capture_sink_enable(capture_sys.capture_sink[1], ESP_CAPTURE_RUN_MODE_ALWAYS);
         } else {
-             // Sink 0 not enable yet
+            // Sink 0 not enable yet
             ESP_LOGI(TAG, "Verify expect sink0 disabled");
             ret = verify_test_result_for_path(&capture_sys, 0, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, false);
             BREAK_ON_FALSE(ret);
@@ -1218,7 +1224,7 @@ int auto_av_path_dynamic_enable_test(int timeout, bool dual)
             esp_capture_sink_enable(capture_sys.capture_sink[0], ESP_CAPTURE_RUN_MODE_ALWAYS);
             esp_capture_sink_enable(capture_sys.capture_sink[1], ESP_CAPTURE_RUN_MODE_DISABLE);
         } else {
-             // Sink 0 not enable yet
+            // Sink 0 not enable yet
             ESP_LOGI(TAG, "Verify expect sink0 enabled");
             ret = verify_test_result_for_path(&capture_sys, 0, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, true);
             BREAK_ON_FALSE(ret);
@@ -1233,7 +1239,7 @@ int auto_av_path_dynamic_enable_test(int timeout, bool dual)
             ret = verify_test_result_for_path(&capture_sys, 1, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, false);
             BREAK_ON_FALSE(ret);
         } else {
-             // Sink 0 not enable yet
+            // Sink 0 not enable yet
             ESP_LOGI(TAG, "Verify expect sink0 disabled");
             ret = verify_test_result_for_path(&capture_sys, 0, TEST_RESULT_VERIFY_VIDEO | TEST_RESULT_VERIFY_AUDIO, false);
             BREAK_ON_FALSE(ret);
@@ -1471,7 +1477,7 @@ int auto_av_muxer_path_test(int timeout, bool dual)
                     .width = VIDEO_WIDTH / 2,
                     .height = VIDEO_HEIGHT / 2,
 #else
-                    .width = VIDEO_WIDTH,
+                    .width  = VIDEO_WIDTH,
                     .height = VIDEO_HEIGHT,
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
                     .fps = VIDEO_FPS / 2,
@@ -1562,7 +1568,7 @@ int advance_av_muxer_path_test(int timeout, bool dual)
                     .width = VIDEO_WIDTH / 2,
                     .height = VIDEO_HEIGHT / 2,
 #else
-                    .width = VIDEO_WIDTH,
+                    .width  = VIDEO_WIDTH,
                     .height = VIDEO_HEIGHT,
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
                     .fps = VIDEO_FPS / 2,
@@ -1601,7 +1607,7 @@ int dynamic_enable_muxer_after_start(int timeout, bool dual_path)
         ret = build_av_capture_sys(&capture_sys);
         BREAK_ON_FAIL(ret);
 
-       #ifndef CONFIG_IDF_TARGET_ESP32P4
+#ifndef CONFIG_IDF_TARGET_ESP32P4
         if (capture_sys.vid_src) {
             esp_capture_video_info_t fixed_caps = {
                 .format_id = ESP_CAPTURE_FMT_ID_RGB565,
@@ -1642,7 +1648,7 @@ int dynamic_enable_muxer_after_start(int timeout, bool dual_path)
                 .width = VIDEO_WIDTH / 2,
                 .height = VIDEO_HEIGHT / 2,
 #else
-                .width = VIDEO_WIDTH,
+                .width  = VIDEO_WIDTH,
                 .height = VIDEO_HEIGHT,
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
                 .fps = VIDEO_FPS / 2,
@@ -1662,7 +1668,7 @@ int dynamic_enable_muxer_after_start(int timeout, bool dual_path)
         esp_capture_muxer_cfg_t muxer_cfg = {
             .base_config = &ts_cfg.base_config,
             .cfg_size = sizeof(ts_cfg),
-            .muxer_mask = ESP_CAPTURE_MUXER_MASK_VIDEO, // Only mux for video
+            .muxer_mask = ESP_CAPTURE_MUXER_MASK_VIDEO,  // Only mux for video
         };
         ret = esp_capture_sink_add_muxer(capture_sys.capture_sink[0], &muxer_cfg);
         BREAK_ON_FAIL(ret);
@@ -1696,7 +1702,7 @@ int dynamic_enable_muxer_after_start(int timeout, bool dual_path)
                 ESP_LOGE(TAG, "Audio or video not received after mux stop on loop %d", i);
                 ret = -1;
             }
-             if (file_end_slice != -1) {
+            if (file_end_slice != -1) {
                 ESP_LOGE(TAG, "File generated not expected on loop %d", i);
                 ret = -1;
                 break;
@@ -1725,7 +1731,7 @@ int dynamic_setup_after_start(int timeout, bool dual_path)
         ret = build_av_capture_sys(&capture_sys);
         BREAK_ON_FAIL(ret);
 
-       #ifndef CONFIG_IDF_TARGET_ESP32P4
+#ifndef CONFIG_IDF_TARGET_ESP32P4
         if (capture_sys.vid_src) {
             esp_capture_video_info_t fixed_caps = {
                 .format_id = ESP_CAPTURE_FMT_ID_RGB565,
@@ -1766,7 +1772,7 @@ int dynamic_setup_after_start(int timeout, bool dual_path)
                 .width = VIDEO_WIDTH / 2,
                 .height = VIDEO_HEIGHT / 2,
 #else
-                .width = VIDEO_WIDTH,
+                .width  = VIDEO_WIDTH,
                 .height = VIDEO_HEIGHT,
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
                 .fps = VIDEO_FPS / 2,
@@ -1786,7 +1792,7 @@ int dynamic_setup_after_start(int timeout, bool dual_path)
         esp_capture_muxer_cfg_t muxer_cfg = {
             .base_config = &mp4_cfg.base_config,
             .cfg_size = sizeof(mp4_cfg),
-            .muxer_mask = ESP_CAPTURE_MUXER_MASK_VIDEO, // Only mux for video
+            .muxer_mask = ESP_CAPTURE_MUXER_MASK_VIDEO,  // Only mux for video
         };
         ret = esp_capture_sink_add_muxer(capture_sys.capture_sink[0], &muxer_cfg);
         BREAK_ON_FAIL(ret);
@@ -1873,3 +1879,347 @@ int dynamic_setup_after_start(int timeout, bool dual_path)
     destroy_capture_sys(&capture_sys);
     return ret;
 }
+
+#ifdef TEST_WITH_VIDEO
+
+#define DEC_TEST_W        320
+#define DEC_TEST_H        240
+#define DEC_TEST_FPS      10
+#define DEC_TEST_TIMEOUT  (10000)
+
+typedef struct {
+    esp_capture_video_src_if_t *vid_src;
+    esp_capture_handle_t        capture;
+    esp_capture_sink_handle_t   net_sink;
+    esp_capture_sink_handle_t   preview_sink;
+} decode_cap_ctx_t;
+
+static uint32_t decodec_get_raw_image_size(esp_capture_format_id_t fmt, int w, int h)
+{
+    esp_video_codec_resolution_t res = {.width = w, .height = h};
+    return esp_video_codec_get_image_size((esp_video_codec_pixel_fmt_t)fmt, &res);
+}
+
+static void decode_cap_destroy(decode_cap_ctx_t *m)
+{
+    if (m->capture) {
+        esp_capture_close(m->capture);
+        m->capture = NULL;
+    }
+    m->net_sink = NULL;
+    m->preview_sink = NULL;
+}
+
+static int decode_cap_open_mjpeg_src(decode_cap_ctx_t *m, const uint8_t *mjpeg, uint32_t mjlen)
+{
+    m->vid_src = esp_capture_new_video_fake_src(3);
+    if (m->vid_src == NULL) {
+        return -1;
+    }
+    do {
+        esp_capture_video_info_t caps = {
+            .format_id = ESP_CAPTURE_FMT_ID_MJPEG,
+            .width = DEC_TEST_W,
+            .height = DEC_TEST_H,
+            .fps = DEC_TEST_FPS,
+        };
+        if (m->vid_src->set_fixed_caps(m->vid_src, &caps) != ESP_CAPTURE_ERR_OK) {
+            break;
+        }
+        if (esp_capture_fake_vid_src_set_fixed_image(m->vid_src, &caps, mjpeg, mjlen) != ESP_CAPTURE_ERR_OK) {
+            break;
+        }
+        return 0;
+    } while (0);
+    free(m->vid_src);
+    m->vid_src = NULL;
+    return -1;
+}
+
+static int decode_cap_create(decode_cap_ctx_t *m, esp_capture_sink_cfg_t sink_cfg[2])
+{
+    esp_capture_cfg_t capture_cfg = {.video_src = m->vid_src};
+    if (esp_capture_open(&capture_cfg, &m->capture) != ESP_CAPTURE_ERR_OK) {
+        return -1;
+    }
+    m->net_sink = NULL;
+    if (esp_capture_sink_setup(m->capture, 0, &sink_cfg[0], &m->net_sink) != ESP_CAPTURE_ERR_OK) {
+        ESP_LOGE(TAG, "decode: sink0 setup failed");
+        return -1;
+    }
+    m->preview_sink = NULL;
+    if (sink_cfg[1].video_info.format_id != ESP_CAPTURE_FMT_ID_NONE) {
+        if (esp_capture_sink_setup(m->capture, 1, &sink_cfg[1], &m->preview_sink) != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "decode: sink1 setup failed");
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int decode_wait_one_frame(esp_capture_sink_handle_t sink, uint32_t expect_raw, const char *tag, int frame_count)
+{
+    int cur_time = (int)esp_timer_get_time() / 1000;
+    int end_time = cur_time + DEC_TEST_TIMEOUT;
+    int recv_count = 0;
+    esp_capture_stream_frame_t frame = {.stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO};
+    while (recv_count < frame_count && cur_time < end_time) {
+        if (esp_capture_sink_acquire_frame(sink, &frame, true) == ESP_CAPTURE_ERR_OK) {
+            esp_capture_sink_release_frame(sink, &frame);
+            recv_count++;
+            if (expect_raw > 0 && (uint32_t)frame.size != expect_raw) {
+                ESP_LOGE(TAG, "%s: bad size %d expect %" PRIu32, tag, frame.size, expect_raw);
+                return -1;
+            }
+            if (expect_raw == 0 && frame.size < 8) {
+                ESP_LOGE(TAG, "%s: compressed frame too small %d", tag, frame.size);
+                return -1;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+        cur_time = (int)esp_timer_get_time() / 1000;
+    }
+    ESP_LOGI(TAG, "Received %d frames", recv_count);
+    return (recv_count > 0) ? 0 : -1;
+}
+
+static int decode_wait_dual(decode_cap_ctx_t *m, uint32_t exp0, uint32_t exp1, const char *tag, int frame_count)
+{
+    int recv_count[2] = {0};
+    int cur_time = (int)esp_timer_get_time() / 1000;
+    int end_time = cur_time + DEC_TEST_TIMEOUT;
+    while (recv_count[0] < frame_count && recv_count[1] < frame_count && cur_time < end_time) {
+        esp_capture_stream_frame_t frame = {.stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO};
+        if (esp_capture_sink_acquire_frame(m->net_sink, &frame, true) == ESP_CAPTURE_ERR_OK) {
+            recv_count[0]++;
+            esp_capture_sink_release_frame(m->net_sink, &frame);
+            if (exp0 > 0 && (uint32_t)frame.size != exp0) {
+                ESP_LOGE(TAG, "%s: sink0 size %d", tag, frame.size);
+                return -1;
+            }
+            if (exp0 == 0 && frame.size < 8) {
+                ESP_LOGE(TAG, "%s: sink0 too small size %d", tag, frame.size);
+                return -1;
+            }
+        }
+        if (esp_capture_sink_acquire_frame(m->preview_sink, &frame, true) == ESP_CAPTURE_ERR_OK) {
+            recv_count[1]++;
+            esp_capture_sink_release_frame(m->preview_sink, &frame);
+            if (exp1 > 0 && (uint32_t)frame.size != exp1) {
+                ESP_LOGE(TAG, "%s: sink1 size %d", tag, frame.size);
+                return -1;
+            }
+            if (exp1 == 0 && frame.size < 8) {
+                ESP_LOGE(TAG, "%s: sink1 too small", tag);
+                return -1;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+        cur_time = (int)esp_timer_get_time() / 1000;
+    }
+    ESP_LOGI(TAG, "Received sink0 %d frames, sink1 %d frames", recv_count[0], recv_count[1]);
+    return (recv_count[0] > 0 && recv_count[1] > 0) ? 0 : -1;
+}
+
+static int decode_tests_make_ref_mjpeg(uint8_t **out_buf, uint32_t *out_len)
+{
+    esp_capture_video_src_if_t *vid = esp_capture_new_video_fake_src(3);
+    esp_capture_handle_t capture = NULL;
+    if (vid == NULL) {
+        return -1;
+    }
+    int ret = -1;
+    do {
+        esp_capture_video_info_t caps = {
+            .format_id = ESP_CAPTURE_FMT_ID_RGB565,
+            .width = DEC_TEST_W,
+            .height = DEC_TEST_H,
+            .fps = DEC_TEST_FPS,
+        };
+        if (vid->set_fixed_caps(vid, &caps) != ESP_CAPTURE_ERR_OK) {
+            break;
+        }
+        esp_capture_cfg_t cfg = {.video_src = vid};
+        if (esp_capture_open(&cfg, &capture) != ESP_CAPTURE_ERR_OK || capture == NULL) {
+            break;
+        }
+        esp_capture_sink_cfg_t sink_cfg = {
+            .video_info = {
+                .format_id = ESP_CAPTURE_FMT_ID_MJPEG,
+                .width = DEC_TEST_W,
+                .height = DEC_TEST_H,
+                .fps = DEC_TEST_FPS,
+            },
+        };
+        esp_capture_sink_handle_t sink = NULL;
+        if (esp_capture_sink_setup(capture, 0, &sink_cfg, &sink) != ESP_CAPTURE_ERR_OK) {
+            break;
+        }
+        esp_capture_sink_enable(sink, ESP_CAPTURE_RUN_MODE_ALWAYS);
+        if (esp_capture_start(capture) != ESP_CAPTURE_ERR_OK) {
+            break;
+        }
+        esp_capture_stream_frame_t frame = {.stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO};
+        if (esp_capture_sink_acquire_frame(sink, &frame, false) != ESP_CAPTURE_ERR_OK) {
+            break;
+        }
+        *out_buf = (uint8_t *)malloc((size_t)frame.size);
+        if (*out_buf == NULL) {
+            esp_capture_sink_release_frame(sink, &frame);
+            break;
+        }
+        memcpy(*out_buf, frame.data, (size_t)frame.size);
+        *out_len = (uint32_t)frame.size;
+        esp_capture_sink_release_frame(sink, &frame);
+        ret = 0;
+        ESP_LOGI(TAG, "Generate MJPEG ref size %" PRIu32, *out_len);
+    } while (0);
+    if (capture) {
+        esp_capture_close(capture);
+    }
+    free(vid);
+    return ret;
+}
+
+static int decode_run_one_case(decode_cap_ctx_t *ctx, int case_idx, int frame_count)
+{
+    esp_capture_sink_cfg_t sink_cfg[2] = {0};
+    uint32_t exp0 = 0;
+    uint32_t exp1 = 0;
+    bool dual = false;
+    const char *tag = "decode";
+
+    switch (case_idx) {
+        case 0:
+            sink_cfg[0].video_info.format_id = ESP_CAPTURE_FMT_ID_MJPEG;
+            sink_cfg[0].video_info.width = DEC_TEST_W;
+            sink_cfg[0].video_info.height = DEC_TEST_H;
+            sink_cfg[0].video_info.fps = DEC_TEST_FPS;
+            exp0 = 0;
+            tag = "MJPEG bypass";
+            break;
+        case 1:
+            sink_cfg[0].video_info.format_id = ESP_CAPTURE_FMT_ID_RGB565;
+            sink_cfg[0].video_info.width = DEC_TEST_W;
+            sink_cfg[0].video_info.height = DEC_TEST_H;
+            sink_cfg[0].video_info.fps = DEC_TEST_FPS;
+            exp0 = decodec_get_raw_image_size(ESP_CAPTURE_FMT_ID_RGB565, DEC_TEST_W, DEC_TEST_H);
+            tag = "Decode to RGB565";
+            break;
+        case 2:
+            sink_cfg[0].video_info.format_id = ESP_CAPTURE_FMT_ID_YUV422;
+            sink_cfg[0].video_info.width = DEC_TEST_W / 2;
+            sink_cfg[0].video_info.height = DEC_TEST_H / 2;
+            sink_cfg[0].video_info.fps = DEC_TEST_FPS;
+            exp0 = decodec_get_raw_image_size(ESP_CAPTURE_FMT_ID_YUV422, DEC_TEST_W / 2, DEC_TEST_H / 2);
+            if (exp0 == 0) {
+                exp0 = (uint32_t)(DEC_TEST_W / 2) * (uint32_t)(DEC_TEST_H / 2) * 2U;
+            }
+            tag = "Decode to YUV422 and scale to half";
+            break;
+        case 3:
+            sink_cfg[0].video_info.format_id = ESP_CAPTURE_FMT_ID_H264;
+            sink_cfg[0].video_info.width = DEC_TEST_W / 2;
+            sink_cfg[0].video_info.height = DEC_TEST_H / 2;
+            sink_cfg[0].video_info.fps = DEC_TEST_FPS;
+            tag = "Decode then encode to H264";
+            exp0 = 0;
+            break;
+        case 4:
+            sink_cfg[0].video_info.format_id = ESP_CAPTURE_FMT_ID_MJPEG;
+            sink_cfg[0].video_info.width = DEC_TEST_W;
+            sink_cfg[0].video_info.height = DEC_TEST_H;
+            sink_cfg[0].video_info.fps = DEC_TEST_FPS;
+            sink_cfg[1].video_info.format_id = ESP_CAPTURE_FMT_ID_RGB565;
+            sink_cfg[1].video_info.width = DEC_TEST_W / 2;
+            sink_cfg[1].video_info.height = DEC_TEST_H / 2;
+            sink_cfg[1].video_info.fps = DEC_TEST_FPS;
+            exp0 = 0;
+            exp1 = decodec_get_raw_image_size(ESP_CAPTURE_FMT_ID_RGB565, DEC_TEST_W / 2, DEC_TEST_H / 2);
+            dual = true;
+            tag = "Sink0 bypass and sink1 decode to RGB565";
+            break;
+        case 5:
+            sink_cfg[0].video_info.format_id = ESP_CAPTURE_FMT_ID_H264;
+            sink_cfg[0].video_info.width = DEC_TEST_W / 2;
+            sink_cfg[0].video_info.height = DEC_TEST_H / 2;
+            sink_cfg[0].video_info.fps = DEC_TEST_FPS;
+            sink_cfg[1].video_info.format_id = ESP_CAPTURE_FMT_ID_RGB565;
+            sink_cfg[1].video_info.width = DEC_TEST_W;
+            sink_cfg[1].video_info.height = DEC_TEST_H;
+            sink_cfg[1].video_info.fps = DEC_TEST_FPS;
+            exp0 = 0;
+            exp1 = decodec_get_raw_image_size(ESP_CAPTURE_FMT_ID_RGB565, DEC_TEST_W, DEC_TEST_H);
+            dual = true;
+            tag = "Sink0 scale to half then encoded to h264 and sink1 decode to RGB565";
+            break;
+        default:
+            return 0;
+    }
+
+    int ret = -1;
+    ESP_LOGI(TAG, "Running decode case %d: %s", case_idx, tag);
+    do {
+        if (decode_cap_create(ctx, sink_cfg) != 0) {
+            break;
+        }
+        esp_capture_sink_enable(ctx->net_sink, ESP_CAPTURE_RUN_MODE_ALWAYS);
+        if (dual) {
+            esp_capture_sink_enable(ctx->preview_sink, ESP_CAPTURE_RUN_MODE_ALWAYS);
+        }
+        if (esp_capture_start(ctx->capture) != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "decode case %d: start failed", case_idx);
+            break;
+        }
+        if (dual) {
+            if (decode_wait_dual(ctx, exp0, exp1, tag, frame_count) != 0) {
+                break;
+            }
+        } else {
+            if (decode_wait_one_frame(ctx->net_sink, exp0, tag, frame_count) != 0) {
+                break;
+            }
+        }
+        ret = 0;
+    } while (0);
+    decode_cap_destroy(ctx);
+    return ret;
+}
+
+int test_capture_with_decode_all(void)
+{
+    decode_cap_ctx_t ctx = {0};
+
+    uint8_t *mjpeg_ref = NULL;
+    uint32_t mjpeg_len = 0;
+    if (decode_tests_make_ref_mjpeg(&mjpeg_ref, &mjpeg_len) != 0) {
+        ESP_LOGE(TAG, "MJPEG ref generation failed");
+        return -1;
+    }
+    int ret = decode_cap_open_mjpeg_src(&ctx, mjpeg_ref, mjpeg_len);
+    if (ret != 0) {
+        ESP_LOGE(TAG, "decode all: open src failed");
+    } else {
+        for (int c = 0; c < 6; c++) {
+            ESP_LOGI(TAG, "decode all: case %d", c);
+            if (decode_run_one_case(&ctx, c, 20) != 0) {
+                ret = -1;
+                break;
+            }
+        }
+    }
+    free(mjpeg_ref);
+    if (ctx.vid_src) {
+        free(ctx.vid_src);
+    }
+    return ret;
+}
+
+#else  /* !TEST_WITH_VIDEO */
+
+int test_capture_with_decode_all(void)
+{
+    return 0;
+}
+
+#endif  /* TEST_WITH_VIDEO */

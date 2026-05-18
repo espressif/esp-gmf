@@ -9,6 +9,7 @@
 #include "esp_gmf_oal_thread.h"
 #include "capture_thread.h"
 #include "esp_memory_utils.h"
+#include "esp_idf_version.h"
 
 static esp_capture_thread_scheduler_cb_t capture_scheduler = NULL;
 
@@ -71,7 +72,11 @@ void capture_thread_get_scheduler_cfg(const char *name, esp_capture_thread_sched
 
 bool capture_thread_is_stack_in_ram(void)
 {
+#if (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0))
     uint8_t *task_stack = pxTaskGetStackStart(NULL);
+#else
+    uint8_t *task_stack = xTaskGetStackStart(NULL);
+#endif
     return (task_stack && esp_ptr_internal(task_stack));
 }
 

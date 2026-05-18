@@ -121,7 +121,7 @@ static esp_gmf_err_io_t audio_sink_acquire(void *handle, esp_gmf_payload_t *load
     int size = sizeof(esp_capture_stream_frame_t) + wanted_size;
     esp_capture_stream_frame_t *aud_frame = (esp_capture_stream_frame_t *)data_q_get_buffer(q, size);
     if (aud_frame == NULL) {
-        return ESP_GMF_IO_FAIL;
+        return ESP_GMF_IO_ABORT;
     }
 
     aud_frame->stream_type = ESP_CAPTURE_STREAM_TYPE_AUDIO;
