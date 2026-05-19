@@ -8,6 +8,7 @@
 #include <string.h>
 #include "esp_log.h"
 #include "esp_gmf_err.h"
+#include "esp_idf_version.h"
 #include "esp_gmf_node.h"
 #include "esp_gmf_oal_mem.h"
 #include "esp_gmf_video_ppa.h"
@@ -178,13 +179,16 @@ static ppa_srm_color_mode_t get_ppa_clr_mode(uint32_t codec)
         case ESP_FOURCC_OUYY_EVYY:
             return PPA_SRM_COLOR_MODE_YUV420;
         case ESP_FOURCC_YUYV:
-            return PPA_SRM_COLOR_MODE_YUV422_YUYV;
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
+            return PPA_SRM_COLOR_MODE_YUV422;
+#else
         case ESP_FOURCC_YVYU:
             return PPA_SRM_COLOR_MODE_YUV422_YUYV;
-        case ESP_COLOR_FOURCC_UYVY:
+        case ESP_FOURCC_UYVY:
             return PPA_SRM_COLOR_MODE_YUV422_UYVY;
-        case ESP_COLOR_FOURCC_VYUY:
+        case ESP_FOURCC_VYUY:
             return PPA_SRM_COLOR_MODE_YUV422_VYUY;
+#endif
         default:
             return (ppa_srm_color_mode_t)0;
     }

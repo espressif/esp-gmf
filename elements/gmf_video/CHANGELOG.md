@@ -1,6 +1,12 @@
 # Changelog
 
-## v0.8.3
+## v0.8.6
+
+### Bug Fixes
+
+- Fixed build error on IDFv5.x
+
+## v0.8.5
 
 ### Features
 
@@ -11,6 +17,7 @@
 ### Bug Fixes
 
 - Fixed print error log when acquire data when aborted by stop
+
 
 ## v0.8.4
 
