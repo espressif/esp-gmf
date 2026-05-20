@@ -35,11 +35,14 @@ typedef struct {
 /**
  * @brief  Specifies the format and destination region for a video overlay
  *
- * @note   This structure defines the parameters needed to position and format an overlay on a video frame
+ * @note  This structure defines the parameters needed to position and format an overlay on a video frame
  */
 typedef struct {
-    uint32_t             format_id;  /*!< FourCC representation of overlay format */
-    esp_gmf_video_rgn_t  dst_rgn;    /*!< Region position to put the overlay */
+    uint32_t             format_id;        /*!< FourCC of overlay region frame */
+    esp_gmf_video_rgn_t  dst_rgn;          /*!< Region position to put the overlay */
+    uint8_t              rgn_index;        /*!< Region index start from 0 (first region) */
+    bool                 has_trans_color;  /*!< Whether region has transparent color (if near it will become transparent) */
+    uint8_t              trans_color[3];   /*!< Transparent color RGB order */
 } esp_gmf_overlay_rgn_info_t;
 
 #ifdef __cplusplus

@@ -39,7 +39,7 @@ typedef enum {
     VIDEO_PATH_OPS_CLR_CVT     = 3,
     VIDEO_PATH_OPS_ENC         = 4,
     VIDEO_PATH_OPS_DEC         = 5,
-    VIDEO_PATH_OPS_MAX         = 6,
+    VIDEO_PATH_OPS_MAX         = 8,
 } video_path_ops_t;
 
 typedef struct video_pipeline_t video_pipeline_t;
@@ -377,8 +377,16 @@ static esp_capture_err_t buildup_pipelines(video_pipeline_t *video_pipe)
     esp_gmf_pool_handle_t pool = video_pipe->cfg.element_pool ? (esp_gmf_pool_handle_t)video_pipe->cfg.element_pool : video_pipe->pool;
     // Create source pipeline if more than one sink
     if ((video_pipe->sink_num > 1) || have_user_pipe(video_pipe)) {
-        const char *copy_elements[] = {"vid_src", "share_copier"};
-        int ret = esp_gmf_pool_new_pipeline(pool, NULL, copy_elements, CAPTURE_ELEMS(copy_elements), NULL, &video_pipe->src_pipeline);
+        const char *copy_elements[3];
+        uint8_t copy_num = 0;
+        copy_elements[copy_num++] = "vid_src";
+#ifdef CONFIG_ESP_CAPTURE_ENABLE_VIDEO_OVERLAY
+        if (video_pipe->cfg.share_overlay) {
+            copy_elements[copy_num++] = "vid_overlay";
+        }
+#endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_OVERLAY */
+        copy_elements[copy_num++] = "share_copier";
+        int ret = esp_gmf_pool_new_pipeline(pool, NULL, copy_elements, copy_num, NULL, &video_pipe->src_pipeline);
         if (ret != ESP_GMF_ERR_OK) {
             return ESP_CAPTURE_ERR_NO_RESOURCES;
         }
@@ -409,7 +417,9 @@ static esp_capture_err_t buildup_pipelines(video_pipeline_t *video_pipe)
                 proc_elements[proc_num++] = "vid_dec";
             }
 #ifdef CONFIG_ESP_CAPTURE_ENABLE_VIDEO_OVERLAY
-            proc_elements[proc_num++] = "vid_overlay";
+            if (video_pipe->cfg.share_overlay == false) {
+                proc_elements[proc_num++] = "vid_overlay";
+            }
 #endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_OVERLAY */
 
             video_path_ops_t ops[VIDEO_PATH_OPS_MAX] = {};

@@ -110,12 +110,17 @@ esp_capture_err_t esp_capture_sink_add_muxer(esp_capture_sink_handle_t sink, esp
 /**
  * @brief  Add overlay to capture sink
  *
+ * @note  Call once per sink with the list head only. Each overlay region is a
+ *        separate `esp_capture_overlay_if_t`; link them with
+ *        `ESP_CAPTURE_APPEND_OVERLAY(head, region)` before calling this API.
+ *
  * @param[in]  sink     Capture sink handle
- * @param[in]  overlay  Overlay interface
+ * @param[in]  overlay  Head of the overlay region list
  *
  * @return
  *       - ESP_CAPTURE_ERR_OK             On success
  *       - ESP_CAPTURE_ERR_INVALID_ARG    Invalid input argument
+ *       - ESP_CAPTURE_ERR_INVALID_STATE  Overlay already added for this sink
  *       - ESP_CAPTURE_ERR_NOT_SUPPORTED  Path interface not provided
  */
 esp_capture_err_t esp_capture_sink_add_overlay(esp_capture_sink_handle_t sink, esp_capture_overlay_if_t *overlay);

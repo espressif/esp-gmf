@@ -28,9 +28,11 @@
 
 static bool use_fake_src = false;
 
-void capture_use_fake_source(bool faked)
+bool capture_use_fake_source(bool faked)
 {
+    bool last_src = use_fake_src;
     use_fake_src = faked;
+    return last_src;
 }
 
 esp_capture_video_src_if_t *create_video_source(void)

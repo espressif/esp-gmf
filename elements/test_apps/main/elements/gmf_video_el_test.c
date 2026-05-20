@@ -5,6 +5,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdio.h>
+#include <string.h>
 #include "unity.h"
 #include "esp_gmf_video_ppa.h"
 #include "esp_gmf_video_enc.h"
@@ -31,6 +33,11 @@
 /** Declared in gmf_video_common.c (not always visible via test app includes). */
 const char *esp_gmf_video_get_format_string(uint32_t codec);
 int gmf_video_ppa_test(uint32_t from_codec, int32_t to_codec, uint32_t width, uint32_t height, uint8_t *src, uint8_t *dst, int v);
+#if CONFIG_SOC_PPA_SUPPORTED
+esp_gmf_err_t gmf_video_ppa_blend_probe(uint32_t src_fmt, uint32_t dst_fmt, uint32_t width, uint32_t height);
+bool esp_gmf_video_overlay_hw_blend_supported(uint32_t dst_fmt);
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
+bool esp_gmf_video_overlay_dst_format_supported(uint32_t format_id);
 
 #define TAG  "VID_EL_TEST"
 
@@ -44,6 +51,19 @@ int gmf_video_ppa_test(uint32_t from_codec, int32_t to_codec, uint32_t width, ui
 #define TEST_PATTERN_VERTICAL   (false)
 #define TEST_PATTERN_BAR_COUNT  (8)
 #define TEST_VIDEO_ALIGNMENT    (128)
+
+/** Region pixels < HW_BLEND_MIN_PIXELS (100*100) forces software overlay path. */
+#define OVERLAY_SW_FRAME_WIDTH   (160)
+#define OVERLAY_SW_FRAME_HEIGHT  (120)
+#if CONFIG_IDF_TARGET_ESP32P4
+#define OVERLAY_HW_FRAME_WIDTH   (640)
+#define OVERLAY_HW_FRAME_HEIGHT  (480)
+#else
+#define OVERLAY_HW_FRAME_WIDTH   (320)
+#define OVERLAY_HW_FRAME_HEIGHT  (240)
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+#define OVERLAY_HW_BLEND_MIN_PIXELS  (100 * 100)
+#define OVERLAY_CASE_TAG_LEN         (64)
 
 #define SAFE_FREE(ptr)  if (ptr) {  \
     esp_gmf_oal_free(ptr);          \
@@ -88,6 +108,10 @@ typedef struct {
     esp_gmf_element_handle_t   overlay_hd;
     esp_gmf_element_handle_t   dec_hd;
 } convert_res_t;
+
+static int prepare_pool(convert_res_t *res);
+static int prepare_convert_pipeline(convert_res_t *res, const char **elements);
+static void release_convert_pipeline(convert_res_t *res);
 
 typedef struct {
     esp_gmf_element_handle_t  dec_hd;
@@ -197,8 +221,10 @@ static void get_pattern_info(pattern_info_t *info, bool is_out)
 
 static int allocate_src_pattern(uint32_t src_codec, bool copy)
 {
-    video_el_inst.src_res.width = TEST_PATTERN_WIDTH;
-    video_el_inst.src_res.height = TEST_PATTERN_HEIGHT;
+    if (video_el_inst.src_res.width == 0 || video_el_inst.src_res.height == 0) {
+        video_el_inst.src_res.width = TEST_PATTERN_WIDTH;
+        video_el_inst.src_res.height = TEST_PATTERN_HEIGHT;
+    }
     video_el_inst.src_codec = src_codec;
     esp_video_codec_resolution_t res = {
         .width = video_el_inst.src_res.width,
@@ -227,6 +253,7 @@ static void show_result_pattern(void)
 static void free_video_el_inst(void)
 {
     SAFE_FREE(video_el_inst.src_pixel);
+    SAFE_FREE(video_el_inst.src_copy);
     SAFE_FREE(video_el_inst.overlay_data);
     if (video_el_inst.no_need_free == false) {
         SAFE_FREE(video_el_inst.out_pixel);
@@ -251,18 +278,536 @@ static esp_gmf_err_io_t in_release(void *handle, esp_gmf_payload_t *load, uint32
     return ESP_GMF_IO_OK;
 }
 
-static esp_gmf_err_io_t overlay_acquire(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
+#define PACK_RGB565(r, g, b)  \
+    ((uint16_t)((((r) >> 3) & 0x1F) << 11) | ((((g) >> 2) & 0x3F) << 5) | (((b) >> 3) & 0x1F))
+
+#define OVERLAY_TRANS_KEY_R  0
+#define OVERLAY_TRANS_KEY_G  255
+#define OVERLAY_TRANS_KEY_B  0
+#define OVERLAY_TRANS_FG_R   255
+#define OVERLAY_TRANS_FG_G   0
+#define OVERLAY_TRANS_FG_B   0
+
+/** Center quarter of overlay window: transparent key; outer ring: foreground. */
+typedef struct {
+    int  cx0;
+    int  cy0;
+    int  cx1;
+    int  cy1;
+} overlay_trans_rect_t;
+
+static overlay_trans_rect_t overlay_trans_center_rect(void)
 {
-    load->pts = 255;
+    int ow = video_el_inst.overlay_res.width;
+    int oh = video_el_inst.overlay_res.height;
+    overlay_trans_rect_t r = {
+        .cx0 = ow / 4,
+        .cy0 = oh / 4,
+        .cx1 = ow - ow / 4,
+        .cy1 = oh - oh / 4,
+    };
+    return r;
+}
+
+typedef struct {
+    uint8_t                     alpha;
+    esp_gmf_overlay_rgn_info_t  rgn;
+} overlay_test_cfg_t;
+
+typedef struct {
+    overlay_test_cfg_t *cfgs;
+    int                 cfg_count;
+    int                 acquire_idx;
+} overlay_port_ctx_t;
+
+static overlay_port_ctx_t s_overlay_port_ctx;
+
+static esp_gmf_err_io_t overlay_test_acquire(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
+{
+    overlay_port_ctx_t *ctx = (overlay_port_ctx_t *)handle;
+    overlay_test_cfg_t *cfg = &ctx->cfgs[ctx->acquire_idx];
+    load->pts = cfg->alpha;
     load->buf = video_el_inst.overlay_data;
     load->valid_size = video_el_inst.overlay_size;
     load->buf_length = video_el_inst.overlay_size;
     return ESP_GMF_IO_OK;
 }
 
-static esp_gmf_err_io_t overlay_release(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
+static esp_gmf_err_io_t overlay_test_release(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
 {
+    overlay_port_ctx_t *ctx = (overlay_port_ctx_t *)handle;
+    ctx->acquire_idx++;
+    if (ctx->acquire_idx >= ctx->cfg_count) {
+        ctx->acquire_idx = 0;
+    }
     return ESP_GMF_IO_OK;
+}
+
+static uint16_t read_frame_rgb565(const uint8_t *buf, int x, int y, bool byte_swap)
+{
+    const uint16_t *base = (const uint16_t *)buf;
+    uint16_t px = base[y * video_el_inst.out_res.width + x];
+    return byte_swap ? __builtin_bswap16(px) : px;
+}
+
+static const uint8_t *overlay_result_buf(void)
+{
+    return video_el_inst.out_pixel ? video_el_inst.out_pixel : video_el_inst.src_pixel;
+}
+
+static uint16_t read_out_rgb565(int x, int y, bool byte_swap)
+{
+    return read_frame_rgb565(overlay_result_buf(), x, y, byte_swap);
+}
+
+static void overlay_log_sample(const char *tag, const char *label, int x, int y, uint16_t src_px, uint16_t out_px)
+{
+    ESP_LOGI(TAG, "[%s] %s (%d,%d) src=0x%04x out=0x%04x %s", tag, label, x, y, src_px, out_px,
+             (src_px == out_px) ? "SAME" : "DIFF");
+}
+
+typedef struct {
+    int         x;
+    int         y;
+    const char *label;
+    bool        expect_same_as_src;
+    uint16_t    expect_px;
+    bool        has_expect_px;
+} overlay_sample_point_t;
+
+static void overlay_check_sample(const char *tag, const overlay_sample_point_t *pt, const uint8_t *src_ref, bool byte_swap)
+{
+    uint16_t src_px = read_frame_rgb565(src_ref, pt->x, pt->y, byte_swap);
+    uint16_t out_px = read_out_rgb565(pt->x, pt->y, byte_swap);
+    overlay_log_sample(tag, pt->label, pt->x, pt->y, src_px, out_px);
+    if (pt->has_expect_px) {
+        TEST_ASSERT_EQUAL_UINT16_MESSAGE(pt->expect_px, out_px, pt->label);
+    } else if (pt->expect_same_as_src) {
+        TEST_ASSERT_EQUAL_UINT16_MESSAGE(src_px, out_px, pt->label);
+    } else {
+        TEST_ASSERT_NOT_EQUAL_MESSAGE(src_px, out_px, pt->label);
+    }
+}
+
+static int overlay_outside_x(const esp_gmf_video_rgn_t *rgn)
+{
+    if (rgn->x >= 8) {
+        return rgn->x - 8;
+    }
+    if (rgn->x + rgn->width + 8 < (int)video_el_inst.out_res.width) {
+        return rgn->x + rgn->width + 8;
+    }
+    return rgn->x + rgn->width / 2;
+}
+
+static void verify_overlay_pipeline_ran(const char *case_name)
+{
+    TEST_ASSERT_GREATER_THAN_UINT32_MESSAGE(0, video_el_inst.in_frame_count,
+                                            "overlay pipeline must read input frame");
+    TEST_ASSERT_GREATER_THAN_UINT32_MESSAGE(0, video_el_inst.out_frame_count,
+                                            "overlay pipeline must write output frame");
+    ESP_LOGI(TAG, "[%s] frames in=%u out=%u", case_name,
+             (unsigned)video_el_inst.in_frame_count, (unsigned)video_el_inst.out_frame_count);
+}
+
+static void verify_overlay_alpha_samples(const char *tag, const esp_gmf_video_rgn_t *rgn, const uint8_t *src_ref,
+                                         bool byte_swap)
+{
+    overlay_sample_point_t pts[] = {
+        {
+            .x = overlay_outside_x(rgn),
+            .y = rgn->y + rgn->height / 2,
+            .label = "outside",
+            .expect_same_as_src = true,
+        },
+        {
+            .x = rgn->x + rgn->width / 4,
+            .y = rgn->y + rgn->height / 4,
+            .label = "inside_ring",
+            .expect_same_as_src = false,
+        },
+        {
+            .x = rgn->x + rgn->width * 3 / 4,
+            .y = rgn->y + rgn->height * 3 / 4,
+            .label = "inside_corner",
+            .expect_same_as_src = false,
+        },
+    };
+    for (size_t i = 0; i < ELEMS(pts); i++) {
+        overlay_check_sample(tag, &pts[i], src_ref, byte_swap);
+    }
+}
+
+static void verify_overlay_trans_samples(const char *tag, const esp_gmf_video_rgn_t *rgn, const uint8_t *src_ref,
+                                         bool byte_swap)
+{
+    overlay_trans_rect_t ctr = overlay_trans_center_rect();
+    const uint16_t fg_px = PACK_RGB565(OVERLAY_TRANS_FG_R, OVERLAY_TRANS_FG_G, OVERLAY_TRANS_FG_B);
+    int ow = video_el_inst.overlay_res.width;
+    int oh = video_el_inst.overlay_res.height;
+    int center_ox = (ctr.cx0 + ctr.cx1) / 2;
+    int center_oy = (ctr.cy0 + ctr.cy1) / 2;
+    int ring_ox = ctr.cx0 / 2;
+    int ring_oy = ctr.cy0 / 2;
+
+    overlay_sample_point_t pts[] = {
+        {
+            .x = overlay_outside_x(rgn),
+            .y = rgn->y + rgn->height / 2,
+            .label = "outside",
+            .expect_same_as_src = true,
+        },
+        {
+            .x = rgn->x + ring_ox,
+            .y = rgn->y + ring_oy,
+            .label = "outer_ring",
+            .has_expect_px = true,
+            .expect_px = fg_px,
+        },
+        {
+            .x = rgn->x + center_ox,
+            .y = rgn->y + center_oy,
+            .label = "trans_center",
+            .expect_same_as_src = true,
+        },
+    };
+    (void)ow;
+    (void)oh;
+    for (size_t i = 0; i < ELEMS(pts); i++) {
+        overlay_check_sample(tag, &pts[i], src_ref, byte_swap);
+    }
+}
+
+static bool overlay_px_in_trans_center(int ox, int oy, const overlay_trans_rect_t *ctr)
+{
+    return ox >= ctr->cx0 && ox < ctr->cx1 && oy >= ctr->cy0 && oy < ctr->cy1;
+}
+
+typedef enum {
+    OVERLAY_VERIFY_NONE   = 0,
+    OVERLAY_VERIFY_PIXELS = 1,
+} overlay_verify_mode_t;
+
+typedef enum {
+    OVERLAY_SCENARIO_ALPHA    = 0,
+    OVERLAY_SCENARIO_TRANS    = 1,
+    OVERLAY_SCENARIO_DUAL     = 2,
+    OVERLAY_SCENARIO_RGB565BE = 3,
+    OVERLAY_SCENARIO_OUYY     = 4,
+} overlay_scenario_id_t;
+
+typedef void (*overlay_fill_fn_t)(void);
+
+static void fill_overlay_color_bar(void);
+static void fill_overlay_trans_key(void);
+
+typedef struct {
+    const char            *name;
+    overlay_scenario_id_t  id;
+    uint32_t               dst_fmt;
+    overlay_fill_fn_t      fill_fn;
+    overlay_verify_mode_t  verify;
+    bool                   run_in_hw_suite;
+} overlay_scenario_desc_t;
+
+static uint32_t overlay_rgn_pixels(const esp_gmf_video_rgn_t *rgn)
+{
+    return (uint32_t)rgn->width * rgn->height;
+}
+
+static void overlay_scenario_build_cfgs(overlay_scenario_id_t id, uint32_t fw, uint32_t fh,
+                                        overlay_test_cfg_t *cfgs, int *count)
+{
+    *count = 1;
+    memset(cfgs, 0, sizeof(overlay_test_cfg_t) * 2);
+    switch (id) {
+        case OVERLAY_SCENARIO_ALPHA:
+            cfgs[0].alpha = 200;
+            cfgs[0].rgn.rgn_index = 0;
+            cfgs[0].rgn.has_trans_color = false;
+            cfgs[0].rgn.dst_rgn = (esp_gmf_video_rgn_t) {
+                .x = fw / 4,
+                .y = fh / 4,
+                .width = fw / 2,
+                .height = fh / 2,
+            };
+            break;
+        case OVERLAY_SCENARIO_TRANS:
+            cfgs[0].alpha = 255;
+            cfgs[0].rgn.rgn_index = 0;
+            cfgs[0].rgn.has_trans_color = true;
+            cfgs[0].rgn.trans_color[0] = OVERLAY_TRANS_KEY_R;
+            cfgs[0].rgn.trans_color[1] = OVERLAY_TRANS_KEY_G;
+            cfgs[0].rgn.trans_color[2] = OVERLAY_TRANS_KEY_B;
+            cfgs[0].rgn.dst_rgn = (esp_gmf_video_rgn_t) {
+                .x = fw / 4,
+                .y = fh / 4,
+                .width = fw / 2,
+                .height = fh / 2,
+            };
+            break;
+        case OVERLAY_SCENARIO_DUAL:
+            *count = 2;
+            cfgs[0].alpha = 200;
+            cfgs[0].rgn.rgn_index = 0;
+            cfgs[0].rgn.has_trans_color = false;
+            cfgs[0].rgn.dst_rgn = (esp_gmf_video_rgn_t) {
+                .x = 0,
+                .y = 0,
+                .width = fw / 2,
+                .height = fh / 2,
+            };
+            cfgs[1].alpha = 255;
+            cfgs[1].rgn.rgn_index = 1;
+            cfgs[1].rgn.has_trans_color = true;
+            cfgs[1].rgn.trans_color[0] = OVERLAY_TRANS_KEY_R;
+            cfgs[1].rgn.trans_color[1] = OVERLAY_TRANS_KEY_G;
+            cfgs[1].rgn.trans_color[2] = OVERLAY_TRANS_KEY_B;
+            cfgs[1].rgn.dst_rgn = (esp_gmf_video_rgn_t) {
+                .x = fw / 2,
+                .y = fh / 2,
+                .width = fw / 2,
+                .height = fh / 2,
+            };
+            break;
+        case OVERLAY_SCENARIO_RGB565BE:
+            cfgs[0].alpha = 200;
+            cfgs[0].rgn.rgn_index = 0;
+            cfgs[0].rgn.has_trans_color = false;
+            cfgs[0].rgn.format_id = ESP_FOURCC_RGB16_BE;
+            cfgs[0].rgn.dst_rgn = (esp_gmf_video_rgn_t) {
+                .x = fw / 4,
+                .y = fh / 4,
+                .width = fw / 2,
+                .height = fh / 2,
+            };
+            break;
+        case OVERLAY_SCENARIO_OUYY:
+            cfgs[0].alpha = 255;
+            cfgs[0].rgn.rgn_index = 0;
+            cfgs[0].rgn.has_trans_color = true;
+            cfgs[0].rgn.trans_color[0] = OVERLAY_TRANS_KEY_R;
+            cfgs[0].rgn.trans_color[1] = OVERLAY_TRANS_KEY_G;
+            cfgs[0].rgn.trans_color[2] = OVERLAY_TRANS_KEY_B;
+            cfgs[0].rgn.format_id = ESP_FOURCC_OUYY_EVYY;
+            cfgs[0].rgn.dst_rgn = (esp_gmf_video_rgn_t) {
+                .x = fw / 4,
+                .y = fh / 4,
+                .width = fw / 2,
+                .height = fh / 2,
+            };
+            break;
+        default:
+            *count = 0;
+            break;
+    }
+}
+
+static const overlay_scenario_desc_t s_overlay_scenarios[] = {
+    {"alpha_rgb565", OVERLAY_SCENARIO_ALPHA, ESP_FOURCC_RGB16, fill_overlay_color_bar, OVERLAY_VERIFY_PIXELS, true},
+    {"trans_rgb565", OVERLAY_SCENARIO_TRANS, ESP_FOURCC_RGB16, fill_overlay_trans_key, OVERLAY_VERIFY_PIXELS, true},
+    {"dual_region", OVERLAY_SCENARIO_DUAL, ESP_FOURCC_RGB16, fill_overlay_trans_key, OVERLAY_VERIFY_PIXELS, true},
+    {"alpha_rgb565be", OVERLAY_SCENARIO_RGB565BE, ESP_FOURCC_RGB16_BE, fill_overlay_color_bar, OVERLAY_VERIFY_PIXELS, true},
+    {"trans_ouyy", OVERLAY_SCENARIO_OUYY, ESP_FOURCC_OUYY_EVYY, fill_overlay_trans_key, OVERLAY_VERIFY_NONE, true},
+};
+
+static void verify_overlay_regions(overlay_test_cfg_t *cfgs, int cfg_count, uint32_t dst_format,
+                                   const uint8_t *src_ref, const char *case_name)
+{
+    if (dst_format != ESP_FOURCC_RGB16 && dst_format != ESP_FOURCC_RGB16_BE) {
+        ESP_LOGW(TAG, "[%s] RGB565 sample checks skipped for %s (inspect serial pattern below)",
+                 case_name, esp_gmf_video_get_format_string(dst_format));
+        return;
+    }
+    bool byte_swap = (dst_format == ESP_FOURCC_RGB16_BE);
+    for (int i = 0; i < cfg_count; i++) {
+        const esp_gmf_video_rgn_t *rgn = &cfgs[i].rgn.dst_rgn;
+        char tag[OVERLAY_CASE_TAG_LEN];
+        snprintf(tag, sizeof(tag), "%.*s_r%d", (int)(sizeof(tag) - 8), case_name, i);
+        if (cfgs[i].rgn.has_trans_color) {
+            verify_overlay_trans_samples(tag, rgn, src_ref, byte_swap);
+        } else if (cfgs[i].alpha > 0) {
+            verify_overlay_alpha_samples(tag, rgn, src_ref, byte_swap);
+        }
+    }
+}
+
+static void run_overlay_test(overlay_test_cfg_t *cfgs, int cfg_count, overlay_verify_mode_t verify_mode,
+                             overlay_fill_fn_t fill_fn, uint32_t dst_format, uint32_t frame_w, uint32_t frame_h,
+                             const char *suite_tag, const char *case_name)
+{
+    convert_res_t res;
+    memset(&video_el_inst, 0, sizeof(video_el_test_t));
+    video_el_inst.src_res.width = frame_w;
+    video_el_inst.src_res.height = frame_h;
+    prepare_pool(&res);
+    const char *name[] = {"vid_overlay", NULL};
+    TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, name));
+
+    TEST_ASSERT_EQUAL(0, allocate_src_pattern(dst_format, false));
+    TEST_ASSERT_TRUE_MESSAGE(esp_gmf_video_overlay_dst_format_supported(dst_format),
+                             "unsupported overlay destination format");
+
+    video_el_inst.overlay_res.width = video_el_inst.src_res.width / 2;
+    video_el_inst.overlay_res.height = video_el_inst.src_res.height / 2;
+    esp_video_codec_resolution_t overlay_res = {
+        .width = video_el_inst.overlay_res.width,
+        .height = video_el_inst.overlay_res.height,
+    };
+    video_el_inst.overlay_size = esp_video_codec_get_image_size((esp_video_codec_pixel_fmt_t)ESP_FOURCC_RGB16, &overlay_res);
+    video_el_inst.overlay_data = esp_gmf_oal_malloc_align(TEST_VIDEO_ALIGNMENT, video_el_inst.overlay_size);
+    TEST_ASSERT_NOT_NULL(video_el_inst.overlay_data);
+    if (fill_fn) {
+        fill_fn();
+    }
+
+    video_el_inst.out_res = video_el_inst.src_res;
+    video_el_inst.out_codec = dst_format;
+
+    s_overlay_port_ctx.cfgs = cfgs;
+    s_overlay_port_ctx.cfg_count = cfg_count;
+    s_overlay_port_ctx.acquire_idx = 0;
+
+    for (int i = 0; i < cfg_count; i++) {
+        if (cfgs[i].rgn.format_id == 0) {
+            cfgs[i].rgn.format_id = dst_format;
+        }
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_video_param_set_overlay_rgn(res.overlay_hd, &cfgs[i].rgn));
+    }
+
+    esp_gmf_port_handle_t overlay_port = NEW_ESP_GMF_PORT_IN_BLOCK(overlay_test_acquire, overlay_test_release,
+                                                                   NULL, &s_overlay_port_ctx, 0, ESP_GMF_MAX_DELAY);
+    esp_gmf_video_param_set_overlay_port(res.overlay_hd, overlay_port);
+    esp_gmf_video_param_overlay_enable(res.overlay_hd, true);
+
+    esp_gmf_info_video_t info = {
+        .format_id = dst_format,
+        .width = frame_w,
+        .height = frame_h,
+        .fps = 10,
+    };
+    esp_gmf_pipeline_report_info(res.pipe, ESP_GMF_INFO_VIDEO, &info, sizeof(info));
+    esp_gmf_pipeline_reset(res.pipe);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(res.pipe));
+
+    if (verify_mode == OVERLAY_VERIFY_PIXELS) {
+        video_el_inst.src_copy = esp_gmf_oal_malloc_align(TEST_VIDEO_ALIGNMENT, video_el_inst.src_size);
+        TEST_ASSERT_NOT_NULL(video_el_inst.src_copy);
+        memcpy(video_el_inst.src_copy, video_el_inst.src_pixel, video_el_inst.src_size);
+    }
+
+    esp_gmf_err_t run_ret = esp_gmf_pipeline_run(res.pipe);
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_GMF_ERR_OK, run_ret, "pipeline run failed");
+    vTaskDelay(100 / portTICK_RATE_MS);
+    esp_gmf_err_t stop_ret = esp_gmf_pipeline_stop(res.pipe);
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_GMF_ERR_OK, stop_ret, "pipeline stop failed");
+    vTaskDelay(50 / portTICK_RATE_MS);
+
+    verify_overlay_pipeline_ran(case_name);
+    if (verify_mode == OVERLAY_VERIFY_PIXELS && video_el_inst.src_copy) {
+        verify_overlay_regions(cfgs, cfg_count, dst_format, video_el_inst.src_copy, case_name);
+    }
+    ESP_LOGI(TAG, "=== [%s/%s] PASS serial preview: src (left) | out (right) ===", suite_tag, case_name);
+    show_result_pattern();
+
+    free_video_el_inst();
+    release_convert_pipeline(&res);
+    esp_gmf_port_deinit(overlay_port);
+}
+
+static void overlay_log_subcase_header(const char *suite, const overlay_scenario_desc_t *sc,
+                                       uint32_t frame_w, uint32_t frame_h, uint32_t rgn_px, bool expect_hw)
+{
+    bool hw_capable = false;
+#if CONFIG_SOC_PPA_SUPPORTED
+    hw_capable = esp_gmf_video_overlay_hw_blend_supported(sc->dst_fmt);
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
+    ESP_LOGI(TAG, "--------------------------------------------------------------");
+    ESP_LOGI(TAG, "[%s] subcase: %s", suite, sc->name);
+    ESP_LOGI(TAG, "  dst=%s frame=%ux%u overlay_win=%ux%u rgn_pixels=%u",
+             esp_gmf_video_get_format_string(sc->dst_fmt), (unsigned)frame_w, (unsigned)frame_h,
+             (unsigned)(frame_w / 2), (unsigned)(frame_h / 2), (unsigned)rgn_px);
+#if CONFIG_SOC_PPA_SUPPORTED
+    ESP_LOGI(TAG, "  expect_path=%s hw_capable=%d (region %s HW min %d px)",
+             expect_hw ? "HW(PPA)" : "SW", (int)hw_capable,
+             rgn_px >= OVERLAY_HW_BLEND_MIN_PIXELS ? ">=" : "<",
+             OVERLAY_HW_BLEND_MIN_PIXELS);
+    if (expect_hw && sc->id == OVERLAY_SCENARIO_OUYY) {
+        ESP_LOGI(TAG, "  note: trans_ouyy uses SW (PPA fg_ck + YUV420 BG blocks); other HW cases use PPA");
+    }
+#else
+    ESP_LOGI(TAG, "  expect_path=SW (no PPA)");
+    (void)expect_hw;
+    (void)hw_capable;
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
+}
+
+static void overlay_run_suite(const char *suite_tag, uint32_t frame_w, uint32_t frame_h, bool expect_hw_path)
+{
+    ESP_LOGI(TAG, "######## %s overlay suite: frame %ux%u expect %s ########",
+             suite_tag, (unsigned)frame_w, (unsigned)frame_h,
+             expect_hw_path ? "HW" : "SW");
+
+    for (size_t i = 0; i < ELEMS(s_overlay_scenarios); i++) {
+        const overlay_scenario_desc_t *sc = &s_overlay_scenarios[i];
+        if (expect_hw_path && !sc->run_in_hw_suite) {
+            ESP_LOGI(TAG, "[%s] skip subcase %s (not in HW suite)", suite_tag, sc->name);
+            continue;
+        }
+        overlay_test_cfg_t cfgs[2];
+        int cfg_count = 0;
+        overlay_scenario_build_cfgs(sc->id, frame_w, frame_h, cfgs, &cfg_count);
+        if (cfg_count == 0) {
+            continue;
+        }
+        uint32_t rgn_px = overlay_rgn_pixels(&cfgs[0].rgn.dst_rgn);
+        if (cfg_count > 1) {
+            rgn_px = overlay_rgn_pixels(&cfgs[1].rgn.dst_rgn);
+        }
+        if (expect_hw_path) {
+            TEST_ASSERT_GREATER_OR_EQUAL_MESSAGE(OVERLAY_HW_BLEND_MIN_PIXELS, rgn_px,
+                                                 "HW suite needs region >= 100x100");
+        } else {
+            TEST_ASSERT_LESS_THAN_MESSAGE(OVERLAY_HW_BLEND_MIN_PIXELS, rgn_px,
+                                          "SW suite needs region < 100x100");
+        }
+        overlay_log_subcase_header(suite_tag, sc, frame_w, frame_h, rgn_px, expect_hw_path);
+        char case_tag[OVERLAY_CASE_TAG_LEN];
+        snprintf(case_tag, sizeof(case_tag), "%s_%s", suite_tag, sc->name);
+        run_overlay_test(cfgs, cfg_count, sc->verify, sc->fill_fn, sc->dst_fmt, frame_w, frame_h, suite_tag,
+                         case_tag);
+    }
+    ESP_LOGI(TAG, "######## %s overlay suite: all %u subcases done ########",
+             suite_tag, (unsigned)ELEMS(s_overlay_scenarios));
+}
+
+static void fill_overlay_color_bar(void)
+{
+    pattern_info_t pattern_info = {
+        .format_id = ESP_FOURCC_RGB16,
+        .res = video_el_inst.overlay_res,
+        .pixel = video_el_inst.overlay_data,
+        .data_size = video_el_inst.overlay_size,
+        .bar_count = TEST_PATTERN_BAR_COUNT / 2,
+        .vertical = !TEST_PATTERN_VERTICAL,
+    };
+    gen_pattern_color_bar(&pattern_info);
+}
+
+static void fill_overlay_trans_key(void)
+{
+    overlay_trans_rect_t ctr = overlay_trans_center_rect();
+    const uint16_t key_px = PACK_RGB565(OVERLAY_TRANS_KEY_R, OVERLAY_TRANS_KEY_G, OVERLAY_TRANS_KEY_B);
+    const uint16_t fg_px = PACK_RGB565(OVERLAY_TRANS_FG_R, OVERLAY_TRANS_FG_G, OVERLAY_TRANS_FG_B);
+    const int ow = video_el_inst.overlay_res.width;
+    const int oh = video_el_inst.overlay_res.height;
+    uint16_t *px = (uint16_t *)video_el_inst.overlay_data;
+
+    for (int y = 0; y < oh; y++) {
+        for (int x = 0; x < ow; x++) {
+            px[y * ow + x] = overlay_px_in_trans_center(x, y, &ctr) ? key_px : fg_px;
+        }
+    }
 }
 
 static esp_gmf_err_io_t out_acquire(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
@@ -431,6 +976,40 @@ TEST_CASE("PPA TEST", "[ESP_GMF_VIDEO]")
             show_result_pattern();
         }
         free_video_el_inst();
+    }
+}
+
+TEST_CASE("PPA blend TEST", "[ESP_GMF_VIDEO]")
+{
+    static const uint32_t overlay_fg_fmt = ESP_FOURCC_RGB16;
+    static const struct {
+        uint32_t  dst;
+        bool  overlay_hw_blend;
+        bool  expect_ppa_ok;
+        const char *desc;
+    } blend_cases[] = {
+        {ESP_FOURCC_RGB16, true, true,
+         "PPA blend RGB565 LE dst (native PPA_BLEND_COLOR_MODE_RGB565)"},
+        {ESP_FOURCC_RGB16_BE, true, true,
+         "PPA blend RGB565 BE dst (RGB565 + bg_byte_swap)"},
+    };
+
+    for (size_t i = 0; i < ELEMS(blend_cases); i++) {
+        ESP_LOGI(TAG, "PPA blend TEST case %u: %s", (unsigned)i, blend_cases[i].desc);
+        bool hw_supported = esp_gmf_video_overlay_hw_blend_supported(blend_cases[i].dst);
+        TEST_ASSERT_EQUAL(blend_cases[i].overlay_hw_blend, hw_supported);
+
+        esp_err_t ppa_ret = gmf_video_ppa_blend_probe(overlay_fg_fmt, blend_cases[i].dst,
+                                                      TEST_PATTERN_WIDTH, TEST_PATTERN_HEIGHT);
+        ESP_LOGI(TAG, "  src %s dst %s overlay_hw=%d ppa_blend_probe=%s",
+                 esp_gmf_video_get_format_string(overlay_fg_fmt),
+                 esp_gmf_video_get_format_string(blend_cases[i].dst), hw_supported, esp_err_to_name(ppa_ret));
+
+        if (blend_cases[i].expect_ppa_ok) {
+            TEST_ASSERT_EQUAL_MESSAGE(ESP_OK, ppa_ret, blend_cases[i].desc);
+        } else {
+            TEST_ASSERT_NOT_EQUAL_MESSAGE(ESP_OK, ppa_ret, blend_cases[i].desc);
+        }
     }
 }
 
@@ -1028,88 +1607,25 @@ TEST_CASE("FPS convert only", "[ESP_GMF_VIDEO]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Overlay Test", "[ESP_GMF_VIDEO]")
+TEST_CASE("Overlay mixer SW", "[ESP_GMF_VIDEO]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-    ESP_GMF_MEM_SHOW(TAG);
 #ifdef MEDIA_LIB_MEM_TEST
     media_lib_add_default_adapter();
 #endif  /* MEDIA_LIB_MEM_TEST */
-    convert_res_t res;
-    memset(&video_el_inst, 0, sizeof(video_el_test_t));
-    prepare_pool(&res);
-    const char *name[] = {"vid_overlay", NULL};
-    TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, name));
-
-    allocate_src_pattern(ESP_FOURCC_RGB16, false);
-
-    // Create overlay buffer
-    video_el_inst.overlay_res.width = video_el_inst.src_res.width / 2;
-    video_el_inst.overlay_res.height = video_el_inst.src_res.height / 2;
-    esp_video_codec_resolution_t overlay_res = {
-        .width = video_el_inst.overlay_res.width,
-        .height = video_el_inst.overlay_res.height,
-    };
-    video_el_inst.overlay_size = esp_video_codec_get_image_size((esp_video_codec_pixel_fmt_t)ESP_FOURCC_RGB16,
-                                                                (esp_video_codec_resolution_t *)&overlay_res);
-    video_el_inst.overlay_data = esp_gmf_oal_malloc_align(TEST_VIDEO_ALIGNMENT, video_el_inst.overlay_size);
-    TEST_ASSERT_NOT_NULL(video_el_inst.src_pixel);
-    pattern_info_t pattern_info = {
-        .format_id = ESP_FOURCC_RGB16,
-        .res = video_el_inst.overlay_res,
-        .pixel = video_el_inst.overlay_data,
-        .data_size = video_el_inst.overlay_size,
-        .bar_count = TEST_PATTERN_BAR_COUNT / 2,
-        .vertical = !TEST_PATTERN_VERTICAL,
-    };
-    gen_pattern_color_bar(&pattern_info);
-
-    video_el_inst.out_res = video_el_inst.src_res;
-    video_el_inst.out_codec = ESP_FOURCC_RGB16;
-
-    esp_gmf_overlay_rgn_info_t rgn = {
-        .format_id = ESP_FOURCC_RGB16,
-        .dst_rgn = {
-            .x = video_el_inst.src_res.width / 4,
-            .y = video_el_inst.src_res.height / 4,
-            .width = video_el_inst.overlay_res.width,
-            .height = video_el_inst.overlay_res.height,
-        },
-    };
-    // esp_gmf_video_overlay_set_rgn(res.overlay_hd, &rgn);
-    esp_gmf_video_param_set_overlay_rgn(res.overlay_hd, &rgn);
-
-    esp_gmf_port_handle_t overlay_port = NEW_ESP_GMF_PORT_IN_BLOCK(overlay_acquire, overlay_release, NULL, NULL, 0, ESP_GMF_MAX_DELAY);
-    // esp_gmf_video_overlay_set_overlay_port(res.overlay_hd, overlay_port);
-    esp_gmf_video_param_set_overlay_port(res.overlay_hd, overlay_port);
-    // esp_gmf_video_overlay_enable(res.overlay_hd, true);
-    esp_gmf_video_param_overlay_enable(res.overlay_hd, true);
-
-    esp_gmf_info_video_t info = {
-        .format_id = ESP_FOURCC_RGB16,
-        .width = TEST_PATTERN_WIDTH,
-        .height = TEST_PATTERN_HEIGHT,
-        .fps = 10,
-    };
-    esp_gmf_pipeline_report_info(res.pipe, ESP_GMF_INFO_VIDEO, &info, sizeof(info));
-
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res.pipe));
-    vTaskDelay(100 / portTICK_RATE_MS);
-    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res.pipe));
-    show_result_pattern();
-
-    free_video_el_inst();
-    // Clear up resources
-    release_convert_pipeline(&res);
-    if (overlay_port) {
-        esp_gmf_port_deinit(overlay_port);
-    }
-
-#ifdef MEDIA_LIB_MEM_TEST
-    media_lib_stop_mem_trace();
-#endif  /* MEDIA_LIB_MEM_TEST */
-    ESP_GMF_MEM_SHOW(TAG);
+    overlay_run_suite("SW", OVERLAY_SW_FRAME_WIDTH, OVERLAY_SW_FRAME_HEIGHT, false);
 }
+
+#if CONFIG_SOC_PPA_SUPPORTED
+TEST_CASE("Overlay mixer HW", "[ESP_GMF_VIDEO]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+#ifdef MEDIA_LIB_MEM_TEST
+    media_lib_add_default_adapter();
+#endif  /* MEDIA_LIB_MEM_TEST */
+    overlay_run_suite("HW", OVERLAY_HW_FRAME_WIDTH, OVERLAY_HW_FRAME_HEIGHT, true);
+}
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
 
 TEST_CASE("Encoder to Decode", "[ESP_GMF_VIDEO]")
 {

@@ -37,6 +37,7 @@ typedef struct {
     bool                       video_share_raw;
     esp_gmf_port_handle_t      overlay_port;
     esp_capture_overlay_if_t  *overlay;
+    esp_capture_overlay_if_t  *cur_overlay;
     esp_gmf_element_handle_t   overlay_el;
     bool                       overlay_enable;
     bool                       run_once;
@@ -125,6 +126,29 @@ static esp_capture_err_t gmf_video_path_set_run_once(gmf_capture_path_mngr_t *mn
     return ESP_CAPTURE_ERR_NOT_SUPPORTED;
 }
 
+static void video_path_setup_overlay_regions(video_path_res_t *res)
+{
+    esp_capture_overlay_if_t *overlay = res->overlay;
+    uint8_t rgn_index = 0;
+    while (overlay) {
+        esp_gmf_overlay_rgn_info_t overlay_rgn = {};
+        overlay_rgn.rgn_index = rgn_index++;
+        if (overlay->get_trans_color) {
+            overlay->get_trans_color(overlay, &overlay_rgn.has_trans_color, overlay_rgn.trans_color);
+        }
+        int ret = overlay->get_overlay_region(overlay,
+                                              (esp_capture_format_id_t *)&overlay_rgn.format_id,
+                                              (esp_capture_rgn_t *)&overlay_rgn.dst_rgn);
+        if (ret == ESP_CAPTURE_ERR_OK) {
+            ret = esp_gmf_video_overlay_set_rgn(res->overlay_el, &overlay_rgn);
+        }
+        if (ret != 0) {
+            ESP_LOGE(TAG, "Failed to set region %d ret %d", overlay_rgn.rgn_index, ret);
+        }
+        overlay = overlay->next;
+    }
+}
+
 static esp_capture_err_t video_path_apply_setting(gmf_capture_path_mngr_t *mngr, uint8_t idx)
 {
     video_path_res_t *res = (video_path_res_t *)gmf_capture_path_mngr_get_idx(mngr, idx);
@@ -135,12 +159,8 @@ static esp_capture_err_t video_path_apply_setting(gmf_capture_path_mngr_t *mngr,
             return ESP_CAPTURE_ERR_NOT_SUPPORTED;
         }
         esp_gmf_video_overlay_set_overlay_port(res->overlay_el, res->overlay_port);
-        if (res->overlay_enable) {
-            esp_gmf_overlay_rgn_info_t overlay_rgn = {};
-            res->overlay->get_overlay_region(res->overlay,
-                                             (esp_capture_format_id_t *)&overlay_rgn.format_id,
-                                             (esp_capture_rgn_t *)&overlay_rgn.dst_rgn);
-            esp_gmf_video_overlay_set_rgn(res->overlay_el, &overlay_rgn);
+        if (res->overlay_enable && res->overlay) {
+            video_path_setup_overlay_regions(res);
         }
         esp_gmf_video_overlay_enable(res->overlay_el, res->overlay_enable);
     }
@@ -266,6 +286,8 @@ static esp_capture_err_t video_path_prepare(gmf_capture_path_res_t *mngr_res)
 static esp_capture_err_t video_path_stop(gmf_capture_path_res_t *mngr_res)
 {
     video_path_res_t *res = (video_path_res_t *)mngr_res;
+    /* Pipeline teardown destroys vid_overlay; drop stale handle before next enable. */
+    res->overlay_el = NULL;
     // Release to let user quit
     if (res->raw_consume_sema) {
         capture_sema_unlock(res->raw_consume_sema);
@@ -321,17 +343,21 @@ esp_capture_err_t gmf_video_path_enable_path(esp_capture_path_mngr_if_t *p, uint
 
 static esp_gmf_err_io_t overlay_acquire(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
 {
-    esp_capture_overlay_if_t *overlay = (esp_capture_overlay_if_t *)handle;
+    video_path_res_t *res = (video_path_res_t *)handle;
+    esp_capture_overlay_if_t *overlay = res->cur_overlay ? res->cur_overlay : res->overlay;
+    if (overlay == NULL) {
+        return ESP_GMF_IO_ABORT;
+    }
     esp_capture_stream_frame_t frame = {};
     int ret = overlay->acquire_frame(overlay, &frame);
     if (ret == ESP_CAPTURE_ERR_OK) {
-        // TODO workaround use PTS to store alpha?
         uint8_t alpha = 0;
         overlay->get_alpha(overlay, &alpha);
         load->pts = alpha;
         load->buf = frame.data;
         load->valid_size = frame.size;
     } else {
+        res->cur_overlay = NULL;
         ESP_LOGE(TAG, "Fail to acquire overlay ret %d", ret);
     }
     return ret >= 0 ? ESP_GMF_IO_OK : ESP_GMF_IO_ABORT;
@@ -339,12 +365,14 @@ static esp_gmf_err_io_t overlay_acquire(void *handle, esp_gmf_payload_t *load, u
 
 static esp_gmf_err_io_t overlay_release(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
 {
-    esp_capture_overlay_if_t *overlay = (esp_capture_overlay_if_t *)handle;
+    video_path_res_t *res = (video_path_res_t *)handle;
+    esp_capture_overlay_if_t *overlay = res->cur_overlay ? res->cur_overlay : res->overlay;
     esp_capture_stream_frame_t frame = {
         .data = load->buf,
         .size = load->valid_size,
     };
     overlay->release_frame(overlay, &frame);
+    res->cur_overlay = overlay->next;
     return ESP_GMF_IO_OK;
 }
 
@@ -355,12 +383,18 @@ esp_capture_err_t gmf_video_path_add_overlay(esp_capture_video_path_mngr_if_t *p
     if (res == NULL) {
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
-    if (res->overlay) {
-        ESP_LOGW(TAG, "Overlay already added");
+    if (res->overlay != NULL) {
+        ESP_LOGW(TAG, "Overlay already added; link regions with ESP_CAPTURE_APPEND_OVERLAY before add_overlay");
         return ESP_CAPTURE_ERR_INVALID_STATE;
     }
+    res->cur_overlay = NULL;
+    if (res->overlay_port == NULL) {
+        res->overlay_port = NEW_ESP_GMF_PORT_IN_BLOCK(overlay_acquire, overlay_release, NULL, res, 0, ESP_GMF_MAX_DELAY);
+        if (res->overlay_port == NULL) {
+            return ESP_CAPTURE_ERR_NO_MEM;
+        }
+    }
     res->overlay = overlay;
-    res->overlay_port = NEW_ESP_GMF_PORT_IN_BLOCK(overlay_acquire, overlay_release, NULL, overlay, 0, ESP_GMF_MAX_DELAY);
     return ESP_CAPTURE_ERR_OK;
 }
 
@@ -372,15 +406,12 @@ esp_capture_err_t gmf_video_path_enable_overlay(esp_capture_video_path_mngr_if_t
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     res->overlay_enable = enable;
+    res->overlay_el = get_overlay_element(&video_path->mngr, path);
     if (res->overlay_el == NULL) {
         return ESP_CAPTURE_ERR_OK;
     }
-    if (enable) {
-        esp_gmf_overlay_rgn_info_t overlay_rgn = {};
-        res->overlay->get_overlay_region(res->overlay,
-                                         (esp_capture_format_id_t *)&overlay_rgn.format_id,
-                                         (esp_capture_rgn_t *)&overlay_rgn.dst_rgn);
-        esp_gmf_video_overlay_set_rgn(res->overlay_el, &overlay_rgn);
+    if (enable && res->overlay) {
+        video_path_setup_overlay_regions(res);
     }
     return esp_gmf_video_overlay_enable(res->overlay_el, enable);
 }
