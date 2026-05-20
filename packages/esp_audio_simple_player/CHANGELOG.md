@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Breaking Changes
+
+- Changed `esp_asp_prev_func_t` first argument from `esp_asp_handle_t *handle` to `esp_asp_handle_t handle`
+
 ## v0.9.6~1
 
 ### Bug Fixes

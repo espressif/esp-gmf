@@ -121,10 +121,8 @@ esp_gmf_err_t gmf_loader_teardown_audio_effects_default(esp_gmf_pool_handle_t po
  * @brief  Register the AI Audio elements selected in sdkconfig into the GMF pool, including:
  *         - AEC (Acoustic Echo Cancellation)
  *         - WakeNet (Wake word detection)
- *         - AFE (Audio Front End) with configurable features:
- *         - VAD (Voice Activity Detection)
- *         - Wake word detection
- *         - AEC
+ *         - AFE (Audio Front End) with configurable features (wake word, VAD, AEC)
+ *         - Standalone VAD (`ai_vad`), NS (`ai_ns`), and DOA (`ai_doa`) elements
  *         The AFE manager will be created with customizable task settings for feed and fetch tasks
  *
  * @note  `esp_gmf_afe_manager` will be create automatically if AFE element is enabled in sdkconfig,

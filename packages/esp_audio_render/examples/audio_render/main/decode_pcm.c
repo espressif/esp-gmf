@@ -29,7 +29,7 @@ typedef struct {
     uint8_t    core;
 } dec_t;
 
-static int on_pre_run(esp_asp_handle_t *handle, void *ctx)
+static int on_pre_run(esp_asp_handle_t handle, void *ctx)
 {
 #ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
     esp_gmf_pipeline_handle_t pipeline = NULL;

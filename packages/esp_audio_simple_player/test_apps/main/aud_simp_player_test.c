@@ -316,7 +316,7 @@ TEST_CASE("Playback with raw MP3 data", "[Simple_Player]")
     teardown_test_environment(&env);
 }
 
-static int embed_flash_io_set(esp_asp_handle_t *handle, void *ctx)
+static int embed_flash_io_set(esp_asp_handle_t handle, void *ctx)
 {
     esp_gmf_pipeline_handle_t pipe = NULL;
     int ret =  esp_audio_simple_player_get_pipeline(handle, &pipe);

@@ -24,6 +24,19 @@
 #include "esp_gmf_afe_manager.h"
 #endif  /* CONFIG_GMF_AI_AUDIO_INIT_AFE */
 
+#if CONFIG_GMF_AI_AUDIO_INIT_VAD
+#include "esp_gmf_vad.h"
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_VAD */
+
+#if CONFIG_GMF_AI_AUDIO_INIT_NS
+#include "esp_gmf_ns.h"
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_NS */
+
+#if CONFIG_GMF_AI_AUDIO_INIT_DOA
+#include "esp_gmf_doa.h"
+#include "esp_gmf_obj.h"
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_DOA */
+
 typedef struct {
     uint32_t setup_cnt;
 #if defined(CONFIG_GMF_AI_AUDIO_INIT_WN) || defined(CONFIG_GMF_AI_AUDIO_INIT_AFE)
@@ -99,6 +112,67 @@ static esp_gmf_err_t gmf_loader_setup_default_afe(esp_gmf_pool_handle_t pool, gm
 }
 #endif  /* CONFIG_GMF_AI_AUDIO_INIT_AFE */
 
+#if CONFIG_GMF_AI_AUDIO_INIT_VAD
+static esp_gmf_err_t gmf_loader_setup_default_vad(esp_gmf_pool_handle_t pool)
+{
+    ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_element_handle_t hd = NULL;
+    esp_gmf_vad_cfg_t gmf_vad_cfg = ESP_GMF_VAD_CFG_DEFAULT();
+    gmf_vad_cfg.sample_rate = CONFIG_GMF_AI_AUDIO_VAD_ELEMENT_SAMPLE_RATE;
+    gmf_vad_cfg.frame_ms = CONFIG_GMF_AI_AUDIO_VAD_ELEMENT_FRAME_MS;
+    gmf_vad_cfg.vad_mode = CONFIG_GMF_AI_AUDIO_VAD_ELEMENT_MODE;
+    gmf_vad_cfg.partition_label = CONFIG_GMF_AI_AUDIO_MODEL_PARTITION;
+    ret = esp_gmf_vad_init(&gmf_vad_cfg, &hd);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init audio vad");
+    ret = esp_gmf_pool_register_element(pool, hd, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_obj_delete(hd); return ret;}, "Failed to register element in pool");
+    return ret;
+}
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_VAD */
+
+#if CONFIG_GMF_AI_AUDIO_INIT_NS
+static esp_gmf_err_t gmf_loader_setup_default_ns(esp_gmf_pool_handle_t pool)
+{
+    ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_element_handle_t hd = NULL;
+    esp_gmf_ns_cfg_t gmf_ns_cfg = ESP_GMF_NS_CFG_DEFAULT();
+    gmf_ns_cfg.sample_rate = CONFIG_GMF_AI_AUDIO_NS_ELEMENT_SAMPLE_RATE;
+    gmf_ns_cfg.frame_ms = CONFIG_GMF_AI_AUDIO_NS_ELEMENT_FRAME_MS;
+    gmf_ns_cfg.model_name = CONFIG_GMF_AI_AUDIO_NS_ELEMENT_MODEL_NAME;
+    gmf_ns_cfg.partition_label = CONFIG_GMF_AI_AUDIO_MODEL_PARTITION;
+    ret = esp_gmf_ns_init(&gmf_ns_cfg, &hd);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init audio ns");
+    ret = esp_gmf_pool_register_element(pool, hd, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_obj_delete(hd); return ret;}, "Failed to register element in pool");
+    return ret;
+}
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_NS */
+
+#if CONFIG_GMF_AI_AUDIO_INIT_DOA
+static esp_gmf_err_t gmf_loader_setup_default_doa(esp_gmf_pool_handle_t pool)
+{
+    ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_element_handle_t hd = NULL;
+    esp_gmf_doa_cfg_t gmf_doa_cfg = {
+        .sample_rate = CONFIG_GMF_AI_AUDIO_DOA_ELEMENT_SAMPLE_RATE,
+        .resolution = CONFIG_GMF_AI_AUDIO_DOA_ELEMENT_RESOLUTION,
+        .d_mics = CONFIG_GMF_AI_AUDIO_DOA_ELEMENT_D_MICS_MM / 1000.0f,
+        .frame_ms = CONFIG_GMF_AI_AUDIO_DOA_ELEMENT_FRAME_MS,
+        .input_format = CONFIG_GMF_AI_AUDIO_DOA_ELEMENT_CH_ALLOCATION,
+        .result_callback = NULL,
+        .ctx = NULL,
+    };
+    ret = esp_gmf_doa_init(&gmf_doa_cfg, &hd);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init audio doa");
+    ret = esp_gmf_pool_register_element(pool, hd, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_obj_delete(hd); return ret;}, "Failed to register element in pool");
+    return ret;
+}
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_DOA */
+
 esp_gmf_err_t gmf_loader_setup_ai_audio_default(esp_gmf_pool_handle_t pool)
 {
     ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
@@ -164,6 +238,21 @@ esp_gmf_err_t gmf_loader_setup_ai_audio_default(esp_gmf_pool_handle_t pool)
     ret = gmf_loader_setup_default_afe(pool, ai_audio_ctx);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register afe");
 #endif  /* CONFIG_GMF_AI_AUDIO_INIT_AFE */
+
+#ifdef CONFIG_GMF_AI_AUDIO_INIT_VAD
+    ret = gmf_loader_setup_default_vad(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register vad");
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_VAD */
+
+#ifdef CONFIG_GMF_AI_AUDIO_INIT_NS
+    ret = gmf_loader_setup_default_ns(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register ns");
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_NS */
+
+#ifdef CONFIG_GMF_AI_AUDIO_INIT_DOA
+    ret = gmf_loader_setup_default_doa(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register doa");
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_DOA */
 
     return ret;
 }

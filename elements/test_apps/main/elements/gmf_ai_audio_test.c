@@ -28,6 +28,11 @@
 #include "esp_gmf_caps_def.h"
 
 #include "esp_gmf_wn.h"
+#include "esp_gmf_vad.h"
+#include "esp_gmf_ns.h"
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#include "esp_gmf_doa.h"
+#endif  /* DOA supported targets */
 #if defined(CONFIG_IDF_TARGET_ESP32) || defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32P4)
 #include "esp_afe_config.h"
 #include "esp_gmf_afe_manager.h"
@@ -62,11 +67,22 @@
 #define EVENTS_2_WAIT (WAKEUP_DETECTED)
 #endif  /* CONFIG_IDF_TARGET_ESP32 */
 
+/* WebRTC NS runs ~10 ms/frame on device; keep unit-test PCM short (200 ms, frame-aligned). */
+#define NS_TEST_FRAME_BYTES   (16000 * 10 / 1000 * (int)sizeof(int16_t))
+#define NS_TEST_PCM_MAX_BYTES (NS_TEST_FRAME_BYTES * 20)
+
 static const char        *TAG           = "AI_AUDIO_TEST";
 static uint32_t           out_count     = 0;
 static EventGroupHandle_t g_event_group = NULL;
+extern const uint8_t      ns_input_sample_pcm_start[] asm("_binary_ns_input_sample_pcm_start");
+extern const uint8_t      ns_input_sample_pcm_end[] asm("_binary_ns_input_sample_pcm_end");
 extern const uint8_t      hi_lexin_pcm_start[] asm("_binary_hi_lexin_pcm_start");
 extern const uint8_t      hi_lexin_pcm_end[] asm("_binary_hi_lexin_pcm_end");
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+extern const uint8_t      doa_pcm_start[] asm("_binary_doa_pcm_start");
+extern const uint8_t      doa_pcm_end[] asm("_binary_doa_pcm_end");
+#endif  /* CONFIG_IDF_TARGET_ESP32S3 */
+
 
 #if defined(CONFIG_IDF_TARGET_ESP32) || defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32P4)
 void generate_reference_signal(int16_t *signal, int len)
@@ -437,7 +453,7 @@ static esp_gmf_err_io_t afe_acquire_read(void *handle, esp_gmf_payload_t *load, 
 {
     static int offset = 0;
     const uint8_t *src = hi_lexin_pcm_start;
-    int total_size = hi_lexin_pcm_end - hi_lexin_pcm_start;
+    int total_size = (int)(hi_lexin_pcm_end - hi_lexin_pcm_start);
 
     if (offset < total_size) {
         if (offset + wanted_size > total_size) {
@@ -579,8 +595,8 @@ TEST_CASE("Test gmf afe process", "[ESP_GMF_AFE]")
     } while (true);
     esp_gmf_element_process_close(gmf_afe, NULL);
     esp_gmf_obj_delete(gmf_afe);
-    esp_gmf_afe_manager_destroy(afe_manager);
     afe_config_free(afe_cfg);
+    esp_gmf_afe_manager_destroy(afe_manager);
     esp_srmodel_deinit(models);
     TEST_ASSERT_EQUAL(EVENTS_2_WAIT, xEventGroupWaitBits(g_event_group, EVENTS_2_WAIT, pdTRUE, pdTRUE, pdMS_TO_TICKS(50 * 1000)));
     vEventGroupDelete(g_event_group);
@@ -588,11 +604,365 @@ TEST_CASE("Test gmf afe process", "[ESP_GMF_AFE]")
 }
 #endif  /* CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4 */
 
+typedef struct {
+    const uint8_t *pcm;
+    int            total_size;
+    int            offset;
+} mono_pcm_port_ctx_t;
+
+typedef struct {
+    const uint8_t *input_ptr;
+    size_t         input_remaining;
+    uint32_t       input_bytes;
+    uint32_t       output_bytes;
+} ns_pcm_port_ctx_t;
+
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+typedef struct {
+    const uint8_t *pcm;
+    int            total_bytes;
+    int            offset;
+} doa_pcm_port_ctx_t;
+#endif  /* CONFIG_IDF_TARGET_ESP32S3 */
+
+static esp_gmf_err_io_t mono_pcm_acquire_read(void *handle, esp_gmf_payload_t *load, int wanted_size, int block_ticks)
+{
+    mono_pcm_port_ctx_t *ctx = (mono_pcm_port_ctx_t *)handle;
+    if ((ctx == NULL) || (load->buf == NULL)) {
+        return ESP_GMF_IO_FAIL;
+    }
+    if (ctx->offset < ctx->total_size) {
+        if (ctx->offset + wanted_size > ctx->total_size) {
+            wanted_size = ctx->total_size - ctx->offset;
+        }
+        memcpy(load->buf, &ctx->pcm[ctx->offset], wanted_size);
+        ctx->offset += wanted_size;
+        load->valid_size = wanted_size;
+        if (ctx->offset == ctx->total_size) {
+            load->is_done = true;
+        }
+    } else {
+        load->valid_size = 0;
+        load->is_done = true;
+    }
+    return ESP_GMF_IO_OK;
+}
+
+static esp_gmf_err_io_t mono_pcm_release_read(void *handle, esp_gmf_payload_t *load, int block_ticks)
+{
+    (void)handle;
+    (void)block_ticks;
+    load->valid_size = 0;
+    return ESP_GMF_IO_OK;
+}
+
+static esp_gmf_err_io_t mono_pcm_acquire_write(void *handle, esp_gmf_payload_t *load, int wanted_size, int block_ticks)
+{
+    (void)handle;
+    (void)wanted_size;
+    (void)block_ticks;
+    if (load->buf == NULL) {
+        return ESP_GMF_IO_FAIL;
+    }
+    return ESP_GMF_IO_OK;
+}
+
+static esp_gmf_err_io_t mono_pcm_release_write(void *handle, esp_gmf_payload_t *load, int block_ticks)
+{
+    (void)handle;
+    (void)block_ticks;
+    return ESP_GMF_IO_OK;
+}
+
+static esp_gmf_job_err_t gmf_element_process_until_done(esp_gmf_element_handle_t handle)
+{
+    esp_gmf_job_err_t ret = ESP_GMF_JOB_ERR_OK;
+    do {
+        ret = esp_gmf_element_process_running(handle, NULL);
+        if ((ret != ESP_GMF_JOB_ERR_OK) && (ret != ESP_GMF_JOB_ERR_CONTINUE) && (ret != ESP_GMF_JOB_ERR_TRUNCATE)) {
+            break;
+        }
+    } while (ret != ESP_GMF_JOB_ERR_DONE);
+    return ret;
+}
+
+static volatile int s_vad_cb_count = 0;
+
+static void vad_test_result_cb(vad_state_t state, void *ctx)
+{
+    (void)ctx;
+    s_vad_cb_count++;
+    ESP_LOGI(TAG, "VAD callback state: %d", (int)state);
+}
+
+TEST_CASE("Test gmf vad process", "[ESP_GMF_VAD]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+
+    printf("\r\n///////////////////// VAD /////////////////////\r\n");
+    s_vad_cb_count = 0;
+
+    const int vad_pcm_size = (int)(ns_input_sample_pcm_end - ns_input_sample_pcm_start);
+    mono_pcm_port_ctx_t port_ctx = {
+        .pcm = ns_input_sample_pcm_start,
+        .total_size = vad_pcm_size,
+        .offset = 0,
+    };
+
+    esp_gmf_port_handle_t in_port = NEW_ESP_GMF_PORT_IN_BYTE(mono_pcm_acquire_read, mono_pcm_release_read,
+                                                             NULL, &port_ctx, 1024, 100);
+    esp_gmf_port_handle_t out_port = NEW_ESP_GMF_PORT_OUT_BYTE(mono_pcm_acquire_write, mono_pcm_release_write,
+                                                               NULL, NULL, 1024, 100);
+
+    esp_gmf_vad_cfg_t vad_cfg = ESP_GMF_VAD_CFG_DEFAULT();
+    vad_cfg.result_callback = vad_test_result_cb;
+    esp_gmf_element_handle_t gmf_vad = NULL;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_vad_init(&vad_cfg, &gmf_vad));
+
+    esp_gmf_cap_t *caps = NULL;
+    esp_gmf_cap_t *out_caps = NULL;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_get_caps(gmf_vad, (const esp_gmf_cap_t **)&caps));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cap_fetch_node(caps, ESP_GMF_CAPS_AUDIO_VAD, &out_caps));
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_register_in_port(gmf_vad, in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_register_out_port(gmf_vad, out_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_process_open(gmf_vad, NULL));
+    TEST_ASSERT_EQUAL(ESP_GMF_JOB_ERR_DONE, gmf_element_process_until_done(gmf_vad));
+    esp_gmf_element_process_close(gmf_vad, NULL);
+    esp_gmf_obj_delete(gmf_vad);
+    TEST_ASSERT_EQUAL(vad_pcm_size, port_ctx.offset);
+    TEST_ASSERT_GREATER_THAN(0, s_vad_cb_count);
+}
+
+static esp_gmf_err_io_t ns_pcm_acquire_read(void *handle, esp_gmf_payload_t *load, int wanted_size, int block_ticks)
+{
+    ns_pcm_port_ctx_t *ctx = (ns_pcm_port_ctx_t *)handle;
+    if ((ctx == NULL) || (load == NULL) || (load->buf == NULL)) {
+        return ESP_GMF_IO_FAIL;
+    }
+
+    if (wanted_size <= 0) {
+        load->valid_size = 0;
+        load->is_done = true;
+        return ESP_GMF_IO_OK;
+    }
+
+    size_t read_size = (ctx->input_remaining < (size_t)wanted_size) ? ctx->input_remaining : (size_t)wanted_size;
+    if (read_size == 0) {
+        load->valid_size = 0;
+        load->is_done = true;
+        return ESP_GMF_IO_OK;
+    }
+
+    memcpy(load->buf, ctx->input_ptr, read_size);
+    ctx->input_ptr += read_size;
+    ctx->input_remaining -= read_size;
+    ctx->input_bytes += read_size;
+
+    load->valid_size = read_size;
+    load->is_done = (ctx->input_remaining == 0);
+    return ESP_GMF_IO_OK;
+}
+
+static esp_gmf_err_io_t ns_pcm_release_read(void *handle, esp_gmf_payload_t *load, int block_ticks)
+{
+    (void)handle;
+    (void)block_ticks;
+    if (load) {
+        load->valid_size = 0;
+    }
+    return ESP_GMF_IO_OK;
+}
+
+static esp_gmf_err_io_t ns_pcm_acquire_write(void *handle, esp_gmf_payload_t *load, int wanted_size, int block_ticks)
+{
+    (void)handle;
+    (void)wanted_size;
+    (void)block_ticks;
+    if ((load == NULL) || (load->buf == NULL)) {
+        return ESP_GMF_IO_FAIL;
+    }
+    return ESP_GMF_IO_OK;
+}
+
+static esp_gmf_err_io_t ns_pcm_release_write(void *handle, esp_gmf_payload_t *load, int block_ticks)
+{
+    ns_pcm_port_ctx_t *ctx = (ns_pcm_port_ctx_t *)handle;
+    (void)block_ticks;
+    if ((ctx == NULL) || (load == NULL) || (load->buf == NULL)) {
+        return ESP_GMF_IO_FAIL;
+    }
+    if (load->valid_size > 0) {
+        ctx->output_bytes += load->valid_size;
+    }
+    return ESP_GMF_IO_OK;
+}
+
+TEST_CASE("Test gmf ns process", "[ESP_GMF_NS]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("ESP_GMF_PORT", ESP_LOG_WARN);
+    esp_log_level_set("GMF_CACHE", ESP_LOG_WARN);
+    ESP_GMF_MEM_SHOW(TAG);
+
+    printf("\r\n///////////////////// NS /////////////////////\r\n");
+
+    const size_t ns_pcm_embedded = (size_t)(ns_input_sample_pcm_end - ns_input_sample_pcm_start);
+    const size_t ns_pcm_size = (ns_pcm_embedded < NS_TEST_PCM_MAX_BYTES) ? ns_pcm_embedded : NS_TEST_PCM_MAX_BYTES;
+    ns_pcm_port_ctx_t port_ctx = {
+        .input_ptr = ns_input_sample_pcm_start,
+        .input_remaining = ns_pcm_size,
+    };
+
+    esp_gmf_port_handle_t in_port = NEW_ESP_GMF_PORT_IN_BYTE(ns_pcm_acquire_read, ns_pcm_release_read,
+                                                             NULL, &port_ctx, NS_TEST_FRAME_BYTES, 0);
+    esp_gmf_port_handle_t out_port = NEW_ESP_GMF_PORT_OUT_BYTE(ns_pcm_acquire_write, ns_pcm_release_write,
+                                                               NULL, &port_ctx, NS_TEST_FRAME_BYTES, 0);
+
+    esp_gmf_ns_cfg_t ns_cfg = ESP_GMF_NS_CFG_DEFAULT();
+#if CONFIG_SR_NSN_NSNET2
+    ns_cfg.model_name = "nsnet2";
+#endif
+    ns_cfg.sample_rate = 16000;
+    ns_cfg.channel = 1;
+    esp_gmf_element_handle_t gmf_ns = NULL;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_ns_init(&ns_cfg, &gmf_ns));
+
+    esp_gmf_cap_t *caps = NULL;
+    esp_gmf_cap_t *out_caps = NULL;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_get_caps(gmf_ns, (const esp_gmf_cap_t **)&caps));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cap_fetch_node(caps, ESP_GMF_CAPS_AUDIO_NS, &out_caps));
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_register_in_port(gmf_ns, in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_register_out_port(gmf_ns, out_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_process_open(gmf_ns, NULL));
+    TEST_ASSERT_EQUAL(ESP_GMF_JOB_ERR_DONE, gmf_element_process_until_done(gmf_ns));
+    esp_gmf_element_process_close(gmf_ns, NULL);
+    esp_gmf_obj_delete(gmf_ns);
+
+    TEST_ASSERT_EQUAL(ns_pcm_size, port_ctx.input_bytes);
+    TEST_ASSERT_GREATER_THAN(0, port_ctx.output_bytes);
+    TEST_ASSERT_GREATER_OR_EQUAL(ns_pcm_size - NS_TEST_FRAME_BYTES, port_ctx.output_bytes);
+    ESP_LOGI(TAG, "NS test summary: input_bytes=%lu, output_bytes=%lu (cap=%u, embedded=%u)",
+             (unsigned long)port_ctx.input_bytes, (unsigned long)port_ctx.output_bytes,
+             (unsigned)NS_TEST_PCM_MAX_BYTES, (unsigned)ns_pcm_embedded);
+}
+
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#define DOA_TEST_FRAME_MS    32
+#define DOA_TEST_CH_NUM      2  /* matches input_format "MM" */
+#define DOA_TEST_INPUT_BYTES (DOA_TEST_FRAME_MS * FS / 1000 * (int)sizeof(int16_t) * DOA_TEST_CH_NUM)
+
+static esp_gmf_err_io_t doa_pcm_acquire_read(void *handle, esp_gmf_payload_t *load, int wanted_size, int block_ticks)
+{
+    doa_pcm_port_ctx_t *ctx = (doa_pcm_port_ctx_t *)handle;
+    (void)block_ticks;
+    if ((ctx == NULL) || (load == NULL) || (load->buf == NULL)) {
+        return ESP_GMF_IO_FAIL;
+    }
+    if (wanted_size <= 0) {
+        load->valid_size = 0;
+        load->is_done = true;
+        return ESP_GMF_IO_OK;
+    }
+    if (ctx->offset < ctx->total_bytes) {
+        if (ctx->offset + wanted_size > ctx->total_bytes) {
+            wanted_size = ctx->total_bytes - ctx->offset;
+        }
+        memcpy(load->buf, &ctx->pcm[ctx->offset], wanted_size);
+        ctx->offset += wanted_size;
+        load->valid_size = wanted_size;
+        load->is_done = (ctx->offset >= ctx->total_bytes);
+    } else {
+        load->valid_size = 0;
+        load->is_done = true;
+    }
+    return ESP_GMF_IO_OK;
+}
+
+static esp_gmf_err_io_t doa_pcm_release_read(void *handle, esp_gmf_payload_t *load, int block_ticks)
+{
+    (void)handle;
+    (void)block_ticks;
+    if (load) {
+        load->valid_size = 0;
+    }
+    return ESP_GMF_IO_OK;
+}
+
+static volatile int s_doa_cb_count = 0;
+static float s_doa_last_result = -1.0f;
+
+static void doa_test_result_cb(float doa_result, void *ctx)
+{
+    (void)ctx;
+    s_doa_cb_count++;
+    s_doa_last_result = doa_result;
+    ESP_LOGI(TAG, "DOA callback result: %f", doa_result);
+}
+
+TEST_CASE("Test gmf doa process", "[ESP_GMF_DOA]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("ESP_GMF_PORT", ESP_LOG_WARN);
+    esp_log_level_set("GMF_CACHE", ESP_LOG_WARN);
+    ESP_GMF_MEM_SHOW(TAG);
+
+    printf("\r\n///////////////////// DOA /////////////////////\r\n");
+    s_doa_cb_count = 0;
+    s_doa_last_result = -1.0f;
+
+    const size_t doa_pcm_embedded = (size_t)(doa_pcm_end - doa_pcm_start);
+    TEST_ASSERT_GREATER_OR_EQUAL(DOA_TEST_INPUT_BYTES, doa_pcm_embedded);
+
+    doa_pcm_port_ctx_t port_ctx = {
+        .pcm = doa_pcm_start,
+        .total_bytes = DOA_TEST_INPUT_BYTES,
+        .offset = 0,
+    };
+
+    esp_gmf_port_handle_t in_port = NEW_ESP_GMF_PORT_IN_BYTE(doa_pcm_acquire_read, doa_pcm_release_read,
+                                                             NULL, &port_ctx, DOA_TEST_INPUT_BYTES, 0);
+
+    esp_gmf_doa_cfg_t doa_cfg = {
+        .sample_rate = FS,
+        .resolution = 10,
+        .d_mics = 0.08f,
+        .frame_ms = DOA_TEST_FRAME_MS,
+        .input_format = "MM",
+        .result_callback = NULL,
+        .ctx = NULL,
+    };
+    esp_gmf_element_handle_t gmf_doa = NULL;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_doa_init(&doa_cfg, &gmf_doa));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_doa_set_result_cb(gmf_doa, doa_test_result_cb, NULL));
+
+    esp_gmf_cap_t *caps = NULL;
+    esp_gmf_cap_t *out_caps = NULL;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_get_caps(gmf_doa, (const esp_gmf_cap_t **)&caps));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_cap_fetch_node(caps, ESP_GMF_CAPS_AUDIO_DOA, &out_caps));
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_register_in_port(gmf_doa, in_port));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_process_open(gmf_doa, NULL));
+    TEST_ASSERT_EQUAL(ESP_GMF_JOB_ERR_DONE, gmf_element_process_until_done(gmf_doa));
+    esp_gmf_element_process_close(gmf_doa, NULL);
+    esp_gmf_obj_delete(gmf_doa);
+
+    TEST_ASSERT_GREATER_THAN(0, s_doa_cb_count);
+    TEST_ASSERT_TRUE(s_doa_last_result >= 0.0f);
+    TEST_ASSERT_TRUE(s_doa_last_result <= 180.0f);
+    TEST_ASSERT_EQUAL(DOA_TEST_INPUT_BYTES, port_ctx.offset);
+    ESP_LOGI(TAG, "DOA test summary: input_bytes=%d, embedded=%u, result=%f, callbacks=%d",
+             port_ctx.offset, (unsigned)doa_pcm_embedded, s_doa_last_result, s_doa_cb_count);
+}
+#endif  /* CONFIG_IDF_TARGET_ESP32S3 */
+
 static esp_gmf_err_io_t wn_acquire_read(void *handle, esp_gmf_payload_t *load, int wanted_size, int block_ticks)
 {
     static int offset = 0;
     const uint8_t *src = hi_lexin_pcm_start;
-    int total_size = hi_lexin_pcm_end - hi_lexin_pcm_start;
+    int total_size = (int)(hi_lexin_pcm_end - hi_lexin_pcm_start);
 
     if (offset < total_size) {
         if (offset + wanted_size > total_size) {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- Added **VAD**, **NS**, and **DOA** elements (`ai_vad`, `ai_ns`, `ai_doa`)
+
 ### Bug Fixes
 
 - Fixed an issue where the AFE manager did not set the result callback during initialization

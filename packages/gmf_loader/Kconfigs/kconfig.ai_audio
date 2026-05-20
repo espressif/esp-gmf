@@ -253,9 +253,146 @@ menu "GMF AI Audio"
                 Enables voice command detection functionality in the AFE pipeline
     endmenu
 
+    config GMF_AI_AUDIO_INIT_VAD
+        bool "Initialize GMF AI Audio VAD"
+        depends on (IDF_TARGET="esp32" || IDF_TARGET="esp32s2" || IDF_TARGET="esp32s3" || IDF_TARGET="esp32c3" || IDF_TARGET="esp32c5" || IDF_TARGET="esp32c6" || IDF_TARGET="esp32p4" || IDF_TARGET="esp32s31")
+        default n
+        help
+            Enable initialization of the standalone GMF VAD element and its insertion into the user pool
+
+    menu "Standalone VAD Element Configuration"
+        depends on GMF_AI_AUDIO_INIT_VAD
+
+        config GMF_AI_AUDIO_VAD_ELEMENT_SAMPLE_RATE
+            int
+            default 16000
+            help
+                Sample rate for the standalone GMF VAD element (only 16 kHz is supported)
+
+        choice
+            prompt "VAD Element Frame Length"
+            default GMF_AI_AUDIO_VAD_ELEMENT_FRAME_LENGTH_30MS
+            help
+                Frame duration for WebRTC VAD backend (ignored by VADNet)
+
+            config GMF_AI_AUDIO_VAD_ELEMENT_FRAME_LENGTH_10MS
+                bool "10 ms"
+
+            config GMF_AI_AUDIO_VAD_ELEMENT_FRAME_LENGTH_20MS
+                bool "20 ms"
+
+            config GMF_AI_AUDIO_VAD_ELEMENT_FRAME_LENGTH_30MS
+                bool "30 ms"
+        endchoice
+
+        config GMF_AI_AUDIO_VAD_ELEMENT_FRAME_MS
+            int
+            default 10 if GMF_AI_AUDIO_VAD_ELEMENT_FRAME_LENGTH_10MS
+            default 20 if GMF_AI_AUDIO_VAD_ELEMENT_FRAME_LENGTH_20MS
+            default 30 if GMF_AI_AUDIO_VAD_ELEMENT_FRAME_LENGTH_30MS
+
+        config GMF_AI_AUDIO_VAD_ELEMENT_MODE
+            int "VAD Mode"
+            default 3
+            range 0 4
+            help
+                VAD operating mode (0-4) for WebRTC VAD or VADNet
+    endmenu
+
+    config GMF_AI_AUDIO_INIT_NS
+        bool "Initialize GMF AI Audio NS"
+        depends on (IDF_TARGET="esp32" || IDF_TARGET="esp32s3" || IDF_TARGET="esp32c5" || IDF_TARGET="esp32p4" || IDF_TARGET="esp32s31")
+        default n
+        help
+            Enable initialization of the standalone GMF NS element and its insertion into the user pool
+
+    menu "Standalone NS Element Configuration"
+        depends on GMF_AI_AUDIO_INIT_NS
+
+        config GMF_AI_AUDIO_NS_ELEMENT_SAMPLE_RATE
+            int
+            default 16000
+            help
+                Sample rate for the standalone GMF NS element (only 16 kHz is supported)
+
+        choice
+            prompt "NS Element Frame Length"
+            default GMF_AI_AUDIO_NS_ELEMENT_FRAME_LENGTH_10MS
+            help
+                Frame duration for WebRTC NS backend (ignored by NSNet2)
+
+            config GMF_AI_AUDIO_NS_ELEMENT_FRAME_LENGTH_10MS
+                bool "10 ms"
+
+            config GMF_AI_AUDIO_NS_ELEMENT_FRAME_LENGTH_20MS
+                bool "20 ms"
+
+            config GMF_AI_AUDIO_NS_ELEMENT_FRAME_LENGTH_30MS
+                bool "30 ms"
+        endchoice
+
+        config GMF_AI_AUDIO_NS_ELEMENT_FRAME_MS
+            int
+            default 10 if GMF_AI_AUDIO_NS_ELEMENT_FRAME_LENGTH_10MS
+            default 20 if GMF_AI_AUDIO_NS_ELEMENT_FRAME_LENGTH_20MS
+            default 30 if GMF_AI_AUDIO_NS_ELEMENT_FRAME_LENGTH_30MS
+
+        config GMF_AI_AUDIO_NS_ELEMENT_MODEL_NAME
+            string "NS Model Name"
+            default "nsnet2"
+            help
+                NS model name when NSNet2 backend is selected
+    endmenu
+
+    config GMF_AI_AUDIO_INIT_DOA
+        bool "Initialize GMF AI Audio DOA"
+        depends on (IDF_TARGET="esp32" || IDF_TARGET="esp32s3" || IDF_TARGET="esp32c5" || IDF_TARGET="esp32p4" || IDF_TARGET="esp32s31")
+        default n
+        help
+            Enable initialization of the standalone GMF DOA element and its insertion into the user pool
+
+    menu "Standalone DOA Element Configuration"
+        depends on GMF_AI_AUDIO_INIT_DOA
+
+        config GMF_AI_AUDIO_DOA_ELEMENT_SAMPLE_RATE
+            int
+            default 16000
+            help
+                Sample rate for the standalone GMF DOA element (only 16 kHz is supported)
+
+        config GMF_AI_AUDIO_DOA_ELEMENT_RESOLUTION
+            int "DOA Angular Resolution (degrees)"
+            default 10
+            range 1 45
+            help
+                Angular resolution in degrees for DOA estimation
+
+        config GMF_AI_AUDIO_DOA_ELEMENT_D_MICS_MM
+            int "Microphone Spacing (mm)"
+            default 80
+            range 10 500
+            help
+                Distance between the two microphones in millimeters (80 means 0.08 m)
+
+        config GMF_AI_AUDIO_DOA_ELEMENT_FRAME_MS
+            int "DOA Frame Duration (ms)"
+            default 64
+            range 4 1000
+            help
+                Audio duration per DOA processing block, in milliseconds (recommended 64 ms,
+                i.e. 1024 samples at 16 kHz). Larger values give more stable estimates but
+                add proportional latency and memory cost (~4 bytes per sample, per mic channel).
+
+        config GMF_AI_AUDIO_DOA_ELEMENT_CH_ALLOCATION
+            string "DOA Channel Allocation"
+            default "MM"
+            help
+                Format string of the channel allocation; must contain exactly two `M` channels
+    endmenu
+
     config GMF_AI_AUDIO_MODEL_PARTITION
         string "Model Partition Name"
-        depends on GMF_AI_AUDIO_INIT_WN || GMF_AI_AUDIO_INIT_AFE
+        depends on GMF_AI_AUDIO_INIT_WN || GMF_AI_AUDIO_INIT_AFE || GMF_AI_AUDIO_INIT_NS || GMF_AI_AUDIO_INIT_VAD
         default "model"
         help
             Specifies the name of the partition where the AI model is stored

@@ -24,6 +24,7 @@ GPATH
 
 **/sdkconfig
 **/sdkconfig.old
+**/sdkconfig.bmgr_board.old
 **/build
 **/managed_components
 **/dependencies.lock

@@ -7,6 +7,7 @@
 - Added configurable audio muxer support in `gmf_loader_setup_audio_muxer`
 - Added configurable audio howl support in `gmf_loader_setup_audio_howl`
 - Added configurable audio asrc support in `gmf_loader_setup_audio_asrc`
+- Added menuconfig and default pool registration for standalone AI audio elements: VAD (`ai_vad`), NS (`ai_ns`), and DOA (`ai_doa`)
 
 ## v0.8.3
 

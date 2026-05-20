@@ -57,7 +57,7 @@ typedef void *esp_asp_handle_t;  /*!< Handle to audio simple player instance */
 
 typedef int (*esp_asp_data_func)(uint8_t *data, int data_size, void *ctx);  /*!< Data callback function type */
 typedef int (*esp_asp_event_func)(esp_asp_event_pkt_t *pkt, void *ctx);     /*!< Event callback function type */
-typedef int (*esp_asp_prev_func_t)(esp_asp_handle_t *handle, void *ctx);    /*!< A callback function type for previous action */
+typedef int (*esp_asp_prev_func_t)(esp_asp_handle_t handle, void *ctx);     /*!< A callback function type for previous action */
 
 /**
  * @brief  Callback structure for input and output data
