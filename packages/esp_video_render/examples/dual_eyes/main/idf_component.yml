@@ -7,6 +7,6 @@ dependencies:
     override_path: ../../../../../elements/gmf_video
   espressif/esp_video_render:
     override_path: ../../../../esp_video_render
-  esp_lcd_gc9a01: ^1.2.0
+  esp_lcd_gc9a01: ^2.0.0
   espressif/esp_board_manager:
     override_path: ../../../../esp_board_manager

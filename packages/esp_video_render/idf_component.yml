@@ -1,4 +1,4 @@
-version: "0.8.0"
+version: "0.8.1"
 description: Espressif Video Render is a module for render and compose video and UI through LCD
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_video_render
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_video_render/README.md"

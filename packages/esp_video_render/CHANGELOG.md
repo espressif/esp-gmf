@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.8.1
+
+### Bug Fixes
+
+- Fixed build error of `dual_eyes` example on IDFv6.x
+
 ## v0.8.0
 
 ### Features
