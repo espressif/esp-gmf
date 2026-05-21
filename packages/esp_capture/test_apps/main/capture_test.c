@@ -29,6 +29,8 @@
 #endif  /* defined(TEST_WITH_VIDEO) */
 #include "capture_builder.h"
 #include "capture_fake_vid_src.h"
+#include "esp_capture_text_overlay.h"
+#include "esp_capture_overlay_if.h"
 #include "esp_log.h"
 
 #define TAG  "CAPTURE_TEST"
@@ -597,6 +599,270 @@ int demo_video_capture_with_overlay(int timeout, bool dual)
     }
     return ret;
 }
+
+#if defined(TEST_WITH_VIDEO) && (VIDEO_WIDTH > 0)
+
+#define RGB565_DIST_TOL  8
+
+static int rgb565_color_dist(uint16_t a, uint16_t b)
+{
+    int ar = (a >> 11) & 0x1f;
+    int ag = (a >> 5) & 0x3f;
+    int ab = a & 0x1f;
+    int br = (b >> 11) & 0x1f;
+    int bg = (b >> 5) & 0x3f;
+    int bb = b & 0x1f;
+    return abs(ar - br) + abs(ag - bg) + abs(ab - bb);
+}
+
+static uint16_t rgb565_at(const uint8_t *buf, int width, int x, int y)
+{
+    const uint16_t *px = (const uint16_t *)buf;
+    return px[y * width + x];
+}
+
+static esp_capture_overlay_if_t *create_solid_overlay(esp_capture_rgn_t *rgn, uint16_t fill_color,
+                                                      bool use_trans_color, const uint8_t trans_rgb[3], uint8_t alpha)
+{
+    esp_capture_overlay_if_t *overlay = esp_capture_new_text_overlay(rgn);
+    if (overlay == NULL) {
+        return NULL;
+    }
+    if (overlay->open(overlay) != ESP_CAPTURE_ERR_OK) {
+        free(overlay);
+        return NULL;
+    }
+    if (use_trans_color) {
+        overlay->set_trans_color(overlay, trans_rgb);
+    } else {
+        overlay->set_alpha(overlay, alpha);
+    }
+    esp_capture_rgn_t local = {
+        .x = 0,
+        .y = 0,
+        .width = rgn->width,
+        .height = rgn->height,
+    };
+    esp_capture_text_overlay_draw_start(overlay);
+    esp_capture_text_overlay_clear(overlay, &local, fill_color);
+    esp_capture_text_overlay_draw_finished(overlay);
+    return overlay;
+}
+
+static bool verify_multi_overlay_rgb565_frame(const uint8_t *buf, int width, int height,
+                                              const esp_capture_rgn_t *alpha_rgn,
+                                              const esp_capture_rgn_t *trans_rgn)
+{
+    int alpha_cx = alpha_rgn->x + alpha_rgn->width / 2;
+    int alpha_cy = alpha_rgn->y + alpha_rgn->height / 2;
+    int trans_cx = trans_rgn->x + trans_rgn->width / 2;
+    int trans_cy = trans_rgn->y + trans_rgn->height / 2;
+
+    uint16_t tl = rgb565_at(buf, width, width / 4, height / 4);
+    uint16_t br = rgb565_at(buf, width, width * 3 / 4, height * 3 / 4);
+    uint16_t alpha_px = rgb565_at(buf, width, alpha_cx, alpha_cy);
+    uint16_t trans_center = rgb565_at(buf, width, trans_cx, trans_cy);
+    uint16_t trans_border = rgb565_at(buf, width, trans_rgn->x + 4, trans_rgn->y + 4);
+
+    if (rgb565_color_dist(tl, COLOR_RGB565_BLUE) > RGB565_DIST_TOL) {
+        ESP_LOGE(TAG, "TL quadrant not blue (got 0x%04x)", tl);
+        return false;
+    }
+    if (rgb565_color_dist(br, COLOR_RGB565_YELLOW) > RGB565_DIST_TOL) {
+        ESP_LOGE(TAG, "BR quadrant not yellow (got 0x%04x)", br);
+        return false;
+    }
+    if (rgb565_color_dist(alpha_px, COLOR_RGB565_GREEN) <= RGB565_DIST_TOL ||
+        rgb565_color_dist(alpha_px, COLOR_RGB565_MAGENTA) <= RGB565_DIST_TOL) {
+        ESP_LOGE(TAG, "Alpha region not blended (got 0x%04x)", alpha_px);
+        return false;
+    }
+    if (rgb565_color_dist(trans_center, COLOR_RGB565_RED) > RGB565_DIST_TOL) {
+        ESP_LOGE(TAG, "Trans-color center not showing BG red (got 0x%04x)", trans_center);
+        return false;
+    }
+    if (rgb565_color_dist(trans_border, COLOR_RGB565_WHITE) > RGB565_DIST_TOL) {
+        ESP_LOGE(TAG, "Trans-color border not white (got 0x%04x)", trans_border);
+        return false;
+    }
+    return true;
+}
+
+int demo_video_capture_multi_overlay_regions(int timeout, bool dual)
+{
+    (void)dual;
+    esp_capture_handle_t capture = NULL;
+    esp_capture_video_src_if_t *video_src = NULL;
+    esp_capture_overlay_if_t *alpha_overlay = NULL;
+    esp_capture_overlay_if_t *trans_overlay = NULL;
+    int ret = 0;
+    bool old_source = capture_use_fake_source(true);
+    do {
+        video_src = create_video_source();
+        if (video_src == NULL) {
+            ESP_LOGE(TAG, "Failed to create fake video source");
+            ret = -1;
+            break;
+        }
+        esp_capture_fake_vid_pattern_t vid_pattern = {
+            .type = ESP_CAPTURE_FAKE_VID_PATTERN_RGB565_QUAD,
+            .rgb565_quad = {
+                .tl = COLOR_RGB565_BLUE,
+                .tr = COLOR_RGB565_GREEN,
+                .bl = COLOR_RGB565_RED,
+                .br = COLOR_RGB565_YELLOW,
+            },
+        };
+        ret = esp_capture_fake_vid_src_set_pattern(video_src, &vid_pattern);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to set fake video pattern");
+            break;
+        }
+        esp_capture_cfg_t capture_cfg = {
+            .video_src = video_src,
+        };
+        ret = esp_capture_open(&capture_cfg, &capture);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to open capture");
+            break;
+        }
+        esp_capture_video_info_t fixed_caps = {
+            .format_id = ESP_CAPTURE_FMT_ID_RGB565,
+            .width = VIDEO_WIDTH,
+            .height = VIDEO_HEIGHT,
+            .fps = VIDEO_FPS,
+        };
+        ret = video_src->set_fixed_caps(video_src, &fixed_caps);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to set fixed caps");
+            break;
+        }
+        esp_capture_sink_cfg_t sink_cfg = {
+            .video_info = fixed_caps,
+        };
+        esp_capture_sink_handle_t sink = NULL;
+        ret = esp_capture_sink_setup(capture, 0, &sink_cfg, &sink);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to setup RGB565 sink");
+            break;
+        }
+        esp_capture_sink_enable(sink, ESP_CAPTURE_RUN_MODE_ALWAYS);
+
+        const int ow = VIDEO_WIDTH / 4;
+        const int oh = VIDEO_HEIGHT / 6;
+        esp_capture_rgn_t alpha_rgn = {
+            .x = VIDEO_WIDTH / 2 + VIDEO_WIDTH / 8,
+            .y = VIDEO_HEIGHT / 12,
+            .width = ow,
+            .height = oh,
+        };
+        esp_capture_rgn_t trans_rgn = {
+            .x = VIDEO_WIDTH / 8,
+            .y = VIDEO_HEIGHT / 2 + VIDEO_HEIGHT / 12,
+            .width = ow,
+            .height = oh,
+        };
+
+        /* GMF alpha: 0=transparent, 255=opaque; use partial blend (~22% fg). */
+        alpha_overlay = create_solid_overlay(&alpha_rgn, COLOR_RGB565_MAGENTA, false, NULL, 55);
+        if (alpha_overlay == NULL) {
+            ESP_LOGE(TAG, "Failed to create alpha overlay");
+            ret = -1;
+            break;
+        }
+        const uint8_t trans_key[] = {0, 255, 0};
+        trans_overlay = create_solid_overlay(&trans_rgn, COLOR_RGB565_GREEN, true, trans_key, 255);
+        if (trans_overlay == NULL) {
+            ESP_LOGE(TAG, "Failed to create trans-color overlay");
+            ret = -1;
+            break;
+        }
+        esp_capture_rgn_t border = {
+            .x = 0,
+            .y = 0,
+            .width = trans_rgn.width,
+            .height = 8,
+        };
+        esp_capture_text_overlay_draw_start(trans_overlay);
+        esp_capture_text_overlay_clear(trans_overlay, &border, COLOR_RGB565_WHITE);
+        border.y = trans_rgn.height - 8;
+        esp_capture_text_overlay_clear(trans_overlay, &border, COLOR_RGB565_WHITE);
+        border = (esp_capture_rgn_t) {.x = 0, .y = 0, .width = 8, .height = trans_rgn.height};
+        esp_capture_text_overlay_clear(trans_overlay, &border, COLOR_RGB565_WHITE);
+        border.x = trans_rgn.width - 8;
+        esp_capture_text_overlay_clear(trans_overlay, &border, COLOR_RGB565_WHITE);
+        esp_capture_text_overlay_draw_finished(trans_overlay);
+
+        ESP_CAPTURE_APPEND_OVERLAY(alpha_overlay, trans_overlay);
+        ret = esp_capture_sink_add_overlay(sink, alpha_overlay);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to add overlay chain");
+            break;
+        }
+        esp_capture_sink_enable_overlay(sink, true);
+
+        ret = esp_capture_start(capture);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to start capture");
+            break;
+        }
+
+        const uint32_t expect_size = VIDEO_WIDTH * VIDEO_HEIGHT * 2;
+        uint32_t start_ms = esp_timer_get_time() / 1000;
+        uint32_t cur_ms = start_ms;
+        esp_capture_stream_frame_t frame = {
+            .stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO,
+        };
+        int frame_count = 0;
+        bool verified = false;
+        while (cur_ms < start_ms + timeout) {
+            ret = esp_capture_sink_acquire_frame(sink, &frame, false);
+            if (ret != ESP_CAPTURE_ERR_OK) {
+                ESP_LOGE(TAG, "Failed to acquire frame");
+                break;
+            }
+            frame_count++;
+            if (frame.size >= expect_size && frame_count >= 3) {
+                if (verify_multi_overlay_rgb565_frame(frame.data, VIDEO_WIDTH, VIDEO_HEIGHT, &alpha_rgn, &trans_rgn)) {
+                    verified = true;
+                    ESP_LOGI(TAG, "Multi-overlay frame verified at PTS %" PRIu32, frame.pts);
+                    esp_capture_sink_release_frame(sink, &frame);
+                    break;
+                }
+            }
+            esp_capture_sink_release_frame(sink, &frame);
+            cur_ms = esp_timer_get_time() / 1000;
+        }
+        if (alpha_overlay) {
+            alpha_overlay->close(alpha_overlay);
+        }
+        if (trans_overlay) {
+            trans_overlay->close(trans_overlay);
+        }
+        if (!verified || frame_count == 0) {
+            ESP_LOGE(TAG, "Multi-overlay verify failed (frames %d)", frame_count);
+            ret = -1;
+        }
+    } while (0);
+
+    if (capture) {
+        esp_capture_stop(capture);
+        esp_capture_close(capture);
+    }
+    if (video_src) {
+        free(video_src);
+    }
+    if (alpha_overlay) {
+        free(alpha_overlay);
+    }
+    if (trans_overlay) {
+        free(trans_overlay);
+    }
+    capture_use_fake_source(old_source);
+    return ret;
+}
+
+#endif  /* defined(TEST_WITH_VIDEO) && (VIDEO_WIDTH > 0) */
 
 static bool verify_test_result(capture_sys_t *capture_sys, bool dual, int flag, int duration)
 {

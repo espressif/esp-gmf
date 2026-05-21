@@ -283,11 +283,14 @@ struct esp_capture_video_path_mngr_if_t {
     esp_capture_path_mngr_if_t base;
 
     /**
-     * @brief Add an overlay to a specific path
+     * @brief  Add overlay to a specific path (list head only, once per path)
+     *
+     * @note  Multiple regions: one `esp_capture_overlay_if_t` per region, linked
+     *        via `ESP_CAPTURE_APPEND_OVERLAY`, then pass the head here.
      *
      * @param[in]  p        Pointer to the capture path interface
      * @param[in]  path     Type of the path to which the overlay will be added
-     * @param[in]  overlay  Pointer to the overlay interface
+     * @param[in]  overlay  Head of the overlay region list
      *
      * @return
      *       - ESP_CAPTURE_ERR_OK  On success

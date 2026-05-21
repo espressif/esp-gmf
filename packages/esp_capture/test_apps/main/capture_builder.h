@@ -40,7 +40,7 @@ typedef struct {
     capture_run_result_t               run_result;
 } capture_sys_t;
 
-void capture_use_fake_source(bool use_faked);
+bool capture_use_fake_source(bool use_faked);
 
 esp_capture_audio_src_if_t *create_audio_source(bool with_aec);
 

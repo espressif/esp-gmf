@@ -262,8 +262,9 @@ typedef struct {
  *        a video pipeline with a single source
  */
 typedef struct {
-    esp_capture_video_src_if_t  *vid_src;       /*!< Video source interface */
-    void                        *element_pool;  /*!< Video element pools */
+    esp_capture_video_src_if_t *vid_src;        /*!< Video source interface */
+    void                       *element_pool;   /*!< Video element pools */
+    bool                        share_overlay;  /*!< Whether to share overlay for all sinks */
 } esp_capture_gmf_auto_video_pipeline_cfg_t;
 
 /**

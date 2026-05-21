@@ -21,6 +21,8 @@ typedef struct {
     esp_capture_overlay_if_t    base;
     esp_capture_format_id_t     format_id;
     esp_capture_rgn_t           rgn;
+    uint8_t                     trans_color[3];
+    bool                        has_trans_color;
     esp_capture_stream_frame_t  frame;
     capture_mutex_handle_t      mutex;
     bool                        opened;
@@ -296,6 +298,22 @@ static esp_capture_err_t text_overlay_get_alpha(esp_capture_overlay_if_t *h, uin
     return ESP_CAPTURE_ERR_OK;
 }
 
+static esp_capture_err_t text_overlay_set_trans_color(esp_capture_overlay_if_t *h, const uint8_t rgb[3])
+{
+    text_overlay_t *text_overlay = (text_overlay_t *)h;
+    memcpy(text_overlay->trans_color, rgb, 3);
+    text_overlay->has_trans_color = true;
+    return ESP_CAPTURE_ERR_OK;
+}
+
+static esp_capture_err_t text_overlay_get_trans_color(esp_capture_overlay_if_t *h, bool *has_trans_color, uint8_t rgb[3])
+{
+    text_overlay_t *text_overlay = (text_overlay_t *)h;
+    *has_trans_color = text_overlay->has_trans_color;
+    memcpy(rgb, text_overlay->trans_color, 3);
+    return ESP_CAPTURE_ERR_OK;
+}
+
 static esp_capture_err_t text_overlay_close(esp_capture_overlay_if_t *h)
 {
     text_overlay_t *text_overlay = (text_overlay_t *)h;
@@ -325,6 +343,8 @@ esp_capture_overlay_if_t *esp_capture_new_text_overlay(esp_capture_rgn_t *rgn)
     text_overlay->base.get_overlay_region = text_overlay_get_region;
     text_overlay->base.set_alpha = text_overlay_set_alpha;
     text_overlay->base.get_alpha = text_overlay_get_alpha;
+    text_overlay->base.set_trans_color = text_overlay_set_trans_color;
+    text_overlay->base.get_trans_color = text_overlay_get_trans_color;
     text_overlay->base.acquire_frame = text_overlay_get_frame;
     text_overlay->base.release_frame = text_overlay_release_frame;
     text_overlay->base.close = text_overlay_close;

@@ -44,9 +44,11 @@ typedef esp_capture_err_t (*esp_capture_event_cb_t)(esp_capture_event_t event, v
  * @brief  Capture configuration
  */
 typedef struct {
-    esp_capture_sync_mode_t      sync_mode;  /*!< Capture synchronized mode */
-    esp_capture_audio_src_if_t  *audio_src;  /*!< Audio source interface */
-    esp_capture_video_src_if_t  *video_src;  /*!< Video source interface */
+    esp_capture_sync_mode_t     sync_mode;      /*!< Capture synchronized mode */
+    esp_capture_audio_src_if_t *audio_src;      /*!< Audio source interface */
+    esp_capture_video_src_if_t *video_src;      /*!< Video source interface */
+    bool                        share_overlay;  /*!< Whether to share overlay for all sinks
+                                                     When enabled, overlay will processed before shared to all sinks */
 } esp_capture_cfg_t;
 
 /**

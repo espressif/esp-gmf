@@ -14,9 +14,9 @@
 #include "mp4_muxer.h"
 #include "esp_capture.h"
 #include "esp_capture_version.h"
+#include "settings.h"
 #include "capture_test.h"
 #include "capture_builder.h"
-#include "settings.h"
 #include "esp_log.h"
 #include "unity.h"
 #include "esp_gmf_app_unit_test.h"
@@ -99,6 +99,13 @@ TEST_CASE("Capture with overlay", "[esp_capture]")
 {
     TEST_ESP_OK(demo_video_capture_with_overlay(1000, false));
 }
+
+#if defined(TEST_WITH_VIDEO) && (VIDEO_WIDTH > 0)
+TEST_CASE("Capture multi overlay regions alpha and trans-color", "[esp_capture]")
+{
+    TEST_ESP_OK(demo_video_capture_multi_overlay_regions(3000, false));
+}
+#endif  /* defined(TEST_WITH_VIDEO) && (VIDEO_WIDTH > 0) */
 
 TEST_CASE("Capture one shot for one path", "[esp_capture]")
 {
@@ -313,6 +320,9 @@ void app_main(void)
     // Basic function test
     CAPTURE_TEST(auto_customized_audio_capture_test, 1000, false);
     CAPTURE_TEST(demo_video_capture_with_overlay, 1000, false);
+#if defined(TEST_WITH_VIDEO) && (VIDEO_WIDTH > 0)
+    CAPTURE_TEST(demo_video_capture_multi_overlay_regions, 3000, false);
+#endif  /* defined(TEST_WITH_VIDEO) && (VIDEO_WIDTH > 0) */
     CAPTURE_TEST(demo_capture_one_shot, 2000, false);
     CAPTURE_TEST(demo_capture_one_shot, 2000, true);
 

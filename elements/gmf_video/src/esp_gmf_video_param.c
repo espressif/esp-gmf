@@ -157,6 +157,9 @@ esp_gmf_err_t esp_gmf_video_param_set_overlay_rgn(esp_gmf_element_handle_t self,
     SET_METHOD_ARG(VMETHOD_ARG(OVERLAY, SET_RGN, Y), rgn->dst_rgn.y);
     SET_METHOD_ARG(VMETHOD_ARG(OVERLAY, SET_RGN, WIDTH), rgn->dst_rgn.width);
     SET_METHOD_ARG(VMETHOD_ARG(OVERLAY, SET_RGN, HEIGHT), rgn->dst_rgn.height);
+    SET_METHOD_ARG(VMETHOD_ARG(OVERLAY, SET_RGN, RGN_INDEX), rgn->rgn_index);
+    SET_METHOD_ARG(VMETHOD_ARG(OVERLAY, SET_RGN, HAS_TRANS_COLOR), rgn->has_trans_color);
+    SET_METHOD_ARG(VMETHOD_ARG(OVERLAY, SET_RGN, TRANS_COLOR), rgn->trans_color);
 
     RELEASE_VMETHOD_SETTING();
 }

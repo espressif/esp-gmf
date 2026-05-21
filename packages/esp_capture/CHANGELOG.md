@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.4
+
+### Features
+
+- Added multiple overlay region support
+- Added `share_overlay` configuration so that sinks can reuse frames after overlay
+
 ## v0.8.3
 
 ### Features

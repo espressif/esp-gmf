@@ -484,6 +484,7 @@ static esp_capture_err_t build_video_path(capture_t *capture, esp_capture_cfg_t 
     // Create pipeline builder firstly
     esp_capture_gmf_auto_video_pipeline_cfg_t builder_cfg = {
         .vid_src = cfg->video_src,
+        .share_overlay = cfg->share_overlay,
     };
     capture->video_pipe_builder = esp_capture_create_auto_video_pipeline(&builder_cfg);
     CAPTURE_CHECK_MEM_RET(capture->video_pipe_builder, "video pipeline builder", ESP_CAPTURE_ERR_NO_MEM);

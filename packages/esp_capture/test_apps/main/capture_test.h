@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "settings.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif  /* __cplusplus */
@@ -19,6 +21,10 @@ int demo_capture_one_shot(int timeout, bool dual_path);
 int demo_capture_to_storage(int timeout, bool dual_path);
 
 int demo_video_capture_with_overlay(int timeout, bool dual);
+
+#if defined(TEST_WITH_VIDEO) && (VIDEO_WIDTH > 0)
+int demo_video_capture_multi_overlay_regions(int timeout, bool dual);
+#endif  /* defined(TEST_WITH_VIDEO) && (VIDEO_WIDTH > 0) */
 
 int auto_audio_only_path_test(int timeout, bool dual);
 

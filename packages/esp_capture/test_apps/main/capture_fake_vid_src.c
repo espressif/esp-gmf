@@ -19,20 +19,56 @@
 #define FAKE_VID_SRC_MAX_FB 3
 
 typedef struct {
-    esp_capture_video_src_if_t  base;
-    esp_capture_video_info_t    vid_info;
-    bool                        use_fixed_caps;
-    uint8_t                    *fb[FAKE_VID_SRC_MAX_FB];
-    uint32_t                    fb_size[FAKE_VID_SRC_MAX_FB];
-    bool                        fb_used[FAKE_VID_SRC_MAX_FB];
-    uint8_t                     cur_fb;
-    uint8_t                     fb_count;
-    bool                        is_open;
-    bool                        is_start;
-    bool                        nego_ok;
-    const uint8_t              *fixed_image;
-    uint32_t                    fixed_image_size;
+    esp_capture_video_src_if_t      base;
+    esp_capture_video_info_t        vid_info;
+    bool                            use_fixed_caps;
+    uint8_t                        *fb[FAKE_VID_SRC_MAX_FB];
+    uint32_t                        fb_size[FAKE_VID_SRC_MAX_FB];
+    bool                            fb_used[FAKE_VID_SRC_MAX_FB];
+    uint8_t                         cur_fb;
+    uint8_t                         fb_count;
+    bool                            is_open;
+    bool                            is_start;
+    bool                            nego_ok;
+    const uint8_t                  *fixed_image;
+    uint32_t                        fixed_image_size;
+    esp_capture_fake_vid_pattern_t  pattern;
 } fake_vid_src_t;
+
+static void fake_vid_src_fill_rgb565_quad(uint8_t *buf, uint32_t width, uint32_t height,
+                                          const esp_capture_fake_vid_rgb565_quad_t *quad)
+{
+    uint16_t *px = (uint16_t *)buf;
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
+            uint16_t color;
+            if (x < width / 2 && y < height / 2) {
+                color = quad->tl;
+            } else if (x >= width / 2 && y < height / 2) {
+                color = quad->tr;
+            } else if (x < width / 2) {
+                color = quad->bl;
+            } else {
+                color = quad->br;
+            }
+            px[y * width + x] = color;
+        }
+    }
+}
+
+static void fake_vid_src_fill_frame(fake_vid_src_t *src, uint8_t *buf, uint8_t fb_idx)
+{
+    if (src->vid_info.format_id == ESP_CAPTURE_FMT_ID_MJPEG) {
+        memcpy(buf, src->fixed_image, src->fixed_image_size);
+        return;
+    }
+    if (src->vid_info.format_id == ESP_CAPTURE_FMT_ID_RGB565 &&
+        src->pattern.type == ESP_CAPTURE_FAKE_VID_PATTERN_RGB565_QUAD) {
+        fake_vid_src_fill_rgb565_quad(buf, src->vid_info.width, src->vid_info.height, &src->pattern.rgb565_quad);
+        return;
+    }
+    memset(buf, 0xFF * (fb_idx + 1) / src->fb_count, src->fb_size[fb_idx]);
+}
 
 static esp_capture_err_t fake_vid_src_close(esp_capture_video_src_if_t *h)
 {
@@ -157,17 +193,12 @@ static esp_capture_err_t fake_vid_src_start(esp_capture_video_src_if_t *h)
             ret = ESP_CAPTURE_ERR_NO_MEM;
             break;
         }
-        // Fill pattern or copy MJPEG template
-        if (src->vid_info.format_id == ESP_CAPTURE_FMT_ID_MJPEG) {
-            memcpy(src->fb[i], src->fixed_image, image_size);
-        } else {
-            memset(src->fb[i], 0xFF * (i + 1) / src->fb_count, image_size);
-        }
+        src->fb_size[i] = image_size;
+        src->fb_used[i] = false;
+        fake_vid_src_fill_frame(src, src->fb[i], i);
 #if CONFIG_IDF_TARGET_ESP32P4
         esp_cache_msync(src->fb[i], real_size, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
-        src->fb_size[i] = image_size;
-        src->fb_used[i] = false;
     }
     // Clear up memory
     if (ret != ESP_CAPTURE_ERR_OK) {
@@ -241,6 +272,20 @@ static esp_capture_err_t fake_vid_src_release_frame(esp_capture_video_src_if_t *
     return ESP_CAPTURE_ERR_OK;
 }
 
+esp_capture_err_t esp_capture_fake_vid_src_set_pattern(esp_capture_video_src_if_t *h,
+                                                       const esp_capture_fake_vid_pattern_t *pattern)
+{
+    if (h == NULL || pattern == NULL) {
+        return ESP_CAPTURE_ERR_INVALID_ARG;
+    }
+    fake_vid_src_t *src = (fake_vid_src_t *)h;
+    if (src->is_start) {
+        return ESP_CAPTURE_ERR_INVALID_STATE;
+    }
+    src->pattern = *pattern;
+    return ESP_CAPTURE_ERR_OK;
+}
+
 esp_capture_err_t esp_capture_fake_vid_src_set_fixed_image(esp_capture_video_src_if_t *h, esp_capture_video_info_t *info,
                                                            const uint8_t *data, uint32_t size)
 {
@@ -297,5 +342,6 @@ esp_capture_video_src_if_t *esp_capture_new_video_fake_src(uint8_t frame_count)
         frame_count = 1;
     }
     src->fb_count = frame_count > FAKE_VID_SRC_MAX_FB ? FAKE_VID_SRC_MAX_FB : frame_count;
+    src->pattern.type = ESP_CAPTURE_FAKE_VID_PATTERN_PLAIN;
     return &src->base;
 }

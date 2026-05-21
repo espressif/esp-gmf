@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.7
+
+### Features
+
+- Added hardware blend support for `vid_overlay` element
+- Added multiple regions support for `vid_overlay` element
+- Added detailed test cases for `vid_overlay` element
+
+### Bug Fixes
+
+- Fixed build error on IDFv5.x of `vid_ppa`
+
 ## v0.8.6
 
 ### Bug Fixes
