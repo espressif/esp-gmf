@@ -17,14 +17,14 @@ extern "C" {
 #define BSP_LCD_V_RES  (240)
 
 /* Display */
-#define BSP_LCD_DATA0  (GPIO_NUM_38)
-#define BSP_LCD_PCLK   (GPIO_NUM_45)
-#define BSP_LCD_DC     (GPIO_NUM_47)
-#define BSP_LCD_RST    (GPIO_NUM_21)
-#define BSP_LCD_CS_0   (GPIO_NUM_41)
-#define BSP_LCD_CS_1   (GPIO_NUM_48)
-#define BSP_LCD_BL     (GPIO_NUM_39)
-#define BSP_LCD_POWER  (GPIO_NUM_NC)  // Control power(VCC) for the LCD, if not used, set to GPIO_NUM_NC
+#define BSP_LCD_DATA0  (38)
+#define BSP_LCD_PCLK   (45)
+#define BSP_LCD_DC     (47)
+#define BSP_LCD_RST    (21)
+#define BSP_LCD_CS_0   (41)
+#define BSP_LCD_CS_1   (48)
+#define BSP_LCD_BL     (39)
+#define BSP_LCD_POWER  (-1)  // Control power(VCC) for the LCD, if not used, set to GPIO_NUM_NC
 
 #define TRANS_SIZE  (BSP_LCD_H_RES * BSP_LCD_V_RES / 10)
 
@@ -42,9 +42,9 @@ extern "C" {
 #define BSP_LCD_SPI_NUM         (SPI2_HOST)
 #define SPI_ISR_CPU_ID          (ESP_INTR_CPU_AFFINITY_TO_CORE_ID(ESP_INTR_CPU_AFFINITY_1))
 
-#define BSP_SDCARD_CLK  (GPIO_NUM_2)
-#define BSP_SDCARD_CMD  (GPIO_NUM_42)
-#define BSP_SDCARD_D0   (GPIO_NUM_1)
+#define BSP_SDCARD_CLK  (2)
+#define BSP_SDCARD_CMD  (42)
+#define BSP_SDCARD_D0   (1)
 #define BSP_SDCARD_D1   (-1)
 #define BSP_SDCARD_D2   (-1)
 #define BSP_SDCARD_D3   (-1)

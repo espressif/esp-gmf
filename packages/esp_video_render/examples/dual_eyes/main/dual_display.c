@@ -134,13 +134,17 @@ esp_err_t dual_display_init(dual_display_t *out_disp)
     esp_lcd_panel_dev_config_t panel_cfg = {
         .reset_gpio_num = BSP_LCD_RST,
         .flags.reset_active_high = false,
-        .color_space = LCD_RGB_ELEMENT_ORDER_RGB,
         .bits_per_pixel = 16,
         .vendor_config = NULL,  // If you want to use vendor specific init commands, please set it to the pointer of gc9107_vendor_config
     };
-#if BSP_LCD_BIGENDIAN
-    panel_cfg.color_space = LCD_RGB_ELEMENT_ORDER_BGR;
-#endif  /* BSP_LCD_BIGENDIAN */
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    panel_cfg.color_space = BSP_LCD_BIGENDIAN ? ESP_LCD_COLOR_SPACE_BGR : ESP_LCD_COLOR_SPACE_RGB;
+#elif ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
+    panel_cfg.rgb_endian = BSP_LCD_BIGENDIAN ? LCD_RGB_ENDIAN_BGR : LCD_RGB_ENDIAN_RGB;
+#else
+    panel_cfg.rgb_ele_order = BSP_LCD_BIGENDIAN ? LCD_RGB_ELEMENT_ORDER_BGR : LCD_RGB_ELEMENT_ORDER_RGB;
+#endif
+
     do {
         if (display[0].lcd_handle) {
             ESP_LOGW(TAG, "Display already initialized");

@@ -624,7 +624,7 @@ esp_video_render_err_t esp_video_render_stream_set_disp_rect(esp_video_render_st
     }
     esp_video_render_err_t ret = video_render_check_proc(stream, ESP_VIDEO_RENDER_PROC_SCALE);
     if (ret != ESP_VIDEO_RENDER_ERR_OK) {
-        ESP_LOGE(TAG, "Failed to add rotate process ret %d", ret);
+        ESP_LOGE(TAG, "Failed to add scale process ret %d", ret);
         return ret;
     }
     if (need_reconfig) {
