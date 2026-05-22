@@ -7,6 +7,7 @@
 - Added `aud_muxer` element
 - Added `aud_howl` element
 - Added `aud_asrc` element
+- Added support for `audio_dec` element adopting input payload PTS
 
 ## v0.8.3
 
