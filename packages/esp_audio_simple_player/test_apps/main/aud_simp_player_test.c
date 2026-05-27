@@ -98,7 +98,12 @@ static int mock_event_callback(esp_asp_event_pkt_t *event, void *ctx)
 static void setup_test_environment(test_env_t *env, bool need_wifi, bool need_sys_monitor)
 {
     ESP_GMF_MEM_SHOW(TAG);
-    esp_gmf_app_setup_codec_dev(NULL);
+    esp_gmf_app_codec_info_t codec_info = {0};
+    codec_info.play_info.sample_rate = CONFIG_AUDIO_SIMPLE_PLAYER_RESAMPLE_DEST_RATE;
+    codec_info.play_info.channel = CONFIG_AUDIO_SIMPLE_PLAYER_CH_CVT_DEST;
+    codec_info.play_info.bits_per_sample = CONFIG_AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_BITS;
+    memcpy(&codec_info.record_info, &codec_info.play_info, sizeof(esp_gmf_app_i2s_cfg_t));
+    esp_gmf_app_setup_codec_dev(&codec_info);
     esp_gmf_app_setup_sdcard(&env->sdcard_handle);
 
     if (need_wifi) {

@@ -75,15 +75,7 @@ void asp_pool_register_audio(esp_asp_handle_t handle)
 #ifdef CONFIG_ESP_AUDIO_SIMPLE_PLAYER_BIT_CVT_EN
 #include "esp_gmf_bit_cvt.h"
     esp_ae_bit_cvt_cfg_t bit_cvt_cfg = DEFAULT_ESP_GMF_BIT_CVT_CONFIG();
-#ifdef CONFIG_AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_16BIT
-    bit_cvt_cfg.dest_bits = 16;
-#elif defined CONFIG_AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_24BIT
-    bit_cvt_cfg.dest_bits = 24;
-#elif defined CONFIG_AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_32BIT
-    bit_cvt_cfg.dest_bits = 32;
-#else
-    bit_cvt_cfg.dest_bits = 16;
-#endif  /* CONFIG_AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_16BIT */
+    bit_cvt_cfg.dest_bits = CONFIG_AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_BITS;
     esp_gmf_element_handle_t bit_hd = NULL;
     esp_gmf_bit_cvt_init(&bit_cvt_cfg, &bit_hd);
     esp_gmf_pool_register_element(player->pool, bit_hd, NULL);

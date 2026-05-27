@@ -496,6 +496,9 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
     cfg.thread.stack_in_ext = true;
     cfg.ctx = NULL;
     cfg.cb = NULL;
+    // HTTPS open performs a full TLS handshake with certificate-bundle verification
+    // in this work task, which needs more stack than the 4 KB default.
+    cfg.thread.stack = 6 * 1024;
     esp_gmf_task_handle_t work_task = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task));
     TEST_ASSERT_NOT_NULL(pipe);
@@ -555,6 +558,9 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
         esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
         cfg.ctx = NULL;
         cfg.cb = NULL;
+        // HTTPS open performs a full TLS handshake with certificate-bundle verification
+        // in this work task, which needs more stack than the 4 KB default.
+        cfg.thread.stack = 6 * 1024;
         esp_gmf_task_handle_t work_task = NULL;
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task));
         TEST_ASSERT_NOT_NULL(pipe);
@@ -645,6 +651,9 @@ TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_P
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
     cfg.cb = NULL;
+    // HTTPS open performs a full TLS handshake with certificate-bundle verification
+    // in this work task, which needs more stack than the 4 KB default.
+    cfg.thread.stack = 6 * 1024;
     cfg.name = "DECODER";
     esp_gmf_task_handle_t work_task_in = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task_in));

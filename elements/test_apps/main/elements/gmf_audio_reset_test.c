@@ -803,6 +803,9 @@ TEST_CASE("Audio Http Stream Play Different URL Without Close, One pipeline", "[
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
     cfg.cb = NULL;
+    // HTTPS open performs a full TLS handshake with certificate-bundle verification
+    // in this work task, which needs more stack than the 4 KB default.
+    cfg.thread.stack = 6 * 1024;
     esp_gmf_task_handle_t work_task = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task));
     pipeline_strategy_ctx2_t strategy_ctx = {
@@ -896,6 +899,9 @@ TEST_CASE("Audio Http Stream Play Different URL Without Close, Two pipeline", "[
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
     cfg.cb = NULL;
+    // HTTPS open performs a full TLS handshake with certificate-bundle verification
+    // in this work task, which needs more stack than the 4 KB default.
+    cfg.thread.stack = 6 * 1024;
     esp_gmf_task_handle_t work_task = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task));
     pipeline_strategy_ctx2_t strategy_ctx = {
