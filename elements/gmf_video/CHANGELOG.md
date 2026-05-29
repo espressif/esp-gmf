@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.8
+
+### Bug Fixes
+
+- Fixed bypass mode failing to acquire output buffer when frame `valid_size` is smaller than the default port acquire size (768 bytes)
+- Fixed `vid_enc` bypass release order (release output port before input port)
+
 ## v0.8.7
 
 ### Features

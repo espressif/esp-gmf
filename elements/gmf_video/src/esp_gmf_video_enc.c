@@ -213,7 +213,7 @@ static esp_gmf_job_err_t venc_el_process(esp_gmf_video_element_handle_t self, vo
     if (venc->venc_bypass) {
         out_load = in_load;
     }
-    int out_frame_size = ESP_GMF_ELEMENT_GET(venc)->out_attr.data_size;
+    int out_frame_size = venc->venc_bypass ? in_load->valid_size : ESP_GMF_ELEMENT_GET(venc)->out_attr.data_size;
     ret = esp_gmf_port_acquire_out(out, &out_load, out_frame_size, -1);
     ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, ret, ret, esp_gmf_port_release_in(in, in_load, 0); return ret);
     do {
@@ -247,8 +247,8 @@ static esp_gmf_job_err_t venc_el_process(esp_gmf_video_element_handle_t self, vo
         ret = out_load->valid_size;
     } while (0);
     out_load->is_done = in_load->is_done;
-    esp_gmf_port_release_in(in, in_load, 0);
     esp_gmf_port_release_out(out, out_load, 0);
+    esp_gmf_port_release_in(in, in_load, 0);
     if (in_load->is_done) {
         ret = ESP_GMF_JOB_ERR_DONE;
     }
