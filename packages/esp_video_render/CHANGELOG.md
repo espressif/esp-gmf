@@ -2,9 +2,20 @@
 
 ## Unreleased
 
+### Features
+
+- Added manual compose mode to optimize resource usage
+- Skip unnecessary repaint when container is invisible
+- Skip overlay blend when video stream has no new frame (overlay drawn on same stream buffer)
 - Switched the `esp_board_manager` dependency in test apps and examples from local `override_path` to the standalone component at [espressif/esp-board-manager](https://github.com/espressif/esp-board-manager); pinned to `^0.5.11`.
 - Removed the example-local `idf_ext.py` board-manager forwarders; the recommended entry point is now [`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/) (`pip install esp-bmgr-assist` then `idf.py bmgr ...`).
 - Updated example READMEs accordingly.
+
+### Bug Fixes
+
+- Fixed DPI display using wrong API to get frame buffer
+- Fixed RGB display not using RGB565LE as default output format
+
 
 ## v0.8.1
 

@@ -77,6 +77,18 @@ typedef enum {
 } esp_video_render_event_type_t;
 
 /**
+ * @brief  Video render compose mode
+ *
+ * @note  Compose mode only allowed changed when no stream is opened yet
+ *        In default, it will be auto compose mode
+ *        When set to manual mode, need call `esp_video_render_compose` manually to compose the stream and overlay
+ */
+typedef enum {
+    ESP_VIDEO_RENDER_COMPOSE_MODE_AUTO   = 0,  /*!< Auto compose mode */
+    ESP_VIDEO_RENDER_COMPOSE_MODE_MANUAL = 1,  /*!< Manual compose mode */
+} esp_video_render_compose_mode_t;
+
+/**
  * @brief  Video render event callback
  *
  * @param[in]  event_type  Video render event type
@@ -193,7 +205,22 @@ esp_video_render_err_t esp_video_render_set_bg_image(esp_video_render_handle_t r
  */
 esp_video_render_err_t esp_video_render_set_bg_color(esp_video_render_handle_t render,
                                                      esp_video_render_clr_t *color);
-
+/**
+ * @brief  Set compose mode for video render
+ *
+ * @note  This function must be called when no video stream is active (no stream is opened yet)
+ *        When set to manual mode, need call `esp_video_render_compose` manually to compose the stream and overlay
+ *
+ * @param[in]  render  Video render handle
+ * @param[in]  mode    Compose mode
+ *
+ * @return
+ *       - ESP_VIDEO_RENDER_ERR_OK             On success
+ *       - ESP_VIDEO_RENDER_ERR_INVALID_ARG    Invalid input argument
+ *       - ESP_VIDEO_RENDER_ERR_INVALID_STATE  Called when any stream is opened
+ */
+esp_video_render_err_t esp_video_render_set_compose_mode(esp_video_render_handle_t render,
+                                                          esp_video_render_compose_mode_t mode);
 /**
  * @brief  Open video render stream
  *
@@ -443,6 +470,20 @@ esp_video_render_err_t esp_video_render_stream_compose_lock(esp_video_render_str
  *       - ESP_VIDEO_RENDER_ERR_INVALID_ARG  Invalid input argument
  */
 esp_video_render_err_t esp_video_render_stream_compose_unlock(esp_video_render_stream_handle_t stream);
+
+/**
+ * @brief  Compose video render
+ *
+ * @note  This function must be called when compose mode is set to manual mode
+ *
+ * @param[in]  render  Video render handle
+ *
+ * @return
+ *       - ESP_VIDEO_RENDER_ERR_OK             On success
+ *       - ESP_VIDEO_RENDER_ERR_INVALID_ARG    Invalid input argument
+ *       - ESP_VIDEO_RENDER_ERR_INVALID_STATE  Called when compose mode is not set to manual mode
+ */
+esp_video_render_err_t esp_video_render_compose(esp_video_render_handle_t render);
 
 /**
  * @brief  Close video render stream

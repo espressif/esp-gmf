@@ -247,6 +247,24 @@ esp_video_render_err_t esp_video_render_set_bg_color(esp_video_render_handle_t r
     return ESP_VIDEO_RENDER_ERR_OK;
 }
 
+esp_video_render_err_t esp_video_render_set_compose_mode(esp_video_render_handle_t render,
+                                                         esp_video_render_compose_mode_t mode)
+{
+    if (render == NULL) {
+        return ESP_VIDEO_RENDER_ERR_INVALID_ARG;
+    }
+    video_render_t *video_render = (video_render_t *)render;
+    esp_video_render_err_t ret = ESP_VIDEO_RENDER_ERR_OK;
+    video_render_mutex_lock(video_render->render_mutex, VIDEO_RENDER_MAX_LOCK_TIME);
+    if (video_render->active_stream_num > 0) {
+        ret = ESP_VIDEO_RENDER_ERR_INVALID_STATE;
+    } else {
+        video_render->compose_mode = mode;
+    }
+    video_render_mutex_unlock(video_render->render_mutex);
+    return ret;
+}
+
 static bool is_display_compatible(esp_video_render_format_t display_format, esp_video_render_format_t format)
 {
     if (display_format == format) {
@@ -402,6 +420,7 @@ static esp_video_render_err_t try_create_render_thread(video_render_t *video_ren
     // Stream handle already passed as parameter
     video_render_mutex_lock(video_render->render_mutex, VIDEO_RENDER_MAX_LOCK_TIME);
     bool need_create = video_render->active_stream_num > 1 || force;
+    need_create &= (video_render->compose_mode != ESP_VIDEO_RENDER_COMPOSE_MODE_MANUAL);
     if (need_create && video_render->running == false) {
         esp_video_render_task_cfg_t task_cfg = video_render->task_cfg;
         if (task_cfg.stack_size == 0) {
@@ -773,7 +792,8 @@ static inline esp_video_render_err_t video_render_write(video_render_t *video_re
         stream->compose.is_empty = false;
     }
     // Optimized for one stream case
-    if (video_render->active_stream_num == 1 && video_render->running == false) {
+    if (video_render->active_stream_num == 1 && video_render->running == false &&
+        video_render->compose_mode != ESP_VIDEO_RENDER_COMPOSE_MODE_MANUAL) {
         video_render_printf(ESP_VIDEO_RENDER_LOG_LEVEL_DEBUG, "Render directly\n");
         video_render_backend_t *backend = &video_render->backend;
         if (backend->handle) {
@@ -948,6 +968,23 @@ esp_video_render_err_t esp_video_render_stream_compose_unlock(esp_video_render_s
     video_render_stream_t *stream = (video_render_stream_t *)handle;
     int ret = video_render_mutex_unlock(stream->video_render->compose_mutex);
     return ret ? ESP_VIDEO_RENDER_ERR_OK : ESP_VIDEO_RENDER_ERR_FAIL;
+}
+
+esp_video_render_err_t esp_video_render_compose(esp_video_render_handle_t render)
+{
+    if (render == NULL) {
+        return ESP_VIDEO_RENDER_ERR_INVALID_ARG;
+    }
+    video_render_t *video_render = (video_render_t *)render;
+    esp_video_render_err_t ret = ESP_VIDEO_RENDER_ERR_OK;
+    video_render_mutex_lock(video_render->render_mutex, VIDEO_RENDER_MAX_LOCK_TIME);
+    if (video_render->compose_mode != ESP_VIDEO_RENDER_COMPOSE_MODE_MANUAL) {
+        ret = ESP_VIDEO_RENDER_ERR_INVALID_STATE;
+    } else {
+        ret = video_render_blend_execute(video_render, &video_render->backend);
+    }
+    video_render_mutex_unlock(video_render->render_mutex);
+    return ret;
 }
 
 esp_video_render_err_t esp_video_render_stream_write(esp_video_render_stream_handle_t handle,

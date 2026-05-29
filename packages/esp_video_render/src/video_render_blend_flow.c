@@ -317,6 +317,10 @@ static esp_video_render_err_t blend_overlay_region(video_render_t *video_render,
     if (stream->overlay == NULL || stream->compose.visible == false) {
         return ESP_VIDEO_RENDER_ERR_OK;
     }
+    if (stream->fb.data && stream->compose.is_fresh == false) {
+        // Overlay over stream should not update when no frame coming
+        return ESP_VIDEO_RENDER_ERR_OK;
+    }
     esp_video_render_err_t ret = ESP_VIDEO_RENDER_ERR_OK;
     video_render_fb_info_t *fb_info = backend->cur_fb;
     // Redraw of overlay

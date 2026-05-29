@@ -413,6 +413,9 @@ esp_video_render_err_t esp_vui_container_redraw(esp_vui_overlay_rgn_t *rgn,
         return ESP_VIDEO_RENDER_ERR_INVALID_ARG;
     }
     esp_vui_container_t *ctr = (esp_vui_container_t *)rgn;
+    if (ctr->region.compose.visible == false) {
+        return ESP_VIDEO_RENDER_ERR_OK;
+    }
     if (ctr->region.frame.data) {
         // Redraw into cache, video render will blend the cached buffer
         redraw_to_cache(ctr);

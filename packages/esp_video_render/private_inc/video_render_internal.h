@@ -101,6 +101,7 @@ typedef struct _video_render_stream {
  */
 struct video_render_t {
     esp_video_render_cfg_t           cfg;                /*!< Configuration */
+    esp_video_render_compose_mode_t  compose_mode;       /*!< Compose mode */
     esp_video_render_task_cfg_t      task_cfg;           /*!< Task configuration */
     esp_video_render_event_cb_t      event_cb;           /*!< Event callback */
     void                            *event_ctx;          /*!< Event context */
