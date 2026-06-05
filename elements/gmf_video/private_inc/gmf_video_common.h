@@ -126,6 +126,7 @@ static inline esp_gmf_job_err_t video_el_acquire_payload(esp_gmf_port_handle_t i
         && (is_bypass)) {
         /* If it is share buffer and is_bypass is true, just copy it */
         *out_load = (*in_load);
+        out_wanted_size = (*in_load)->valid_size;
     }
     load_ret = esp_gmf_port_acquire_out(out_port, out_load, out_wanted_size, ESP_GMF_MAX_DELAY);
     if (load_ret < ESP_GMF_IO_OK) {
