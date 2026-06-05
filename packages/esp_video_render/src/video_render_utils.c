@@ -6,7 +6,10 @@
  */
 
 #include "video_render_utils.h"
-
+#ifndef __linux__
+#include "esp_heap_caps.h"
+#include "esp_private/esp_cache_private.h"
+#endif
 #define DEFAULT_ALIGNMENT  64
 
 bool video_render_is_encoded(esp_video_render_format_t format)
@@ -45,5 +48,11 @@ uint32_t video_render_get_image_size(const esp_video_render_frame_info_t *info)
 
 uint8_t video_render_get_default_alignment(void)
 {
+#ifndef __linux__
+    size_t mem_alignment = 0;
+    esp_cache_get_alignment(MALLOC_CAP_SPIRAM, (size_t *)&mem_alignment);
+    return (uint8_t)mem_alignment;
+#else
     return DEFAULT_ALIGNMENT;
+#endif
 }

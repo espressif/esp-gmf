@@ -9,9 +9,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-
-typedef int esp_gmf_err_t;
-#define ESP_GMF_ERR_OK  0
+#include "esp_gmf_err.h"
 
 typedef void *esp_gmf_oal_thread_t;
 typedef void (*esp_gmf_oal_thread_func_t)(void *arg);

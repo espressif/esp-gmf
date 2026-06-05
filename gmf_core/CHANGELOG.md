@@ -4,6 +4,7 @@
 
 ### Features
 
+- Added `esp_gmf_data_queue` and data bus factory support for variable-sized block queues
 - Enhanced memory alignment support for GMF data_bus and payload
 - Add a breaking change for the `esp_gmf_fifo_set_align` api usage
 - Added `HOWL` capability definition

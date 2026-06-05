@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
@@ -14,7 +14,7 @@
 #include "esp_codec_dev.h"
 #include "esp_log.h"
 #include "esp_aec.h"
-#include "data_queue.h"
+#include "esp_gmf_data_queue.h"
 #include "capture_utils.h"
 #include "esp_afe_sr_iface.h"
 #include "esp_vadn_iface.h"
@@ -22,27 +22,25 @@
 #include "esp_vad.h"
 #include "msg_q.h"
 
-#define TAG "AUD_AEC_SRC"
+#define TAG  "AUD_AEC_SRC"
 
-#define VAD_CACHE_BLOCK  (3)
-#define VAD_SILENT_BLOCK (20)
-#define DUMP_STOP_IDX    (2)
-#define AFE_RUN_STACK    (8192)
+#define VAD_CACHE_BLOCK   (3)
+#define VAD_SILENT_BLOCK  (20)
+#define DUMP_STOP_IDX     (2)
+#define AFE_RUN_STACK     (8192)
 #define VALID_ON_VAD      // Turn on to not send data if VAD not active or else send silent data
 // #define DUMP_AFE_DATA  // Enable this define to allow dump AFE input and output to file
-#define WAIT_STATE_TIMEOUT(state)                            \
-    do {                                                     \
-        int _wait_time_out = 1000;                           \
-        while (state) {                                      \
-            capture_sleep(10);                               \
-            _wait_time_out -= 10;                            \
-            if (_wait_time_out == 0) {                       \
-                ESP_LOGE(TAG, "Wait for"#state "timeout");   \
-                break;                                       \
-            }                                                \
-        }                                                    \
-    } while (0);
-
+#define WAIT_STATE_TIMEOUT(state) do {                    \
+    int _wait_time_out = 1000;                            \
+    while (state) {                                       \
+        capture_sleep(10);                                \
+        _wait_time_out -= 10;                             \
+        if (_wait_time_out == 0) {                        \
+            ESP_LOGE(TAG, "Wait for" #state "timeout");   \
+            break;                                        \
+        }                                                 \
+    }                                                     \
+} while (0);
 
 typedef enum {
     VAD_CHECKING_DETECTING,
@@ -51,17 +49,17 @@ typedef enum {
 } vad_checking_state_t;
 
 typedef struct {
-    esp_vadn_iface_t           *vadnet;
-    model_iface_data_t         *vad_model;
-    uint8_t                    *vad_working_buf;
-    uint8_t                     vad_channel;
-    uint8_t                     vad_filled_block;
-    uint8_t                     silent_block;
-    data_q_t                   *in_q;
-    msg_q_handle_t              vad_q;
-    uint8_t                     vad_duration;
-    vad_checking_state_t        vad_state;
-    bool                        dev_src_running;
+    esp_vadn_iface_t     *vadnet;
+    model_iface_data_t   *vad_model;
+    uint8_t              *vad_working_buf;
+    uint8_t               vad_channel;
+    uint8_t               vad_filled_block;
+    uint8_t               silent_block;
+    esp_gmf_data_queue_t *in_q;
+    msg_q_handle_t        vad_q;
+    uint8_t               vad_duration;
+    vad_checking_state_t  vad_state;
+    bool                  dev_src_running;
 } audio_aec_vad_res_t;
 
 typedef struct {
@@ -195,7 +193,7 @@ static void dump_data(uint8_t type, void *data, int size)
         return;
     }
     if (fp[type] == NULL) {
-        char *pre_name[] = { "feed", "fetch"};
+        char *pre_name[] = {"feed", "fetch"};
         char file_name[20];
         snprintf(file_name, sizeof(file_name), "/sdcard/%s%d.bin", pre_name[type], dump_count);
         fp[type] = fopen(file_name, "wb");
@@ -213,9 +211,9 @@ static inline void audio_aec_fill_vad_working_buf(audio_aec_src_t *src, uint8_t 
 {
     audio_aec_vad_res_t *vad_res = src->vad_res;
     uint8_t src_channel = get_src_channel(src);
-    int16_t *src_pcm = (int16_t*) feed_data;
-    int16_t *dst_pcm = (int16_t*) vad_res->vad_working_buf;
-    int16_t *end =  (int16_t*) (feed_data + feed_size);
+    int16_t *src_pcm = (int16_t *)feed_data;
+    int16_t *dst_pcm = (int16_t *)vad_res->vad_working_buf;
+    int16_t *end = (int16_t *)(feed_data + feed_size);
     src_pcm += vad_res->vad_channel;
     while (src_pcm < end) {
         *(dst_pcm++) = *src_pcm;
@@ -238,7 +236,7 @@ static int audio_aec_read_by_vad(audio_aec_src_t *src, int read_size)
     if (vad_res->vad_state == VAD_CHECKING_STARTED) {
         if (vad_res->vad_filled_block > 0) {
             // Send vad detection cache firstly
-            data_q_read_lock(vad_res->in_q, (void**)&feed_data, &read_size);
+            esp_gmf_data_queue_acquire_read(vad_res->in_q, (void **)&feed_data, &read_size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER);
             if (feed_data == NULL) {
                 ESP_LOGE(TAG, "Fail to get from dev src queue on %d", __LINE__);
                 return -1;
@@ -248,22 +246,22 @@ static int audio_aec_read_by_vad(audio_aec_src_t *src, int read_size)
                 ESP_LOGE(TAG, "Fail to feed data %d on %d", ret, __LINE__);
             }
             vad_res->vad_filled_block--;
-            data_q_read_unlock(vad_res->in_q);
+            esp_gmf_data_queue_release_read(vad_res->in_q);
             return 0;
         }
     }
-    data_q_read_lock(vad_res->in_q, (void**)&feed_data, &read_size);
+    esp_gmf_data_queue_acquire_read(vad_res->in_q, (void **)&feed_data, &read_size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER);
     if (feed_data == NULL) {
         ESP_LOGE(TAG, "Fail to get from dev src queue on %d", __LINE__);
         return -1;
     }
     // Fill working buffer and do detection
     audio_aec_fill_vad_working_buf(src, feed_data, read_size);
-    vad_state_t vad_state = vad_res->vadnet->detect(vad_res->vad_model, (int16_t*)vad_res->vad_working_buf);
+    vad_state_t vad_state = vad_res->vadnet->detect(vad_res->vad_model, (int16_t *)vad_res->vad_working_buf);
     switch (vad_res->vad_state) {
         case VAD_CHECKING_STARTED:
             ret = audio_aec_feed_data(src, feed_data, read_size);
-            data_q_read_unlock(vad_res->in_q);
+            esp_gmf_data_queue_release_read(vad_res->in_q);
             if (ret < 0) {
                 ESP_LOGE(TAG, "Fail to feed data %d on %d", ret, __LINE__);
                 break;
@@ -281,7 +279,7 @@ static int audio_aec_read_by_vad(audio_aec_src_t *src, int read_size)
         case VAD_CHECKING_ENDED:
             if (src->wait_feeding) {
                 ret = audio_aec_feed_data(src, feed_data, read_size);
-                data_q_read_unlock(vad_res->in_q);
+                esp_gmf_data_queue_release_read(vad_res->in_q);
                 if (ret < 0) {
                     ESP_LOGE(TAG, "Fail to feed data %d on %d", ret, __LINE__);
                 }
@@ -297,13 +295,13 @@ static int audio_aec_read_by_vad(audio_aec_src_t *src, int read_size)
             if (vad_res->vad_filled_block < VAD_CACHE_BLOCK) {
                 vad_res->vad_filled_block++;
             }
-            data_q_read_unlock(vad_res->in_q);
+            esp_gmf_data_queue_release_read(vad_res->in_q);
             if (vad_state == VAD_SPEECH) {
                 ESP_LOGI(TAG, "VAD started");
                 vad_res->vad_state = VAD_CHECKING_STARTED;
                 vad_res->silent_block = 0;
                 // Rewind and resend again
-                data_q_rewind(vad_res->in_q, VAD_CACHE_BLOCK);
+                esp_gmf_data_queue_rewind(vad_res->in_q, VAD_CACHE_BLOCK);
             }
             v = msg_q_number(vad_res->vad_q);
             if (v < VAD_CACHE_BLOCK) {
@@ -324,21 +322,22 @@ static void codec_dev_read_thread(void *arg)
     int read_size = src->cache_size * get_src_channel(src);
     bool err = false;
     while (!src->stopping) {
-        uint8_t *data = (uint8_t*)data_q_get_buffer(vad_res->in_q, read_size);
-        if (data == NULL) {
+        void *data = NULL;
+        if (esp_gmf_data_queue_acquire_write(vad_res->in_q, &data, read_size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER) != 0 ||
+            data == NULL) {
             break;
         }
-        int ret = esp_codec_dev_read(src->handle, data, read_size);
+        int ret = esp_codec_dev_read(src->handle, (uint8_t *)data, read_size);
         if (ret != 0) {
             ESP_LOGE(TAG, "Fail to read data %d", ret);
-            data_q_send_buffer(vad_res->in_q, 0);
+            esp_gmf_data_queue_release_write(vad_res->in_q, 0);
             err = true;
             break;
         }
-        data_q_send_buffer(vad_res->in_q, read_size);
+        esp_gmf_data_queue_release_write(vad_res->in_q, read_size);
     }
     if (err) {
-        data_q_wakeup(vad_res->in_q);
+        esp_gmf_data_queue_wakeup(vad_res->in_q);
     }
     vad_res->dev_src_running = false;
     ESP_LOGI(TAG, "Codec src in exited");
@@ -369,7 +368,7 @@ static inline int audio_aec_src_read_from_vad(audio_aec_src_t *src)
         }
     } while (0);
     if (vad_res->in_q) {
-        data_q_wakeup(vad_res->in_q);
+        esp_gmf_data_queue_wakeup(vad_res->in_q);
     }
     if (ret) {
         src->in_error = true;
@@ -440,7 +439,7 @@ static void release_vad(audio_aec_src_t *src)
         vad_res->vadnet = NULL;
     }
     if (vad_res->in_q) {
-        data_q_deinit(vad_res->in_q);
+        esp_gmf_data_queue_destroy(vad_res->in_q);
         vad_res->in_q = NULL;
     }
     if (vad_res->vad_working_buf) {
@@ -462,7 +461,7 @@ static esp_capture_err_t prepare_vad(audio_aec_src_t *src, int audio_chunksize)
         return ESP_CAPTURE_ERR_OK;
     }
     char *model_name = esp_srmodel_filter(src->models, ESP_VADN_PREFIX, NULL);
-    esp_vadn_iface_t *vadnet = (esp_vadn_iface_t*)esp_vadn_handle_from_name(model_name);
+    esp_vadn_iface_t *vadnet = (esp_vadn_iface_t *)esp_vadn_handle_from_name(model_name);
     if (vadnet == NULL) {
         ESP_LOGW(TAG, "VAD model not found");
         return ESP_CAPTURE_ERR_NOT_FOUND;
@@ -474,7 +473,7 @@ static esp_capture_err_t prepare_vad(audio_aec_src_t *src, int audio_chunksize)
     }
     audio_aec_vad_res_t *vad_res = src->vad_res;
     do {
-        vad_res->vad_channel = (uint8_t) (strchr(src->mic_layout, 'M') - src->mic_layout);
+        vad_res->vad_channel = (uint8_t)(strchr(src->mic_layout, 'M') - src->mic_layout);
         vad_res->vadnet = vadnet;
         vad_res->vad_model = vadnet->create(model_name, VAD_MODE_0, 1, 32, 64);
         if (vad_res->vad_model == NULL) {
@@ -482,7 +481,7 @@ static esp_capture_err_t prepare_vad(audio_aec_src_t *src, int audio_chunksize)
             break;
         }
         int cache_size = (VAD_CACHE_BLOCK * 3) * (src->cache_size * get_src_channel(src) + 16);
-        vad_res->in_q = data_q_init(cache_size);
+        vad_res->in_q = esp_gmf_data_queue_create(cache_size);
         if (vad_res->in_q == NULL) {
             ESP_LOGE(TAG, "Failed to create vad cache");
             break;
@@ -632,7 +631,7 @@ static esp_capture_err_t audio_aec_src_stop(esp_capture_audio_src_if_t *h)
     if (src->in_quit == false) {
         // fetch once
         if (src->vad_res && src->vad_res->vad_state != VAD_CHECKING_STARTED) {
-        } else{
+        } else {
             src->afe_handle->fetch(src->afe_data);
         }
         src->stopping = true;

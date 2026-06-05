@@ -15,7 +15,7 @@
 #include "ts_muxer.h"
 #include "msg_q.h"
 #include "capture_os.h"
-#include "data_queue.h"
+#include "esp_gmf_data_queue.h"
 #include "share_q.h"
 #include "esp_capture_sync.h"
 #include "msg_q.h"
@@ -27,9 +27,9 @@
 #include "esp_capture_sink.h"
 #include "esp_capture_advance.h"
 
-#define TAG                  "ESP_CAPTURE"
-#define CAPTURE_MAX_PATH_NUM (3)  /*!< Maximum of capture path supported */
-#define CAPTURE_STREAM_Q_NUM (5)
+#define TAG                   "ESP_CAPTURE"
+#define CAPTURE_MAX_PATH_NUM  (3)  /*!< Maximum of capture path supported */
+#define CAPTURE_STREAM_Q_NUM  (5)
 
 typedef enum {
     CAPTURE_SHARED_BY_USER  = 0,
@@ -65,18 +65,18 @@ struct capture_path_t {
 };
 
 typedef struct capture_t {
-    esp_capture_advance_cfg_t           cfg;
-    esp_capture_cfg_t                   src_cfg;
-    capture_path_t                     *path[CAPTURE_MAX_PATH_NUM];
-    uint8_t                             path_num;
-    esp_capture_sync_handle_t           sync_handle;
-    bool                                started;
-    capture_mutex_handle_t              api_lock;
-    esp_capture_event_cb_t              event_cb;
-    void                               *event_ctx;
-    esp_capture_pipeline_builder_if_t  *audio_pipe_builder;
-    esp_capture_pipeline_builder_if_t  *video_pipe_builder;
-    bool                                expert_builder;
+    esp_capture_advance_cfg_t          cfg;
+    esp_capture_cfg_t                  src_cfg;
+    capture_path_t                    *path[CAPTURE_MAX_PATH_NUM];
+    uint8_t                            path_num;
+    esp_capture_sync_handle_t          sync_handle;
+    bool                               started;
+    capture_mutex_handle_t             api_lock;
+    esp_capture_event_cb_t             event_cb;
+    void                              *event_ctx;
+    esp_capture_pipeline_builder_if_t *audio_pipe_builder;
+    esp_capture_pipeline_builder_if_t *video_pipe_builder;
+    bool                               expert_builder;
 } capture_t;
 
 static inline capture_path_t *capture_get_path_by_index(capture_t *capture, uint8_t index)
@@ -170,9 +170,9 @@ static int capture_path_event_reached(void *src, uint8_t sel, esp_capture_path_e
         case ESP_CAPTURE_PATH_EVENT_VIDEO_PIPELINE_BUILT:
         case ESP_CAPTURE_PATH_EVENT_AUDIO_PIPELINE_BUILT: {
             if (capture->event_cb) {
-                esp_capture_event_t app_event = (event == ESP_CAPTURE_PATH_EVENT_VIDEO_PIPELINE_BUILT) ?
-                                                 ESP_CAPTURE_EVENT_VIDEO_PIPELINE_BUILT :
-                                                 ESP_CAPTURE_EVENT_AUDIO_PIPELINE_BUILT;
+                esp_capture_event_t app_event = (event == ESP_CAPTURE_PATH_EVENT_VIDEO_PIPELINE_BUILT)                                        ?
+                                                                                                       ESP_CAPTURE_EVENT_VIDEO_PIPELINE_BUILT :
+                                                                                                       ESP_CAPTURE_EVENT_AUDIO_PIPELINE_BUILT;
                 capture->event_cb(app_event, capture->event_ctx);
             }
             break;
@@ -894,7 +894,7 @@ esp_capture_err_t esp_capture_sink_enable_muxer(esp_capture_sink_handle_t h, boo
             if (enable) {
                 ret = capture_muxer_start(path->muxer);
             } else {
-               ret = capture_muxer_stop(path->muxer);
+                ret = capture_muxer_stop(path->muxer);
             }
         }
     } while (0);

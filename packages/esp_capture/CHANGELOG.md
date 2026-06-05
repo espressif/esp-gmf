@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- Replaced the private data queue implementation with the shared `esp_gmf_data_queue` from `gmf_core`
+
 ## v0.8.5
 
 ### Bug Fixes

@@ -19,28 +19,28 @@ esp_gmf_oal_mutex_t esp_gmf_oal_mutex_create(void)
     return (esp_gmf_oal_mutex_t)m;
 }
 
-void esp_gmf_oal_mutex_delete(esp_gmf_oal_mutex_t m)
+int esp_gmf_oal_mutex_destroy(esp_gmf_oal_mutex_t m)
 {
     if (!m) {
-        return;
+        return -1;
     }
     pthread_mutex_destroy((pthread_mutex_t *)m);
     free(m);
+    return 0;
 }
 
-bool esp_gmf_oal_mutex_lock(esp_gmf_oal_mutex_t m, uint32_t timeout_ms)
+int esp_gmf_oal_mutex_lock(esp_gmf_oal_mutex_t m)
 {
-    (void)timeout_ms;
     if (!m) {
-        return false;
+        return -1;
     }
-    return pthread_mutex_lock((pthread_mutex_t *)m) == 0;
+    return pthread_mutex_lock((pthread_mutex_t *)m);
 }
 
-bool esp_gmf_oal_mutex_unlock(esp_gmf_oal_mutex_t m)
+int esp_gmf_oal_mutex_unlock(esp_gmf_oal_mutex_t m)
 {
     if (!m) {
-        return false;
+        return -1;
     }
-    return pthread_mutex_unlock((pthread_mutex_t *)m) == 0;
+    return pthread_mutex_unlock((pthread_mutex_t *)m);
 }

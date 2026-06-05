@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
@@ -16,23 +16,23 @@
 #include "capture_video_src_el.h"
 #include "esp_capture_sync.h"
 #include "capture_perf_mon.h"
-#include "data_queue.h"
+#include "esp_gmf_data_queue.h"
 
-#define CAPTURE_SYNC_TOLERANCE 100
+#define CAPTURE_SYNC_TOLERANCE  100
 
 static const char *TAG = "VID_SRC";
 
 typedef struct {
-    esp_gmf_video_element_t      parent;
-    esp_capture_sync_handle_t    sync_handle;
-    esp_capture_video_src_if_t  *video_src_if;
-    esp_gmf_info_video_t         vid_info;      /*!< Video information */
-    uint32_t                     video_frames;  /*!< Processed video frame number */
-    uint8_t                      is_open       : 1;
-    uint8_t                      can_drop      : 1;
-    uint8_t                      fetch_once    : 1;
-    uint8_t                      once_finished : 1;
-    uint8_t                      frame_reached : 1;
+    esp_gmf_video_element_t     parent;
+    esp_capture_sync_handle_t   sync_handle;
+    esp_capture_video_src_if_t *video_src_if;
+    esp_gmf_info_video_t        vid_info;      /*!< Video information */
+    uint32_t                    video_frames;  /*!< Processed video frame number */
+    uint8_t                     is_open       : 1;
+    uint8_t                     can_drop      : 1;
+    uint8_t                     fetch_once    : 1;
+    uint8_t                     once_finished : 1;
+    uint8_t                     frame_reached : 1;
 } video_src_t;
 
 static bool video_src_can_drop(uint32_t codec)
@@ -79,8 +79,7 @@ static esp_gmf_job_err_t video_src_el_open(esp_gmf_element_handle_t self, void *
         video_src->video_src_if = cfg->vsrc_if;
     }
     if (video_src->is_open) {
-        CAPTURE_PERF_MON(0, "Video Src Start", {
-            video_src->video_src_if->start(video_src->video_src_if);
+        CAPTURE_PERF_MON(0, "Video Src Start", {video_src->video_src_if->start(video_src->video_src_if);
         });
     }
     video_src->can_drop = video_src_can_drop(video_src->vid_info.format_id);
@@ -213,7 +212,7 @@ esp_gmf_err_t capture_video_src_el_init(capture_video_src_el_cfg_t *cfg, esp_gmf
     int ret = ESP_GMF_ERR_MEMORY_LACK;
     if (cfg) {
         capture_video_src_el_cfg_t *src_cfg = esp_gmf_oal_calloc(1, sizeof(capture_video_src_el_cfg_t));
-        ESP_GMF_MEM_CHECK(TAG, src_cfg, { goto VSRC_FAIL;});
+        ESP_GMF_MEM_CHECK(TAG, src_cfg, {goto VSRC_FAIL;});
         *src_cfg = *cfg;
         esp_gmf_obj_set_config(obj, cfg, sizeof(capture_video_src_el_cfg_t));
     }
@@ -273,8 +272,7 @@ esp_gmf_err_t capture_video_src_el_negotiate(esp_gmf_element_handle_t self, esp_
     video_src_t *video_src = (video_src_t *)self;
     if (video_src->video_src_if) {
         if (video_src->is_open == false) {
-            CAPTURE_PERF_MON(0, "Video Src Open", {
-                video_src->video_src_if->open(video_src->video_src_if);
+            CAPTURE_PERF_MON(0, "Video Src Open", {video_src->video_src_if->open(video_src->video_src_if);
             });
             video_src->is_open = true;
         }

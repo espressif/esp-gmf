@@ -30,15 +30,24 @@ fi
 mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
 
+CMAKE_EXTRA_ARGS=()
+if [[ -n "${EMU_GMF_CORE_DIR:-}" ]]; then
+  CMAKE_EXTRA_ARGS+=(-DEMU_GMF_CORE_DIR="${EMU_GMF_CORE_DIR}")
+fi
+
 if [[ "${DEBUG}" == "1" ]]; then
   echo "[emu] debug build: -g3 -O0 (CMAKE_BUILD_TYPE=Debug)"
   cmake -G Ninja \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_C_FLAGS="-g3 -O0" \
     -DEMU_WITH_GSTREAMER="${EMU_WITH_GSTREAMER}" \
+    "${CMAKE_EXTRA_ARGS[@]}" \
     ..
 else
-  cmake -G Ninja -DEMU_WITH_GSTREAMER="${EMU_WITH_GSTREAMER}" ..
+  cmake -G Ninja \
+    -DEMU_WITH_GSTREAMER="${EMU_WITH_GSTREAMER}" \
+    "${CMAKE_EXTRA_ARGS[@]}" \
+    ..
 fi
 ninja -v
 
