@@ -411,6 +411,7 @@ static inline int __process_func(esp_gmf_task_handle_t handle, void *para)
         worker = __esp_gmf_get_next_job(tsk, worker);
     }
     tsk->state = quit_state;
+    TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUNNING);
     __esp_gmf_event_state_notify(tsk, ESP_GMF_EVT_TYPE_CHANGE_STATE, tsk->state);
     GMF_TASK_SET_STATE_BITS(tsk->event_group, GMF_TASK_STOP_BIT);
     TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_STOP);
@@ -451,7 +452,6 @@ static void esp_gmf_thread_fun(void *pv)
         }
         // Loop jobs until done or error
         __process_func(tsk, tsk->ctx);
-        TASK_CLR_ACTION(tsk->_actions, GMF_TASK_ACTION_TYPE_RUNNING);
     }
 ESP_GMF_THREAD_EXIT:
     tsk->state = ESP_GMF_EVENT_STATE_NONE;

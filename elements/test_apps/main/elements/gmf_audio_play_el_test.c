@@ -523,7 +523,9 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
         esp_gmf_task_set_timeout(pipe->thread, 5000);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe));
         esp_gmf_pipeline_list_el(pipe);
-        vTaskDelay(2000 / portTICK_RATE_MS);
+        // Make sure the decoder has started outputting data
+        // HTTP decoder pipeline may take longer to report stream info
+        vTaskDelay(5000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_pause(pipe));
         vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_resume(pipe));
@@ -578,7 +580,9 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
         esp_gmf_task_set_timeout(pipe->thread, 5000);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe));
         esp_gmf_pipeline_list_el(pipe);
-        vTaskDelay(2000 / portTICK_RATE_MS);
+        // Make sure the decoder has started outputting data
+        // HTTP decoder pipeline may take longer to report stream info
+        vTaskDelay(5000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_pause(pipe));
         vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_resume(pipe));
@@ -681,6 +685,9 @@ TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_P
 
     ESP_GMF_MEM_SHOW(TAG);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe_in));
+    // Make sure the decoder has started outputting data
+    // HTTP decoder pipeline may take longer to report stream info
+    vTaskDelay(2000 / portTICK_RATE_MS);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe_out));
 
     vTaskDelay(2000 / portTICK_RATE_MS);
