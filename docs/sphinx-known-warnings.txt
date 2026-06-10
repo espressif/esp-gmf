@@ -1,0 +1,2 @@
+esp_gmf_task.inc:line: WARNING: Duplicate C declaration, also defined at gmf-framework/gmf-core/gmf-core-element:line.
+Declaration is '.. c:macro:: ESP_GMF_MAX_DELAY'.
