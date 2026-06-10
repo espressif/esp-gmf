@@ -14,6 +14,7 @@
 #include "video_render_blend_flow.h"
 #include "video_render_internal.h"
 #include "video_render_sys.h"
+#include "video_render_utils.h"
 
 const esp_video_render_backend_ops_t *video_render_get_fake_backend(void);
 
@@ -178,7 +179,7 @@ static video_render_stream_t *append_stream(compose_fixture_t *fx,
         stream->fb.info.width = rect->width;
         stream->fb.info.height = rect->height;
         stream->fb.size = (uint32_t)(rect->width * rect->height * 2);
-        stream->fb.data = (uint8_t *)video_render_malloc_align(stream->fb.size, 64);
+        stream->fb.data = (uint8_t *)video_render_malloc_align(stream->fb.size, video_render_get_default_alignment());
         if (!stream->fb.data) {
             video_render_mutex_destroy(stream->mutex);
             video_render_free(stream);

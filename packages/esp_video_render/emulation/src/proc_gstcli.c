@@ -774,7 +774,7 @@ esp_video_render_err_t video_render_proc_write(video_render_proc_handle_t proc, 
                 video_render_free(p->out_buf);
             }
             p->out_buf_size = 0;
-            p->out_buf = (uint8_t *)video_render_malloc_align(sz, 64);
+            p->out_buf = (uint8_t *)video_render_malloc_align(sz, video_render_get_default_alignment());
             if (!p->out_buf) {
                 return ESP_VIDEO_RENDER_ERR_NO_MEM;
             }

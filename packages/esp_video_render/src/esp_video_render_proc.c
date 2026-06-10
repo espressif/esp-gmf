@@ -11,7 +11,7 @@
 #include "video_render_utils.h"
 #include "esp_video_render_proc.h"
 #include "esp_gmf_oal_thread.h"
-#include "data_queue.h"
+#include "esp_gmf_data_queue.h"
 #include "esp_log.h"
 
 #define TAG  "ESP_VIDEO_RENDER_PROC"
@@ -20,10 +20,10 @@
 #define VIDEO_RENDER_PROC_OUT_WORKING_BIT  (1 << 1)
 
 typedef struct {
-    void          *event_grp;
-    data_q_t      *queue;
-    volatile bool  is_working;
-    uint8_t        wait_bit;
+    void                 *event_grp;
+    esp_gmf_data_queue_t *queue;
+    volatile bool         is_working;
+    uint8_t               wait_bit;
     int (*on_frame)(esp_video_render_frame_t *frame, void *ctx);
     void *ctx;
 } worker_t;
@@ -50,8 +50,9 @@ static esp_gmf_err_io_t sink_acquire(void *handle, esp_gmf_payload_t *load, uint
         return ESP_GMF_IO_OK;
     }
     int queue_data_size = wanted_size + sizeof(esp_video_render_frame_t) + video_render_get_default_alignment();
-    void *data = data_q_get_buffer(proc->out_worker->queue, queue_data_size);
-    if (data == NULL) {
+    void *data = NULL;
+    if (esp_gmf_data_queue_acquire_write(proc->out_worker->queue, &data, queue_data_size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER) != 0 ||
+        data == NULL) {
         return ESP_GMF_IO_FAIL;
     }
     esp_video_render_frame_t *frame = (esp_video_render_frame_t *)data;
@@ -79,8 +80,9 @@ static esp_gmf_err_io_t sink_release(void *handle, esp_gmf_payload_t *load, int 
         }
         if (proc->cur_frame == NULL) {
             int queue_data_size = load->valid_size + sizeof(esp_video_render_frame_t) + video_render_get_default_alignment();
-            void *data = data_q_get_buffer(proc->out_worker->queue, queue_data_size);
-            if (data == NULL) {
+            void *data = NULL;
+            if (esp_gmf_data_queue_acquire_write(proc->out_worker->queue, &data, queue_data_size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER) != 0 ||
+                data == NULL) {
                 ret = ESP_GMF_IO_FAIL;
                 break;
             }
@@ -101,7 +103,7 @@ static esp_gmf_err_io_t sink_release(void *handle, esp_gmf_payload_t *load, int 
         valid_size = (int)((proc->cur_frame->data + proc->cur_frame->size) - (uint8_t *)proc->cur_frame);
     } while (0);
     if (proc->cur_frame) {
-        if (data_q_send_buffer(proc->out_worker->queue, valid_size) != 0) {
+        if (esp_gmf_data_queue_release_write(proc->out_worker->queue, valid_size) != 0) {
             ret = ESP_GMF_IO_FAIL;
         }
     }
@@ -175,7 +177,7 @@ static void destroy_worker(worker_t *worker)
         return;
     }
     if (worker->queue) {
-        data_q_deinit(worker->queue);
+        esp_gmf_data_queue_destroy(worker->queue);
         worker->queue = NULL;
     }
     video_render_free(worker);
@@ -293,8 +295,9 @@ esp_video_render_err_t esp_video_render_proc_write(esp_video_render_proc_handle_
         proc->is_writing = true;
         if (proc->in_worker && proc->in_worker->queue) {
             int q_size = frame->size + sizeof(esp_video_render_frame_t) + video_render_get_default_alignment();
-            void *data = data_q_get_buffer(proc->in_worker->queue, q_size);
-            if (data == NULL) {
+            void *data = NULL;
+            if (esp_gmf_data_queue_acquire_write(proc->in_worker->queue, &data, q_size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER) != 0 ||
+                data == NULL) {
                 ret = ESP_VIDEO_RENDER_ERR_NO_RESOURCE;
                 break;
             }
@@ -303,7 +306,7 @@ esp_video_render_err_t esp_video_render_proc_write(esp_video_render_proc_handle_
             q_frame->data = (uint8_t *)ALIGN_UP((intptr_t)data + sizeof(esp_video_render_frame_t), video_render_get_default_alignment());
             memcpy(q_frame->data, frame->data, frame->size);
             q_size = (int)((q_frame->data + q_frame->size) - (uint8_t *)q_frame);
-            int send_ret = data_q_send_buffer(proc->in_worker->queue, q_size);
+            int send_ret = esp_gmf_data_queue_release_write(proc->in_worker->queue, q_size);
             ret = send_ret == 0 ? ESP_VIDEO_RENDER_ERR_OK : ESP_VIDEO_RENDER_ERR_FAIL;
             break;
         }
@@ -338,7 +341,7 @@ esp_video_render_err_t esp_video_render_proc_acquire_out(esp_video_render_proc_h
         }
         int size = 0;
         *frame = NULL;
-        int read_ret = data_q_read_lock(proc->out_worker->queue, (void **)frame, &size);
+        int read_ret = esp_gmf_data_queue_acquire_read(proc->out_worker->queue, (void **)frame, &size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER);
         ret = read_ret == 0 ? ESP_VIDEO_RENDER_ERR_OK : ESP_VIDEO_RENDER_ERR_FAIL;
     } while (0);
     dec_refer_count(proc);
@@ -358,7 +361,7 @@ esp_video_render_err_t esp_video_render_proc_release_out(esp_video_render_proc_h
             ret = ESP_VIDEO_RENDER_ERR_INVALID_STATE;
             break;
         }
-        int read_ret = data_q_read_unlock(proc->out_worker->queue);
+        int read_ret = esp_gmf_data_queue_release_read(proc->out_worker->queue);
         ret = read_ret == 0 ? ESP_VIDEO_RENDER_ERR_OK : ESP_VIDEO_RENDER_ERR_FAIL;
     } while (0);
     dec_refer_count(proc);
@@ -377,14 +380,14 @@ esp_video_render_err_t esp_video_render_proc_close(esp_video_render_proc_handle_
             wait_bits |= VIDEO_RENDER_PROC_IN_WORKING_BIT;
             proc->in_worker->is_working = false;
         }
-        data_q_wakeup(proc->in_worker->queue);
+        esp_gmf_data_queue_wakeup(proc->in_worker->queue);
     }
     if (proc->out_worker && proc->out_worker->queue) {
         if (proc->out_worker->is_working) {
             wait_bits |= VIDEO_RENDER_PROC_OUT_WORKING_BIT;
             proc->out_worker->is_working = false;
         }
-        data_q_wakeup(proc->out_worker->queue);
+        esp_gmf_data_queue_wakeup(proc->out_worker->queue);
     }
     // Wait for working task exit
     if (wait_bits && proc->event_grp) {
@@ -406,7 +409,7 @@ static void worker_task(void *arg)
     while (worker->is_working) {
         esp_video_render_frame_t *frame = NULL;
         int size = 0;
-        int ret = data_q_read_lock(worker->queue, (void **)&frame, &size);
+        int ret = esp_gmf_data_queue_acquire_read(worker->queue, (void **)&frame, &size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER);
         if (ret != 0) {
             break;
         }
@@ -416,7 +419,7 @@ static void worker_task(void *arg)
                 ESP_LOGE(TAG, "Failed to worker frame ret %d", ret);
             }
         }
-        ret = data_q_read_unlock(worker->queue);
+        ret = esp_gmf_data_queue_release_read(worker->queue);
         if (ret != 0) {
             break;
         }
@@ -446,7 +449,7 @@ esp_video_render_err_t esp_video_render_proc_set_in_worker(esp_video_render_proc
             ret = ESP_VIDEO_RENDER_ERR_NO_MEM;
             break;
         }
-        worker->queue = data_q_init(cfg->in_cache_size);
+        worker->queue = esp_gmf_data_queue_create(cfg->in_cache_size);
         if (worker->queue == NULL) {
             ret = ESP_VIDEO_RENDER_ERR_NO_RESOURCE;
             break;
@@ -501,7 +504,7 @@ esp_video_render_err_t esp_video_render_proc_set_out_worker(esp_video_render_pro
             ret = ESP_VIDEO_RENDER_ERR_NO_MEM;
             break;
         }
-        worker->queue = data_q_init(cfg->out_cache_size);
+        worker->queue = esp_gmf_data_queue_create(cfg->out_cache_size);
         if (worker->queue == NULL) {
             ret = ESP_VIDEO_RENDER_ERR_NO_RESOURCE;
             break;

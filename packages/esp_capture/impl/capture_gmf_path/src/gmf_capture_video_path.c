@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
@@ -7,7 +7,7 @@
 
 #include "esp_capture_path_mngr.h"
 #include "capture_gmf_mngr.h"
-#include "data_queue.h"
+#include "esp_gmf_data_queue.h"
 #include "esp_gmf_caps_def.h"
 #include "esp_gmf_video_enc.h"
 #include "esp_gmf_video_overlay.h"
@@ -21,15 +21,15 @@
 #include "capture_video_src_el.h"
 #include "capture_share_copy_el.h"
 
-#define TAG "GMF_CAPTURE_VPATH"
+#define TAG  "GMF_CAPTURE_VPATH"
 
-#define VIDEO_ENC_OUT_ALIGNMENT (128)
-#define ALIGN_UP(num, align)    (((num) + ((align) - 1)) & ~((align) - 1))
+#define VIDEO_ENC_OUT_ALIGNMENT  (128)
+#define ALIGN_UP(num, align)     (((num) + ((align) - 1)) & ~((align) - 1))
 
 typedef struct {
     gmf_capture_path_res_t     base;
     // TODO data queue create in video encoder elements?
-    data_q_t                  *video_q;
+    esp_gmf_data_queue_t      *video_q;
     esp_capture_sync_handle_t  sync_handle;
     esp_gmf_element_handle_t   venc_el;
     esp_gmf_port_handle_t      sink_port;
@@ -215,12 +215,14 @@ static esp_gmf_err_io_t video_sink_acquire(void *handle, esp_gmf_payload_t *load
         int ret = gmf_capture_path_mngr_frame_reached(&res->base, &vid_frame);
         return ret == ESP_CAPTURE_ERR_OK ? ESP_GMF_IO_OK : ESP_GMF_IO_ABORT;
     }
-    data_q_t *q = res->video_q;
+    esp_gmf_data_queue_t *q = res->video_q;
     int size = sizeof(esp_capture_stream_frame_t) + wanted_size + VIDEO_ENC_OUT_ALIGNMENT;
-    esp_capture_stream_frame_t *vid_frame = (esp_capture_stream_frame_t *)data_q_get_buffer(q, size);
-    if (vid_frame == NULL) {
+    void *buf = NULL;
+    uint32_t timeout = wait_ticks <= 0 ? ESP_GMF_DATA_QUEUE_WAIT_FOREVER : (uint32_t)(wait_ticks * portTICK_PERIOD_MS);
+    if (esp_gmf_data_queue_acquire_write(q, &buf, size, timeout) != 0 || buf == NULL) {
         return ESP_GMF_IO_ABORT;
     }
+    esp_capture_stream_frame_t *vid_frame = (esp_capture_stream_frame_t *)buf;
     vid_frame->stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO;
     vid_frame->data = ((void *)vid_frame) + sizeof(esp_capture_stream_frame_t);
     vid_frame->data = (uint8_t *)ALIGN_UP((uintptr_t)vid_frame->data, VIDEO_ENC_OUT_ALIGNMENT);
@@ -241,8 +243,8 @@ static esp_gmf_err_io_t video_sink_release(void *handle, esp_gmf_payload_t *load
         }
         return ESP_GMF_IO_OK;
     }
-    data_q_t *q = res->video_q;
-    void *data = data_q_get_write_data(q);
+    esp_gmf_data_queue_t *q = res->video_q;
+    void *data = esp_gmf_data_queue_get_write_data(q);
     if (data) {
         esp_capture_stream_frame_t *vid_frame = (esp_capture_stream_frame_t *)data;
         vid_frame->pts = (uint32_t)load->pts;
@@ -250,10 +252,10 @@ static esp_gmf_err_io_t video_sink_release(void *handle, esp_gmf_payload_t *load
         int ret = gmf_capture_path_mngr_frame_reached(&res->base, vid_frame);
         if (ret == ESP_CAPTURE_ERR_OK) {
             int size = (int)(intptr_t)(vid_frame->data - (uint8_t *)data) + vid_frame->size;
-            data_q_send_buffer(q, size);
+            esp_gmf_data_queue_release_write(q, size);
         } else {
             ESP_LOGI(TAG, "Drop for disable");
-            data_q_send_buffer(q, 0);
+            esp_gmf_data_queue_release_write(q, 0);
         }
     }
     return ESP_GMF_IO_OK;
@@ -268,7 +270,7 @@ static esp_capture_err_t video_path_prepare(gmf_capture_path_res_t *mngr_res)
         // Bypass mode
         res->video_share_raw = true;
     } else {
-        res->video_q = data_q_init(out_frame_size * 3);
+        res->video_q = esp_gmf_data_queue_create(out_frame_size * 3);
         if (res->video_q == NULL) {
             return ESP_CAPTURE_ERR_NO_MEM;
         }
@@ -296,7 +298,7 @@ static esp_capture_err_t video_path_stop(gmf_capture_path_res_t *mngr_res)
         capture_sema_unlock(res->raw_consume_sema);
     }
     if (res->video_q) {
-        data_q_consume_all(res->video_q);
+        esp_gmf_data_queue_consume_all(res->video_q);
     }
     return ESP_CAPTURE_ERR_OK;
 }
@@ -305,7 +307,7 @@ static esp_capture_err_t video_path_release(gmf_capture_path_res_t *mngr_res)
 {
     video_path_res_t *res = (video_path_res_t *)mngr_res;
     if (res->video_q) {
-        data_q_deinit(res->video_q);
+        esp_gmf_data_queue_destroy(res->video_q);
         res->video_q = NULL;
     }
     if (res->sink_port) {
@@ -501,12 +503,13 @@ esp_capture_err_t gmf_video_path_return_frame(esp_capture_path_mngr_if_t *p, uin
         return ESP_CAPTURE_ERR_OK;
     }
     int ret = ESP_CAPTURE_ERR_OK;
-    if (data_q_have_data(res->video_q)) {
+    bool have_data = false;
+    if (esp_gmf_data_queue_have_data(res->video_q, &have_data) == 0 && have_data) {
         esp_capture_stream_frame_t *read_frame = NULL;
         int read_size = 0;
-        data_q_read_lock(res->video_q, (void **)&read_frame, &read_size);
+        esp_gmf_data_queue_acquire_read(res->video_q, (void **)&read_frame, &read_size, ESP_GMF_DATA_QUEUE_NO_WAIT);
         ESP_LOGD(TAG, "simple return video data:%x frame:%x\n", frame->data[0], read_frame->data[0]);
-        ret = data_q_read_unlock(res->video_q);
+        ret = esp_gmf_data_queue_release_read(res->video_q);
     }
     return ret == 0 ? ESP_CAPTURE_ERR_OK : ESP_CAPTURE_ERR_NOT_FOUND;
 }

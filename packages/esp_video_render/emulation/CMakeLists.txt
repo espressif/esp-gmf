@@ -20,6 +20,40 @@ if(EMU_WITH_GSTREAMER AND NOT EMU_HAS_GST_TOOLS)
   set(EMU_WITH_GSTREAMER OFF CACHE BOOL "" FORCE)
 endif()
 
+# gmf_core may live in the esp-gmf monorepo or as a sibling under managed_components
+# (espressif__gmf_core) when esp_video_render is pulled in via idf_component.yml.
+set(EMU_GMF_CORE_DIR "" CACHE PATH "Override path to gmf_core root")
+
+function(emu_resolve_gmf_core_dir OUT_VAR)
+  if(EMU_GMF_CORE_DIR)
+    if(EXISTS "${EMU_GMF_CORE_DIR}/data_bus/esp_gmf_data_queue.c")
+      set(${OUT_VAR} "${EMU_GMF_CORE_DIR}" PARENT_SCOPE)
+      return()
+    endif()
+    message(FATAL_ERROR
+      "EMU_GMF_CORE_DIR='${EMU_GMF_CORE_DIR}' is invalid (missing data_bus/esp_gmf_data_queue.c)")
+  endif()
+
+  set(_candidates
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../gmf_core"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../espressif__gmf_core"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../espressif__gmf_core"
+  )
+  foreach(_candidate IN LISTS _candidates)
+    if(EXISTS "${_candidate}/data_bus/esp_gmf_data_queue.c")
+      set(${OUT_VAR} "${_candidate}" PARENT_SCOPE)
+      return()
+    endif()
+  endforeach()
+
+  message(FATAL_ERROR
+    "Could not locate gmf_core. Set -DEMU_GMF_CORE_DIR=/path/to/gmf_core "
+    "(or export EMU_GMF_CORE_DIR before running build.sh).")
+endfunction()
+
+emu_resolve_gmf_core_dir(GMF_CORE_DIR)
+message(STATUS "[emu] using gmf_core from: ${GMF_CORE_DIR}")
+
 add_library(video_render_emu STATIC
     src/backend_sdl.c
     src/assets_path.c
@@ -44,7 +78,7 @@ add_library(video_render_emu STATIC
     ../src/video_render_decode.c
      ../src/video_render_measure.c
     ../src/video_render_log.c
-    ../src/data_queue.c
+    ${GMF_CORE_DIR}/data_bus/esp_gmf_data_queue.c
     ../src/video_render_dual_stream.c
     ../src/vui/vui_overlay.c
     ../src/vui/vui_container.c
@@ -71,6 +105,9 @@ target_include_directories(video_render_emu PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/vui
     ${CMAKE_CURRENT_SOURCE_DIR}/../private_inc
+    ${GMF_CORE_DIR}/include
+    ${GMF_CORE_DIR}/data_bus/include
+    ${GMF_CORE_DIR}/oal/include
 )
 
 target_compile_options(video_render_emu PRIVATE
@@ -166,4 +203,3 @@ if(BUILD_TESTING AND EMU_BUILD_TESTS)
     set_tests_properties(emu_proc_matrix PROPERTIES SKIP_RETURN_CODE 77)
   endif()
 endif()
-

@@ -124,7 +124,7 @@ static esp_video_render_err_t lcd_backend_manual_fb(lcd_backend_t *lcd)
     uint8_t fb_num = lcd->cfg.fb_num ? lcd->cfg.fb_num : 1;
     lcd->fb_num = 0;
     for (int i = 0; i < fb_num; i++) {
-        lcd->fb[i] = video_render_malloc_align(lcd->fb_size, 64);
+        lcd->fb[i] = video_render_malloc_align(lcd->fb_size, video_render_get_default_alignment());
         if (lcd->fb[i] == NULL) {
             ESP_LOGE(TAG, "Fail to allocate manual fb");
             break;

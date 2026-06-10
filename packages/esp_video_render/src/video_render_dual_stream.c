@@ -10,7 +10,7 @@
 #include "esp_video_render_dual_stream.h"
 #include "video_render_sys.h"
 #include "video_render_utils.h"
-#include "data_queue.h"
+#include "esp_gmf_data_queue.h"
 #include "video_render_proc.h"
 #include "esp_log.h"
 #include "esp_gmf_oal_thread.h"
@@ -26,7 +26,7 @@
 typedef struct render_dual_eyes_t render_dual_eyes_t;
 
 typedef struct {
-    data_q_t                         *src_q;
+    esp_gmf_data_queue_t             *src_q;
     bool                              dec_running;
     esp_video_render_fb_t             cur_fb;
     esp_video_render_handle_t         render;
@@ -127,7 +127,7 @@ static void dec_thread(void *arg)
     while (eye_info->dec_running) {
         void *data = NULL;
         int size = 0;
-        data_q_read_lock(eye_info->src_q, &data, &size);
+        esp_gmf_data_queue_acquire_read(eye_info->src_q, &data, &size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER);
         if (data == NULL) {
             break;
         }
@@ -197,7 +197,7 @@ static void dec_thread(void *arg)
                 break;
             }
         } while (0);
-        data_q_read_unlock(eye_info->src_q);
+        esp_gmf_data_queue_release_read(eye_info->src_q);
         if (ret != ESP_VIDEO_RENDER_ERR_OK) {
             break;
         }
@@ -238,7 +238,7 @@ esp_video_render_err_t esp_video_render_dual_stream_open(esp_video_render_dual_s
             eye_info->render = cfg->render[i];
             eye_info->eyes = eyes;
             int padding = sizeof(esp_video_render_frame_t) + DECODE_ALIGN + 8;
-            eye_info->src_q = data_q_init((eyes->max_frame_size + padding) * src_num);
+            eye_info->src_q = esp_gmf_data_queue_create((eyes->max_frame_size + padding) * src_num);
             if (eye_info->src_q == NULL) {
                 ret = ESP_VIDEO_RENDER_ERR_NO_MEM;
                 break;
@@ -307,8 +307,9 @@ esp_video_render_err_t esp_video_render_dual_stream_get_buffer(esp_video_render_
     render_dual_eyes_t *eyes = (render_dual_eyes_t *)handle;
     render_eyes_info_t *eye_info = &eyes->eye_info[eyes_idx];
     int size = sizeof(esp_video_render_frame_t) + DECODE_ALIGN + eyes->max_frame_size;
-    void *data = data_q_get_buffer(eye_info->src_q, size);
-    if (data == NULL) {
+    void *data = NULL;
+    if (esp_gmf_data_queue_acquire_write(eye_info->src_q, &data, size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER) != 0 ||
+        data == NULL) {
         return ESP_VIDEO_RENDER_ERR_NO_MEM;
     }
     uint8_t *ptr = (uint8_t *)data + sizeof(esp_video_render_frame_t);
@@ -327,29 +328,29 @@ esp_video_render_err_t esp_video_render_dual_stream_release_buffer(esp_video_ren
     render_dual_eyes_t *eyes = (render_dual_eyes_t *)handle;
     render_eyes_info_t *eye_info = &eyes->eye_info[eyes_idx];
     if (frame->data) {
-        data_q_send_buffer(eye_info->src_q, 0);
+        esp_gmf_data_queue_release_write(eye_info->src_q, 0);
     }
     return ESP_VIDEO_RENDER_ERR_OK;
 }
 
 static esp_video_render_err_t send_frame(render_eyes_info_t *eye_info, esp_video_render_frame_t *frame)
 {
-    void *data = data_q_get_write_data(eye_info->src_q);
+    void *data = esp_gmf_data_queue_get_write_data(eye_info->src_q);
     int max_block = (int)(sizeof(esp_video_render_frame_t) + DECODE_ALIGN + eye_info->eyes->max_frame_size);
     uint8_t *block_start = (uint8_t *)data;
     uint8_t *block_end = block_start + max_block;
     if ((uint8_t *)frame->data < block_start || ((uint8_t *)frame->data + frame->size) > block_end) {
         ESP_LOGE(TAG, "Frame data out of range");
-        data_q_send_buffer(eye_info->src_q, 0);
+        esp_gmf_data_queue_release_write(eye_info->src_q, 0);
         return ESP_VIDEO_RENDER_ERR_INVALID_ARG;
     }
     if (eye_info->dec_running == false) {
-        data_q_send_buffer(eye_info->src_q, 0);
+        esp_gmf_data_queue_release_write(eye_info->src_q, 0);
         return ESP_VIDEO_RENDER_ERR_INVALID_STATE;
     }
     memcpy(data, frame, sizeof(esp_video_render_frame_t));
     int size = (int)(((uint8_t *)frame->data + frame->size) - (uint8_t *)data);
-    int ret = data_q_send_buffer(eye_info->src_q, size);
+    int ret = esp_gmf_data_queue_release_write(eye_info->src_q, size);
     return ret == 0 ? ESP_VIDEO_RENDER_ERR_OK : ESP_VIDEO_RENDER_ERR_FAIL;
 }
 
@@ -389,7 +390,7 @@ esp_video_render_err_t esp_video_render_dual_stream_close(esp_video_render_dual_
     for (int i = 0; i < 2; i++) {
         render_eyes_info_t *eye_info = &eyes->eye_info[i];
         if (eye_info->src_q) {
-            data_q_wakeup(eye_info->src_q);
+            esp_gmf_data_queue_wakeup(eye_info->src_q);
         }
     }
     // Waiting for task exit
@@ -408,7 +409,7 @@ esp_video_render_err_t esp_video_render_dual_stream_close(esp_video_render_dual_
             eye_info->stream = NULL;
         }
         if (eye_info->src_q) {
-            data_q_deinit(eye_info->src_q);
+            esp_gmf_data_queue_destroy(eye_info->src_q);
             eye_info->src_q = NULL;
         }
     }

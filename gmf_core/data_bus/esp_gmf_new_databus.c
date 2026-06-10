@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
@@ -16,6 +16,7 @@
 #include "esp_gmf_block.h"
 #include "esp_gmf_pbuf.h"
 #include "esp_gmf_fifo.h"
+#include "esp_gmf_data_queue.h"
 
 static const char *TAG = "NEW_DATA_BUS";
 
@@ -56,7 +57,7 @@ int esp_gmf_db_new_ringbuf(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.get_total_size = esp_gmf_rb_get_size;
     db->op.get_filled_size = esp_gmf_rb_bytes_filled;
     db->op.get_available = esp_gmf_rb_bytes_available;
-    ESP_LOGI(TAG, "New ringbuffer:%p, num:%d, item_cnt:%d, db:%p", rb, num, item_cnt, db);
+    ESP_LOGD(TAG, "New ringbuffer:%p, num:%d, item_cnt:%d, db:%p", rb, num, item_cnt, db);
     *h = db;
     return ESP_GMF_ERR_OK;
 }
@@ -98,7 +99,7 @@ int esp_gmf_db_new_block(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.get_total_size = esp_gmf_block_get_total_size;
     db->op.get_filled_size = esp_gmf_block_get_filled_size;
     db->op.get_available = esp_gmf_block_get_free_size;
-    ESP_LOGI(TAG, "New block buf, num:%d, item_cnt:%d, db:%p", num, item_cnt, db);
+    ESP_LOGD(TAG, "New block buf, num:%d, item_cnt:%d, db:%p", num, item_cnt, db);
     *h = db;
     return ESP_GMF_ERR_OK;
 }
@@ -140,7 +141,7 @@ int esp_gmf_db_new_pbuf(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.get_total_size = NULL;
     db->op.get_filled_size = NULL;
     db->op.get_available = NULL;
-    ESP_LOGI(TAG, "New pbuf, num:%d, item_cnt:%d, db:%p", num, item_cnt, db);
+    ESP_LOGD(TAG, "New pbuf, num:%d, item_cnt:%d, db:%p", num, item_cnt, db);
     *h = db;
     return ESP_GMF_ERR_OK;
 }
@@ -182,7 +183,49 @@ int esp_gmf_db_new_fifo(int num, int item_cnt, esp_gmf_db_handle_t *h)
     db->op.get_total_size = esp_gmf_fifo_get_total_size;
     db->op.get_filled_size = esp_gmf_fifo_get_filled_size;
     db->op.get_available = esp_gmf_fifo_get_free_size;
-    ESP_LOGI(TAG, "New fifo, num:%d, item_cnt:%d, db:%p", num, item_cnt, db);
+    ESP_LOGD(TAG, "New fifo, num:%d, item_cnt:%d, db:%p", num, item_cnt, db);
+    *h = db;
+    return ESP_GMF_ERR_OK;
+}
+
+int esp_gmf_db_new_data_queue(int size, int item_cnt, esp_gmf_db_handle_t *h)
+{
+    (void)item_cnt;
+    ESP_GMF_NULL_CHECK(TAG, h, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_data_queue_bus_t *handle = esp_gmf_data_queue_db_create(size);
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_db_config_t db_config = {
+        .name = "data_queue",
+        .type = DATA_BUS_TYPE_BLOCK,
+        .max_size = size,
+        .max_item_num = item_cnt,
+        .child = handle,
+    };
+    esp_gmf_data_bus_t *db = NULL;
+    if (ESP_GMF_ERR_OK != esp_gmf_db_init(&db_config, (esp_gmf_db_handle_t)&db)) {
+        esp_gmf_data_queue_db_destroy(handle);
+        return ESP_GMF_ERR_MEMORY_LACK;
+    }
+    if (db == NULL) {
+        ESP_LOGE(TAG, "DATA BUS is NULL");
+        esp_gmf_data_queue_db_destroy(handle);
+        return ESP_GMF_ERR_FAIL;
+    }
+    db->op.deinit = esp_gmf_data_queue_db_destroy;
+    db->op.acquire_read = esp_gmf_data_queue_db_acquire_read;
+    db->op.release_read = esp_gmf_data_queue_db_release_read;
+    db->op.acquire_write = esp_gmf_data_queue_db_acquire_write;
+    db->op.release_write = esp_gmf_data_queue_db_release_write;
+    db->op.done_write = esp_gmf_data_queue_db_done_write;
+    db->op.reset_done_write = esp_gmf_data_queue_db_reset_done_write;
+    db->op.reset = esp_gmf_data_queue_db_reset;
+    db->op.abort = esp_gmf_data_queue_db_abort;
+    db->op.clear_abort = esp_gmf_data_queue_db_clear_abort;
+    db->op.set_align = esp_gmf_data_queue_db_set_align;
+    db->op.get_total_size = esp_gmf_data_queue_db_get_total_size;
+    db->op.get_filled_size = esp_gmf_data_queue_db_get_filled_size;
+    db->op.get_available = esp_gmf_data_queue_db_get_free_size;
+    ESP_LOGD(TAG, "New data queue, size:%d, db:%p", size, db);
     *h = db;
     return ESP_GMF_ERR_OK;
 }

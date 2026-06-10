@@ -825,7 +825,7 @@ static int video_render_write_cb(esp_video_render_frame_t *frame, void *ctx)
         if (stream->cached_size < frame->size) {
             stream->cached_size = 0;
             video_render_free(stream->cached_data);
-            stream->cached_data = video_render_malloc_align(frame->size, 64);
+            stream->cached_data = video_render_malloc_align(frame->size, video_render_get_default_alignment());
             if (stream->cached_data == NULL) {
                 ESP_LOGE(TAG, "Fail to allocate stream cache");
                 video_render_mutex_unlock(stream->mutex);

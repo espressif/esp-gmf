@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed build error of `vid_ppa` and `vid_overlay` on IDFv5.5.0
+
 ## v0.8.8
 
 ### Bug Fixes

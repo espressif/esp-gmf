@@ -47,7 +47,7 @@ static esp_video_render_err_t fake_backend_init(void *cfg, int cfg_size, esp_vid
         bk->fb.info.width = c->width;
         bk->fb.info.height = c->height;
         bk->fb.size = (uint32_t)(c->width * c->height * video_render_get_pixel_bits(bk->fb.info.format) >> 3);  // RGB565
-        bk->fb.data = (uint8_t *)video_render_malloc_align(bk->fb.size, 64);
+        bk->fb.data = (uint8_t *)video_render_malloc_align(bk->fb.size, video_render_get_default_alignment());
         if (bk->fb.data == NULL) {
             break;
         }

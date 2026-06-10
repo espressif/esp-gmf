@@ -63,8 +63,9 @@ esp_video_render_err_t esp_vui_container_create(esp_vui_overlay_handle_t overlay
             break;
         }
         if (with_cache) {
-            int align_size = ALIGN_UP(ctr->region.frame.size, 64);
-            ctr->region.frame.data = (uint8_t *)video_render_malloc_align(align_size, 64);
+            int align = video_render_get_default_alignment();
+            int align_size = ALIGN_UP(ctr->region.frame.size, align);
+            ctr->region.frame.data = (uint8_t *)video_render_malloc_align(align_size, align);
             if (ctr->region.frame.data == NULL) {
                 break;
             }

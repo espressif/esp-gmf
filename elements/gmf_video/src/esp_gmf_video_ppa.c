@@ -178,7 +178,7 @@ static ppa_srm_color_mode_t get_ppa_clr_mode(uint32_t codec)
         case ESP_FOURCC_YUV420P:
         case ESP_FOURCC_OUYY_EVYY:
             return PPA_SRM_COLOR_MODE_YUV420;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
         case ESP_FOURCC_YUYV:
             return PPA_SRM_COLOR_MODE_YUV422_YUYV;
         case ESP_FOURCC_YVYU:

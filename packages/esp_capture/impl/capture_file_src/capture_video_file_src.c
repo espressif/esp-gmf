@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
@@ -10,17 +10,17 @@
 #include <stdio.h>
 #include <string.h>
 #include "esp_log.h"
-#include "data_queue.h"
+#include "esp_gmf_data_queue.h"
 #include "capture_os.h"
 
-#define TAG "VID_FILE_SRC"
+#define TAG  "VID_FILE_SRC"
 
-#define NAL_UNIT_TYPE_SPS 7
-#define NAL_UNIT_TYPE_PPS 8
-#define MAX_FRAME_SIZE    40 * 1024
-#define MAX_FRAME_NUM     2
-#define READ_SIZE         1024
-#define MAX_FILE_PATH_LEN 128
+#define NAL_UNIT_TYPE_SPS  7
+#define NAL_UNIT_TYPE_PPS  8
+#define MAX_FRAME_SIZE     40 * 1024
+#define MAX_FRAME_NUM      2
+#define READ_SIZE          1024
+#define MAX_FILE_PATH_LEN  128
 
 typedef struct {
     esp_capture_video_src_if_t  base;
@@ -32,7 +32,7 @@ typedef struct {
     bool                        is_open;
     bool                        is_start;
     bool                        nego_ok;
-    data_q_t                   *frame_q;
+    esp_gmf_data_queue_t       *frame_q;
 } video_file_src_t;
 
 static int sps_bit_pos = 0;
@@ -219,7 +219,7 @@ static esp_capture_err_t video_file_src_close(esp_capture_video_src_if_t *h)
         src->fp = NULL;
     }
     if (src->frame_q) {
-        data_q_deinit(src->frame_q);
+        esp_gmf_data_queue_destroy(src->frame_q);
         src->frame_q = NULL;
     }
     return ESP_CAPTURE_ERR_OK;
@@ -233,7 +233,7 @@ static esp_capture_err_t video_file_src_open(esp_capture_video_src_if_t *h)
         ESP_LOGE(TAG, "open file %s failed", src->file_path);
         return ESP_CAPTURE_ERR_NOT_FOUND;
     }
-    src->frame_q = data_q_init(MAX_FRAME_NUM * MAX_FRAME_SIZE);
+    src->frame_q = esp_gmf_data_queue_create(MAX_FRAME_NUM * MAX_FRAME_SIZE);
     if (src->frame_q == NULL) {
         video_file_src_close(h);
         return ESP_CAPTURE_ERR_NO_MEM;
@@ -347,16 +347,17 @@ static esp_capture_err_t video_file_src_acquire_frame(esp_capture_video_src_if_t
     if (src->is_start == false) {
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
-    uint8_t *data = data_q_get_buffer(src->frame_q, MAX_FRAME_SIZE);
-    if (data) {
+    void *data = NULL;
+    if (esp_gmf_data_queue_acquire_write(src->frame_q, &data, MAX_FRAME_SIZE, ESP_GMF_DATA_QUEUE_WAIT_FOREVER) == 0 &&
+        data != NULL) {
         int ret = read_h264_frame(src, data, MAX_FRAME_SIZE);
         if (ret > 0) {
             frame->data = data;
             frame->size = ret;
-            data_q_send_buffer(src->frame_q, ret);
+            esp_gmf_data_queue_release_write(src->frame_q, ret);
             return ESP_CAPTURE_ERR_OK;
         }
-        data_q_send_buffer(src->frame_q, 0);
+        esp_gmf_data_queue_release_write(src->frame_q, 0);
     }
     return ESP_CAPTURE_ERR_NOT_FOUND;
 }
@@ -369,8 +370,8 @@ static esp_capture_err_t video_file_src_release_frame(esp_capture_video_src_if_t
     }
     void *data = NULL;
     int size = 0;
-    data_q_read_lock(src->frame_q, &data, &size);
-    data_q_read_unlock(src->frame_q);
+    esp_gmf_data_queue_acquire_read(src->frame_q, &data, &size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER);
+    esp_gmf_data_queue_release_read(src->frame_q);
     return ESP_CAPTURE_ERR_OK;
 }
 

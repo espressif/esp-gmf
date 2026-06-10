@@ -13,6 +13,7 @@
 #include "esp_log.h"
 #include "esp_video_render_log.h"
 #include "video_render_measure.h"
+#include "video_render_utils.h"
 
 #define TAG  "VIDEO_RENDER_PROC"
 
@@ -121,7 +122,7 @@ static esp_gmf_err_io_t sink_acquire(void *handle, esp_gmf_payload_t *load, uint
                 video_render_free(proc->out_frame_buf[i]);
                 proc->out_frame_buf[i] = NULL;
             }
-            proc->out_frame_buf[i] = video_render_malloc_align(wanted_size, 64);
+            proc->out_frame_buf[i] = video_render_malloc_align(wanted_size, video_render_get_default_alignment());
             if (proc->out_frame_buf[i] == NULL) {
                 // Not enough memory
                 return ESP_GMF_IO_FAIL;
