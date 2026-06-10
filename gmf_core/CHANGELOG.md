@@ -14,6 +14,7 @@
 
 - Fixed IO task hold race that could stop the task and cause databus read timeout
 - Fixed data_bus reset not restoring write semaphore, which could leave IO task stuck in `acquire_write`
+- Fixed GMF port payload reallocation to honor buffer address and size alignment requirements
 
 ## v0.8.4
 

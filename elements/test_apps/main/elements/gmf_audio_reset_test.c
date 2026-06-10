@@ -965,6 +965,9 @@ TEST_CASE("Audio Http Stream Play Different URL Without Close, Two pipeline", "[
 
     // Run pipelines
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe));
+    // Make sure the decoder has started outputting data
+    // HTTP decoder pipeline may take longer to report stream info
+    vTaskDelay(3000 / portTICK_RATE_MS);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe_effects));
     xEventGroupWaitBits(pipe_sync_evt1, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
     xEventGroupWaitBits(pipe_sync_evt2, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
