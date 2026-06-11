@@ -5,6 +5,8 @@
  * See LICENSE file for details.
  */
 
+#include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include "esp_log.h"
@@ -14,6 +16,23 @@
 #include "esp_gmf_node.h"
 
 static const char *TAG = "ESP_GMF_PORT";
+
+static inline bool esp_gmf_port_payload_need_realloc(const esp_gmf_payload_t *load, uint8_t addr_align, uint8_t size_align, uint32_t wanted_size)
+{
+    if ((load == NULL) || (load->buf == NULL) || (load->buf_length < wanted_size)) {
+        return true;
+    }
+    return ((addr_align > 1) && (((uintptr_t)load->buf & (addr_align - 1)) != 0))
+           || ((size_align > 1) && ((load->buf_length & (size_align - 1)) != 0));
+}
+
+static inline uint32_t esp_gmf_port_payload_get_realloc_size(const esp_gmf_payload_t *load, uint32_t wanted_size)
+{
+    if ((load != NULL) && (load->buf_length > wanted_size)) {
+        return (uint32_t)load->buf_length;
+    }
+    return wanted_size;
+}
 
 static inline esp_gmf_err_io_t esp_gmf_port_dec_ref(esp_gmf_port_handle_t port, esp_gmf_payload_t *load, int wait_ticks)
 {
@@ -206,12 +225,14 @@ esp_gmf_err_io_t esp_gmf_port_acquire_in(esp_gmf_port_handle_t handle, esp_gmf_p
         } else {
             port->payload = *load;
         }
-        if ((port->attr.type == ESP_GMF_PORT_TYPE_BYTE) && ((*load)->buf_length < wanted_size)) {
-            // Check whether the buffer length is sufficient for use; if not, reallocate it.
+        if ((port->attr.type == ESP_GMF_PORT_TYPE_BYTE)
+            && esp_gmf_port_payload_need_realloc(*load, port->attr.buf_addr_aligned, port->attr.buf_size_aligned, wanted_size)) {
+            // Check whether the buffer length and alignment are sufficient for use; if not, reallocate it.
+            uint32_t realloc_size = esp_gmf_port_payload_get_realloc_size(*load, wanted_size);
             ret = esp_gmf_payload_realloc_buffer_with_separate_alignment(*load, port->attr.buf_addr_aligned,
-                                                                         port->attr.buf_size_aligned, wanted_size);
+                                                                         port->attr.buf_size_aligned, realloc_size);
             ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_IO_FAIL, "ACQ IN, reallocate payload buffer failed, ret:%d, %s, p:%p, new_sz:%ld",
-                                 ret, __func__, port, wanted_size);
+                                 ret, __func__, port, realloc_size);
         }
         esp_gmf_element_t *nxt_el = el ? ESP_GMF_ELEMENT_GET(((esp_gmf_node_t *)el)->next) : NULL;
         ESP_LOGD(TAG, "ACQ IN, port:%p-%d, el:%p-%s, PLD[p:%p, h:%p, b:%p, l:%d], nxt_el:%p-%s", port, port->attr.type, el, OBJ_GET_TAG(el), port->payload,
@@ -325,12 +346,14 @@ esp_gmf_err_io_t esp_gmf_port_acquire_out(esp_gmf_port_handle_t handle, esp_gmf_
     } else {
         port->payload = *load;
         if (port->attr.type == ESP_GMF_PORT_TYPE_BYTE) {
-            if ((*load)->buf_length < wanted_size) {
+            if (esp_gmf_port_payload_need_realloc(*load, port->attr.buf_addr_aligned, port->attr.buf_size_aligned, wanted_size)
+                && ((*load) != ESP_GMF_ELEMENT_GET(el)->in->payload)) {
+                uint32_t realloc_size = esp_gmf_port_payload_get_realloc_size(*load, wanted_size);
                 ret = esp_gmf_payload_realloc_buffer_with_separate_alignment(*load, port->attr.buf_addr_aligned,
-                                                                             port->attr.buf_size_aligned, wanted_size);
+                                                                             port->attr.buf_size_aligned, realloc_size);
+                ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_IO_FAIL, "ACQ OUT, reallocate payload buffer failed, el:%s, p:%p, ld:%p, sz:%d, new_sz:%ld",
+                                     OBJ_GET_TAG(el), port, *load, port->data_length, realloc_size);
             }
-            ESP_GMF_RET_ON_ERROR(TAG, ret, return ESP_GMF_IO_FAIL, "ACQ OUT, reallocate payload buffer failed, el:%s, p:%p, ld:%p, sz:%d, new_sz:%ld",
-                                 OBJ_GET_TAG(el), port, *load, port->data_length, wanted_size);
         }
         ESP_LOGD(TAG, "ACQ OUT, port:%p-%d, el:%p-%s, PLD[p:%p, h:%p, b:%p, v:%d, l:%d]", port, port->attr.type, el, OBJ_GET_TAG(el),
                  port->payload, *load, (*load)->buf, (*load)->valid_size, (*load)->buf_length);

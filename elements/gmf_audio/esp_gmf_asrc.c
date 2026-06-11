@@ -156,6 +156,7 @@ static esp_gmf_job_err_t esp_gmf_asrc_process(esp_gmf_element_handle_t self, voi
     load_ret = esp_gmf_port_acquire_out(out_port, &out_load, acq_out_size, ESP_GMF_MAX_DELAY);
     ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, load_ret, out_len, {goto __asrc_release;});
     if (samples_num) {
+        out_samples_num = out_load->buf_length / asrc->out_sample_bytes;
         ret = esp_asrc_process(asrc->asrc_hd, in_load->buf, samples_num, out_load->buf, &out_samples_num);
         ESP_GMF_RET_ON_ERROR(TAG, ret, {out_len = ESP_GMF_JOB_ERR_FAIL; goto __asrc_release;}, "ASRC process error %d", ret);
     }
