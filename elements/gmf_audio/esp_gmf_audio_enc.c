@@ -27,14 +27,15 @@
 } while (0)
 
 /**
- * @brief Audio encoder context in GMF
+ * @brief  Audio encoder context in GMF
  */
 typedef struct {
-    esp_gmf_audio_element_t parent;          /*!< The GMF audio encoder handle */
-    esp_audio_enc_handle_t  audio_enc_hd;    /*!< The audio encoder handle */
-    esp_gmf_cache_t        *cached_payload;  /*!< A Cached payload for data concatenation */
-    esp_gmf_payload_t      *origin_in_load;  /*!< The original input payload */
-    int64_t                 cur_pts;         /*!< The audio Presentation Time Stamp(pts) */
+    esp_gmf_audio_element_t           parent;          /*!< The GMF audio encoder handle */
+    esp_audio_enc_handle_t            audio_enc_hd;    /*!< The audio encoder handle */
+    esp_gmf_cache_t                  *cached_payload;  /*!< A Cached payload for data concatenation */
+    esp_gmf_payload_t                *origin_in_load;  /*!< The original input payload */
+    int64_t                           cur_pts;         /*!< The audio Presentation Time Stamp(pts) */
+    esp_gmf_audio_helper_spec_info_t  spec_info;       /*!< The codec specific information of the encoded data */
 } esp_gmf_audio_enc_t;
 
 static const char *TAG = "ESP_GMF_AENC";
@@ -526,8 +527,15 @@ __audio_enc_open_exit:
     }
     esp_audio_enc_info_t enc_info = {0};
     esp_audio_enc_get_info(enc->audio_enc_hd, &enc_info);
+    if (enc_cfg->type == ESP_AUDIO_TYPE_ALAC) {
+        enc->spec_info.codec_spec_info = (void *)enc_info.codec_spec_info;
+        enc->spec_info.spec_info_len = enc_info.spec_info_len;
+    } else {
+        memset(&enc->spec_info, 0, sizeof(esp_gmf_audio_helper_spec_info_t));
+    }
     GMF_AUDIO_UPDATE_SND_INFO(self, enc_info.sample_rate, enc_info.bits_per_sample, enc_info.channel);
-    ESP_LOGI(TAG, "Open, type:%s, acquire in frame: %d, out frame: %d", esp_audio_codec_get_name(enc_cfg->type), ESP_GMF_ELEMENT_GET(enc)->in_attr.data_size, ESP_GMF_ELEMENT_GET(enc)->out_attr.data_size);
+    ESP_LOGI(TAG, "Open, type:%s, acquire in frame: %d, out frame: %d", esp_audio_codec_get_name(enc_cfg->type),
+             ESP_GMF_ELEMENT_GET(enc)->in_attr.data_size, ESP_GMF_ELEMENT_GET(enc)->out_attr.data_size);
     return ESP_GMF_JOB_ERR_OK;
 }
 
@@ -633,14 +641,15 @@ static esp_gmf_job_err_t esp_gmf_audio_enc_close(esp_gmf_element_handle_t self, 
         esp_audio_enc_close(enc->audio_enc_hd);
         enc->audio_enc_hd = NULL;
     }
+    memset(&enc->spec_info, 0, sizeof(esp_gmf_audio_helper_spec_info_t));
     esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
     return ESP_GMF_JOB_ERR_OK;
 }
 
 static esp_gmf_err_t audio_enc_received_event_handler(esp_gmf_event_pkt_t *evt, void *ctx)
 {
-    ESP_GMF_NULL_CHECK(TAG, ctx, { return ESP_GMF_ERR_INVALID_ARG;});
-    ESP_GMF_NULL_CHECK(TAG, evt, { return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, ctx, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, evt, return ESP_GMF_ERR_INVALID_ARG);
     if ((evt->type != ESP_GMF_EVT_TYPE_REPORT_INFO)
         || (evt->sub != ESP_GMF_INFO_SOUND)
         || (evt->payload == NULL)) {
@@ -859,6 +868,19 @@ __audio_enc_get_bitrate_exit:
     return ret;
 }
 
+esp_gmf_err_t esp_gmf_audio_enc_get_spec_info(esp_gmf_element_handle_t handle, esp_gmf_audio_helper_spec_info_t *spec_info)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, spec_info, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_audio_enc_t *enc = (esp_gmf_audio_enc_t *)handle;
+    if (enc->spec_info.codec_spec_info == NULL || enc->spec_info.spec_info_len == 0) {
+        return ESP_GMF_ERR_OK;
+    }
+    spec_info->codec_spec_info = enc->spec_info.codec_spec_info;
+    spec_info->spec_info_len = enc->spec_info.spec_info_len;
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_audio_enc_reconfig(esp_gmf_element_handle_t handle, esp_audio_enc_config_t *config)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
@@ -947,9 +969,9 @@ esp_gmf_err_t esp_gmf_audio_enc_init(esp_audio_enc_config_t *config, esp_gmf_ele
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto ES_ENC_FAIL, "Failed to set obj tag");
     esp_gmf_element_cfg_t el_cfg = {0};
     ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.in_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
-        ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
+                                     ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
     ESP_GMF_ELEMENT_OUT_PORT_ATTR_SET(el_cfg.out_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
-        ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
+                                      ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
     el_cfg.dependency = true;
     ret = esp_gmf_audio_el_init(audio_enc, &el_cfg);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto ES_ENC_FAIL, "Failed to initialize audio encoder element");

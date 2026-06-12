@@ -28,6 +28,14 @@ function add_github_ssh_keys() {
   echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >>~/.ssh/config
 }
 
+function add_doc_server_ssh_keys() {
+  local key_string="${1}"
+  local server_url="${2}"
+  local server_user="${3}"
+  add_ssh_keys "${key_string}"
+  echo -e "Host ${server_url}\n\tStrictHostKeyChecking no\n\tUser ${server_user}\n" >>~/.ssh/config
+}
+
 function push_to_github() {
   if [ -n "${CI_COMMIT_TAG}" ]; then
       # for tags
@@ -92,7 +100,7 @@ function setup_tools_and_idf_python_venv() {
   elif [[ "${CI_JOB_STAGE}" == "build_doc" ]]; then
     run_cmd bash install.sh --enable-ci --enable-docs
   elif [[ "${CI_JOB_STAGE}" == "build" ]]; then
-    run_cmd bash install.sh --enable-ci --enable-pytest
+    run_cmd bash install.sh --enable-ci
   else
     run_cmd bash install.sh --enable-ci
   fi
@@ -157,12 +165,22 @@ function set_idf() {
   git clean -f
 
   if [[ "$IDF_TAG_FLAG" = "true" ]]; then
-      git fetch origin tag ${IDF_VERSION} --depth 1
-      git checkout ${IDF_VERSION}
-      echo "The IDF branch is TAG:"${IDF_VERSION}
+      # Tag mode: only use tag fetch when refs/tags/<name> exists; otherwise
+      # treat IDF_VERSION as a branch (e.g. master) — avoids refs/tags/master.
+      if [[ -n "$(git ls-remote origin "refs/tags/${IDF_VERSION}" 2>/dev/null)" ]]; then
+          git fetch origin tag "${IDF_VERSION}" --depth 1
+          git checkout "${IDF_VERSION}"
+          echo "The IDF branch is TAG:${IDF_VERSION}"
+      else
+          # Fetch remote branch only (no local refspec): updating refs/heads/X while X is
+          # checked out causes "refusing to fetch into branch ... checked out at ..."
+          git fetch origin "${IDF_VERSION}" --depth 1
+          git checkout -B "${IDF_VERSION}" "origin/${IDF_VERSION}"
+          echo "The IDF branch is ${IDF_VERSION} (IDF_TAG_FLAG true but no remote tag; using as branch)"
+      fi
   else
-      git fetch origin ${IDF_VERSION}:${IDF_VERSION} --depth 1
-      git checkout ${IDF_VERSION}
+      git fetch origin "${IDF_VERSION}" --depth 1
+      git checkout -B "${IDF_VERSION}" "origin/${IDF_VERSION}"
       echo "The IDF branch is "${IDF_VERSION}
   fi
 

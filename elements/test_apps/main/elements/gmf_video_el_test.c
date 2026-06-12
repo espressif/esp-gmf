@@ -945,7 +945,7 @@ static int test_color_convert(convert_res_t *res, uint32_t convert_pair[][2], in
 }
 #if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
 
-TEST_CASE("PPA TEST", "[ESP_GMF_VIDEO]")
+TEST_CASE("PPA TEST", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     static const struct {
         uint32_t  src;
@@ -979,7 +979,7 @@ TEST_CASE("PPA TEST", "[ESP_GMF_VIDEO]")
     }
 }
 
-TEST_CASE("PPA blend TEST", "[ESP_GMF_VIDEO]")
+TEST_CASE("PPA blend TEST", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     static const uint32_t overlay_fg_fmt = ESP_FOURCC_RGB16;
     static const struct {
@@ -1013,7 +1013,7 @@ TEST_CASE("PPA blend TEST", "[ESP_GMF_VIDEO]")
     }
 }
 
-TEST_CASE("vid_ppa soft color convert integration", "[ESP_GMF_VIDEO]")
+TEST_CASE("vid_ppa soft color convert integration", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     convert_res_t res;
@@ -1080,7 +1080,7 @@ TEST_CASE("vid_ppa soft color convert integration", "[ESP_GMF_VIDEO]")
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4
-TEST_CASE("Color convert HW", "[ESP_GMF_VIDEO]")
+TEST_CASE("Color convert HW", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1108,7 +1108,7 @@ TEST_CASE("Color convert HW", "[ESP_GMF_VIDEO]")
 }
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
 
-TEST_CASE("Color convert SW", "[ESP_GMF_VIDEO]")
+TEST_CASE("Color convert SW", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1138,7 +1138,7 @@ TEST_CASE("Color convert SW", "[ESP_GMF_VIDEO]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Color convert by caps", "[ESP_GMF_VIDEO]")
+TEST_CASE("Color convert by caps", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1208,7 +1208,7 @@ static int test_scale(convert_res_t *res, uint32_t convert_pair[][2], int n)
 }
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4
-TEST_CASE("Scale HW", "[ESP_GMF_VIDEO]")
+TEST_CASE("Scale HW", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1237,7 +1237,7 @@ TEST_CASE("Scale HW", "[ESP_GMF_VIDEO]")
 }
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
 
-TEST_CASE("Scale SW", "[ESP_GMF_VIDEO]")
+TEST_CASE("Scale SW", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1305,7 +1305,7 @@ static int test_rotate(convert_res_t *res, uint32_t convert_pair[][2], int n)
 }
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4
-TEST_CASE("Rotate HW", "[ESP_GMF_VIDEO]")
+TEST_CASE("Rotate HW", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1333,7 +1333,7 @@ TEST_CASE("Rotate HW", "[ESP_GMF_VIDEO]")
 }
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
 
-TEST_CASE("Rotate SW", "[ESP_GMF_VIDEO]")
+TEST_CASE("Rotate SW", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1406,7 +1406,7 @@ static int test_crop(convert_res_t *res, uint32_t convert_pair[][2], int n)
 }
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4
-TEST_CASE("Crop HW", "[ESP_GMF_VIDEO]")
+TEST_CASE("Crop HW", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1433,7 +1433,7 @@ TEST_CASE("Crop HW", "[ESP_GMF_VIDEO]")
 }
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 */
 
-TEST_CASE("Crop only SW", "[ESP_GMF_VIDEO]")
+TEST_CASE("Crop only SW", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1462,7 +1462,7 @@ TEST_CASE("Crop only SW", "[ESP_GMF_VIDEO]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Encoder only", "[ESP_GMF_VIDEO]")
+TEST_CASE("Encoder only", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1517,7 +1517,7 @@ TEST_CASE("Encoder only", "[ESP_GMF_VIDEO]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Encoder open failure", "[ESP_GMF_VIDEO]")
+TEST_CASE("Encoder open failure", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1562,7 +1562,7 @@ TEST_CASE("Encoder open failure", "[ESP_GMF_VIDEO]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("FPS convert only", "[ESP_GMF_VIDEO]")
+TEST_CASE("FPS convert only", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -1607,7 +1607,7 @@ TEST_CASE("FPS convert only", "[ESP_GMF_VIDEO]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Overlay mixer SW", "[ESP_GMF_VIDEO]")
+TEST_CASE("Overlay mixer SW", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
 #ifdef MEDIA_LIB_MEM_TEST
@@ -1617,7 +1617,7 @@ TEST_CASE("Overlay mixer SW", "[ESP_GMF_VIDEO]")
 }
 
 #if CONFIG_SOC_PPA_SUPPORTED
-TEST_CASE("Overlay mixer HW", "[ESP_GMF_VIDEO]")
+TEST_CASE("Overlay mixer HW", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
 #ifdef MEDIA_LIB_MEM_TEST
@@ -1627,7 +1627,7 @@ TEST_CASE("Overlay mixer HW", "[ESP_GMF_VIDEO]")
 }
 #endif  /* CONFIG_SOC_PPA_SUPPORTED */
 
-TEST_CASE("Encoder to Decode", "[ESP_GMF_VIDEO]")
+TEST_CASE("Encoder to Decode", "[ESP_GMF_VIDEO][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);

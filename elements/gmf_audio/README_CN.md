@@ -10,15 +10,18 @@ ESP GMF Audio 是 GMF 音频处理相关元素的集合，包括音频编码，�
 |:----:| :-----: | :----: | :----: |:----: |:----: |:----: |:----: |:---- |
 |  AUDIO_DEC | aud_dec | 音频解码：MP3,AAC,AMRNB,<br>AMRWB,FLAC,WAV,M4A,<br>TS,OPUS,SBC,LC3,<br>ADPCM,ALAC,G711,VORBIS  | `recfg`<br>`recfg_by_sndinfo` |  单个 |  单个  | 可用户配置，默认是最大延迟 |可用户配置，默认是最大延迟 |否 |
 |  AUDIO_ENC | aud_enc | 音频编码：AAC,AMRNB,AMRWB,<br>ADPCM,OPUS,PCM,ALAC,<br>SBC,LC3,G711  | `get_frame_sz`<br>`set_bitrate`<br>`get_bitrate`<br>`recfg`<br>`recfg_by_sndinfo` |  单个 |  单个  | 可用户配置，默认是最大延迟 |可用户配置，默认是最大延迟 |是 |
+|  AUDIO_MUXER | aud_muxer | 音频复用器：TS,MP4,FLV,<br>WAV,CAF,OGG  | 无 |  单个 |  单个  | 可用户配置，默认是最大延迟 |最大延迟 |是 |
 |  RATE_CVT| aud_rate_cvt | 音频采样率调节  | `set_dest_rate` |  单个 |  单个  |最大延迟 |最大延迟| 是 |
 |  BIT_CVT | aud_bit_cvt | 音频比特位转换  | `set_dest_bits`| 单个 |  单个  |最大延迟 |最大延迟| 是 |
 |  CH_CVT  | aud_ch_cvt | 音频声道数转换   | `set_dest_ch`|  单个 |  单个  |最大延迟 |最大延迟| 是 |
+|  AUD_ASRC | aud_asrc | 自适应音频信息转换模块，结合硬件 ASRC 与软件采样率、位深度、声道转换能力 | `set_dest_rate`<br>`set_dest_ch`<br>`set_dest_bits` | 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  ALC     | aud_alc | 音频音量调节    | `set_gain`<br>`get_gain`| 单个 |  单个  |最大延迟 |最大延迟| 是 |
 |  EQ      | aud_eq | 音频均衡器调节  |`set_para`<br>`get_para`<br>`enable_filter`  |单个 |单个|最大延迟 |最大延迟|是 |
 |  FADE    | aud_fade | 音频淡入淡出效果    |`set_mode`<br>`get_mode`<br>`reset` | 单个 |  单个  |最大延迟 |最大延迟 |是 |
 |  SONIC   | aud_sonic | 音频变速变调效果    |`set_speed`<br>`get_speed`<br>`set_pitch`<br>`get_pitch`| 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  DRC     | aud_drc | 音频动态范围控制    |`set_attack`<br>`get_attack`<br>`set_release`<br>`get_release`<br>`set_hold`<br>`get_hold`<br>`set_makeup`<br>`get_makeup`<br>`set_knee`<br>`get_knee`<br>`set_points`<br>`get_point_num`<br>`get_points`| 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  MBC     | aud_mbc | 音频多频段压缩    |`set_para`<br>`get_para`<br>`set_fc`<br>`get_fc`<br>`set_solo`<br>`get_solo`<br>`set_bypass`<br>`get_bypass`| 单个 | 单个 |最大延迟 |最大延迟| 是 |
+|  HOWL    | aud_howl | 啸叫抑制（声学反馈抑制） | 无 | 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  MIXER   | aud_mixer | 音频混音效果  |`set_mode`<br>`set_info`|  多个 |  单个  | 第一路阻塞时间为0，其他路阻塞时间为最大延迟 |最大延迟| 否 |
 |INTERLEAVE| aud_intlv | 数据交织    | 无 | 多个 |  单个  | 可用户配置，默认是最大延迟 |最大延迟| 是 |
 |DEINTERLEAVE| aud_deintlv | 数据解交织 | 无| 单个 |  多个  |最大延迟|可用户配置，默认是最大延迟 |是 |

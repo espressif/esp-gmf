@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added `esp_gmf_data_queue` and data bus factory support for variable-sized block queues
+- Enhanced memory alignment support for GMF data_bus and payload
+- Added a breaking change for the `esp_gmf_fifo_set_align` api usage
+- Added `HOWL` capability definition
+- Added `DOA` capability definition (`ESP_GMF_CAPS_AUDIO_DOA`)
+
+### Bug Fixes
+
+- Fixed IO task hold race that could stop the task and cause databus read timeout
+- Fixed data_bus reset not restoring write semaphore, which could leave IO task stuck in `acquire_write`
+- Fixed GMF port payload reallocation to honor buffer address and size alignment requirements
+- Corrected FLV FourCC code from `FLV1` to `FLV`
+
 ## v0.8.4
 
 ### Features

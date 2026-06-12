@@ -80,6 +80,12 @@ menu "ESP Audio Simple Player"
                     bool "32-bit depth"
             endchoice
 
+            config AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_BITS
+                int
+                default 16 if AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_16BIT
+                default 24 if AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_24BIT
+                default 32 if AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_32BIT
+
         endif
 
     endmenu

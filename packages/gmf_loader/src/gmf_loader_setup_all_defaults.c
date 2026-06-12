@@ -29,6 +29,9 @@ esp_gmf_err_t gmf_loader_setup_all_defaults(esp_gmf_pool_handle_t pool)
     ret = gmf_loader_setup_ai_audio_default(pool);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register ai audio");
 
+    ret = gmf_loader_setup_audio_muxer_default(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register audio muxer");
+
     ret = gmf_loader_setup_video_codec_default(pool);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register video codec");
 
@@ -57,6 +60,9 @@ esp_gmf_err_t gmf_loader_teardown_all_defaults(esp_gmf_pool_handle_t pool)
 
     ret = gmf_loader_teardown_ai_audio_default(pool);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to teardown ai audio");
+
+    ret = gmf_loader_teardown_audio_muxer_default(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to teardown audio muxer");
 
     ret = gmf_loader_teardown_video_codec_default(pool);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to teardown video codec");

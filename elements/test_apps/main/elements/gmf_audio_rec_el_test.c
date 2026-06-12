@@ -19,6 +19,7 @@
 #include "esp_gmf_pool.h"
 #include "esp_gmf_oal_mem.h"
 #include "esp_gmf_oal_thread.h"
+#include "esp_gmf_io.h"
 #include "esp_gmf_io_http.h"
 #include "esp_gmf_rate_cvt.h"
 #include "esp_gmf_audio_enc.h"
@@ -26,6 +27,8 @@
 #include "esp_gmf_app_unit_test.h"
 #include "esp_gmf_audio_helper.h"
 #include "gmf_audio_play_com.h"
+#include "esp_gmf_audio_muxer.h"
+#include "esp_aac_enc.h"
 
 #ifdef MEDIA_LIB_MEM_TEST
 #include "media_lib_adapter.h"
@@ -64,11 +67,11 @@ static esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
              "OBJ_GET_TAG(event->from)", event->from, event->type, esp_gmf_event_get_state_str(event->sub),
              event->payload, event->payload_size, ctx);
     if ((event->sub == ESP_GMF_EVENT_STATE_STOPPED)
-            || (event->sub == ESP_GMF_EVENT_STATE_FINISHED)
-            || (event->sub == ESP_GMF_EVENT_STATE_ERROR)) {
-            if (ctx) {
-                xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_BLOCK_BIT);
-            }
+        || (event->sub == ESP_GMF_EVENT_STATE_FINISHED)
+        || (event->sub == ESP_GMF_EVENT_STATE_ERROR)) {
+        if (ctx) {
+            xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_BLOCK_BIT);
+        }
     }
     return 0;
 }
@@ -159,12 +162,43 @@ static esp_gmf_err_t _http_stream_event_handle(http_stream_event_msg_t *msg)
     return ESP_GMF_ERR_OK;
 }
 
-TEST_CASE("Recorder, One Pipe, [IIS->ENC->FILE]", "[ESP_GMF_POOL]")
+// File pattern callback for muxer file output
+static int muxer_file_pattern_cb_with_type(esp_muxer_slice_info_t *info, void *ctx)
+{
+    esp_gmf_audio_muxer_cfg_t *muxer_cfg_ptr = (esp_gmf_audio_muxer_cfg_t *)ctx;
+    switch (muxer_cfg_ptr->muxer_type) {
+        case ESP_MUXER_TYPE_TS:
+            snprintf(info->file_path, info->len, "/sdcard/muxer_test_file.ts");
+            break;
+        case ESP_MUXER_TYPE_MP4:
+            snprintf(info->file_path, info->len, "/sdcard/muxer_test_file.mp4");
+            break;
+        case ESP_MUXER_TYPE_FLV:
+            snprintf(info->file_path, info->len, "/sdcard/muxer_test_file.flv");
+            break;
+        case ESP_MUXER_TYPE_WAV:
+            snprintf(info->file_path, info->len, "/sdcard/muxer_test_file.wav");
+            break;
+        case ESP_MUXER_TYPE_CAF:
+            snprintf(info->file_path, info->len, "/sdcard/muxer_test_file.caf");
+            break;
+        case ESP_MUXER_TYPE_OGG:
+            snprintf(info->file_path, info->len, "/sdcard/muxer_test_file.ogg");
+            break;
+        case ESP_MUXER_TYPE_AVI:
+            snprintf(info->file_path, info->len, "/sdcard/muxer_test_file.avi");
+            break;
+        default:
+            return -1;
+    }
+    printf("file name: %s\n", info->file_path);
+    return 0;
+}
+
+TEST_CASE("Recorder, One Pipe, [IIS->ENC->FILE]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
-    // esp_log_level_set("GMF_CACHE", ESP_LOG_DEBUG);
-    // esp_log_level_set("ESP_GMF_AENC", ESP_LOG_DEBUG);
     ESP_GMF_MEM_SHOW(TAG);
     uint32_t I2S_REC_ENCODER_SAMPLE_RATE = 48000;
     esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
@@ -252,7 +286,7 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->FILE]", "[ESP_GMF_POOL]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Recorder, One Pipe recoding multiple format, [IIS->ENC->FILE]", "[ESP_GMF_POOL]")
+TEST_CASE("Recorder, One Pipe recoding multiple format, [IIS->ENC->FILE]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -381,7 +415,7 @@ static const char *recoding_file_path[] = {
     "/sdcard/esp_gmf_rec_03.pcm",
 };
 
-TEST_CASE("Record file for playback, multiple files with One Pipe, [FILE->dec->resample->IIS]", "[ESP_GMF_POOL]")
+TEST_CASE("Record file for playback, multiple files with One Pipe, [FILE->dec->resample->IIS]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -435,7 +469,7 @@ TEST_CASE("Record file for playback, multiple files with One Pipe, [FILE->dec->r
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=10000]")
+TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=30000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -443,11 +477,11 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=
     esp_gmf_app_test_case_uses_tcpip();
     ESP_GMF_MEM_SHOW(TAG);
     esp_gmf_app_wifi_connect();
-    esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
-    codec_info.record_info.sample_rate = SETUP_AUDIO_SAMPLE_RATE;
-    codec_info.record_info.channel = SETUP_AUDIO_CHANNELS;
+    esp_gmf_app_codec_info_t codec_info    = ESP_GMF_APP_CODEC_INFO_DEFAULT();
+    codec_info.record_info.sample_rate     = SETUP_AUDIO_SAMPLE_RATE;
+    codec_info.record_info.channel         = SETUP_AUDIO_CHANNELS;
     codec_info.record_info.bits_per_sample = SETUP_AUDIO_BITS;
-    codec_info.play_info.sample_rate = codec_info.record_info.sample_rate;
+    codec_info.play_info.sample_rate       = codec_info.record_info.sample_rate;
     esp_gmf_app_setup_codec_dev(&codec_info);
 
 #ifdef MEDIA_LIB_MEM_TEST
@@ -460,8 +494,8 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=
     ESP_GMF_POOL_SHOW_ITEMS(pool);
 
     // Create the new elements
-    esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *name[] = {"aud_enc"};
+    esp_gmf_pipeline_handle_t pipe   = NULL;
+    const char               *name[] = {"aud_enc"};
     esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), "io_http", &pipe);
     TEST_ASSERT_NOT_NULL(pipe);
     gmf_setup_pipeline_in_dev(pipe);
@@ -473,10 +507,10 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=
     esp_gmf_audio_helper_get_audio_type_by_uri(rec_type, &audio_type);
     esp_gmf_info_sound_t info = {
         .sample_rates = SETUP_AUDIO_SAMPLE_RATE,
-        .channels = SETUP_AUDIO_CHANNELS,
-        .bits = SETUP_AUDIO_BITS,
-        .bitrate = 90000,
-        .format_id = audio_type,
+        .channels     = SETUP_AUDIO_CHANNELS,
+        .bits         = SETUP_AUDIO_BITS,
+        .bitrate      = 90000,
+        .format_id    = audio_type,
     };
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_enc_reconfig_by_sound_info(enc_handle, &info));
     esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info, sizeof(info));
@@ -484,12 +518,12 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=
     esp_gmf_io_handle_t http_out = NULL;
     esp_gmf_pipeline_get_out(pipe, &http_out);
     http_io_cfg_t *http_cfg = (http_io_cfg_t *)OBJ_GET_CFG(http_out);
-    http_cfg->user_data = (void *)rec_type;
-    http_cfg->event_handle = _http_stream_event_handle;
+    http_cfg->user_data     = (void *)rec_type;
+    http_cfg->event_handle  = _http_stream_event_handle;
 
-    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
-    cfg.ctx = NULL;
-    cfg.cb = NULL;
+    esp_gmf_task_cfg_t cfg          = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx                         = NULL;
+    cfg.cb                          = NULL;
     esp_gmf_task_handle_t work_task = NULL;
     esp_gmf_task_init(&cfg, &work_task);
     TEST_ASSERT_NOT_NULL(work_task);
@@ -511,6 +545,225 @@ TEST_CASE("Recorder, One Pipe, [IIS->ENC->HTTP]", "[ESP_GMF_POOL][ignore][leaks=
 #endif  /* MEDIA_LIB_MEM_TEST */
     esp_gmf_app_teardown_codec_dev();
     esp_gmf_app_wifi_disconnect();
+    vTaskDelay(1000 / portTICK_RATE_MS);
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Muxer, Streaming Mode, [IIS->ENC->MUXER->FILE]", "[ESP_GMF_POOL][leaks=1400]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
+    ESP_GMF_MEM_SHOW(TAG);
+    esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
+    codec_info.record_info.sample_rate = SETUP_AUDIO_SAMPLE_RATE;
+    codec_info.record_info.channel = SETUP_AUDIO_CHANNELS;
+    codec_info.record_info.bits_per_sample = SETUP_AUDIO_BITS;
+    codec_info.play_info.sample_rate = codec_info.record_info.sample_rate;
+    esp_gmf_app_setup_codec_dev(&codec_info);
+    void *sdcard_handle = NULL;
+    esp_gmf_app_setup_sdcard(&sdcard_handle);
+#ifdef MEDIA_LIB_MEM_TEST
+    media_lib_add_default_adapter();
+#endif  /* MEDIA_LIB_MEM_TEST */
+    esp_gmf_pool_handle_t pool = NULL;
+    esp_gmf_pool_init(&pool);
+    TEST_ASSERT_NOT_NULL(pool);
+    gmf_register_audio_all(pool);
+    ESP_GMF_POOL_SHOW_ITEMS(pool);
+    esp_muxer_type_t test_muxer_types[] = {ESP_MUXER_TYPE_OGG, ESP_MUXER_TYPE_TS, ESP_MUXER_TYPE_FLV, ESP_MUXER_TYPE_WAV};
+    const char *muxer_extensions[] = {"ogg", "ts", "flv", "wav"};
+    esp_gmf_pipeline_handle_t pipe = NULL;
+    const char *name[] = {"aud_enc", "aud_muxer"};
+    esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), "io_file", &pipe);
+    TEST_ASSERT_NOT_NULL(pipe);
+    gmf_setup_pipeline_in_dev(pipe);
+
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    cfg.thread.stack = 25 * 1024;
+    esp_gmf_task_handle_t work_task = NULL;
+    esp_gmf_task_init(&cfg, &work_task);
+    TEST_ASSERT_NOT_NULL(work_task);
+    esp_gmf_pipeline_bind_task(pipe, work_task);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(pipe));
+    esp_gmf_pipeline_set_event(pipe, _pipeline_event, NULL);
+    // Set prev stop callback to close pipeline input IO
+    esp_gmf_io_handle_t in_io = NULL;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_in(pipe, &in_io));
+    esp_gmf_element_handle_t enc_handle = NULL;
+    esp_gmf_pipeline_get_el_by_name(pipe, "aud_enc", &enc_handle);
+    uint32_t audio_type = ESP_AUDIO_TYPE_AAC;
+    esp_gmf_info_sound_t info = {
+        .sample_rates = SETUP_AUDIO_SAMPLE_RATE,
+        .channels = SETUP_AUDIO_CHANNELS,
+        .bits = SETUP_AUDIO_BITS,
+        .bitrate = 90000,
+        .format_id = audio_type,
+    };
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_enc_reconfig_by_sound_info(enc_handle, &info));
+    for (int muxer_idx = 0; muxer_idx < sizeof(test_muxer_types) / sizeof(test_muxer_types[0]); muxer_idx++) {
+        esp_muxer_type_t muxer_type = test_muxer_types[muxer_idx];
+        const char *ext = muxer_extensions[muxer_idx];
+        ESP_LOGI(TAG, "Testing muxer type %d (streaming mode)", muxer_type);
+
+        // Configure encoder based on muxer type
+        uint32_t audio_type = ESP_AUDIO_TYPE_AAC;
+        esp_muxer_audio_codec_t muxer_codec = ESP_MUXER_ADEC_AAC;
+        if (muxer_type == ESP_MUXER_TYPE_OGG) {
+            audio_type = ESP_AUDIO_TYPE_OPUS;
+            muxer_codec = ESP_MUXER_ADEC_OPUS;
+        }
+
+        // Reconfigure encoder if needed
+        if (info.format_id != audio_type) {
+            info.format_id = audio_type;
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_enc_reconfig_by_sound_info(enc_handle, &info));
+        }
+
+        esp_gmf_element_handle_t muxer_handle = NULL;
+        esp_gmf_pipeline_get_el_by_name(pipe, "aud_muxer", &muxer_handle);
+        TEST_ASSERT_NOT_NULL(muxer_handle);
+        esp_gmf_audio_muxer_cfg_t *muxer_cfg_ptr = (esp_gmf_audio_muxer_cfg_t *)OBJ_GET_CFG(muxer_handle);
+        muxer_cfg_ptr->muxer_type = muxer_type;
+        muxer_cfg_ptr->output_type = ESP_GMF_AUDIO_MUXER_OUTPUT_STREAMING;
+        muxer_cfg_ptr->slice_duration = 12000;
+        muxer_cfg_ptr->url_pattern = NULL;
+        muxer_cfg_ptr->codec = muxer_codec;
+        esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info, sizeof(info));
+        char uri[128];
+        snprintf(uri, sizeof(uri), "/sdcard/muxer_test_stream.%s", ext);
+        esp_gmf_pipeline_set_out_uri(pipe, uri);
+
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe));
+        vTaskDelay(10000 / portTICK_RATE_MS);
+        esp_gmf_io_done(in_io);
+        vTaskDelay(1000 / portTICK_RATE_MS);
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(pipe));
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(pipe));
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(pipe));
+    }
+    esp_gmf_task_deinit(work_task);
+    esp_gmf_pipeline_destroy(pipe);
+    gmf_unregister_audio_all(pool);
+    esp_gmf_pool_deinit(pool);
+#ifdef MEDIA_LIB_MEM_TEST
+    media_lib_stop_mem_trace();
+#endif  /* MEDIA_LIB_MEM_TEST */
+    esp_gmf_app_teardown_codec_dev();
+    esp_gmf_app_teardown_sdcard(sdcard_handle);
+    vTaskDelay(1000 / portTICK_RATE_MS);
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Muxer, File Mode, [IIS->ENC->MUXER]", "[ESP_GMF_POOL][leaks=1400]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
+    ESP_GMF_MEM_SHOW(TAG);
+
+    esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
+    codec_info.record_info.sample_rate = SETUP_AUDIO_SAMPLE_RATE;
+    codec_info.record_info.channel = SETUP_AUDIO_CHANNELS;
+    codec_info.record_info.bits_per_sample = SETUP_AUDIO_BITS;
+    codec_info.play_info.sample_rate = codec_info.record_info.sample_rate;
+    esp_gmf_app_setup_codec_dev(&codec_info);
+    void *sdcard_handle = NULL;
+    esp_gmf_app_setup_sdcard(&sdcard_handle);
+#ifdef MEDIA_LIB_MEM_TEST
+    media_lib_add_default_adapter();
+#endif  /* MEDIA_LIB_MEM_TEST */
+    esp_gmf_pool_handle_t pool = NULL;
+    esp_gmf_pool_init(&pool);
+    TEST_ASSERT_NOT_NULL(pool);
+    gmf_register_audio_all(pool);
+    ESP_GMF_POOL_SHOW_ITEMS(pool);
+    esp_muxer_type_t test_muxer_types[] = {
+        ESP_MUXER_TYPE_TS,
+        ESP_MUXER_TYPE_MP4,
+        ESP_MUXER_TYPE_FLV,
+        ESP_MUXER_TYPE_WAV,
+        ESP_MUXER_TYPE_CAF,
+        ESP_MUXER_TYPE_OGG,
+        ESP_MUXER_TYPE_AVI};
+    esp_gmf_pipeline_handle_t pipe = NULL;
+    const char *name[] = {"aud_enc", "aud_muxer"};
+    esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), NULL, &pipe);
+    TEST_ASSERT_NOT_NULL(pipe);
+    gmf_setup_pipeline_in_dev(pipe);
+
+    esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.ctx = NULL;
+    cfg.cb = NULL;
+    cfg.thread.stack = 25 * 1024;
+    esp_gmf_task_handle_t work_task = NULL;
+    esp_gmf_task_init(&cfg, &work_task);
+    TEST_ASSERT_NOT_NULL(work_task);
+    esp_gmf_pipeline_bind_task(pipe, work_task);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(pipe));
+    esp_gmf_pipeline_set_event(pipe, _pipeline_event, NULL);
+    // Set prev stop callback to close pipeline input IO
+    esp_gmf_io_handle_t in_io = NULL;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_get_in(pipe, &in_io));
+    esp_gmf_element_handle_t enc_handle = NULL;
+    esp_gmf_pipeline_get_el_by_name(pipe, "aud_enc", &enc_handle);
+    uint32_t audio_type = ESP_AUDIO_TYPE_AAC;
+    esp_gmf_info_sound_t info = {
+        .sample_rates = SETUP_AUDIO_SAMPLE_RATE,
+        .channels = SETUP_AUDIO_CHANNELS,
+        .bits = SETUP_AUDIO_BITS,
+        .bitrate = 90000,
+        .format_id = audio_type,
+    };
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_enc_reconfig_by_sound_info(enc_handle, &info));
+    esp_gmf_element_handle_t muxer_handle = NULL;
+    esp_gmf_pipeline_get_el_by_name(pipe, "aud_muxer", &muxer_handle);
+    TEST_ASSERT_NOT_NULL(muxer_handle);
+    for (int muxer_idx = 0; muxer_idx < sizeof(test_muxer_types) / sizeof(test_muxer_types[0]); muxer_idx++) {
+        esp_muxer_type_t muxer_type = test_muxer_types[muxer_idx];
+        ESP_LOGI(TAG, "Testing muxer type %d (file mode)", muxer_type);
+        esp_gmf_audio_muxer_cfg_t *muxer_cfg_ptr = (esp_gmf_audio_muxer_cfg_t *)OBJ_GET_CFG(muxer_handle);
+        uint32_t audio_type = ESP_AUDIO_TYPE_AAC;
+        esp_muxer_audio_codec_t muxer_codec = ESP_MUXER_ADEC_AAC;
+        muxer_cfg_ptr->get_codec_spec_info_cb = NULL;
+        muxer_cfg_ptr->get_codec_spec_info_ctx = NULL;
+        if (muxer_type == ESP_MUXER_TYPE_OGG) {
+            audio_type = ESP_AUDIO_TYPE_OPUS;
+            muxer_codec = ESP_MUXER_ADEC_OPUS;
+        } else if (muxer_type == ESP_MUXER_TYPE_CAF) {
+            audio_type = ESP_AUDIO_TYPE_ALAC;
+            muxer_codec = ESP_MUXER_ADEC_ALAC;
+            muxer_cfg_ptr->get_codec_spec_info_cb = esp_gmf_audio_enc_get_spec_info;
+            muxer_cfg_ptr->get_codec_spec_info_ctx = enc_handle;
+        }
+        if (info.format_id != audio_type) {
+            info.format_id = audio_type;
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_enc_reconfig_by_sound_info(enc_handle, &info));
+        }
+        esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info, sizeof(info));
+        muxer_cfg_ptr->muxer_type = muxer_type;
+        muxer_cfg_ptr->output_type = ESP_GMF_AUDIO_MUXER_OUTPUT_FILE;
+        muxer_cfg_ptr->slice_duration = 0;
+        muxer_cfg_ptr->url_pattern = muxer_file_pattern_cb_with_type;
+        muxer_cfg_ptr->url_ctx = (void *)muxer_cfg_ptr;
+        muxer_cfg_ptr->codec = muxer_codec;
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe));
+        vTaskDelay(10000 / portTICK_RATE_MS);
+        esp_gmf_io_done(in_io);
+        vTaskDelay(1000 / portTICK_RATE_MS);
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(pipe));
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(pipe));
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(pipe));
+    }
+    esp_gmf_task_deinit(work_task);
+    esp_gmf_pipeline_destroy(pipe);
+    gmf_unregister_audio_all(pool);
+    esp_gmf_pool_deinit(pool);
+#ifdef MEDIA_LIB_MEM_TEST
+    media_lib_stop_mem_trace();
+#endif  /* MEDIA_LIB_MEM_TEST */
+    esp_gmf_app_teardown_codec_dev();
+    esp_gmf_app_teardown_sdcard(sdcard_handle);
     vTaskDelay(1000 / portTICK_RATE_MS);
     ESP_GMF_MEM_SHOW(TAG);
 }

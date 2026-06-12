@@ -410,6 +410,9 @@ static esp_gmf_job_err_t esp_gmf_audio_dec_process(esp_gmf_element_handle_t self
         audio_dec->in_data.consumed = 0;
         audio_dec->in_data.eos = audio_dec->in_load->is_done;
         audio_dec->in_data.frame_recover = (audio_dec->in_load->meta_flag & ESP_GMF_META_FLAG_AUD_RECOVERY_PLC) ? 1 : 0;
+        if (audio_dec->in_load->pts != 0) {
+            audio_dec->pts = audio_dec->in_load->pts;
+        }
     }
     if (audio_dec->is_opened == false && audio_dec->in_data.len > 0) {
         esp_audio_simple_dec_cfg_t *dec_cfg = (esp_audio_simple_dec_cfg_t *)OBJ_GET_CFG(self);

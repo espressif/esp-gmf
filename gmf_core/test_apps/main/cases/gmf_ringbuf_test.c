@@ -111,6 +111,7 @@ static void write_task(void *param)
         ret = fwrite(blk.buf, 1, blk.valid_size, f);
         esp_gmf_rb_release_read(rb, &blk, 0);
         if (blk.is_last) {
+            write_run = false;
             break;
         }
     }

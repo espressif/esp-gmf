@@ -1,0 +1,46 @@
+# Batch build configuration for esp-gmf
+# Usage:
+#   python tools/ci/local_batch_build_apps.py -c tools/ci/local_batch_build_config.esp-gmf.yml
+#
+# All build outputs land under .batch_build/ (relative to project_path):
+#   .batch_build/logs/   - per-app logs + HTML report
+#   .batch_build/out/    - CMake build trees (removed on success unless keep_build: true)
+#   .batch_build/locks/  - flock files for parallel safety
+
+project_path: /home/maojianxin/workspace/esp-gmf
+
+# ESP-IDF repository: checkout -> ./install.sh -> . ./export.sh
+idf_path: /home/maojianxin/workspace/esp-idf
+
+# IDF versions to iterate (tag, branch, or release/vX.Y)
+idf_versions:
+  # - v5.5.3
+  - release/v6.1
+
+# Chip target and development board (board is optional; used for idf.py bmgr -b)
+targets:
+  # - chip: esp32s3
+  #   board: esp32_s3_korvo2_v3
+  # - chip: esp32
+  #   board: lyrat_mini_v1_1
+  - chip: esp32s31
+    board: esp32_s31_korvo1
+  # - chip: esp32p4
+  #   board: esp32_p4_function_ev
+
+# Directory name segments used to locate projects (exact path component match).
+# Use [] to skip a group entirely (do NOT just comment out the key).
+example_dir_names:
+  - example
+  - examples
+  - gmf_examples
+
+test_dir_names:
+  - test
+  - test_apps
+
+build:
+  # Parallel builds per (idf_version, chip, board) within each group (default: 1 = serial)
+  parallel_jobs: 4
+  # Uncomment to keep CMake build trees after a successful build (useful for debugging)
+  # keep_build: true

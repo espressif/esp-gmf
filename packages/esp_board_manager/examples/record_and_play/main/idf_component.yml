@@ -1,3 +1,0 @@
-dependencies:
-  espressif/esp_board_manager:
-    override_path: ../../../

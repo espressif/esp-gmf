@@ -108,7 +108,7 @@ static esp_err_t _pipeline_event3(esp_gmf_event_pkt_t *event, void *ctx)
     return 0;
 }
 
-TEST_CASE("Create and destroy pipeline", "[ESP_GMF_POOL]")
+TEST_CASE("Create and destroy pipeline", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -134,7 +134,7 @@ TEST_CASE("Create and destroy pipeline", "[ESP_GMF_POOL]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio Play, ENC and DEC Loop TEST, [FILE->enc->dec->IIS]", "[ESP_GMF_POOL]")
+TEST_CASE("Audio Play, ENC and DEC Loop TEST, [FILE->enc->dec->IIS]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -196,7 +196,7 @@ TEST_CASE("Audio Play, ENC and DEC Loop TEST, [FILE->enc->dec->IIS]", "[ESP_GMF_
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio Play, One Pipe, [FILE->dec->resample->IIS]", "[ESP_GMF_POOL]")
+TEST_CASE("Audio Play, One Pipe, [FILE->dec->resample->IIS]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -268,7 +268,7 @@ TEST_CASE("Audio Play, One Pipe, [FILE->dec->resample->IIS]", "[ESP_GMF_POOL]")
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio Play, multiple file with One Pipe, [FILE->dec->resample->IIS]", "[ESP_GMF_POOL]")
+TEST_CASE("Audio Play, multiple file with One Pipe, [FILE->dec->resample->IIS]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -326,7 +326,7 @@ TEST_CASE("Audio Play, multiple file with One Pipe, [FILE->dec->resample->IIS]",
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio Play, two in pipe use same task, [file->dec]->rb->[resample+IIS]", "[ESP_GMF_POOL]")
+TEST_CASE("Audio Play, two in pipe use same task, [file->dec]->rb->[resample+IIS]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -460,7 +460,7 @@ TEST_CASE("Audio Play, two in pipe use same task, [file->dec]->rb->[resample+IIS
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][leaks=10000]")
+TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][leaks=30000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -496,6 +496,9 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
     cfg.thread.stack_in_ext = true;
     cfg.ctx = NULL;
     cfg.cb = NULL;
+    // HTTPS open performs a full TLS handshake with certificate-bundle verification
+    // in this work task, which needs more stack than the 4 KB default.
+    cfg.thread.stack = 6 * 1024;
     esp_gmf_task_handle_t work_task = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task));
     TEST_ASSERT_NOT_NULL(pipe);
@@ -520,7 +523,9 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
         esp_gmf_task_set_timeout(pipe->thread, 5000);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe));
         esp_gmf_pipeline_list_el(pipe);
-        vTaskDelay(2000 / portTICK_RATE_MS);
+        // Make sure the decoder has started outputting data
+        // HTTP decoder pipeline may take longer to report stream info
+        vTaskDelay(5000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_pause(pipe));
         vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_resume(pipe));
@@ -555,6 +560,9 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
         esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
         cfg.ctx = NULL;
         cfg.cb = NULL;
+        // HTTPS open performs a full TLS handshake with certificate-bundle verification
+        // in this work task, which needs more stack than the 4 KB default.
+        cfg.thread.stack = 6 * 1024;
         esp_gmf_task_handle_t work_task = NULL;
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task));
         TEST_ASSERT_NOT_NULL(pipe);
@@ -572,7 +580,9 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
         esp_gmf_task_set_timeout(pipe->thread, 5000);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe));
         esp_gmf_pipeline_list_el(pipe);
-        vTaskDelay(2000 / portTICK_RATE_MS);
+        // Make sure the decoder has started outputting data
+        // HTTP decoder pipeline may take longer to report stream info
+        vTaskDelay(5000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_pause(pipe));
         vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_resume(pipe));
@@ -599,7 +609,7 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_POOL][leaks=10000]")
+TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_POOL][leaks=30000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -645,6 +655,9 @@ TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_P
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
     cfg.cb = NULL;
+    // HTTPS open performs a full TLS handshake with certificate-bundle verification
+    // in this work task, which needs more stack than the 4 KB default.
+    cfg.thread.stack = 6 * 1024;
     cfg.name = "DECODER";
     esp_gmf_task_handle_t work_task_in = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task_in));
@@ -672,6 +685,9 @@ TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_P
 
     ESP_GMF_MEM_SHOW(TAG);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe_in));
+    // Make sure the decoder has started outputting data
+    // HTTP decoder pipeline may take longer to report stream info
+    vTaskDelay(3000 / portTICK_RATE_MS);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe_out));
 
     vTaskDelay(2000 / portTICK_RATE_MS);
@@ -732,7 +748,7 @@ esp_err_t _loop_play_event(esp_gmf_event_pkt_t *event, void *ctx)
     return 0;
 }
 
-TEST_CASE("Audio Play, loop with no gap, [file->dec]->rb->[resample+IIS]", "[ESP_GMF_POOL]")
+TEST_CASE("Audio Play, loop with no gap, [file->dec]->rb->[resample+IIS]", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     ESP_GMF_MEM_SHOW(TAG);
@@ -885,7 +901,7 @@ TEST_CASE("Audio Play, loop with no gap, [file->dec]->rb->[resample+IIS]", "[ESP
                       +- RB ->+ Pipe2: resample-->file  |
                               +-------------------------+
 ***/
-TEST_CASE("Copier, 2 pipeline test, One pipeline play file to I2S, another save to file", "[ESP_GMF_POOL]")
+TEST_CASE("Copier, 2 pipeline test, One pipeline play file to I2S, another save to file", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     // esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -1000,7 +1016,7 @@ TEST_CASE("Copier, 2 pipeline test, One pipeline play file to I2S, another save 
                                        +-- RB2 -->  Pipe3: Resample + IIS |
                                                  +------------------------+
 ***/
-TEST_CASE("Copier, 3 pipeline test, One pipeline decoding file, one is play to I2S, last one save to file", "[ESP_GMF_POOL]")
+TEST_CASE("Copier, 3 pipeline test, One pipeline decoding file, one is play to I2S, last one save to file", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     // esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);

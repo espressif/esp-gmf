@@ -6,6 +6,7 @@
 
 #include "esp_log.h"
 #include "esp_board_manager_includes.h"
+#include "video_render_sys.h"
 
 static const char *TAG = "VIDEO_PLAYER_MAIN";
 
@@ -31,6 +32,7 @@ static esp_err_t board_init_optional_gpio_expander(void)
 void app_main(void)
 {
     board_init_optional_gpio_expander();
+    video_render_sys_reconfig_lcd();
     int ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD);
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed to initialize LCD");
@@ -42,4 +44,5 @@ void app_main(void)
         return;
     }
     video_player_run_demo();
+    ESP_LOGI(TAG, "Video player test finished");
 }

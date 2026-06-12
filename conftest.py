@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+import math
 import os
 import pathlib
 import re
@@ -18,10 +19,123 @@ from pytest_embedded.utils import to_list
 
 IDF_VERSION = os.environ.get('IDF_VERSION')
 PYTEST_ROOT_DIR = str(pathlib.Path(__file__).parent)
+DEFAULT_UNITY_CASE_TIMEOUT = 300.0
+UNITY_CASE_TIMEOUT_ENV = 'GMF_UNITY_CASE_TIMEOUT'
 logging.info(f'Pytest root dir: {PYTEST_ROOT_DIR}')
 
 
-SUPPORTED_TARGETS = ['esp32', 'esp32s2', 'esp32c3', 'esp32s3', 'esp32c2', 'esp32c6', 'esp32h2', 'esp32p4']
+def _parse_positive_timeout(value: object, source: str) -> float:
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f'{source} must be a positive number, got {value!r}')
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError(f'{source} must be a positive number, got {value!r}')
+    return timeout
+
+
+def resolve_unity_case_timeout(marker_timeout: Optional[object] = None) -> float:
+    env_timeout = os.environ.get(UNITY_CASE_TIMEOUT_ENV)
+    if env_timeout is not None:
+        return _parse_positive_timeout(env_timeout, UNITY_CASE_TIMEOUT_ENV)
+    if marker_timeout is not None:
+        return _parse_positive_timeout(marker_timeout, 'unity_case_timeout marker')
+    return DEFAULT_UNITY_CASE_TIMEOUT
+
+
+def _patch_pytest_embedded_unity_menu_parser() -> None:
+    """Tolerate repeated unity test menu banners from IDF.
+
+    IDF's unity test runner prints "Here's the test menu, pick your combo:"
+    eagerly once after boot (without waiting for input) and re-prints it on
+    every stray byte. On USB-Serial-JTAG boards the CDC OUT endpoint can
+    accumulate one or more line feeds across reset, so the dut output ends
+    up with the menu printed 2-3 times before "Enter test for running.".
+
+    pytest-embedded-idf <= 2.8 captures everything between the first banner
+    and "Enter test for running.", then raises NotImplementedError as soon
+    as it sees a banner line inside the captured block. We replace the
+    parser with a banner-tolerant version: the case/subcase regex stays the
+    same, known unity-menu noise is skipped, and duplicate (index, name)
+    entries from re-prints collapse to a single case. Genuine unknown lines
+    still raise so real parser regressions are not hidden.
+    """
+    try:
+        from pytest_embedded_idf import unity_tester as _uut
+    except ImportError:
+        return
+
+    case_re = re.compile(r'\((\d+)\)\s\"(.+)\"\s(\[.+\])+')
+    subcase_re = re.compile(r'\t\((\d+)\)\s\"(.+)\"')
+    benign_prefixes = (
+        "Here's the test menu, pick your combo:",
+        'Press ENTER to see the list of tests',
+    )
+    UnittestMenuCase = _uut.UnittestMenuCase
+
+    def _parse(s):
+        cases = []
+        for line in s.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            cm = case_re.match(line)
+            if cm is not None:
+                index, name, tag_block = cm.groups()
+                tags = re.findall(r'\[(.+?)\]', tag_block)
+                if 'multi_stage' in tags:
+                    _type = 'multi_stage'
+                    tags.remove('multi_stage')
+                elif 'multi_device' in tags:
+                    _type = 'multi_device'
+                    tags.remove('multi_device')
+                else:
+                    _type = 'normal'
+                keyword = []
+                if 'ignore' in tags:
+                    keyword.append('ignore')
+                    tags.remove('ignore')
+                elif 'disable' in tags:
+                    keyword = 'disable'
+                    tags.remove('disable')
+                attributes = {}
+                group = []
+                for tag in tags:
+                    if '=' in tag:
+                        k, v = tag.replace(' ', '').split('=')
+                        attributes[k] = v
+                    else:
+                        group.append(tag)
+                cases.append(UnittestMenuCase(
+                    index=int(index), name=name, type=_type,
+                    keywords=keyword, groups=group,
+                    attributes=attributes, subcases=[],
+                ))
+                continue
+            sm = subcase_re.match(line)
+            if sm is not None:
+                if cases:
+                    idx, name = sm.groups()
+                    cases[-1].subcases.append({'index': int(idx), 'name': name})
+                continue
+            if stripped.startswith(benign_prefixes):
+                continue
+            raise NotImplementedError('Unrecognized test case:', line)
+
+        # Collapse duplicates produced by re-printed menus; keep the last
+        # occurrence so the menu reflects the most recent unity print.
+        deduped = {}
+        for c in cases:
+            deduped[(c.index, c.name)] = c
+        return list(deduped.values())
+
+    _uut.IdfUnityDutMixin._parse_unity_menu_from_str = staticmethod(_parse)
+
+
+_patch_pytest_embedded_unity_menu_parser()
+
+
+SUPPORTED_TARGETS = ['esp32', 'esp32s2', 'esp32c3', 'esp32s3', 'esp32c2', 'esp32c6', 'esp32h2', 'esp32p4', 'esp32s31']
 PREVIEW_TARGETS: List[str] = []  # this PREVIEW_TARGETS excludes 'linux' target
 DEFAULT_SDKCONFIG = 'default'
 
@@ -34,6 +148,7 @@ TARGET_MARKERS = {
     'esp32c6': 'support esp32c6 target',
     'esp32h2': 'support esp32h2 target',
     'esp32p4': 'support esp32p4 target',
+    'esp32s31': 'support esp32s31 target',
     'linux': 'support linux target',
 }
 
@@ -211,6 +326,13 @@ def build_dir(
     sys.exit(1)
 
 
+@pytest.fixture
+def unity_case_timeout(request: FixtureRequest) -> float:
+    marker = request.node.get_closest_marker('unity_case_timeout')
+    marker_timeout = marker.args[0] if marker else None
+    return resolve_unity_case_timeout(marker_timeout)
+
+
 @pytest.fixture(autouse=True)
 @multi_dut_fixture
 def junit_properties(
@@ -333,8 +455,18 @@ class IdfPytestEmbedded:
             items[:] = [item for item in items if 'nightly_run' not in item_marker_names(item)]
 
         # filter all the test cases with target and skip_targets
-        items[:] = [
-            item
-            for item in items
-            if self.target in item_marker_names(item) and self.target not in item_skip_targets(item)
-        ]
+        filtered_items = []
+        for item in items:
+            if self.target in item_skip_targets(item):
+                continue
+
+            match_target = False
+            if self.target in item_marker_names(item):
+                match_target = True
+            elif hasattr(item, 'callspec') and self.target == item.callspec.params.get('target'):
+                match_target = True
+
+            if match_target:
+                filtered_items.append(item)
+
+        items[:] = filtered_items

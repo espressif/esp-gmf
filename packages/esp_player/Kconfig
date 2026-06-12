@@ -1,0 +1,50 @@
+menu "ESP Player"
+
+    config ESP_PLAYER_ENABLE_AUDIO
+        bool "Enable Audio Playback Path"
+        default y
+        help
+            When disabled, the esp_player component is built without the audio decoder/render
+            pipeline and without linking gmf_audio / esp_audio_render. Runtime APIs that
+            require audio (e.g. esp_player_set_av_mask with ESP_PLAYER_MASK_AUDIO) return
+            ESP_PLAYER_ERR_NOT_SUPPORT.
+
+            Finer codec/container trimming remains in the dependent components (e.g.
+            esp_audio_codec menuconfig), independent of this switch.
+
+    config ESP_PLAYER_ENABLE_VIDEO
+        bool "Enable Video Playback Path"
+        default y
+        help
+            When disabled, the esp_player component is built without the video decoder/render
+            pipeline and without linking gmf_video / esp_video_codec / esp_video_render.
+
+    comment "At least one of the two options above must stay enabled for a usable player."
+
+    menu "Input IO sources"
+        config ESP_PLAYER_ENABLE_FILE_IO
+            bool "Enable file:// input IO"
+            default y
+            help
+                When disabled, file:// and bare VFS paths are rejected at esp_player_set_url()
+                with ESP_PLAYER_ERR_INVALID_ARG.
+
+        config ESP_PLAYER_ENABLE_HTTP_IO
+            bool "Enable http(s):// input IO"
+            default y
+            help
+                When disabled, http:// and https:// URLs (non-HLS) are rejected at
+                esp_player_set_url() with ESP_PLAYER_ERR_INVALID_ARG.
+
+        config ESP_PLAYER_ENABLE_HLS_IO
+            bool "Enable HLS (.m3u8) input IO"
+            default y
+            select ESP_PLAYER_ENABLE_HTTP_IO
+            help
+                When enabled, also enables http(s):// input IO (HLS fetches segments over
+                HTTP). When disabled, http(s) URLs ending with .m3u8 fall back to plain
+                HTTP if HTTP IO is enabled; esp_hls_stream is not linked. fill:// /
+                block:// URLs are unaffected.
+    endmenu
+
+endmenu

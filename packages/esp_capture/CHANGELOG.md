@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- Replaced the private data queue implementation with the shared `esp_gmf_data_queue` from `gmf_core`
+
+### Bug Fixes
+
+- Fixed video bypass release too early in restart case
+- Fixed UT fails due to `esp32s31` related macro not enabled
+
 ## v0.8.4
 
 ### Features

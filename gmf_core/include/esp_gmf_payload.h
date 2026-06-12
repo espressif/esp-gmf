@@ -100,6 +100,26 @@ esp_gmf_err_t esp_gmf_payload_realloc_buf(esp_gmf_payload_t *instance, uint32_t 
 esp_gmf_err_t esp_gmf_payload_realloc_aligned_buf(esp_gmf_payload_t *instance, uint8_t align, uint32_t new_length);
 
 /**
+ * @brief  Reallocate the payload buffer with separate address and length alignment
+ *
+ * @note  Unlike `realloc`, the original valid data in the buffer is not copied to the new buffer.
+ *        `addr_align` 0 substitutes `esp_gmf_oal_get_spiram_cache_align()`; use `1` for natural heap alignment
+ *        (`calloc`). When `size_align` is greater than `1`, it must be a power of two; the allocated byte length is
+ *        rounded up to a multiple of `size_align`. Use `0` or `1` for `size_align` to keep `new_length` unchanged.
+ *
+ * @param[in]  instance    Payload instance to reallocate the buffer for
+ * @param[in]  addr_align  Byte alignment of the buffer base address
+ * @param[in]  size_align  Byte alignment used to round up the requested buffer length
+ * @param[in]  new_length  Minimum usable length for the payload buffer
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_MEMORY_LACK  Not enough memory to reallocate the buffer
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid instance, new_length is zero, or invalid alignment
+ */
+esp_gmf_err_t esp_gmf_payload_realloc_buffer_with_separate_alignment(esp_gmf_payload_t *instance, uint8_t addr_align, uint8_t size_align, uint32_t new_length);
+
+/**
  * @brief  Set the done flag for a payload instance
  *
  * @param[in]  instance  Payload instance to set as done

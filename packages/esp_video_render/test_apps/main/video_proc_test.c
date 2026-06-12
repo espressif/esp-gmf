@@ -112,7 +112,7 @@ static void frame_sink_deinit(frame_sink_t *sink)
 
 static void frame_sink_store(frame_sink_t *sink, const esp_video_render_frame_t *frame)
 {
-    uint8_t *copy = (uint8_t *)video_render_malloc_align(frame->size, 64);
+    uint8_t *copy = (uint8_t *)video_render_malloc_align(frame->size, video_render_get_default_alignment());
     if (copy == NULL) {
         return;
     }
@@ -139,7 +139,7 @@ static void fb_sink_init(fb_sink_t *sink, const esp_video_render_frame_info_t *i
     frame_sink_init(&sink->sink);
     sink->info = *info;
     sink->size = video_render_get_image_size(info);
-    sink->buffer = (uint8_t *)video_render_malloc_align(sink->size, 64);
+    sink->buffer = (uint8_t *)video_render_malloc_align(sink->size, video_render_get_default_alignment());
 }
 
 static void fb_sink_deinit(fb_sink_t *sink)

@@ -8,7 +8,7 @@
 
 #include <string.h>
 #include "esp_capture.h"
-#include "data_queue.h"
+#include "esp_gmf_data_queue.h"
 #include "esp_muxer.h"
 #include "msg_q.h"
 #include "mp4_muxer.h"
@@ -20,22 +20,22 @@
 #include "capture_perf_mon.h"
 #include "esp_log.h"
 
-#define TAG "CAPTURE_MUXER"
+#define TAG  "CAPTURE_MUXER"
 
-#define SLICE_DURATION           (300000)
-#define WRITE_CACHE_SIZE         (16 * 1024)
-#define MUXER_DEFAULT_POOL_SIZE  (100 * 1024)
-#define MIN_AUDIO_FRAME_DURATION (10)
-#define MIN_VIDEO_FRAME_DURATION (30)
-#define EVENT_GROUP_MUXER_EXITED (4)
-#define MUXER_DEFAULT_Q_NUM      (10)
-#define INVALID_MUXER_TYPE       (esp_muxer_type_t) - 1
-#define DEFAULT_CACHE_FRAME_NUM  (3)
-#define MAX(a, b)                ((a) > (b) ? (a) : (b))
+#define SLICE_DURATION            (300000)
+#define WRITE_CACHE_SIZE          (16 * 1024)
+#define MUXER_DEFAULT_POOL_SIZE   (100 * 1024)
+#define MIN_AUDIO_FRAME_DURATION  (10)
+#define MIN_VIDEO_FRAME_DURATION  (30)
+#define EVENT_GROUP_MUXER_EXITED  (4)
+#define MUXER_DEFAULT_Q_NUM       (10)
+#define INVALID_MUXER_TYPE        (esp_muxer_type_t) - 1
+#define DEFAULT_CACHE_FRAME_NUM   (3)
+#define MAX(a, b)                 ((a) > (b) ? (a) : (b))
 
 // Here hacking to use stream type to indicate start/stop command
-#define START_CMD_STREAM_TYPE (esp_capture_stream_type_t)0x10
-#define STOP_CMD_STREAM_TYPE  (esp_capture_stream_type_t)0x11
+#define START_CMD_STREAM_TYPE  (esp_capture_stream_type_t)0x10
+#define STOP_CMD_STREAM_TYPE   (esp_capture_stream_type_t)0x11
 
 typedef struct capture_muxer_path_t capture_muxer_path_t;
 
@@ -58,7 +58,7 @@ struct capture_muxer_path_t {
     capture_event_grp_handle_t  event_grp;
     msg_q_handle_t              muxer_q;
     esp_muxer_handle_t          muxer;
-    data_q_t                   *muxer_data_q;
+    esp_gmf_data_queue_t       *muxer_data_q;
 };
 
 static esp_muxer_audio_codec_t get_muxer_acodec(esp_capture_format_id_t codec_type)
@@ -133,17 +133,18 @@ static int muxer_data_reached(esp_muxer_data_info_t *muxer_data, void *ctx)
         }
         // Add data to queue
         int size = sizeof(uint32_t) + muxer_data->size;
-        void *data = data_q_get_buffer(path->muxer_data_q, size);
-        if (data) {
+        void *data = NULL;
+        if (esp_gmf_data_queue_acquire_write(path->muxer_data_q, &data, size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER) == 0 &&
+            data != NULL) {
             *(uint32_t *)data = path->muxer_cur_pts;
             memcpy(data + sizeof(uint32_t), muxer_data->data, muxer_data->size);
-            data_q_send_buffer(path->muxer_data_q, size);
+            esp_gmf_data_queue_release_write(path->muxer_data_q, size);
         }
     }
     return 0;
 }
 
-static int muxer_url_hdlr(esp_muxer_slice_info_t *info, void* ctx)
+static int muxer_url_hdlr(esp_muxer_slice_info_t *info, void *ctx)
 {
     capture_muxer_path_t *path = (capture_muxer_path_t *)ctx;
     return path->muxer_cfg.base_config->url_pattern_ex(info, path->muxer_cfg.base_config->ctx);
@@ -162,7 +163,7 @@ esp_capture_err_t capture_muxer_open(capture_path_handle_t path, esp_capture_mux
 {
     capture_muxer_path_t *muxer_path = NULL;
     if (*h) {
-        muxer_path = (capture_muxer_path_t *) *h;
+        muxer_path = (capture_muxer_path_t *)*h;
     } else {
         muxer_path = (capture_muxer_path_t *)capture_calloc(1, sizeof(capture_muxer_path_t));
     }
@@ -360,7 +361,7 @@ esp_capture_err_t capture_muxer_prepare(capture_muxer_path_handle_t muxer_path)
     // Create muxer output queue if user want to fetch muxer data also
     if (muxer_path->enable_streaming && (muxer_path->muxer_cache_size > 0)) {
         if (muxer_path->muxer_data_q == NULL) {
-            muxer_path->muxer_data_q = data_q_init(muxer_path->muxer_cache_size);
+            muxer_path->muxer_data_q = esp_gmf_data_queue_create(muxer_path->muxer_cache_size);
             if (muxer_path->muxer_data_q == NULL) {
                 ESP_LOGE(TAG, "Fail to create output queue for muxer");
                 return ESP_CAPTURE_ERR_NO_MEM;
@@ -441,10 +442,11 @@ esp_capture_err_t capture_muxer_acquire_frame(capture_muxer_path_handle_t muxer_
     }
     int size = 0;
     void *data = NULL;
+    bool have_data = false;
     if (no_wait == false) {
-        data_q_read_lock(muxer_path->muxer_data_q, &data, &size);
-    } else if (data_q_have_data(muxer_path->muxer_data_q)) {
-        data_q_read_lock(muxer_path->muxer_data_q, &data, &size);
+        esp_gmf_data_queue_acquire_read(muxer_path->muxer_data_q, &data, &size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER);
+    } else if (esp_gmf_data_queue_have_data(muxer_path->muxer_data_q, &have_data) == 0 && have_data) {
+        esp_gmf_data_queue_acquire_read(muxer_path->muxer_data_q, &data, &size, ESP_GMF_DATA_QUEUE_NO_WAIT);
     }
     frame->size = 0;
     if (data) {
@@ -462,7 +464,7 @@ esp_capture_err_t capture_muxer_release_frame(capture_muxer_path_handle_t muxer_
     if (muxer_path->started == false || muxer_path->muxer_data_q == NULL) {
         return ret;
     }
-    data_q_read_unlock(muxer_path->muxer_data_q);
+    esp_gmf_data_queue_release_read(muxer_path->muxer_data_q);
     return ESP_CAPTURE_ERR_OK;
 }
 
@@ -471,7 +473,7 @@ esp_capture_err_t capture_muxer_stop(capture_muxer_path_handle_t muxer_path)
     // Wait for thread to quit
     if (muxer_path->muxing) {
         if (muxer_path->muxer_data_q) {
-            data_q_consume_all(muxer_path->muxer_data_q);
+            esp_gmf_data_queue_consume_all(muxer_path->muxer_data_q);
         }
         esp_capture_stream_frame_t frame = {0};
         frame.stream_type = STOP_CMD_STREAM_TYPE;
@@ -502,7 +504,7 @@ esp_capture_err_t capture_muxer_close(capture_muxer_path_handle_t muxer_path)
     }
     // Start to destroy queue
     if (muxer_path->muxer_data_q) {
-        data_q_deinit(muxer_path->muxer_data_q);
+        esp_gmf_data_queue_destroy(muxer_path->muxer_data_q);
         muxer_path->muxer_data_q = NULL;
     }
     if (muxer_path->event_grp) {

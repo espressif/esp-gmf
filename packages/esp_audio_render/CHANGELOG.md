@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Switched the `esp_board_manager` dependency in examples from local `override_path` to the standalone component at [espressif/esp-board-manager](https://github.com/espressif/esp-board-manager); pinned to `^0.5.11`.
+- Removed the example-local `idf_ext.py` board-manager forwarders; the recommended entry point is now [`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/) (`pip install esp-bmgr-assist` then `idf.py bmgr ...`).
+- Updated example READMEs accordingly.
+- Updated `audio_render` example `on_pre_run` to match the new `esp_asp_prev_func_t` signature in `esp_audio_simple_player`
+
 ## v0.8.1
 
 ### Bug Fixes

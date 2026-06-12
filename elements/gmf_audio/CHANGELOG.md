@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added `aud_muxer` element
+- Added `aud_howl` element
+- Added `aud_asrc` element
+- Added support for `audio_dec` element adopting input payload PTS
+
+### Bug Fixes
+
+- Added fine-grained mutex protection for `aud_enc` element to clear codec-specific information on close
+- Fixed ASRC element output sample count calculation to honor payload buffer address and size alignment
+
 ## v0.8.3
 
 ### Features

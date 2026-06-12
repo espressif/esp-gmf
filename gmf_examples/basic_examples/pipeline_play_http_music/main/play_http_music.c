@@ -122,6 +122,9 @@ void app_main(void)
     ESP_LOGI(TAG, "[ 5 ] Create gmf task, bind task to pipeline and load linked element jobs to the bind task");
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.name = "pipeline_task";
+    // Default 4 KiB stack overflows during the https TLS handshake
+    // (mbedtls_mpi_div_mpi). Bump to 8 KiB to give mbedtls headroom.
+    cfg.thread.stack = 8 * 1024;
     ret = esp_gmf_task_init(&cfg, &work_task);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto _resources_destroy, "Failed to create pipeline task");
     esp_gmf_pipeline_bind_task(pipe, work_task);

@@ -72,6 +72,7 @@ typedef struct {
     bool                      is_end;
     bool                      is_first_open;
     bool                      is_do_open_set;
+    bool                      is_do_proc_set;
     int32_t                   cfg_task_prio;
 } audio_el_res_t;
 
@@ -95,9 +96,13 @@ void ch_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx);
 
 void rate_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx);
 
+void asrc_config_callback(esp_gmf_element_handle_t self, void *ctx);
+
 void drc_config_callback(esp_gmf_element_handle_t self, void *ctx);
 
 void mbc_config_callback(esp_gmf_element_handle_t self, void *ctx);
+
+void muxer_config_callback(esp_gmf_element_handle_t self, void *ctx);
 
 #ifdef __cplusplus
 }

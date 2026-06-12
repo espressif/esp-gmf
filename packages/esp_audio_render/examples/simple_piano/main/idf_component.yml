@@ -10,4 +10,3 @@ dependencies:
     override_path: ../../../../esp_audio_render
   espressif/esp_board_manager:
     version: "*"
-    override_path: ../../../../esp_board_manager

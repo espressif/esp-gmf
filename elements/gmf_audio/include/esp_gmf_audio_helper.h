@@ -16,6 +16,14 @@ extern "C" {
 #endif  /* __cplusplus */
 
 /**
+ * @brief  Codec-specific binary data for a given encoded format
+ */
+typedef struct {
+    void     *codec_spec_info; /*!< Codec specified information */
+    uint32_t  spec_info_len;   /*!< Length of codec specified information */
+} esp_gmf_audio_helper_spec_info_t;
+
+/**
  * @brief  List of audio container types supported by decoder detection
  */
 static const int esp_gmf_audio_containers[] = {

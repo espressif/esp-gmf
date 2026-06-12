@@ -545,7 +545,7 @@ static bool get_ppa_blend_clr_mode(uint32_t codec, bool is_fg, ppa_blend_fmt_cfg
             }
             cfg->blend_cm = PPA_BLEND_COLOR_MODE_YUV420;
             return true;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
         case ESP_FOURCC_YUYV:
             if (is_fg) {
                 return false;
@@ -570,7 +570,7 @@ static bool get_ppa_blend_clr_mode(uint32_t codec, bool is_fg, ppa_blend_fmt_cfg
             }
             cfg->blend_cm = PPA_BLEND_COLOR_MODE_YUV422_VYUY;
             return true;
-#endif  /* ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0) */
+#endif  /* ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3) */
         default:
             return false;
     }

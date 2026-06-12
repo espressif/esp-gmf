@@ -12,6 +12,7 @@
 #include "esp_gmf_ch_cvt.h"
 #include "esp_gmf_bit_cvt.h"
 #include "esp_gmf_rate_cvt.h"
+#include "esp_gmf_asrc.h"
 #include "esp_gmf_sonic.h"
 #include "esp_gmf_alc.h"
 #include "esp_gmf_eq.h"
@@ -21,6 +22,7 @@
 #include "esp_gmf_deinterleave.h"
 #include "esp_gmf_drc.h"
 #include "esp_gmf_mbc.h"
+#include "esp_gmf_howl.h"
 
 static const char *TAG = "GMF_SETUP_AUD_EFFECTS";
 
@@ -202,6 +204,27 @@ static esp_gmf_err_t gmf_loader_setup_default_rate_cvt(esp_gmf_pool_handle_t poo
 }
 #endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_RATE_CVT */
 
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_ASRC
+static esp_gmf_err_t gmf_loader_setup_default_asrc(esp_gmf_pool_handle_t pool)
+{
+    ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_element_handle_t hd = NULL;
+    esp_asrc_cfg_t asrc_cfg = DEFAULT_ESP_GMF_ASRC_CONFIG();
+    asrc_cfg.dest_info.sample_rate     = CONFIG_GMF_AUDIO_EFFECT_ASRC_DEST_RATE;
+    asrc_cfg.dest_info.channel         = CONFIG_GMF_AUDIO_EFFECT_ASRC_DEST_CH;
+    asrc_cfg.dest_info.bits_per_sample = CONFIG_GMF_AUDIO_EFFECT_ASRC_DEST_BITS;
+    asrc_cfg.complexity                = CONFIG_GMF_AUDIO_EFFECT_ASRC_COMPLEXITY;
+    asrc_cfg.perf_type                 = (esp_asrc_perf_type_t)CONFIG_GMF_AUDIO_EFFECT_ASRC_PERF_TYPE;
+    asrc_cfg.timeout_ms                = CONFIG_GMF_AUDIO_EFFECT_ASRC_TIMEOUT_MS;
+    ret                                = esp_gmf_asrc_init(&asrc_cfg, &hd);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init audio ASRC");
+    ret = esp_gmf_pool_register_element(pool, hd, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_element_deinit(hd); return ret;}, "Failed to register element in pool");
+    return ret;
+}
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_ASRC */
+
 #ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_FADE
 static esp_gmf_err_t gmf_loader_setup_default_fade(esp_gmf_pool_handle_t pool)
 {
@@ -362,6 +385,30 @@ static esp_gmf_err_t gmf_loader_setup_default_mbc(esp_gmf_pool_handle_t pool)
 }
 #endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_MBC */
 
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_HOWL
+static esp_gmf_err_t gmf_loader_setup_default_howl(esp_gmf_pool_handle_t pool)
+{
+    ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_element_handle_t hd = NULL;
+    esp_ae_howl_cfg_t howl_cfg = DEFAULT_ESP_GMF_HOWL_CONFIG();
+    howl_cfg.papr_th = (float)CONFIG_GMF_AUDIO_EFFECT_HOWL_PAPR_X10 / 10.0f;
+    howl_cfg.phpr_th = (float)CONFIG_GMF_AUDIO_EFFECT_HOWL_PHPR_X10 / 10.0f;
+    howl_cfg.pnpr_th = (float)CONFIG_GMF_AUDIO_EFFECT_HOWL_PNPR_X10 / 10.0f;
+    howl_cfg.imsd_th = (float)CONFIG_GMF_AUDIO_EFFECT_HOWL_IMSD_X10 / 10.0f;
+#if CONFIG_GMF_AUDIO_EFFECT_HOWL_ENABLE_IMSD
+    howl_cfg.enable_imsd = true;
+#else
+    howl_cfg.enable_imsd = false;
+#endif
+    ret = esp_gmf_howl_init(&howl_cfg, &hd);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init audio HOWL");
+    ret = esp_gmf_pool_register_element(pool, hd, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_element_deinit(hd); return ret;}, "Failed to register element in pool");
+    return ret;
+}
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_HOWL */
+
 esp_gmf_err_t gmf_loader_setup_audio_effects_default(esp_gmf_pool_handle_t pool)
 {
     ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
@@ -391,6 +438,11 @@ esp_gmf_err_t gmf_loader_setup_audio_effects_default(esp_gmf_pool_handle_t pool)
     ret = gmf_loader_setup_default_rate_cvt(pool);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register rate cvt");
 #endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_RATE_CVT */
+
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_ASRC
+    ret = gmf_loader_setup_default_asrc(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register ASRC");
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_ASRC */
 
 #ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_FADE
     ret = gmf_loader_setup_default_fade(pool);
@@ -426,6 +478,11 @@ esp_gmf_err_t gmf_loader_setup_audio_effects_default(esp_gmf_pool_handle_t pool)
     ret = gmf_loader_setup_default_mbc(pool);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register mbc");
 #endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_MBC */
+
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_HOWL
+    ret = gmf_loader_setup_default_howl(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register howl");
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_HOWL */
 
     return ret;
 }

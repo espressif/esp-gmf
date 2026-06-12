@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added configurable audio muxer support in `gmf_loader_setup_audio_muxer`
+- Added configurable audio howl support in `gmf_loader_setup_audio_howl`
+- Added configurable audio asrc support in `gmf_loader_setup_audio_asrc`
+- Added menuconfig and default pool registration for standalone AI audio elements: VAD (`ai_vad`), NS (`ai_ns`), and DOA (`ai_doa`)
+
 ## v0.8.3
 
 ### Features
@@ -12,6 +21,7 @@
 ### Features
 
 - Added `G722` encoder/decoder and `OGG` decoder configuration support in `gmf_loader_setup_audio_codec`
+- Added HOWL (howling suppression) support: `CONFIG_GMF_AUDIO_EFFECT_INIT_HOWL` and related options in `kconfig.audio_effects`, plus `gmf_loader_setup_default_howl` registration in `gmf_loader_setup_audio_effects_default`
 
 ## v0.8.1
 

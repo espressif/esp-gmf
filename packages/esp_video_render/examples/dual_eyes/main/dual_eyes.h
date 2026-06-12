@@ -27,6 +27,12 @@ typedef struct {
 } video_render_info_t;
 
 /**
+ * @brief  Reconfiguration for LCD
+ *         Reconfiguration LCD to use 2 framebuffer to improve rendering performance
+ */
+void video_render_reconfig_lcd(void);
+
+/**
  * @brief  Enable or disable LVGL backend usage
  *
  * @param[in]  use  True to use LVGL backend, false to use default backend

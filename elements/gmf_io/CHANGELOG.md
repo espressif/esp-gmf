@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added default certificate bundle support for HTTP IO when certificate bundle is enabled
+
 ## v0.8.1
 
 ### Bug Fixes

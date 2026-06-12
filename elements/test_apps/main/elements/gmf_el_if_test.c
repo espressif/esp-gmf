@@ -14,6 +14,7 @@
 #include "esp_gmf_fade.h"
 #include "esp_gmf_mixer.h"
 #include "esp_gmf_rate_cvt.h"
+#include "esp_gmf_asrc.h"
 #include "esp_gmf_drc.h"
 #include "esp_gmf_mbc.h"
 #include "esp_gmf_sonic.h"
@@ -21,7 +22,8 @@
 #include "esp_gmf_deinterleave.h"
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_audio_dec.h"
-
+#include "esp_gmf_audio_muxer.h"
+#include "esp_gmf_howl.h"
 #include "esp_gmf_io_embed_flash.h"
 #include "esp_gmf_io_http.h"
 #include "esp_gmf_io_file.h"
@@ -378,6 +380,27 @@ void test_esp_gmf_rate_cvt_if()
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
+void test_esp_gmf_asrc_if()
+{
+    esp_asrc_cfg_t config = DEFAULT_ESP_GMF_ASRC_CONFIG();
+    esp_gmf_obj_handle_t handle;
+    uint32_t sample_rate = 48000;
+    uint8_t dest_ch = 1;
+    uint8_t dest_bits = 16;
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_init(&config, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_rate(NULL, sample_rate), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_rate(handle, sample_rate), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_ch(NULL, dest_ch), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_ch(handle, dest_ch), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_bits(NULL, dest_bits), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_set_dest_bits(handle, dest_bits), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_asrc_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+}
+
 void test_esp_gmf_sonic_if()
 {
     esp_ae_sonic_cfg_t config = DEFAULT_ESP_GMF_SONIC_CONFIG();
@@ -459,6 +482,21 @@ void test_esp_gmf_enc_if()
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
+void test_esp_gmf_howl_if()
+{
+    esp_ae_howl_cfg_t config = DEFAULT_ESP_GMF_HOWL_CONFIG();
+    esp_gmf_obj_handle_t handle;
+    // Initialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_howl_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_howl_init(&config, &handle), ESP_GMF_ERR_OK);
+    // Deinitialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    // Test for config is NULL, will create a default config
+    TEST_ASSERT_EQUAL(esp_gmf_howl_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+}
+
 void test_esp_gmf_io_embed_flash_if()
 {
     embed_flash_io_cfg_t config = EMBED_FLASH_CFG_DEFAULT();
@@ -536,7 +574,33 @@ void test_esp_gmf_copier_if()
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
-TEST_CASE("Test element if check", "[ESP_GMF_IF_CHECK]")
+void test_esp_gmf_audio_muxer_if()
+{
+    esp_gmf_audio_muxer_cfg_t config = {
+        .muxer_type = ESP_MUXER_TYPE_TS,
+        .output_type = ESP_GMF_AUDIO_MUXER_OUTPUT_STREAMING,
+        .url_pattern = NULL,
+        .url_ctx = NULL,
+        .slice_duration = 600000,
+        .codec = ESP_MUXER_ADEC_AAC,
+    };
+    esp_gmf_obj_handle_t handle;
+    // Initialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_audio_muxer_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_audio_muxer_init(NULL, &handle), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_audio_muxer_init(&config, &handle), ESP_GMF_ERR_OK);
+    // Verify configuration after init
+    esp_gmf_audio_muxer_cfg_t *cfg = OBJ_GET_CFG(handle);
+    TEST_ASSERT_NOT_EQUAL(NULL, cfg);
+    TEST_ASSERT_EQUAL(cfg->muxer_type, ESP_MUXER_TYPE_TS);
+    TEST_ASSERT_EQUAL(cfg->output_type, ESP_GMF_AUDIO_MUXER_OUTPUT_STREAMING);
+    TEST_ASSERT_EQUAL(cfg->codec, ESP_MUXER_ADEC_AAC);
+    TEST_ASSERT_EQUAL(cfg->slice_duration, 600000);
+    // Deinitialize function test
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+}
+
+TEST_CASE("Test element if check", "[ESP_GMF_IF_CHECK][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     test_esp_gmf_alc_if();
@@ -550,12 +614,15 @@ TEST_CASE("Test element if check", "[ESP_GMF_IF_CHECK]")
     test_esp_gmf_interleave_if();
     test_esp_gmf_mixer_if();
     test_esp_gmf_rate_cvt_if();
+    test_esp_gmf_asrc_if();
     test_esp_gmf_sonic_if();
     test_esp_gmf_dec_if();
     test_esp_gmf_enc_if();
+    test_esp_gmf_howl_if();
     test_esp_gmf_io_embed_flash_if();
     test_esp_gmf_io_file_if();
     test_esp_gmf_io_http_if();
     test_esp_gmf_io_i2s_if();
     test_esp_gmf_copier_if();
+    test_esp_gmf_audio_muxer_if();
 }

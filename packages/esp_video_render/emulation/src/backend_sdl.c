@@ -138,7 +138,7 @@ static esp_video_render_err_t sdl_backend_init(void *cfg, int cfg_size, esp_vide
         bk->fb.info.width = c->width;
         bk->fb.info.height = c->height;
         bk->fb.size = (uint32_t)(c->width * c->height * 2);  // RGB565
-        bk->fb.data = (uint8_t *)video_render_malloc_align(bk->fb.size, 64);
+        bk->fb.data = (uint8_t *)video_render_malloc_align(bk->fb.size, video_render_get_default_alignment());
         if (!bk->fb.data) {
             break;
         }

@@ -20,3 +20,10 @@ CONFIG_GMF_IO_FILE_READ_CACHE_SIZE=65536
 CONFIG_SLAVE_IDF_TARGET_ESP32C6=y
 CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y
 CONFIG_EXAMPLE_CONNECT_WIFI=y
+
+#
+# Route console over USB-Serial-JTAG so pytest-embedded's writes to /dev/ttyACM0
+# reach the application's CLI (otherwise dut.write('help'/'tone'/'exit') silently
+# hits the CDC FIFO and times out with SerialTimeoutException).
+#
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

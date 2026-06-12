@@ -7,7 +7,10 @@ import os
 
 from pytest_embedded import Dut
 
-@pytest.mark.esp32s3
+@pytest.mark.parametrize('target', ['esp32s3', 'esp32s31'], indirect=True)
 @pytest.mark.temp_skip_ci(targets=['esp32', 'esp32s3', 'esp32p4'], reason='No running in CI')
-def test_audio_capture(dut: Dut)-> None:
-    dut.expect(r'All case finished', timeout=60)
+def test_audio_capture(dut: Dut) -> None:
+    try:
+        dut.expect(r'All case finished', timeout=60)
+    except StopIteration as e:
+        raise RuntimeError('DUT serial stream ended unexpectedly') from e

@@ -1,0 +1,64 @@
+esp_gmf_afe_manager.h:line: warning: missing argument after \enum.
+esp_gmf_job.h:line: warning: Compound esp_gmf_job_node is not documented.
+esp_gmf_job.h:line: warning: Compound esp_gmf_job_stack_t is not documented.
+esp_gmf_io.h:line: warning: Member prev_close)(esp_gmf_io_handle_t handle) (variable) of struct esp_gmf_io_ is not documented.
+esp_gmf_io.h:line: warning: Member io_cfg (variable) of struct esp_gmf_io_ is not documented.
+esp_gmf_job.h:line: warning: Member next (variable) of struct esp_gmf_job_node is not documented.
+esp_gmf_job.h:line: warning: Member node_addr (variable) of struct esp_gmf_job_node is not documented.
+esp_gmf_job.h:line: warning: Member top (variable) of struct esp_gmf_job_stack_t is not documented.
+esp_gmf_job.h:line: warning: Compound esp_gmf_job_stack_t is not documented.
+esp_gmf_job.h:line: warning: Compound esp_gmf_job_node is not documented.
+esp_gmf_io.h:line: warning: Member prev_close)(esp_gmf_io_handle_t handle) (variable) of class esp_gmf_io_ is not documented.
+esp_gmf_io.h:line: warning: Member io_cfg (variable) of class esp_gmf_io_ is not documented.
+esp_gmf_job.h:line: warning: Member next (variable) of class esp_gmf_job_node is not documented.
+esp_gmf_job.h:line: warning: Member node_addr (variable) of class esp_gmf_job_node is not documented.
+esp_gmf_job.h:line: warning: Member top (variable) of class esp_gmf_job_stack_t is not documented.
+esp_gmf_alc.h:line: warning: argument 'ch_idx' of command @param is not found in the argument list of esp_gmf_alc_get_gain(esp_gmf_element_handle_t handle, uint8_t idx, int8_t *gain)
+esp_gmf_alc.h:line: warning: The following parameter of esp_gmf_alc_get_gain(esp_gmf_element_handle_t handle, uint8_t idx, int8_t *gain) is not documented:
+  parameter 'idx'
+esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_dest_rate(esp_gmf_element_handle_t self, uint32_t dest_rate)
+esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_dest_rate(esp_gmf_element_handle_t self, uint32_t dest_rate) is not documented:
+  parameter 'self'
+esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_dest_bits(esp_gmf_element_handle_t self, uint8_t dest_bits)
+esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_dest_bits(esp_gmf_element_handle_t self, uint8_t dest_bits) is not documented:
+  parameter 'self'
+esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_dest_ch(esp_gmf_element_handle_t self, uint8_t dest_ch)
+esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_dest_ch(esp_gmf_element_handle_t self, uint8_t dest_ch) is not documented:
+  parameter 'self'
+esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_speed(esp_gmf_element_handle_t self, float speed)
+esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_speed(esp_gmf_element_handle_t self, float speed) is not documented:
+  parameter 'self'
+esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_pitch(esp_gmf_element_handle_t self, float pitch)
+esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_pitch(esp_gmf_element_handle_t self, float pitch) is not documented:
+  parameter 'self'
+esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_alc_channel_gain(esp_gmf_element_handle_t self, uint8_t ch_idx, float gain_db)
+esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_alc_channel_gain(esp_gmf_element_handle_t self, uint8_t ch_idx, float gain_db) is not documented:
+  parameter 'self'
+esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_fade(esp_gmf_element_handle_t self, bool is_fade_in)
+esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_fade(esp_gmf_element_handle_t self, bool is_fade_in) is not documented:
+  parameter 'self'
+esp_gmf_drc.h:line: warning: unable to resolve reference to 'esp_ae_drc_cfg_t' for \ref command
+esp_gmf_fade.h:line: warning: unable to resolve reference to 'esp_gmf_fade_reset' for \ref command
+esp_gmf_rate_cvt.h:line: warning: argument 'dest_ch' of command @param is not found in the argument list of esp_gmf_rate_cvt_set_dest_rate(esp_gmf_element_handle_t handle, uint32_t dest_rate)
+esp_gmf_rate_cvt.h:line: warning: The following parameter of esp_gmf_rate_cvt_set_dest_rate(esp_gmf_element_handle_t handle, uint32_t dest_rate) is not documented:
+  parameter 'dest_rate'
+esp_gmf_video_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_video_param_overlay_enable(esp_gmf_element_handle_t self, bool enable)
+esp_gmf_video_param.h:line: warning: The following parameter of esp_gmf_video_param_overlay_enable(esp_gmf_element_handle_t self, bool enable) is not documented:
+  parameter 'self'
+esp_gmf_video_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_video_param_set_overlay_port(esp_gmf_element_handle_t self, void *port)
+esp_gmf_video_param.h:line: warning: The following parameter of esp_gmf_video_param_set_overlay_port(esp_gmf_element_handle_t self, void *port) is not documented:
+  parameter 'self'
+esp_gmf_video_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_video_param_set_overlay_rgn(esp_gmf_element_handle_t self, esp_gmf_overlay_rgn_info_t *rgn)
+esp_gmf_video_param.h:line: warning: The following parameter of esp_gmf_video_param_set_overlay_rgn(esp_gmf_element_handle_t self, esp_gmf_overlay_rgn_info_t *rgn) is not documented:
+  parameter 'self'
+esp_gmf_video_param.h:line: warning: argument 'src_fmts' of command @param is not found in the argument list of esp_gmf_video_param_get_dst_fmts_by_codec(esp_gmf_element_handle_t handle, uint32_t src_codec, const uint32_t **dst_fmts, uint8_t *dst_fmts_num)
+esp_gmf_video_param.h:line: warning: argument 'src_fmts_num' of command @param is not found in the argument list of esp_gmf_video_param_get_dst_fmts_by_codec(esp_gmf_element_handle_t handle, uint32_t src_codec, const uint32_t **dst_fmts, uint8_t *dst_fmts_num)
+esp_gmf_video_param.h:line: warning: The following parameters of esp_gmf_video_param_get_dst_fmts_by_codec(esp_gmf_element_handle_t handle, uint32_t src_codec, const uint32_t **dst_fmts, uint8_t *dst_fmts_num) are not documented:
+  parameter 'dst_fmts'
+  parameter 'dst_fmts_num'
+esp_gmf_block.h:line: warning: unable to resolve reference to 'esp_gmf_block_create' for \ref command
+esp_gmf_block.h:line: warning: unable to resolve reference to 'esp_gmf_block_create' for \ref command
+esp_gmf_block.h:line: warning: unable to resolve reference to 'esp_gmf_block_destroy' for \ref command
+esp_gmf_cap.h:line: warning: argument 'iter' of command @param is not found in the argument list of esp_gmf_cap_attr_get_first_value(esp_gmf_cap_attr_t *attr, uint32_t *val)
+esp_gmf_cap.h:line: warning: The following parameter of esp_gmf_cap_attr_get_first_value(esp_gmf_cap_attr_t *attr, uint32_t *val) is not documented:
+  parameter 'attr'

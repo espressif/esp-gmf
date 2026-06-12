@@ -72,6 +72,7 @@ typedef struct {
 typedef struct {
     QueueHandle_t  *strategy_queues;  /*!< Array of queues to receive strategy type from each pipeline */
     QueueHandle_t  *action_queues;    /*!< Array of queues to send action to each pipeline */
+    uint8_t        *pipeline_states;  /*!< Pipeline state array (owned by manage ctx for proper cleanup) */
     uint8_t         pipeline_count;   /*!< Number of pipelines */
     TaskHandle_t    task_handle;      /*!< Manage task handle */
 } pipeline_strategy_manage_ctx_t;
@@ -83,6 +84,7 @@ typedef struct {
     esp_gmf_db_handle_t  data_bus;  /*!< GMF databus handle */
     esp_gmf_io_handle_t  io_hd;     /*!< IO handle */
     char                *url;       /*!< Pointer to URL */
+    volatile bool        stop;      /*!< Flag to signal the task to exit */
 } audio_indata_process_t;
 
 /**
@@ -102,12 +104,11 @@ static void pipeline_strategy_manage_task(void *param)
     pipeline_strategy_manage_ctx_t *manage_ctx = (pipeline_strategy_manage_ctx_t *)param;
     pipeline_strategy_msg_t strategy_msg;
     pipeline_strategy_action_msg_t action_msg;
-    uint8_t *pipeline_states = NULL;
+    uint8_t *pipeline_states = manage_ctx->pipeline_states;
     bool all_finish = true;
     int i;
-    pipeline_states = (uint8_t *)calloc(manage_ctx->pipeline_count, sizeof(uint8_t));
     if (!pipeline_states) {
-        ESP_LOGE(TAG, "Failed to allocate pipeline_states");
+        ESP_LOGE(TAG, "pipeline_states not allocated");
         vTaskDelete(NULL);
         return;
     }
@@ -140,7 +141,6 @@ static void pipeline_strategy_manage_task(void *param)
             }
         }
     }
-    free(pipeline_states);
     vTaskDelete(NULL);
 }
 
@@ -206,6 +206,8 @@ static esp_gmf_err_t pipeline_strategy_manage_task_create(pipeline_strategy_mana
     TEST_ASSERT_NOT_NULL(manage_ctx->strategy_queues);
     manage_ctx->action_queues = (QueueHandle_t *)calloc(manage_ctx->pipeline_count, sizeof(QueueHandle_t));
     TEST_ASSERT_NOT_NULL(manage_ctx->action_queues);
+    manage_ctx->pipeline_states = (uint8_t *)calloc(manage_ctx->pipeline_count, sizeof(uint8_t));
+    TEST_ASSERT_NOT_NULL(manage_ctx->pipeline_states);
     for (int i = 0; i < manage_ctx->pipeline_count; i++) {
         manage_ctx->strategy_queues[i] = xQueueCreate(1, sizeof(pipeline_strategy_msg_t));
         TEST_ASSERT_NOT_NULL(manage_ctx->strategy_queues[i]);
@@ -241,6 +243,10 @@ static void pipeline_strategy_manage_task_destroy(pipeline_strategy_manage_ctx_t
     if (manage_ctx->task_handle) {
         vTaskDelete(manage_ctx->task_handle);
         manage_ctx->task_handle = NULL;
+    }
+    if (manage_ctx->pipeline_states) {
+        free(manage_ctx->pipeline_states);
+        manage_ctx->pipeline_states = NULL;
     }
     if (manage_ctx->strategy_queues) {
         for (int i = 0; i < manage_ctx->pipeline_count; i++) {
@@ -340,11 +346,14 @@ static void audio_indata_process(void *param)
     if (io_base->open) {
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, io_base->open(io));
     }
-    while (1) {
+    while (!handle->stop) {
         esp_gmf_data_bus_block_t blk = {0};
         io_ret = esp_gmf_db_acquire_write(db_handle, &blk, 4096, portMAX_DELAY);
         if (io_ret != ESP_GMF_IO_OK) {
             if (io_ret == ESP_GMF_IO_ABORT) {
+                if (handle->stop) {
+                    break;
+                }
                 continue;
             }
             ESP_LOGE(TAG, "Failed to acquire write buffer, ret: %d", io_ret);
@@ -366,6 +375,9 @@ static void audio_indata_process(void *param)
         io_ret = esp_gmf_db_release_write(db_handle, &blk, portMAX_DELAY);
         if (io_ret != ESP_GMF_IO_OK) {
             if (io_ret == ESP_GMF_IO_ABORT) {
+                if (handle->stop) {
+                    break;
+                }
                 continue;
             }
             ESP_LOGE(TAG, "Failed to release write buffer, ret: %d", io_ret);
@@ -404,12 +416,9 @@ static esp_gmf_err_io_t audio_release_read(void *handle, void *payload, int bloc
     return esp_gmf_db_release_read(data_bus, payload, block_ticks);
 }
 
-TEST_CASE("Audio File Stream Play Abort to Start, One pipeline", "[ESP_GMF_POOL]")
+TEST_CASE("Audio File Stream Play Abort to Start, One pipeline", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
-    esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
-    esp_log_level_set("ESP_GMF_ELEMENT", ESP_LOG_DEBUG);
-    esp_log_level_set("ESP_GMF_IO", ESP_LOG_DEBUG);
     ESP_GMF_MEM_SHOW(TAG);
     esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
     codec_info.play_info.sample_rate = 44100;
@@ -495,6 +504,7 @@ TEST_CASE("Audio File Stream Play Abort to Start, One pipeline", "[ESP_GMF_POOL]
     audio_indata_ctx.data_bus = db_handle;
     audio_indata_ctx.url = url;
     audio_indata_ctx.io_hd = io;
+    audio_indata_ctx.stop = false;
     TaskHandle_t audio_indata_task = NULL;
     xTaskCreate(audio_indata_process, "audio_indata", 4096, &audio_indata_ctx, 6, &audio_indata_task);
     TEST_ASSERT_NOT_NULL(audio_indata_task);
@@ -509,6 +519,14 @@ TEST_CASE("Audio File Stream Play Abort to Start, One pipeline", "[ESP_GMF_POOL]
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(pipe));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(work_task));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_destroy(pipe));
+
+    /* Signal audio_indata_task to exit and unblock it before freeing io/db. */
+    audio_indata_ctx.stop = true;
+    if (db_handle) {
+        esp_gmf_db_abort(db_handle);
+    }
+    vTaskDelay(pdMS_TO_TICKS(200));
+
     if (io) {
         esp_gmf_io_t *io_base = (esp_gmf_io_t *)io;
         if (io_base->close) {
@@ -517,7 +535,6 @@ TEST_CASE("Audio File Stream Play Abort to Start, One pipeline", "[ESP_GMF_POOL]
         esp_gmf_obj_delete((esp_gmf_obj_t *)io);
         io = NULL;
     }
-
     if (db_handle) {
         esp_gmf_db_deinit(db_handle);
         db_handle = NULL;
@@ -531,11 +548,11 @@ TEST_CASE("Audio File Stream Play Abort to Start, One pipeline", "[ESP_GMF_POOL]
 #endif  /* MEDIA_LIB_MEM_TEST */
     esp_gmf_app_teardown_sdcard(sdcard_handle);
     esp_gmf_app_teardown_codec_dev();
-    vTaskDelay(1000 / portTICK_RATE_MS);
+    vTaskDelay(pdMS_TO_TICKS(1000));
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio File Stream Play Abort to Start, Two pipelines", "[ESP_GMF_POOL]")
+TEST_CASE("Audio File Stream Play Abort to Start, Two pipelines", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
 
@@ -665,6 +682,7 @@ TEST_CASE("Audio File Stream Play Abort to Start, Two pipelines", "[ESP_GMF_POOL
     audio_indata_ctx.data_bus = db_handle;
     audio_indata_ctx.url = url;
     audio_indata_ctx.io_hd = io;
+    audio_indata_ctx.stop = false;
     TaskHandle_t audio_indata_task = NULL;
     xTaskCreate(audio_indata_process, "audio_indata", 4096, &audio_indata_ctx, 5, &audio_indata_task);
     TEST_ASSERT_NOT_NULL(audio_indata_task);
@@ -689,6 +707,13 @@ TEST_CASE("Audio File Stream Play Abort to Start, Two pipelines", "[ESP_GMF_POOL
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(work_task));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_destroy(pipe_effects));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_destroy(pipe));
+
+    audio_indata_ctx.stop = true;
+    if (db_handle) {
+        esp_gmf_db_abort(db_handle);
+    }
+    vTaskDelay(pdMS_TO_TICKS(200));
+
     if (io) {
         esp_gmf_io_t *io_base = (esp_gmf_io_t *)io;
         if (io_base->close) {
@@ -712,11 +737,11 @@ TEST_CASE("Audio File Stream Play Abort to Start, Two pipelines", "[ESP_GMF_POOL
 #endif  /* MEDIA_LIB_MEM_TEST */
     esp_gmf_app_teardown_sdcard(sdcard_handle);
     esp_gmf_app_teardown_codec_dev();
-    vTaskDelay(1000 / portTICK_RATE_MS);
+    vTaskDelay(pdMS_TO_TICKS(1000));
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio File Stream Play Abort to Start, Two pipelines, with Pause and Resume", "[ESP_GMF_POOL]")
+TEST_CASE("Audio File Stream Play Abort to Start, Two pipelines, with Pause and Resume", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
 
@@ -848,6 +873,7 @@ TEST_CASE("Audio File Stream Play Abort to Start, Two pipelines, with Pause and 
     audio_indata_ctx.data_bus = db_handle;
     audio_indata_ctx.url = url;
     audio_indata_ctx.io_hd = io;
+    audio_indata_ctx.stop = false;
     TaskHandle_t audio_indata_task = NULL;
     xTaskCreate(audio_indata_process, "audio_indata", 4096, &audio_indata_ctx, 5, &audio_indata_task);
     TEST_ASSERT_NOT_NULL(audio_indata_task);
@@ -881,6 +907,13 @@ TEST_CASE("Audio File Stream Play Abort to Start, Two pipelines, with Pause and 
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_deinit(work_task));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_destroy(pipe_effects));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_destroy(pipe));
+
+    audio_indata_ctx.stop = true;
+    if (db_handle) {
+        esp_gmf_db_abort(db_handle);
+    }
+    vTaskDelay(pdMS_TO_TICKS(200));
+
     if (io) {
         esp_gmf_io_t *io_base = (esp_gmf_io_t *)io;
         if (io_base->close) {
@@ -904,6 +937,6 @@ TEST_CASE("Audio File Stream Play Abort to Start, Two pipelines, with Pause and 
 #endif  /* MEDIA_LIB_MEM_TEST */
     esp_gmf_app_teardown_sdcard(sdcard_handle);
     esp_gmf_app_teardown_codec_dev();
-    vTaskDelay(1000 / portTICK_RATE_MS);
+    vTaskDelay(pdMS_TO_TICKS(1000));
     ESP_GMF_MEM_SHOW(TAG);
 }

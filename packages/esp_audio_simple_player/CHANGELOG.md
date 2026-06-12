@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Breaking Changes
+
+- Changed `esp_asp_prev_func_t` first argument from `esp_asp_handle_t *handle` to `esp_asp_handle_t handle`
+
+### Features
+
+- Added numeric Kconfig value `CONFIG_AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_BITS` for bit depth conversion target
+
 ## v0.9.6~1
 
 ### Bug Fixes

@@ -63,11 +63,13 @@ static inline void gmf_eightcc_to_str(uint64_t eightcc, char out[9])
 #define ESP_GMF_CAPS_AUDIO_NS                   STR_2_EIGHTCC("AUDNS")
 #define ESP_GMF_CAPS_AUDIO_AGC                  STR_2_EIGHTCC("AUDAGC")
 #define ESP_GMF_CAPS_AUDIO_VAD                  STR_2_EIGHTCC("AUDVAD")
+#define ESP_GMF_CAPS_AUDIO_DOA                  STR_2_EIGHTCC("AUDDOA")
 #define ESP_GMF_CAPS_AUDIO_WWE                  STR_2_EIGHTCC("AUDWWE")
 #define ESP_GMF_CAPS_AUDIO_VCMD                 STR_2_EIGHTCC("AUDVCMD")
 #define ESP_GMF_CAPS_AUDIO_DRC                  STR_2_EIGHTCC("AUDDRC")
 #define ESP_GMF_CAPS_AUDIO_MBC                  STR_2_EIGHTCC("AUDMBC")
-
+#define ESP_GMF_CAPS_AUDIO_MUXER                STR_2_EIGHTCC("AUDMUXER")
+#define ESP_GMF_CAPS_AUDIO_HOWL                 STR_2_EIGHTCC("AUDHOWL")
 
 /***************************************************************************/
 /*                      Definition of Video Capabilities                   */

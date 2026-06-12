@@ -14,6 +14,7 @@
 #include "esp_gmf_mbc.h"
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_audio_dec.h"
+#include "esp_gmf_audio_muxer.h"
 #include "esp_gmf_audio_param.h"
 #include "esp_gmf_args_desc.h"
 #include "gmf_audio_el_com.h"
@@ -21,6 +22,7 @@
 #include "esp_audio_dec_default.h"
 #include "esp_audio_simple_dec_default.h"
 #include "esp_gmf_rate_cvt.h"
+#include "esp_gmf_asrc.h"
 #include "esp_gmf_bit_cvt.h"
 #include "esp_gmf_ch_cvt.h"
 #include "decoder/impl/esp_pcm_dec.h"
@@ -515,7 +517,10 @@ void encoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
     if (event_state < ESP_GMF_EVENT_STATE_OPENING) {
         if (res->is_first_open == true) {
             ret = audio_el_test_reconfig_encoder_by_sound_info(el, &res->in_inst[0].src_info);
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+            if (ret != ESP_GMF_ERR_OK) {
+                res->is_do_open_set = false;
+                return;
+            }
             esp_audio_enc_config_t *get_cfg = OBJ_GET_CFG(el);
             TEST_ASSERT_EQUAL(res->in_inst[0].src_info.format_id, get_cfg->type);
             if (get_cfg->type == ESP_AUDIO_TYPE_AMRNB || get_cfg->type == ESP_AUDIO_TYPE_AMRWB) {
@@ -532,7 +537,7 @@ void encoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
             }
             res->is_do_open_set = true;
         } else if (res->is_first_open == false) {
-            if (res->is_do_open_set == true) {
+            if (res->is_do_proc_set == true) {
                 esp_audio_enc_config_t *get_cfg = OBJ_GET_CFG(el);
                 TEST_ASSERT_EQUAL(res->in_inst[0].src_info.format_id, get_cfg->type);
                 TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_encoder_bitrate(el, &bitrate_read));
@@ -588,6 +593,7 @@ void encoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
                 TEST_ASSERT_EQUAL(ESP_GMF_ELEMENT_GET(el)->in_attr.data_size, in_size);
                 TEST_ASSERT_EQUAL(ESP_GMF_ELEMENT_GET(el)->out_attr.data_size, out_size);
             }
+            res->is_do_proc_set = true;
         }
     }
 }
@@ -613,7 +619,7 @@ void decoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
             res->is_do_open_set = true;
         } else if (res->is_first_open == false) {
             esp_audio_simple_dec_cfg_t *get_cfg = NULL;
-            if (res->is_do_open_set == true) {
+            if (res->is_do_proc_set == true) {
                 get_cfg = OBJ_GET_CFG(el);
                 TEST_ASSERT_EQUAL(ESP_AUDIO_TYPE_PCM, get_cfg->dec_type);
             }
@@ -645,6 +651,7 @@ void decoder_config_callback(esp_gmf_element_handle_t el, void *ctx)
         } else if (res->is_first_open == false) {
             ret = audio_el_test_reconfig_decoder_by_sound_info(el, &src_info);
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+            res->is_do_proc_set = true;
         }
     }
 }
@@ -677,12 +684,14 @@ void eq_config_callback(esp_gmf_element_handle_t self, void *ctx)
             }
             res->is_do_open_set = true;
         } else if (res->is_first_open == false) {
-            for (int i = 0; i < sizeof(filter_para) / sizeof(filter_para[0]); i++) {
-                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_eq_filter_para(self, i, &read_para));
-                TEST_ASSERT_EQUAL(filter_para[i].fc, read_para.fc);
-                TEST_ASSERT_EQUAL_FLOAT(filter_para[i].gain, read_para.gain);
-                TEST_ASSERT_EQUAL_FLOAT(filter_para[i].q, read_para.q);
-                TEST_ASSERT_EQUAL(filter_para[i].filter_type, read_para.filter_type);
+            if (res->is_do_proc_set == true) {
+                for (int i = 0; i < sizeof(filter_para) / sizeof(filter_para[0]); i++) {
+                    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_eq_filter_para(self, i, &read_para));
+                    TEST_ASSERT_EQUAL(filter_para[i].fc, read_para.fc);
+                    TEST_ASSERT_EQUAL_FLOAT(filter_para[i].gain, read_para.gain);
+                    TEST_ASSERT_EQUAL_FLOAT(filter_para[i].q, read_para.q);
+                    TEST_ASSERT_EQUAL(filter_para[i].filter_type, read_para.filter_type);
+                }
             }
         }
     } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
@@ -702,6 +711,7 @@ void eq_config_callback(esp_gmf_element_handle_t self, void *ctx)
                 TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_eq_filter_para(self, i, &filter_para[i]));
                 TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_enable_eq_filter(self, i, true));
             }
+            res->is_do_proc_set = true;
         }
     }
 }
@@ -718,8 +728,10 @@ void fade_config_callback(esp_gmf_element_handle_t self, void *ctx)
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_fade_mode(self, set_mode));
             res->is_do_open_set = true;
         } else if (res->is_first_open == false) {
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_fade_mode(self, &mode_read));
-            TEST_ASSERT_EQUAL(set_mode, mode_read);
+            if (res->is_do_proc_set == true) {
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_fade_mode(self, &mode_read));
+                TEST_ASSERT_EQUAL(set_mode, mode_read);
+            }
         }
     } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
         if (res->is_first_open == true) {
@@ -730,6 +742,7 @@ void fade_config_callback(esp_gmf_element_handle_t self, void *ctx)
             res->is_first_open = false;
         } else if (res->is_first_open == false) {
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_fade_mode(self, set_mode));
+            res->is_do_proc_set = true;
         }
     }
 }
@@ -751,10 +764,12 @@ void mixer_config_callback(esp_gmf_element_handle_t self, void *ctx)
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mixer_info(self, set_rate, set_channels, set_bits));
             res->is_do_open_set = true;
         } else if (res->is_first_open == false) {
-            esp_ae_mixer_cfg_t *cfg = (esp_ae_mixer_cfg_t *)OBJ_GET_CFG(self);
-            TEST_ASSERT_EQUAL(set_rate, cfg->sample_rate);
-            TEST_ASSERT_EQUAL(set_channels, cfg->channel);
-            TEST_ASSERT_EQUAL(set_bits, cfg->bits_per_sample);
+            if (res->is_do_proc_set == true) {
+                esp_ae_mixer_cfg_t *cfg = (esp_ae_mixer_cfg_t *)OBJ_GET_CFG(self);
+                TEST_ASSERT_EQUAL(set_rate, cfg->sample_rate);
+                TEST_ASSERT_EQUAL(set_channels, cfg->channel);
+                TEST_ASSERT_EQUAL(set_bits, cfg->bits_per_sample);
+            }
         }
     } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
         if (res->is_first_open == true) {
@@ -769,6 +784,7 @@ void mixer_config_callback(esp_gmf_element_handle_t self, void *ctx)
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mixer_mode(self, 0, set_mode_0));
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mixer_mode(self, 1, set_mode_1));
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mixer_info(self, set_rate, set_channels, set_bits));
+            res->is_do_proc_set = true;
         }
     }
 }
@@ -788,10 +804,12 @@ void sonic_config_callback(esp_gmf_element_handle_t self, void *ctx)
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_sonic_pitch(self, set_pitch));
             res->is_do_open_set = true;
         } else if (res->is_first_open == false) {
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_sonic_speed(self, &speed_read));
-            TEST_ASSERT_EQUAL_FLOAT(set_speed, speed_read);
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_sonic_pitch(self, &pitch_read));
-            TEST_ASSERT_EQUAL_FLOAT(set_pitch, pitch_read);
+            if (res->is_do_proc_set == true) {
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_sonic_speed(self, &speed_read));
+                TEST_ASSERT_EQUAL_FLOAT(set_speed, speed_read);
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_sonic_pitch(self, &pitch_read));
+                TEST_ASSERT_EQUAL_FLOAT(set_pitch, pitch_read);
+            }
         }
     } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
         if (res->is_first_open == true) {
@@ -805,6 +823,7 @@ void sonic_config_callback(esp_gmf_element_handle_t self, void *ctx)
         } else if (res->is_first_open == false) {
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_sonic_speed(self, set_speed));
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_sonic_pitch(self, set_pitch));
+            res->is_do_proc_set = true;
         }
     }
 }
@@ -848,22 +867,24 @@ void drc_config_callback(esp_gmf_element_handle_t self, void *ctx)
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_drc_points(self, set_points, set_point_num));
             res->is_do_open_set = true;
         } else if (res->is_first_open == false) {
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_attack(self, &attack_read));
-            TEST_ASSERT_EQUAL(set_attack, attack_read);
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_release(self, &release_read));
-            TEST_ASSERT_EQUAL(set_release, release_read);
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_makeup(self, &makeup_read));
-            TEST_ASSERT_EQUAL_FLOAT(set_makeup, makeup_read);
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_hold(self, &hold_read));
-            TEST_ASSERT_EQUAL(set_hold, hold_read);
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_knee(self, &knee_read));
-            TEST_ASSERT_EQUAL_FLOAT(set_knee, knee_read);
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_point_num(self, &point_num_read));
-            TEST_ASSERT_EQUAL(set_point_num, point_num_read);
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_points(self, points_read, point_num_read));
-            for (int i = 0; i < point_num_read; i++) {
-                TEST_ASSERT_EQUAL_FLOAT(set_points[i].x, points_read[i].x);
-                TEST_ASSERT_EQUAL_FLOAT(set_points[i].y, points_read[i].y);
+            if (res->is_do_proc_set == true) {
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_attack(self, &attack_read));
+                TEST_ASSERT_EQUAL(set_attack, attack_read);
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_release(self, &release_read));
+                TEST_ASSERT_EQUAL(set_release, release_read);
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_makeup(self, &makeup_read));
+                TEST_ASSERT_EQUAL_FLOAT(set_makeup, makeup_read);
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_hold(self, &hold_read));
+                TEST_ASSERT_EQUAL(set_hold, hold_read);
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_knee(self, &knee_read));
+                TEST_ASSERT_EQUAL_FLOAT(set_knee, knee_read);
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_point_num(self, &point_num_read));
+                TEST_ASSERT_EQUAL(set_point_num, point_num_read);
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_drc_points(self, points_read, point_num_read));
+                for (int i = 0; i < point_num_read; i++) {
+                    TEST_ASSERT_EQUAL_FLOAT(set_points[i].x, points_read[i].x);
+                    TEST_ASSERT_EQUAL_FLOAT(set_points[i].y, points_read[i].y);
+                }
             }
         }
     } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
@@ -895,6 +916,7 @@ void drc_config_callback(esp_gmf_element_handle_t self, void *ctx)
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_drc_hold(self, set_hold));
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_drc_knee(self, set_knee));
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_drc_points(self, set_points, set_point_num));
+            res->is_do_proc_set = true;
         }
     }
 }
@@ -928,20 +950,22 @@ void mbc_config_callback(esp_gmf_element_handle_t self, void *ctx)
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mbc_bypass(self, 0, set_bypass));
             res->is_do_open_set = true;
         } else if (res->is_first_open == false) {
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_para(self, 0, &para_read));
-            TEST_ASSERT_EQUAL_FLOAT(set_para.threshold, para_read.threshold);
-            TEST_ASSERT_EQUAL_FLOAT(set_para.ratio, para_read.ratio);
-            TEST_ASSERT_EQUAL_FLOAT(set_para.makeup_gain, para_read.makeup_gain);
-            TEST_ASSERT_EQUAL_UINT16(set_para.attack_time, para_read.attack_time);
-            TEST_ASSERT_EQUAL_UINT16(set_para.release_time, para_read.release_time);
-            TEST_ASSERT_EQUAL_UINT16(set_para.hold_time, para_read.hold_time);
-            TEST_ASSERT_EQUAL_FLOAT(set_para.knee_width, para_read.knee_width);
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_fc(self, 0, &fc_read));
-            TEST_ASSERT_EQUAL(set_fc, fc_read);
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_solo(self, 0, &solo_state));
-            TEST_ASSERT_EQUAL(set_solo, solo_state);
-            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_bypass(self, 0, &bypass_state));
-            TEST_ASSERT_EQUAL(set_bypass, bypass_state);
+            if (res->is_do_proc_set == true) {
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_para(self, 0, &para_read));
+                TEST_ASSERT_EQUAL_FLOAT(set_para.threshold, para_read.threshold);
+                TEST_ASSERT_EQUAL_FLOAT(set_para.ratio, para_read.ratio);
+                TEST_ASSERT_EQUAL_FLOAT(set_para.makeup_gain, para_read.makeup_gain);
+                TEST_ASSERT_EQUAL_UINT16(set_para.attack_time, para_read.attack_time);
+                TEST_ASSERT_EQUAL_UINT16(set_para.release_time, para_read.release_time);
+                TEST_ASSERT_EQUAL_UINT16(set_para.hold_time, para_read.hold_time);
+                TEST_ASSERT_EQUAL_FLOAT(set_para.knee_width, para_read.knee_width);
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_fc(self, 0, &fc_read));
+                TEST_ASSERT_EQUAL(set_fc, fc_read);
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_solo(self, 0, &solo_state));
+                TEST_ASSERT_EQUAL(set_solo, solo_state);
+                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_mbc_bypass(self, 0, &bypass_state));
+                TEST_ASSERT_EQUAL(set_bypass, bypass_state);
+            }
         }
     } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
         if (res->is_first_open == true) {
@@ -967,6 +991,7 @@ void mbc_config_callback(esp_gmf_element_handle_t self, void *ctx)
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mbc_fc(self, 0, set_fc));
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mbc_solo(self, 0, set_solo));
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_mbc_bypass(self, 0, set_bypass));
+            res->is_do_proc_set = true;
         }
     }
 }
@@ -984,10 +1009,12 @@ void alc_config_callback(esp_gmf_element_handle_t self, void *ctx)
                 TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_alc_gain(self, i, set_gain));
             }
             res->is_do_open_set = true;
-        } else {
-            for (int i = 0; i < res->in_inst[0].src_info.channels; i++) {
-                TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_alc_gain(self, i, &gain_read));
-                TEST_ASSERT_EQUAL(set_gain, gain_read);
+        } else if (res->is_first_open == false) {
+            if (res->is_do_proc_set == true) {
+                for (int i = 0; i < res->in_inst[0].src_info.channels; i++) {
+                    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_get_alc_gain(self, i, &gain_read));
+                    TEST_ASSERT_EQUAL(set_gain, gain_read);
+                }
             }
         }
     } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
@@ -1003,6 +1030,7 @@ void alc_config_callback(esp_gmf_element_handle_t self, void *ctx)
             for (int i = 0; i < res->in_inst[0].src_info.channels; i++) {
                 TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, audio_el_test_set_alc_gain(self, i, set_gain));
             }
+            res->is_do_proc_set = true;
         }
     }
 }
@@ -1017,8 +1045,10 @@ void bit_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx)
         if (res->is_first_open == true) {
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_bits(self, set_bits));
         } else if (res->is_first_open == false) {
-            esp_ae_bit_cvt_cfg_t *cfg = (esp_ae_bit_cvt_cfg_t *)OBJ_GET_CFG(self);
-            TEST_ASSERT_EQUAL(set_bits, cfg->dest_bits);
+            if (res->is_do_proc_set == true) {
+                esp_ae_bit_cvt_cfg_t *cfg = (esp_ae_bit_cvt_cfg_t *)OBJ_GET_CFG(self);
+                TEST_ASSERT_EQUAL(set_bits, cfg->dest_bits);
+            }
         }
     } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
         if (res->is_first_open == true) {
@@ -1027,6 +1057,7 @@ void bit_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx)
             res->is_first_open = false;
         } else if (res->is_first_open == false) {
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_bits(self, set_bits));
+            res->is_do_proc_set = true;
         }
     }
 }
@@ -1041,8 +1072,10 @@ void ch_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx)
         if (res->is_first_open == true) {
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_ch(self, set_channels));
         } else if (res->is_first_open == false) {
-            esp_ae_ch_cvt_cfg_t *cfg = (esp_ae_ch_cvt_cfg_t *)OBJ_GET_CFG(self);
-            TEST_ASSERT_EQUAL(set_channels, cfg->dest_ch);
+            if (res->is_do_proc_set == true) {
+                esp_ae_ch_cvt_cfg_t *cfg = (esp_ae_ch_cvt_cfg_t *)OBJ_GET_CFG(self);
+                TEST_ASSERT_EQUAL(set_channels, cfg->dest_ch);
+            }
         }
     } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
         if (res->is_first_open == true) {
@@ -1051,6 +1084,7 @@ void ch_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx)
             res->is_first_open = false;
         } else if (res->is_first_open == false) {
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_ch(self, set_channels));
+            res->is_do_proc_set = true;
         }
     }
 }
@@ -1065,8 +1099,10 @@ void rate_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx)
         if (res->is_first_open == true) {
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_rate(self, set_rate));
         } else if (res->is_first_open == false) {
-            esp_ae_rate_cvt_cfg_t *cfg = (esp_ae_rate_cvt_cfg_t *)OBJ_GET_CFG(self);
-            TEST_ASSERT_EQUAL(set_rate, cfg->dest_rate);
+            if (res->is_do_proc_set == true) {
+                esp_ae_rate_cvt_cfg_t *cfg = (esp_ae_rate_cvt_cfg_t *)OBJ_GET_CFG(self);
+                TEST_ASSERT_EQUAL(set_rate, cfg->dest_rate);
+            }
         }
     } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
         if (res->is_first_open == true) {
@@ -1075,6 +1111,53 @@ void rate_cvt_config_callback(esp_gmf_element_handle_t self, void *ctx)
             res->is_first_open = false;
         } else if (res->is_first_open == false) {
             TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_rate(self, set_rate));
+            res->is_do_proc_set = true;
+        }
+    }
+}
+
+void muxer_config_callback(esp_gmf_element_handle_t self, void *ctx)
+{
+    esp_gmf_audio_muxer_cfg_t *cfg = OBJ_GET_CFG(self);
+    if (cfg) {
+        TEST_ASSERT_NOT_EQUAL(ESP_MUXER_TYPE_MAX, cfg->muxer_type);
+        TEST_ASSERT_TRUE(cfg->output_type == ESP_GMF_AUDIO_MUXER_OUTPUT_STREAMING || cfg->output_type == ESP_GMF_AUDIO_MUXER_OUTPUT_FILE);
+    }
+}
+
+void asrc_config_callback(esp_gmf_element_handle_t self, void *ctx)
+{
+    audio_el_res_t *res = (audio_el_res_t *)ctx;
+    esp_gmf_event_state_t event_state = 0;
+    esp_gmf_element_get_state(self, &event_state);
+    uint32_t set_rate = res->is_first_open == true ? 48000 : 44100;
+    uint8_t set_bits = res->is_first_open == true ? 16 : 32;
+    uint8_t set_channels = res->is_first_open == true ? 4 : 2;
+    if (event_state < ESP_GMF_EVENT_STATE_OPENING) {
+        if (res->is_first_open == true) {
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_rate(self, set_rate));
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_bits(self, set_bits));
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_ch(self, set_channels));
+        } else if (res->is_first_open == false) {
+            if (res->is_do_proc_set == true) {
+                esp_asrc_cfg_t *cfg = (esp_asrc_cfg_t *)OBJ_GET_CFG(self);
+                TEST_ASSERT_EQUAL(set_rate, cfg->dest_info.sample_rate);
+                TEST_ASSERT_EQUAL(set_bits, cfg->dest_info.bits_per_sample);
+                TEST_ASSERT_EQUAL(set_channels, cfg->dest_info.channel);
+            }
+        }
+    } else if (event_state >= ESP_GMF_EVENT_STATE_OPENING) {
+        if (res->is_first_open == true) {
+            esp_asrc_cfg_t *cfg = (esp_asrc_cfg_t *)OBJ_GET_CFG(self);
+            TEST_ASSERT_EQUAL(set_rate, cfg->dest_info.sample_rate);
+            TEST_ASSERT_EQUAL(set_bits, cfg->dest_info.bits_per_sample);
+            TEST_ASSERT_EQUAL(set_channels, cfg->dest_info.channel);
+            res->is_first_open = false;
+        } else if (res->is_first_open == false) {
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_rate(self, set_rate));
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_bits(self, set_bits));
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_param_set_dest_ch(self, set_channels));
+            res->is_do_proc_set = true;
         }
     }
 }

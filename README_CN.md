@@ -78,7 +78,7 @@ GMF 核心组件是 ESP-GMF 不可或缺的基础构建单元。它提供底层�
 |  [gmf_loader](./packages/gmf_loader) | 使用 `Kconfig` 选择的配置<br>设置给定的 GMF Pool | [test_apps](./packages/gmf_loader/test_apps) | - `gmf_core`<br>- `gmf_io`<br>- `gmf_audio`<br>- `gmf_misc`<br>- `gmf_video`<br>- `gmf_ai_audio`<br>- `esp_codec_dev`<br>- `esp_audio_codec`<br>- `esp_video_codec` |
 |  [gmf_app_utils](./packages/gmf_app_utils) | 常用外设配置，单元测试工具<br>内存泄漏检测工具 | [test_apps](./packages/gmf_app_utils/test_apps) | - `gmf_core`<br>- `protocol_examples_common`<br>- `esp_board_manager` |
 |  [esp_capture](./packages/esp_capture) | 易用的音视频采集器 | [examples](./packages/esp_capture/examples) | - `gmf_core`<br>- `gmf-audio`<br>- `gmf-video`<br>- `esp_muxer`<br>- `esp_codec_dev`<br>- `esp-sr`<br>- `esp_video`<br>- `esp32-camera`|
-|  [esp_board_manager](./packages/esp_board_manager) | 智能、自动化的板子配置和管理工具，支持基于 YAML 的设置 | [test_apps](./packages/esp_board_manager/test_apps) | 根据选择的板子变化依赖 |
+|  [esp_board_manager](https://github.com/espressif/esp-board-manager)（独立仓库） | 智能、自动化的板子配置和管理工具，支持基于 YAML 的设置 | [examples](https://github.com/espressif/esp-board-manager/tree/main/esp_board_manager/examples) | 根据选择的板子变化依赖 |
 | [esp_audio_render](./packages/esp_audio_render) | 支持混音的音频渲染器 | [examples](./packages/esp_audio_render/examples) | - `gmf_core`<br>- `gmf-audio`<br>|
 | [esp_bt_audio](./packages/esp_bt_audio) | 蓝牙音频模块，事件驱动流式 API，可选 GMF IO 集成 | [examples](./packages/esp_bt_audio/examples) | - `esp_audio_codec`<br>- `gmf_core`（可选）<br>- `gmf_io`（可选） |
 | [gmf_fft](./packages/gmf_fft) | 定点 Q15 实数 FFT/IFFT 处理组件 | [examples](./packages/gmf_fft/examples) | 无 |

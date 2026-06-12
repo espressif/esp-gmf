@@ -51,14 +51,15 @@ struct data_bus_op_t {
     esp_gmf_err_io_t (*acquire_write)(esp_gmf_db_handle_t handle, esp_gmf_data_bus_block_t *blk, uint32_t wanted_size, int block_ticks);  /*!< Acquire a block of data for writing */
     esp_gmf_err_io_t (*release_write)(esp_gmf_db_handle_t handle, esp_gmf_data_bus_block_t *blk, int block_ticks);                        /*!< Release a block of data after writing */
 
-    esp_gmf_err_t (*done_write)(esp_gmf_db_handle_t handle);                               /*!< Signal that writing to the data bus is done */
-    esp_gmf_err_t (*reset_done_write)(esp_gmf_db_handle_t handle);                         /*!< Reset the "done writing" signal */
-    esp_gmf_err_t (*reset)(esp_gmf_db_handle_t handle);                                    /*!< Reset the data bus */
-    esp_gmf_err_t (*abort)(esp_gmf_db_handle_t handle);                                    /*!< Abort ongoing operations */
-    esp_gmf_err_t (*clear_abort)(esp_gmf_db_handle_t handle);                              /*!< Clear abort flag and restore semaphores */
-    esp_gmf_err_t (*get_total_size)(esp_gmf_db_handle_t handle, uint32_t *size);           /*!< Get the total size of the data bus */
-    esp_gmf_err_t (*get_filled_size)(esp_gmf_db_handle_t handle, uint32_t *filled_size);   /*!< Get the filled size of the data bus */
-    esp_gmf_err_t (*get_available)(esp_gmf_db_handle_t handle, uint32_t *available_size);  /*!< Get the available size of the data bus */
+    esp_gmf_err_t (*done_write)(esp_gmf_db_handle_t handle);                                         /*!< Signal that writing to the data bus is done */
+    esp_gmf_err_t (*reset_done_write)(esp_gmf_db_handle_t handle);                                   /*!< Reset the "done writing" signal */
+    esp_gmf_err_t (*reset)(esp_gmf_db_handle_t handle);                                              /*!< Reset the data bus */
+    esp_gmf_err_t (*abort)(esp_gmf_db_handle_t handle);                                              /*!< Abort ongoing operations */
+    esp_gmf_err_t (*clear_abort)(esp_gmf_db_handle_t handle);                                        /*!< Clear abort flag and restore semaphores */
+    esp_gmf_err_t (*set_align)(esp_gmf_db_handle_t handle, uint8_t addr_align, uint8_t size_align);  /*!< Optional alignment */
+    esp_gmf_err_t (*get_total_size)(esp_gmf_db_handle_t handle, uint32_t *size);                     /*!< Get the total size of the data bus */
+    esp_gmf_err_t (*get_filled_size)(esp_gmf_db_handle_t handle, uint32_t *filled_size);             /*!< Get the filled size of the data bus */
+    esp_gmf_err_t (*get_available)(esp_gmf_db_handle_t handle, uint32_t *available_size);            /*!< Get the available size of the data bus */
 };
 
 /**
@@ -260,6 +261,22 @@ esp_gmf_err_t esp_gmf_db_abort(esp_gmf_db_handle_t handle);
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
  */
 esp_gmf_err_t esp_gmf_db_clear_abort(esp_gmf_db_handle_t handle);
+
+/**
+ * @brief  Set buffer alignment for the underlying data bus implementation
+ *
+ * @note  Refer to the concrete data bus type (block, fifo, pbuf, etc.) for `addr_align` and `size_align`
+ *        semantics and timing requirements
+ *
+ * @param[in]  handle      data bus handle
+ * @param[in]  addr_align  Base-address alignment forwarded to the implementation
+ * @param[in]  size_align  Buffer-length alignment (e.g. round-up stride) forwarded to the implementation
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_db_set_align(esp_gmf_db_handle_t handle, uint8_t addr_align, uint8_t size_align);
 
 /**
  * @brief  Get the total size of data bus buffer

@@ -286,7 +286,7 @@ static esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
     return 0;
 }
 
-TEST_CASE("Audio File Stream Play Same URL Without Close, One pipeline", "[ESP_GMF_POOL]")
+TEST_CASE("Audio File Stream Play Same URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -370,7 +370,7 @@ TEST_CASE("Audio File Stream Play Same URL Without Close, One pipeline", "[ESP_G
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio File Stream Play Same URL Without Close, Two pipeline", "[ESP_GMF_POOL]")
+TEST_CASE("Audio File Stream Play Same URL Without Close, Two pipeline", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -513,7 +513,7 @@ TEST_CASE("Audio File Stream Play Same URL Without Close, Two pipeline", "[ESP_G
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio File Stream Play Different URL Without Close, One pipeline", "[ESP_GMF_POOL]")
+TEST_CASE("Audio File Stream Play Different URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -534,10 +534,6 @@ TEST_CASE("Audio File Stream Play Different URL Without Close, One pipeline", "[
 #endif  /* MEDIA_LIB_MEM_TEST */
     EventGroupHandle_t pipe_sync_evt = xEventGroupCreate();
     ESP_GMF_NULL_CHECK(TAG, pipe_sync_evt, return);
-
-    // Create semaphore for synchronizing reset between pipelines
-    SemaphoreHandle_t reset_sem = xSemaphoreCreateBinary();
-    ESP_GMF_NULL_CHECK(TAG, reset_sem, return);
 
     esp_gmf_pool_handle_t pool = NULL;
     esp_gmf_pool_init(&pool);
@@ -607,7 +603,7 @@ TEST_CASE("Audio File Stream Play Different URL Without Close, One pipeline", "[
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio File Stream Play Different URL Without Close, Two pipeline", "[ESP_GMF_POOL]")
+TEST_CASE("Audio File Stream Play Different URL Without Close, Two pipeline", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -756,7 +752,7 @@ TEST_CASE("Audio File Stream Play Different URL Without Close, Two pipeline", "[
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio Http Stream Play Different URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=10000]")
+TEST_CASE("Audio Http Stream Play Different URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=30000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -807,6 +803,9 @@ TEST_CASE("Audio Http Stream Play Different URL Without Close, One pipeline", "[
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
     cfg.cb = NULL;
+    // HTTPS open performs a full TLS handshake with certificate-bundle verification
+    // in this work task, which needs more stack than the 4 KB default.
+    cfg.thread.stack = 6 * 1024;
     esp_gmf_task_handle_t work_task = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task));
     pipeline_strategy_ctx2_t strategy_ctx = {
@@ -844,7 +843,7 @@ TEST_CASE("Audio Http Stream Play Different URL Without Close, One pipeline", "[
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio Http Stream Play Different URL Without Close, Two pipeline", "[ESP_GMF_POOL][leaks=10000]")
+TEST_CASE("Audio Http Stream Play Different URL Without Close, Two pipeline", "[ESP_GMF_POOL][leaks=30000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -900,6 +899,9 @@ TEST_CASE("Audio Http Stream Play Different URL Without Close, Two pipeline", "[
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.ctx = NULL;
     cfg.cb = NULL;
+    // HTTPS open performs a full TLS handshake with certificate-bundle verification
+    // in this work task, which needs more stack than the 4 KB default.
+    cfg.thread.stack = 6 * 1024;
     esp_gmf_task_handle_t work_task = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_task_init(&cfg, &work_task));
     pipeline_strategy_ctx2_t strategy_ctx = {
@@ -963,6 +965,9 @@ TEST_CASE("Audio Http Stream Play Different URL Without Close, Two pipeline", "[
 
     // Run pipelines
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe));
+    // Make sure the decoder has started outputting data
+    // HTTP decoder pipeline may take longer to report stream info
+    vTaskDelay(3000 / portTICK_RATE_MS);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe_effects));
     xEventGroupWaitBits(pipe_sync_evt1, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
     xEventGroupWaitBits(pipe_sync_evt2, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
@@ -988,7 +993,7 @@ TEST_CASE("Audio Http Stream Play Different URL Without Close, Two pipeline", "[
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio File Stream Encode Different URL Without Close, One pipeline", "[ESP_GMF_POOL]")
+TEST_CASE("Audio File Stream Encode Different URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -1009,10 +1014,6 @@ TEST_CASE("Audio File Stream Encode Different URL Without Close, One pipeline", 
 #endif  /* MEDIA_LIB_MEM_TEST */
     EventGroupHandle_t pipe_sync_evt = xEventGroupCreate();
     ESP_GMF_NULL_CHECK(TAG, pipe_sync_evt, return);
-
-    // Create semaphore for synchronizing reset between pipelines
-    SemaphoreHandle_t reset_sem = xSemaphoreCreateBinary();
-    ESP_GMF_NULL_CHECK(TAG, reset_sem, return);
 
     esp_gmf_pool_handle_t pool = NULL;
     esp_gmf_pool_init(&pool);

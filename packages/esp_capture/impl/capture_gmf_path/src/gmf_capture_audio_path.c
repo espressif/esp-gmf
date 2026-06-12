@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
@@ -7,7 +7,7 @@
 
 #include "esp_capture_path_mngr.h"
 #include "capture_gmf_mngr.h"
-#include "data_queue.h"
+#include "esp_gmf_data_queue.h"
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_caps_def.h"
 #include "esp_log.h"
@@ -16,13 +16,13 @@
 #include "capture_pipeline_utils.h"
 #include "gmf_capture_path_mngr.h"
 
-#define TAG "GMF_CAPTURE_APATH"
+#define TAG  "GMF_CAPTURE_APATH"
 
 typedef struct gmf_audio_path_t gmf_audio_path_t;
 
 typedef struct {
     gmf_capture_path_res_t     base;
-    data_q_t                  *audio_q;
+    esp_gmf_data_queue_t      *audio_q;
     esp_gmf_element_handle_t   aenc_el;
     esp_gmf_port_handle_t      sink_port;
     esp_capture_sync_handle_t  sync_handle;
@@ -117,13 +117,14 @@ static esp_capture_err_t audio_path_release_all(gmf_capture_path_mngr_t *mngr)
 static esp_gmf_err_io_t audio_sink_acquire(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
 {
     audio_path_res_t *res = (audio_path_res_t *)handle;
-    data_q_t *q = res->audio_q;
+    esp_gmf_data_queue_t *q = res->audio_q;
     int size = sizeof(esp_capture_stream_frame_t) + wanted_size;
-    esp_capture_stream_frame_t *aud_frame = (esp_capture_stream_frame_t *)data_q_get_buffer(q, size);
-    if (aud_frame == NULL) {
+    void *buf = NULL;
+    uint32_t timeout = wait_ticks <= 0 ? ESP_GMF_DATA_QUEUE_WAIT_FOREVER : (uint32_t)(wait_ticks * portTICK_PERIOD_MS);
+    if (esp_gmf_data_queue_acquire_write(q, &buf, size, timeout) != 0 || buf == NULL) {
         return ESP_GMF_IO_ABORT;
     }
-
+    esp_capture_stream_frame_t *aud_frame = (esp_capture_stream_frame_t *)buf;
     aud_frame->stream_type = ESP_CAPTURE_STREAM_TYPE_AUDIO;
     aud_frame->data = ((void *)aud_frame) + sizeof(esp_capture_stream_frame_t);
     if (load->buf) {
@@ -139,9 +140,9 @@ static esp_gmf_err_io_t audio_sink_acquire(void *handle, esp_gmf_payload_t *load
 static esp_gmf_err_io_t audio_sink_release(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
 {
     audio_path_res_t *res = (audio_path_res_t *)handle;
-    data_q_t *q = res->audio_q;
+    esp_gmf_data_queue_t *q = res->audio_q;
     gmf_capture_path_res_t *mngr_res = &res->base;
-    void *data = data_q_get_write_data(q);
+    void *data = esp_gmf_data_queue_get_write_data(q);
     if (data) {
         esp_capture_stream_frame_t *aud_frame = (esp_capture_stream_frame_t *)data;
         aud_frame->pts = (uint32_t)load->pts;
@@ -149,10 +150,10 @@ static esp_gmf_err_io_t audio_sink_release(void *handle, esp_gmf_payload_t *load
         int ret = gmf_capture_path_mngr_frame_reached(mngr_res, aud_frame);
         if (ret == ESP_CAPTURE_ERR_OK) {
             int size = sizeof(esp_capture_stream_frame_t) + load->valid_size;
-            data_q_send_buffer(q, size);
+            esp_gmf_data_queue_release_write(q, size);
         } else {
             ESP_LOGI(TAG, "Drop for disable");
-            data_q_send_buffer(q, 0);
+            esp_gmf_data_queue_release_write(q, 0);
         }
         if (load->buf == aud_frame->data) {
             // Clear buf when not bypass case
@@ -169,7 +170,7 @@ static esp_capture_err_t audio_path_prepare(gmf_capture_path_res_t *mngr_res)
     if (queue_size == 0) {
         queue_size = 10 * 1024;
     }
-    res->audio_q = data_q_init(queue_size);
+    res->audio_q = esp_gmf_data_queue_create(queue_size);
     if (res->audio_q == NULL) {
         return ESP_CAPTURE_ERR_NO_MEM;
     }
@@ -191,7 +192,7 @@ static esp_capture_err_t audio_path_stop(gmf_capture_path_res_t *mngr_res)
 {
     audio_path_res_t *res = (audio_path_res_t *)mngr_res;
     if (res->audio_q) {
-        data_q_consume_all(res->audio_q);
+        esp_gmf_data_queue_consume_all(res->audio_q);
     }
     return ESP_CAPTURE_ERR_OK;
 }
@@ -200,7 +201,7 @@ static esp_capture_err_t audio_path_release(gmf_capture_path_res_t *mngr_res)
 {
     audio_path_res_t *res = (audio_path_res_t *)mngr_res;
     if (res->audio_q) {
-        data_q_deinit(res->audio_q);
+        esp_gmf_data_queue_destroy(res->audio_q);
         res->audio_q = NULL;
     }
     if (res->sink_port) {
@@ -315,10 +316,11 @@ esp_capture_err_t gmf_audio_path_return_frame(esp_capture_path_mngr_if_t *p, uin
     int ret = ESP_CAPTURE_ERR_OK;
     esp_capture_stream_frame_t *read_frame = NULL;
     int read_size = 0;
-    if (data_q_have_data(res->audio_q)) {
-        data_q_read_lock(res->audio_q, (void **)&read_frame, &read_size);
+    bool have_data = false;
+    if (esp_gmf_data_queue_have_data(res->audio_q, &have_data) == 0 && have_data) {
+        esp_gmf_data_queue_acquire_read(res->audio_q, (void **)&read_frame, &read_size, ESP_GMF_DATA_QUEUE_NO_WAIT);
         ESP_LOGD(TAG, "simple return audio data:%x frame:%x\n", frame->data[0], read_frame->data[0]);
-        ret = data_q_read_unlock(res->audio_q);
+        ret = esp_gmf_data_queue_release_read(res->audio_q);
     }
     return ret == 0 ? ESP_CAPTURE_ERR_OK : ESP_CAPTURE_ERR_NOT_FOUND;
 }

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added **VAD**, **NS**, and **DOA** elements (`ai_vad`, `ai_ns`, `ai_doa`)
+
+### Bug Fixes
+
+- Fixed an issue where the AFE manager did not set the result callback during initialization
+- Migrated `aec_rec` and `wwe` examples to use `esp_board_manager_get_device_config()` for board-specific audio configuration, replacing hardcoded board macros
+
 ## v0.8.3
 
 ### Features

@@ -116,6 +116,7 @@ typedef struct {
     uint16_t                   height;  /*!< Frame height */
     uint8_t                   *data;    /*!< Frame data */
     uint32_t                   size;    /*!< Data size in bytes */
+    uint32_t                   pts;     /*!< Frame PTS in milliseconds */
 } esp_video_render_frame_t;
 
 /**

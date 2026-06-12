@@ -5,6 +5,8 @@
  */
 
 #include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_heap_trace.h"
 #include "esp_heap_caps.h"
 #include "video_render_test.h"
@@ -465,6 +467,7 @@ static esp_err_t board_init_optional_gpio_expander(void)
 void app_main(void)
 {
     board_init_optional_gpio_expander();
+    video_render_reconfig_lcd();
     esp_board_device_init(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD);
     int ret = esp_board_device_init(ESP_BOARD_DEVICE_NAME_FS_SDCARD);
     if (ret != ESP_OK) {

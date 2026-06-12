@@ -10,6 +10,9 @@
 #include "esp_idf_version.h"
 #include "esp_log.h"
 #include "esp_http_client.h"
+#ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+#include "esp_crt_bundle.h"
+#endif  /* CONFIG_MBEDTLS_CERTIFICATE_BUNDLE */
 #include "gzip_miniz.h"
 
 #include "esp_gmf_new_databus.h"
@@ -132,10 +135,15 @@ static esp_gmf_err_t _http_open(esp_gmf_io_handle_t self)
             .buffer_size = HTTP_STREAM_BUFFER_SIZE,
             .buffer_size_tx = 1024,
             .cert_pem = http_io_cfg->cert_pem,
-#ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
-            .crt_bundle_attach = http_io_cfg->crt_bundle_attach,
-#endif  /* CONFIG_MBEDTLS_CERTIFICATE_BUNDLE */
         };
+#ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+        http_cfg.crt_bundle_attach = http_io_cfg->crt_bundle_attach;
+#ifndef CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY
+        if (http_cfg.crt_bundle_attach == NULL) {
+            http_cfg.crt_bundle_attach = esp_crt_bundle_attach;
+        }
+#endif  /* CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY */
+#endif  /* CONFIG_MBEDTLS_CERTIFICATE_BUNDLE */
         http->client = esp_http_client_init(&http_cfg);
         ESP_GMF_CHECK(TAG, http->client, return ESP_GMF_ERR_MEMORY_LACK, "Failed to initialize http client");
     } else {

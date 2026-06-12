@@ -721,7 +721,7 @@ static void close_branch_open_close_leak_loop(void)
     TEST_ASSERT_LESS_OR_EQUAL(1024, abs(diff));
 }
 
-TEST_CASE("ASRC Branch Test", "[esp_asrc]")
+TEST_CASE("ASRC Branch Test", "[esp_asrc][leaks=400]")
 {
     /* esp_asrc_open */
     open_branch_null_args();

@@ -272,6 +272,17 @@ void tearDown(void)
     }
 
     Unity.TestFile = real_testfile;  // go back to the real filename
+
+    /* USB-Serial-JTAG console may buffer Unity tail output without an explicit flush */
+    fflush(stdout);
+#if CONFIG_IDF_TARGET_ESP32P4
+    /* P4 USB-JTAG needs extra time to drain its internal buffer before the device
+     * resets. Without this delay, the Unity PASS/FAIL line (printed by Unity
+     * *after* tearDown returns) can be lost in the USB-JTAG TX buffer when
+     * esp_restart() triggers a USB disconnect, causing pytest-embedded to
+     * incorrectly report a timeout for tests that actually passed. */
+    vTaskDelay(pdMS_TO_TICKS(100));
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
 }
 
 void esp_gmf_app_test_case_uses_tcpip(void)

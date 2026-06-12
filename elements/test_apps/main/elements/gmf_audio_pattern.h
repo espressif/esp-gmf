@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#define SWEEP_DURATION_MS (5000)
+#define SWEEP_DURATION_MS (1000)
 
 void audio_generate_sweep_signal(sweep_data_t *sweep_data, esp_gmf_info_sound_t *sound_info, uint32_t current_sample,
                                  uint32_t total_samples, uint32_t samples_per_chunk, bool *is_done)

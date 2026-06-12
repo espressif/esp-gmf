@@ -118,7 +118,7 @@ esp_err_t _pipeline_event4(esp_gmf_event_pkt_t *event, void *ctx)
     return 0;
 }
 
-TEST_CASE("Audio Effects Play, [io_file->aud_dec->aud_rate_cvt->aud_ch_cvt->aud_bit_cvt->aud_sonic->aud_alc->aud_eq->aud_fade->io_codec_dev]", "[ESP_GMF_Effects]")
+TEST_CASE("Audio Effects Play, [io_file->aud_dec->aud_rate_cvt->aud_ch_cvt->aud_bit_cvt->aud_sonic->aud_alc->aud_eq->aud_fade->io_codec_dev]", "[ESP_GMF_Effects][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -203,7 +203,7 @@ TEST_CASE("Audio Effects Play, [io_file->aud_dec->aud_rate_cvt->aud_ch_cvt->aud_
                                           +- RB2 ->+ alc +-> RB4 -+
                                                    +-----+
 ***/
-TEST_CASE("Audio Effects Data Weaver test", "[ESP_GMF_Effects]")
+TEST_CASE("Audio Effects Data Weaver test", "[ESP_GMF_Effects][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -391,7 +391,7 @@ TEST_CASE("Audio Effects Data Weaver test", "[ESP_GMF_Effects]")
 +---------------------+-------------- +
 
 ***/
-TEST_CASE("Audio mixer Play", "[ESP_GMF_Effects]")
+TEST_CASE("Audio mixer Play", "[ESP_GMF_Effects][leaks=1400]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);

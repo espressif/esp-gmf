@@ -1,0 +1,8 @@
+dependencies:
+  espressif/gmf_ai_audio:
+    override_path: ../../
+  espressif/gmf_core:
+    override_path: ../../../../gmf_core
+  espressif/gmf_app_utils:
+    override_path: ../../../../packages/gmf_app_utils
+  espressif/esp-dsp: "~1.8.0"

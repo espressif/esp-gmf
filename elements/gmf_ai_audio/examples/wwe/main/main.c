@@ -26,6 +26,9 @@
 
 #include "esp_gmf_io_codec_dev.h"
 #include "esp_gmf_app_cli.h"
+#include "esp_board_manager.h"
+#include "esp_board_manager_defs.h"
+#include "dev_audio_codec.h"
 #include "gmf_loader_setup_defaults.h"
 
 #if SOC_SDMMC_HOST_SUPPORTED == 1
@@ -43,61 +46,7 @@
 #endif  /* CONFIG_GMF_AI_AUDIO_VOICE_COMMAND_ENABLE */
 #define QUIT_CMD_FOUND  (BIT0)
 
-#define BOARD_LYRAT_MINI  (0)
-#define BOARD_KORVO_2     (1)
-#define BOARD_XD_AIOT_C3  (2)
-#define BOARD_ESP_SPOT    (3)
-#define BOARD_P4_FUN_EV   (4)
-#define BOARD_S31_KORVO_1 (5)
-
 #define WITH_AFE    (CONFIG_GMF_AI_AUDIO_INIT_AFE)
-
-#if defined CONFIG_IDF_TARGET_ESP32S3
-#define AUDIO_BOARD (BOARD_KORVO_2)
-#elif defined CONFIG_IDF_TARGET_ESP32
-#define AUDIO_BOARD (BOARD_LYRAT_MINI)
-#elif defined CONFIG_IDF_TARGET_ESP32C3
-#define AUDIO_BOARD (BOARD_XD_AIOT_C3)
-#elif defined CONFIG_IDF_TARGET_ESP32C5
-#define AUDIO_BOARD (BOARD_ESP_SPOT)
-#elif defined CONFIG_IDF_TARGET_ESP32P4
-#define AUDIO_BOARD (BOARD_P4_FUN_EV)
-#elif defined CONFIG_IDF_TARGET_ESP32S31
-#define AUDIO_BOARD (BOARD_S31_KORVO_1)
-#endif  /* defined CONFIG_IDF_TARGET_ESP32S3 */
-
-#if AUDIO_BOARD == BOARD_KORVO_2
-#define ADC_I2S_CH          (2)
-#define ADC_I2S_BITS        (32)
-#define INPUT_CH_NUM        (4)
-#define INPUT_CH_BITS       (16) /* For board `ESP32-S3-Korvo-2`, the es7210 is configured as 32-bit,
-                                   2-channel mode to accommodate 16-bit, 4-channel data */
-#elif AUDIO_BOARD == BOARD_LYRAT_MINI
-#define ADC_I2S_CH          (2)
-#define ADC_I2S_BITS        (16)
-#define INPUT_CH_NUM        (ADC_I2S_CH)
-#define INPUT_CH_BITS       (ADC_I2S_BITS)
-#elif AUDIO_BOARD == BOARD_XD_AIOT_C3
-#define ADC_I2S_CH          (2)
-#define ADC_I2S_BITS        (16)
-#define INPUT_CH_NUM        (ADC_I2S_CH)
-#define INPUT_CH_BITS       (ADC_I2S_BITS)
-#elif AUDIO_BOARD == BOARD_ESP_SPOT
-#define ADC_I2S_CH          (2)
-#define ADC_I2S_BITS        (16)
-#define INPUT_CH_NUM        (ADC_I2S_CH)
-#define INPUT_CH_BITS       (ADC_I2S_BITS)
-#elif AUDIO_BOARD == BOARD_P4_FUN_EV
-#define ADC_I2S_CH          (2)
-#define ADC_I2S_BITS        (16)
-#define INPUT_CH_NUM        (ADC_I2S_CH)
-#define INPUT_CH_BITS       (ADC_I2S_BITS)
-#elif AUDIO_BOARD == BOARD_S31_KORVO_1
-#define ADC_I2S_CH          (4)
-#define ADC_I2S_BITS        (16)
-#define INPUT_CH_NUM        (ADC_I2S_CH)
-#define INPUT_CH_BITS       (ADC_I2S_BITS)
-#endif  /* AUDIO_BOARD == BOARD_KORVO_2 */
 
 #if WITH_AFE == true
 #include "esp_gmf_afe.h"
@@ -115,6 +64,31 @@ static EventGroupHandle_t g_event_group = NULL;
 #if WITH_AFE == true
 static esp_gmf_element_handle_t g_afe   = NULL;
 #endif  /* WITH_AFE == true */
+
+static uint8_t get_board_codec_channel_count(const dev_audio_codec_config_t *codec_cfg, bool is_adc)
+{
+    uint8_t channels = is_adc ? codec_cfg->adc_max_channel : codec_cfg->dac_max_channel;
+    if (channels == 0) {
+        channels = __builtin_popcount(is_adc ? codec_cfg->adc_channel_mask : codec_cfg->dac_channel_mask);
+    }
+    return channels;
+}
+
+static void get_board_audio_info(esp_gmf_app_codec_info_t *codec_info, uint8_t *input_ch_num, uint8_t *input_ch_bits)
+{
+    dev_audio_codec_config_t *adc_cfg = NULL;
+    dev_audio_codec_config_t *dac_cfg = NULL;
+    ESP_ERROR_CHECK(esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&adc_cfg));
+    ESP_ERROR_CHECK(esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&dac_cfg));
+
+    codec_info->record_info.sample_rate = 16000;
+    codec_info->record_info.channel = get_board_codec_channel_count(adc_cfg, true);
+    codec_info->play_info.sample_rate = codec_info->record_info.sample_rate;
+    codec_info->play_info.channel = get_board_codec_channel_count(dac_cfg, false);
+
+    *input_ch_num = codec_info->record_info.channel;
+    *input_ch_bits = codec_info->record_info.bits_per_sample;
+}
 
 #if VOICE2FILE == true && WITH_AFE == true
 #define VOICE2FILE_QUEUE_LEN   (16)
@@ -395,10 +369,9 @@ void app_main(void)
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_gmf_app_codec_info_t codec_info = ESP_GMF_APP_CODEC_INFO_DEFAULT();
-    codec_info.record_info.sample_rate = 16000;
-    codec_info.record_info.channel = ADC_I2S_CH;
-    codec_info.record_info.bits_per_sample = ADC_I2S_BITS;
-    codec_info.play_info.sample_rate = codec_info.record_info.sample_rate;
+    uint8_t input_ch_num = 0;
+    uint8_t input_ch_bits = 0;
+    get_board_audio_info(&codec_info, &input_ch_num, &input_ch_bits);
     esp_gmf_app_setup_codec_dev(&codec_info);
 #if VOICE2FILE == true && WITH_AFE == true
     void *sdcard_handle = NULL;
@@ -445,9 +418,9 @@ void app_main(void)
     esp_gmf_pipeline_reg_el_port(pipe, name[0], ESP_GMF_IO_DIR_WRITER, outport);
 
     esp_gmf_info_sound_t info = {
-        .sample_rates = 16000,
-        .channels = INPUT_CH_NUM,
-        .bits = INPUT_CH_BITS,
+        .sample_rates = codec_info.record_info.sample_rate,
+        .channels = input_ch_num,
+        .bits = input_ch_bits,
     };
     esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info, sizeof(info));
 

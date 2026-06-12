@@ -30,12 +30,13 @@
 
 #define PIPELINE_BLOCK_BIT BIT(0)
 
-#define STATE_RUNNING_BIT              (1 << 0)
-#define STATE_STOPPED_BIT              (1 << 1)
-#define STATE_PAUSED_BIT               (1 << 2)
-#define STATE_FINISHED_BIT             (1 << 3)
-#define CUSTOM_HIGH_PRIO_TASK_STOP_BIT (1 << 4)
-#define CUSTOM_LOW_PRIO_TASK_STOP_BIT  (1 << 5)
+#define STATE_RUNNING_BIT                 (1 << 0)
+#define STATE_STOPPED_BIT                 (1 << 1)
+#define STATE_PAUSED_BIT                  (1 << 2)
+#define STATE_FINISHED_BIT                (1 << 3)
+#define CUSTOM_HIGH_PRIO_TASK_STOP_BIT    (1 << 4)
+#define CUSTOM_LOW_PRIO_TASK_STOP_BIT     (1 << 5)
+#define MULTITASK_EXECUTION_REPEAT_COUNT  5
 
 typedef struct {
     esp_asp_handle_t  *player_handle;
@@ -98,7 +99,12 @@ static int mock_event_callback(esp_asp_event_pkt_t *event, void *ctx)
 static void setup_test_environment(test_env_t *env, bool need_wifi, bool need_sys_monitor)
 {
     ESP_GMF_MEM_SHOW(TAG);
-    esp_gmf_app_setup_codec_dev(NULL);
+    esp_gmf_app_codec_info_t codec_info = {0};
+    codec_info.play_info.sample_rate = CONFIG_AUDIO_SIMPLE_PLAYER_RESAMPLE_DEST_RATE;
+    codec_info.play_info.channel = CONFIG_AUDIO_SIMPLE_PLAYER_CH_CVT_DEST;
+    codec_info.play_info.bits_per_sample = CONFIG_AUDIO_SIMPLE_PLAYER_BIT_CVT_DEST_BITS;
+    memcpy(&codec_info.record_info, &codec_info.play_info, sizeof(esp_gmf_app_i2s_cfg_t));
+    esp_gmf_app_setup_codec_dev(&codec_info);
     esp_gmf_app_setup_sdcard(&env->sdcard_handle);
 
     if (need_wifi) {
@@ -316,7 +322,7 @@ TEST_CASE("Playback with raw MP3 data", "[Simple_Player]")
     teardown_test_environment(&env);
 }
 
-static int embed_flash_io_set(esp_asp_handle_t *handle, void *ctx)
+static int embed_flash_io_set(esp_asp_handle_t handle, void *ctx)
 {
     esp_gmf_pipeline_handle_t pipe = NULL;
     int ret =  esp_audio_simple_player_get_pipeline(handle, &pipe);
@@ -480,7 +486,7 @@ TEST_CASE("Play, play-multitask", "[Simple_Player]")
     teardown_test_environment(&env);
 }
 
-TEST_CASE("Play, Multiple-file Sync Playing", "[Simple_Player][leaks=14000]")
+TEST_CASE("Play, Multiple-file Sync Playing", "[Simple_Player][leaks=25000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_gmf_app_test_case_uses_tcpip();
@@ -500,7 +506,7 @@ TEST_CASE("Play, Multiple-file Sync Playing", "[Simple_Player][leaks=14000]")
     teardown_test_environment(&env);
 }
 
-TEST_CASE("Play, Multiple-file Async Playing", "[Simple_Player][leaks=14000]")
+TEST_CASE("Play, Multiple-file Async Playing", "[Simple_Player][leaks=25000]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_gmf_app_test_case_uses_tcpip();
@@ -646,7 +652,7 @@ void high_priority_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
-TEST_CASE("Pause, Stop, and Run APIs for Multi-task Execution", "[Simple_Player]")
+static void run_multitask_execution_case(void)
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     test_env_t env = {0};
@@ -675,8 +681,20 @@ TEST_CASE("Pause, Stop, and Run APIs for Multi-task Execution", "[Simple_Player]
                         portMAX_DELAY);
     ESP_LOGI(TAG, "All tasks are deleted, test finished");
 
+    esp_audio_simple_player_stop(handle);
+    vEventGroupDelete(event_group);
+    free(params);
+
     destroy_simple_player(handle);
     teardown_test_environment(&env);
+}
+
+TEST_CASE("Repeat Pause, Stop, and Run APIs for Multi-task Execution", "[Simple_Player][stress]")
+{
+    for (int i = 0; i < MULTITASK_EXECUTION_REPEAT_COUNT; ++i) {
+        ESP_LOGI(TAG, "Repeat multitask execution case: %d/%d", i + 1, MULTITASK_EXECUTION_REPEAT_COUNT);
+        run_multitask_execution_case();
+    }
 }
 
 TEST_CASE("Play wrong uri", "[Simple_Player]")

@@ -36,7 +36,7 @@ static esp_video_render_err_t lvgl_backend_ensure_fb(lvgl_backend_t *bk)
     if (bk->buf) {
         return ESP_VIDEO_RENDER_ERR_OK;
     }
-    bk->buf = (uint8_t *)video_render_malloc_align(bk->fb.size, 64);
+    bk->buf = (uint8_t *)video_render_malloc_align(bk->fb.size, video_render_get_default_alignment());
     if (bk->buf == NULL) {
         return ESP_VIDEO_RENDER_ERR_NO_MEM;
     }

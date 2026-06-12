@@ -92,6 +92,31 @@ static esp_gmf_element_handle_t get_element_by_tag_from_pool(esp_gmf_pool_handle
     return NULL;
 }
 
+TEST_CASE("GMF AI audio elements", "[GMF_LOADER]")
+{
+    esp_gmf_pool_handle_t pool = NULL;
+    esp_gmf_err_t ret = esp_gmf_pool_init(&pool);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+    ret = gmf_loader_setup_ai_audio_default(pool);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+
+#if CONFIG_GMF_AI_AUDIO_INIT_VAD
+    TEST_ASSERT_NOT_NULL(get_element_by_tag_from_pool(pool, "ai_vad"));
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_VAD */
+#if CONFIG_GMF_AI_AUDIO_INIT_NS
+    TEST_ASSERT_NOT_NULL(get_element_by_tag_from_pool(pool, "ai_ns"));
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_NS */
+#if CONFIG_GMF_AI_AUDIO_INIT_DOA
+    TEST_ASSERT_NOT_NULL(get_element_by_tag_from_pool(pool, "ai_doa"));
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_DOA */
+
+    ret = gmf_loader_teardown_ai_audio_default(pool);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+    ret = esp_gmf_pool_deinit(pool);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+}
+
 TEST_CASE("GMF video effects", "[GMF_LOADER]")
 {
     esp_gmf_pool_handle_t pool = NULL;

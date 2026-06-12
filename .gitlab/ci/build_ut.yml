@@ -3,15 +3,11 @@ variables:
   BASE_FRAMEWORK: $IDF_REPOSITORY
   IDF_TAG_FLAG: true
 
-.build_gmf_component:
+.build_gmf_component_template:
   interruptible: true
   variables:
     TARGET_DIR_TYPE: "test_apps"
     TEST_DIR: ${CI_PROJECT_DIR}/gmf_core
-  parallel:
-    matrix:
-      - IDF_VERSION_TAG: ['v5.5.3']
-        parallel: [ 1/1 ]
   extends:
     - .rules:build:protected-merge-requests-pipeline
     - .build_template
@@ -29,6 +25,7 @@ variables:
       - "**/build*/partition_table/*.bin"
       - "**/build*/srmodels/*.bin"
       - "${TEST_DIR}/**/test_apps/*.py"
+    when: always
     expire_in: 4 days
   script:
     - python $CI_PROJECT_DIR/tools/ci/esp_bmgr_pre_build.py --target $IDF_TARGET --board $AUDIO_BOARD --project-path ${TEST_DIR} --target-dir-type ${TARGET_DIR_TYPE}
@@ -40,21 +37,26 @@ variables:
         --parallel-index ${parallel%%/*}
     - python $CI_PROJECT_DIR/tools/ci/check_test_cxx_build.py
 
+.build_gmf_component:
+  extends:
+    - .build_gmf_component_template
+
 .build_ut_gmf_packages:
   extends:
-    - .build_gmf_component
+    - .build_gmf_component_template
   variables:
     TEST_DIR: ${CI_PROJECT_DIR}/packages
 
 .build_ut_gmf_elements:
   extends:
-    - .build_gmf_component
+    - .build_gmf_component_template
   variables:
     TEST_DIR: ${CI_PROJECT_DIR}/elements
 
 build_ut_gmf_core_esp32:
   extends:
     - .build_gmf_component
+    - .matrix_template
   variables:
     IDF_TARGET: esp32
     AUDIO_BOARD: lyrat_mini_v1_1
@@ -62,26 +64,38 @@ build_ut_gmf_core_esp32:
 .build_ut_gmf_core_esp32c3:
   extends:
     - .build_gmf_component
+    - .matrix_template
   variables:
     IDF_TARGET: esp32c3
 
 build_ut_gmf_core_esp32s3:
   extends:
     - .build_gmf_component
+    - .matrix_template
   variables:
     IDF_TARGET: esp32s3
     AUDIO_BOARD: esp32_s3_korvo2_v3
 
-.build_ut_gmf_core_esp32p4:
+build_ut_gmf_core_esp32p4:
   extends:
     - .build_gmf_component
+    - .matrix_template_v6_1
   variables:
     IDF_TARGET: esp32p4
     AUDIO_BOARD: esp32_p4_function_ev
 
+build_ut_gmf_core_esp32s31:
+  extends:
+    - .build_gmf_component
+    - .matrix_template_v6_1
+  variables:
+    IDF_TARGET: esp32s31
+    AUDIO_BOARD: esp32_s31_korvo1
+
 build_ut_gmf_elements_esp32:
   extends:
     - .build_ut_gmf_elements
+    - .matrix_template
   variables:
     IDF_TARGET: esp32
     AUDIO_BOARD: lyrat_mini_v1_1
@@ -89,20 +103,31 @@ build_ut_gmf_elements_esp32:
 build_ut_gmf_elements_esp32s3:
   extends:
     - .build_ut_gmf_elements
+    - .matrix_template
   variables:
     IDF_TARGET: esp32s3
     AUDIO_BOARD: esp32_s3_korvo2_v3
 
-.build_ut_gmf_elements_esp32p4:
+build_ut_gmf_elements_esp32p4:
   extends:
     - .build_ut_gmf_elements
+    - .matrix_template_v6_1
   variables:
     IDF_TARGET: esp32p4
     AUDIO_BOARD: esp32_p4_function_ev
 
+build_ut_gmf_elements_esp32s31:
+  extends:
+    - .build_ut_gmf_elements
+    - .matrix_template_v6_1
+  variables:
+    IDF_TARGET: esp32s31
+    AUDIO_BOARD: esp32_s31_korvo1
+
 build_ut_gmf_packages_esp32:
   extends:
     - .build_ut_gmf_packages
+    - .matrix_template
   variables:
     IDF_TARGET: esp32
     AUDIO_BOARD: lyrat_mini_v1_1
@@ -110,6 +135,23 @@ build_ut_gmf_packages_esp32:
 build_ut_gmf_packages_esp32s3:
   extends:
     - .build_ut_gmf_packages
+    - .matrix_template
   variables:
     IDF_TARGET: esp32s3
     AUDIO_BOARD: esp32_s3_korvo2_v3
+
+build_ut_gmf_packages_esp32p4:
+  extends:
+    - .build_ut_gmf_packages
+    - .matrix_template_v6_1
+  variables:
+    IDF_TARGET: esp32p4
+    AUDIO_BOARD: esp32_p4_function_ev
+
+build_ut_gmf_packages_esp32s31:
+  extends:
+    - .build_ut_gmf_packages
+    - .matrix_template_v6_1
+  variables:
+    IDF_TARGET: esp32s31
+    AUDIO_BOARD: esp32_s31_korvo1

@@ -38,7 +38,7 @@ This example supports IDF release/v5.4 (>= v5.4.3) and release/v5.5 (>= v5.5.2).
 
 ### Build Preparation
 
-Before building this example, ensure the ESP-IDF environment is set up. If it is already set up, skip this paragraph and go to the project directory and run the pre-build script(s) as follows. If not, run the following in the ESP-IDF root directory to complete the environment setup. For full steps, see the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html).
+Before building this example, ensure the ESP-IDF environment is set up. If it is already set up, skip this paragraph and go to the project directory. If not, run the following in the ESP-IDF root directory to complete the environment setup. For full steps, see the [ESP-IDF Programming Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/index.html).
 
 ```
 ./install.sh
@@ -53,17 +53,56 @@ Short steps:
 cd $YOUR_GMF_PATH/gmf_examples/basic_examples/pipeline_http_download_to_sdcard
 ```
 
-- Run the pre-build script: follow the prompts to select the target chip, set up the IDF Action extension, and use `esp_board_manager` to select a supported board. For a custom board, see [Custom board](https://github.com/espressif/esp-gmf/blob/main/packages/esp_board_manager/README.md#custom-board).
+This example uses [ESP Board Manager](https://github.com/espressif/esp-board-manager) to manage board-level resources. The [`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/) helper tool is recommended as the default entry point.
 
-On Linux / macOS:
-```bash/zsh
-source prebuild.sh
+- Install once in your activated ESP-IDF Python environment:
+
+```bash
+pip install esp-bmgr-assist
+pip install --upgrade esp-bmgr-assist
 ```
 
-On Windows:
-```powershell
-.\prebuild.ps1
+- List supported boards:
+
+```bash
+idf.py bmgr -l
 ```
+
+  Example output:
+
+```text
+ℹ️  Main Boards:
+  [1] dual_eyes_board_v1_0
+  [2] esp32_c3_lyra
+  [3] esp32_c5_spot
+  [4] esp32_p4_function_ev
+  [5] esp32_s3_korvo2_v3
+  [6] esp32_s3_korvo2l
+  [7] esp_box_3
+  [8] esp_box_lite
+  [9] esp_hi
+```
+
+- Select a board:
+
+```bash
+idf.py bmgr -b <board_index|board_name>
+```
+
+  For example, to select `esp32_s3_korvo2_v3`:
+
+```bash
+idf.py bmgr -b 5
+# or
+idf.py bmgr -b esp32_s3_korvo2_v3
+```
+
+  On first invocation, the component is downloaded automatically based on the `espressif/esp_board_manager` dependency declared in `main/idf_component.yml`.
+
+> [!NOTE]
+> To switch to a different board supported by `esp_board_manager`, repeat the same steps with the new board name or index.
+> For a custom board, see [How to customize board](https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/docs/how_to_customize_board.md).
+> For more information about `esp_board_manager`, see the [ESP Board Manager Getting Started Guide](https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/README.md).
 
 ### Project Configuration
 

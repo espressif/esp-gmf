@@ -36,3 +36,6 @@ dependencies:
   espressif/gmf_misc:
     version: "^0.8"
     require: "public"
+  espressif/esp_muxer:
+    require: "public"
+    version: "^1.1"

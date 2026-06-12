@@ -8,12 +8,7 @@
 #pragma once
 
 #include <stdint.h>
-
-typedef int esp_gmf_err_io_t;
-
-// Match ESP-GMF conventions used in esp_video_render sources.
-#define ESP_GMF_IO_OK    0
-#define ESP_GMF_IO_FAIL  (-1)
+#include "esp_gmf_err.h"
 
 typedef struct {
     uint8_t  *buf;

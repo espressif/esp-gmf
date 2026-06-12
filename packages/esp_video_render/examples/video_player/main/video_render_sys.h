@@ -12,6 +12,7 @@
 extern "C" {
 #endif  /* __cplusplus */
 
+void video_render_sys_reconfig_lcd(void);
 int video_render_sys_create(uint8_t fps);
 esp_video_render_handle_t video_render_sys_get(void);
 void video_render_sys_destroy(void);

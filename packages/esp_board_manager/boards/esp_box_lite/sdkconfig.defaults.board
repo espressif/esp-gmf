@@ -1,5 +1,0 @@
-#
-# SPI RAM config
-#
-CONFIG_SPIRAM_MODE_OCT=y
-# end of SPI RAM config

@@ -13,6 +13,12 @@
 extern "C" {
 #endif  /* __cplusplus */
 
+#define ESP_GMF_OAL_ALIGN_UP(num, align)  \
+    ((align) <= 1 ? (num) : (((num) + ((align) - 1)) & ~((align) - 1)))
+
+#define ESP_GMF_OAL_ALIGN_BYTES_VALID(align)  \
+    ((align) <= 1 || (((align) & ((align) - 1)) == 0))
+
 /**
  * @brief  Allocate memory of a specified size
  *

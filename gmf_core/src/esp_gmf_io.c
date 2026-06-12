@@ -185,6 +185,7 @@ static esp_gmf_job_err_t esp_gmf_io_process(esp_gmf_io_handle_t handle, void *pa
     if (io->_is_hold) {
         ESP_LOGD(TAG, "IO process task holding, [%p-%s]", io, OBJ_GET_TAG(io));
         xEventGroupWaitBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_HOLD_DONE_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
+        io->_is_hold = 0;
         ESP_LOGD(TAG, "IO process task resumed, [%p-%s]", io, OBJ_GET_TAG(io));
     }
     esp_gmf_job_err_t ret = ESP_GMF_JOB_ERR_OK;
@@ -419,7 +420,6 @@ esp_gmf_err_t esp_gmf_io_close(esp_gmf_io_handle_t handle)
     if (io->data_bus && io->task_hd) {
         esp_gmf_db_abort(io->data_bus);
         if (io->_is_hold) {
-            io->_is_hold = 0;
             xEventGroupSetBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_HOLD_DONE_BIT);
         }
         esp_gmf_task_deinit(io->task_hd);
@@ -779,7 +779,6 @@ esp_gmf_err_t esp_gmf_io_clear_done(esp_gmf_io_handle_t handle)
     if (io->data_bus && io->task_hd) {
         esp_gmf_db_reset(io->data_bus);
         if (io->_is_hold) {
-            io->_is_hold = 0;
             xEventGroupSetBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_HOLD_DONE_BIT);
         }
     }
@@ -809,7 +808,6 @@ esp_gmf_err_t esp_gmf_io_clear_abort(esp_gmf_io_handle_t handle)
     if (io->data_bus && io->task_hd) {
         esp_gmf_db_clear_abort(io->data_bus);
         if (io->_is_hold) {
-            io->_is_hold = 0;
             xEventGroupSetBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_HOLD_DONE_BIT);
         }
     }

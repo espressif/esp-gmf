@@ -1,69 +1,48 @@
-# The file mainly marks apps with special rules, while other apps are enabled by default
+# The file mainly marks apps with special rules, while other apps are enabled by default.
+#
+# Notes for esp_bool_parser used by idf-build-apps:
+#   - Boolean operators must be lower-case: 'and', 'or', 'not'.
+#   - Only built-in variables are recognised in expressions: IDF_TARGET,
+#     IDF_VERSION_MAJOR/MINOR/PATCH, INCLUDE_DEFAULT, CONFIG_NAME.
+#     'TARGET_DIR_TYPE' is *not* recognised - express the example/test_apps
+#     distinction via the path key instead.
 
-.disable_test_apps: &disable_test_apps
+# Per-target if-condition anchors (re-used by individual app rules below).
+.if_esp32:   &if_esp32   {if: 'IDF_TARGET == "esp32"'}
+.if_esp32s3: &if_esp32s3 {if: 'IDF_TARGET == "esp32s3"'}
+.if_esp32c3: &if_esp32c3 {if: 'IDF_TARGET == "esp32c3"'}
+.if_esp32c5: &if_esp32c5 {if: 'IDF_TARGET == "esp32c5"'}
+.if_esp32p4: &if_esp32p4 {if: 'IDF_TARGET == "esp32p4"'}
+
+# ---------------------------------------------------------------------------
+# Per-app rules
+# ---------------------------------------------------------------------------
+
+packages/esp_bt_audio/examples/bt_audio:
   disable:
-    - if: TARGET_DIR_TYPE == "test_apps"
-
-.disable_example: &disable_example
-  disable:
-    - if: TARGET_DIR_TYPE == "example"
-
-.disable_test_apps_esp32: &disable_test_apps_esp32
-  disable:
-    - if: TARGET_DIR_TYPE == "test_apps" AND IDF_TARGET == "esp32"
-
-.disable_test_apps_esp32c3: &disable_test_apps_esp32c3
-  disable:
-    - if: TARGET_DIR_TYPE == "test_apps" AND IDF_TARGET == "esp32c3"
-
-.disable_test_apps_esp32c5: &disable_test_apps_esp32c5
-  disable:
-    - if: TARGET_DIR_TYPE == "test_apps" AND IDF_TARGET == "esp32c5"
-
-.disable_example_esp32: &disable_example_esp32
-  disable:
-    - if: TARGET_DIR_TYPE == "example" AND IDF_TARGET == "esp32"
-
-.disable_example_esp32s3: &disable_example_esp32s3
-  disable:
-    - if: TARGET_DIR_TYPE == "example" AND IDF_TARGET == "esp32s3"
-
-.disable_example_esp32c3: &disable_example_esp32c3
-  disable:
-    - if: TARGET_DIR_TYPE == "example" AND IDF_TARGET == "esp32c3"
-
-.disable_example_esp32c5: &disable_example_esp32c5
-  disable:
-    - if: TARGET_DIR_TYPE == "example" AND IDF_TARGET == "esp32c5"
-
-.disable_example_esp32p4: &disable_example_esp32p4
-  disable:
-    - if: TARGET_DIR_TYPE == "example" AND IDF_TARGET == "esp32p4"
-
-gmf_core/test_apps:
-  <<: *disable_example
-
-packages/esp_board_manager:
-  <<: *disable_test_apps_esp32
-
-packages/esp_bt_audio:
-  <<: *disable_example_esp32s3
-  <<: *disable_example_esp32c3
-  <<: *disable_example_esp32c5
-  <<: *disable_example_esp32p4
+    - *if_esp32s3
+    - *if_esp32c3
+    - *if_esp32c5
+    - *if_esp32p4
 
 packages/gmf_fft/test_apps:
-  <<: *disable_test_apps_esp32
-  <<: *disable_test_apps_esp32c3
-  <<: *disable_test_apps_esp32c5
+  disable:
+    - *if_esp32
+    - *if_esp32c3
+    - *if_esp32c5
 
 packages/gmf_fft/examples/fft_spectrum_print:
-  <<: *disable_example_esp32
-  <<: *disable_example_esp32c3
-  <<: *disable_example_esp32c5
+  disable:
+    - *if_esp32
+    - *if_esp32c3
+    - *if_esp32c5
 
-packages/esp_video_render:
-  <<: *disable_test_apps_esp32
-  <<: *disable_example_esp32
-  <<: *disable_example_esp32c3
-  <<: *disable_example_esp32c5
+packages/esp_video_render/test_apps:
+  disable:
+    - *if_esp32
+
+packages/esp_video_render/examples:
+  disable:
+    - *if_esp32
+    - *if_esp32c3
+    - *if_esp32c5

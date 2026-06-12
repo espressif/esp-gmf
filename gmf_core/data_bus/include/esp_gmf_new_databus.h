@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
@@ -64,6 +64,19 @@ int esp_gmf_db_new_pbuf(int num, int item_cnt, esp_gmf_db_handle_t *h);
  *       - < 0  Negative value if an error occurs
  */
 int esp_gmf_db_new_fifo(int num, int item_cnt, esp_gmf_db_handle_t *h);
+
+/**
+ * @brief  Create a new data queue with variable-sized block records
+ *
+ * @param[in]   size      Total queue buffer size
+ * @param[in]   item_cnt  Reserved for future use (currently unused)
+ * @param[out]  h         Pointer to store the handle of the GMF data bus
+ *
+ * @return
+ *       - 0    On success
+ *       - < 0  Negative value if an error occurs
+ */
+int esp_gmf_db_new_data_queue(int size, int item_cnt, esp_gmf_db_handle_t *h);
 
 #ifdef __cplusplus
 }

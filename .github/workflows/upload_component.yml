@@ -24,12 +24,12 @@ jobs:
             esp_audio_simple_player:./packages/esp_audio_simple_player
             esp_capture: ./packages/esp_capture
             gmf_app_utils: ./packages/gmf_app_utils
-            esp_board_manager: ./packages/esp_board_manager
             esp_audio_render: ./packages/esp_audio_render
             esp_video_render: ./packages/esp_video_render
             esp_bt_audio: ./packages/esp_bt_audio
             gmf_fft: ./packages/gmf_fft
             esp_asrc: ./packages/esp_asrc
+            esp_player: ./packages/esp_player
             gmf_examples: ./gmf_examples
           namespace: "espressif"
           api_token: ${{ secrets.IDF_COMPONENT_API_TOKEN }}

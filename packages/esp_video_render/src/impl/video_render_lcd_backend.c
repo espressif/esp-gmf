@@ -124,7 +124,7 @@ static esp_video_render_err_t lcd_backend_manual_fb(lcd_backend_t *lcd)
     uint8_t fb_num = lcd->cfg.fb_num ? lcd->cfg.fb_num : 1;
     lcd->fb_num = 0;
     for (int i = 0; i < fb_num; i++) {
-        lcd->fb[i] = video_render_malloc_align(lcd->fb_size, 64);
+        lcd->fb[i] = video_render_malloc_align(lcd->fb_size, video_render_get_default_alignment());
         if (lcd->fb[i] == NULL) {
             ESP_LOGE(TAG, "Fail to allocate manual fb");
             break;
@@ -173,7 +173,7 @@ static esp_video_render_err_t prepare_lcd_panel(lcd_backend_t *lcd, esp_video_re
         case ESP_VIDEO_RENDER_LCD_TYPE_DPI:
 #if CONFIG_IDF_TARGET_ESP32P4
             if (fb_num > 1) {
-                GET_FRAME_BUFFER(esp_lcd_rgb_panel_get_frame_buffer, cfg->lcd_handle, fb_num, lcd);
+                GET_FRAME_BUFFER(esp_lcd_dpi_panel_get_frame_buffer, cfg->lcd_handle, fb_num, lcd);
             }
             esp_lcd_dpi_panel_event_callbacks_t dpi_cb = {
                 .on_color_trans_done = dpi_draw_finished,
