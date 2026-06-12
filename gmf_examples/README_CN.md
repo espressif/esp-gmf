@@ -45,6 +45,10 @@ ESP GMF Examples 是一个汇集了 GMF 相关 example 的组件，其主要目�
 | [coze_ws_app](https://github.com/espressif/esp-adf/tree/master/adf_examples/ai_agent/coze_ws_app) | 使用扣子 WebSocket OpenAPI 实现与智能体双向流式语音对话（直接对话/唤醒/按键打断、3A） | 语音助手、智能体对话 | 麦克风、Audio ADC、Audio DAC、扬声器、Wi-Fi |
 | [esp_audio_analyzer_app](https://github.com/espressif/esp-adf/tree/master/adf_examples/checks/esp_audio_analyzer_app) | 使用 ESP 音频分析工具全面测试麦克风、扬声器及 AEC 功能 | 音频测试、声学调试、AEC 效果验证 | 麦克风、Audio ADC、Audio DAC、扬声器、Wi-Fi |
 | [services_hub](https://github.com/espressif/esp-adf/tree/master/adf_examples/services_hub) | 通过 `adf_event_hub` 与 `esp_service_manager` 集成 Wi-Fi、OTA、CLI 与按键服务，可选支持 MCP | 多服务编排、OTA 验证、设备服务管理 | Wi-Fi、按键、OTA HTTP Server |
+| [av_record_live_display](https://github.com/espressif/esp-adf/tree/master/adf_examples/recorder/av_record_live_display) | 基于 `esp_capture` 实现音视频采集、MP4 录制与 LCD 实时显示 | 智能门铃、安防摄像头、带本地显示的音视频录制 | Camera（DVP、MIPI）、麦克风、Audio ADC、LCD、JPEG Encoder、H264 Encoder、SD 卡、PSRAM |
+| [play_music_control](https://github.com/espressif/esp-adf/tree/master/adf_examples/player/play_music_control) | 基于 `esp_audio_simple_player` 与 `esp_cli_service` 的 CLI 多源音乐播放器，支持 SD 卡、HTTP/HTTPS 与 Flash 内嵌音源及播放列表控制 | CLI 多源播放、本地与流媒体混播、嵌入式提示音 | SD 卡、Wi-Fi、Audio DAC、扬声器 |
+| [audio_power_save](https://github.com/espressif/esp-adf/tree/master/adf_examples/system/audio_power_save) | 空闲低功耗示例：MQTT keepalive 保活、自动 light sleep，支持 UART/MQTT/GPIO/定时器唤醒，含 LittleFS 分区存储的休眠/唤醒提示音 | 联网待机语音/音频设备、本地或远程唤醒 | Wi-Fi、Audio DAC、扬声器 |
+| [music_player](https://github.com/espressif/esp-adf/tree/master/adf_examples/player/music_player) | 基于 `esp_audio_simple_player`、`esp_playlist` 与 LVGL music demo 的 SD 卡本地音乐播放器，支持触摸屏切歌与多种循环模式 | 带触摸屏的本地音乐播放、SD 卡扫描与列表播放 | SD 卡、LCD、触摸屏、Audio DAC、扬声器 |
 | [bt_audio](../packages/esp_bt_audio/examples/bt_audio) | 使用 `esp_bt_audio` 与 GMF pipeline 实现蓝牙音频（音频接收、音频发送、语音通话、媒体控制） | 蓝牙音箱、音频源 | 蓝牙、麦克风、Audio ADC、Audio DAC、扬声器、SD 卡 |
 
 # 使用说明
@@ -63,6 +67,6 @@ idf.py create-project-from-example "espressif/gmf_examples=0.7.0:pipeline_play_e
 
 ```shell
 cd pipeline_play_embed_music
-idf.py set-target esp32s3`
+idf.py set-target esp32s3
 idf.py -p YOUR_PORT flash monitor
 ```

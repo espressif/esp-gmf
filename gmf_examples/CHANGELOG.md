@@ -9,6 +9,7 @@
 
 ### Changes
 
+- Updated Advanced Examples section in README to include `av_record_live_display`, `play_music_control`, `audio_power_save`, and `music_player` from ADF examples
 - Switched basic examples from local `override_path` to the standalone [espressif/esp-board-manager](https://github.com/espressif/esp-board-manager) component (pinned to `^0.5.11`).
 - Removed `prebuild.sh` / `prebuild.ps1` from each basic example; the recommended entry point is now [`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/) (`pip install esp-bmgr-assist` then `idf.py bmgr -b <board>`).
 - Updated example READMEs accordingly.
