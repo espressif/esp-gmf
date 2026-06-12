@@ -9,6 +9,7 @@
 - Added a breaking change for the `esp_gmf_fifo_set_align` api usage
 - Added `HOWL` capability definition
 - Added `DOA` capability definition (`ESP_GMF_CAPS_AUDIO_DOA`)
+- Added `MUXER` capability definition
 
 ### Bug Fixes
 
