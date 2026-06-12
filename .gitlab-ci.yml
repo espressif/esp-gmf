@@ -2,7 +2,10 @@ stages:
   - pre_check
   - build
   - target_test
+  - build_docs
   - deploy
+  - test_deploy
+  - post_deploy
 
 variables:
   GIT_STRATEGY: clone
@@ -30,4 +33,5 @@ include:
   - '.gitlab/ci/build_ut.yml'
   - '.gitlab/ci/target_ut.yml'
   - '.gitlab/ci/target_examples.yml'
+  - '.gitlab/ci/docs.yml'
   - '.gitlab/ci/deploy.yml'

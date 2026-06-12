@@ -1,0 +1,153 @@
+# This is Doxygen configuration file
+#
+# Doxygen provides over 260 configuration statements
+# To make this file easier to follow,
+# it contains only statements that are non-default
+#
+# NOTE:
+# It is recommended not to change defaults unless specifically required
+# Test any changes how they affect generated documentation
+# Make sure that correct warnings are generated to flag issues with documented code
+#
+# For the complete list of configuration statements see:
+# http://doxygen.nl/manual/config.html
+
+
+PROJECT_NAME = "Espressif General Multimedia Framework Guide"
+
+## The 'INPUT' statement below is used as input by script 'gen-df-input.py'
+## to automatically generate API reference list files header_file.inc
+## These files are placed in '_inc' directory
+## and used to include in API reference documentation
+
+INPUT =
+## GMF Core - Base Object Model & Error
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_obj.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_err.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_event.h
+## GMF Core - Pipeline / Task / Job
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_pipeline.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_task.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_job.h
+## GMF Core - Element & Derived
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_element.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_audio_element.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_video_element.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_pic_element.h
+## GMF Core - Port / Payload / Cache
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_port.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_payload.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_cache.h
+## GMF Core - Metadata: capability / method / info
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_cap.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_method.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_method_helper.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_args_desc.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_info.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_info_file.h
+## GMF Core - IO & Pool
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_io.h
+INPUT += $(PROJECT_PATH)/gmf_core/include/esp_gmf_pool.h
+## GMF Core - Data Bus
+INPUT += $(PROJECT_PATH)/gmf_core/data_bus/include/esp_gmf_new_databus.h
+INPUT += $(PROJECT_PATH)/gmf_core/data_bus/include/esp_gmf_data_bus.h
+INPUT += $(PROJECT_PATH)/gmf_core/data_bus/include/esp_gmf_ringbuffer.h
+INPUT += $(PROJECT_PATH)/gmf_core/data_bus/include/esp_gmf_fifo.h
+INPUT += $(PROJECT_PATH)/gmf_core/data_bus/include/esp_gmf_pbuf.h
+INPUT += $(PROJECT_PATH)/gmf_core/data_bus/include/esp_gmf_block.h
+## GMF Core - OAL (OS Abstraction Layer)
+INPUT += $(PROJECT_PATH)/gmf_core/oal/include/esp_gmf_oal_mem.h
+INPUT += $(PROJECT_PATH)/gmf_core/oal/include/esp_gmf_oal_mutex.h
+INPUT += $(PROJECT_PATH)/gmf_core/oal/include/esp_gmf_oal_sys.h
+INPUT += $(PROJECT_PATH)/gmf_core/oal/include/esp_gmf_oal_thread.h
+## GMF Core - Helpers
+INPUT += $(PROJECT_PATH)/gmf_core/helpers/include/esp_fourcc.h
+INPUT += $(PROJECT_PATH)/gmf_core/helpers/include/esp_gmf_caps_def.h
+INPUT += $(PROJECT_PATH)/gmf_core/helpers/include/esp_gmf_uri_parser.h
+## GMF Elements - IO
+INPUT += $(PROJECT_PATH)/elements/gmf_io/include/esp_gmf_io_file.h
+INPUT += $(PROJECT_PATH)/elements/gmf_io/include/esp_gmf_io_http.h
+INPUT += $(PROJECT_PATH)/elements/gmf_io/include/esp_gmf_io_embed_flash.h
+INPUT += $(PROJECT_PATH)/elements/gmf_io/include/esp_gmf_io_i2s_pdm.h
+INPUT += $(PROJECT_PATH)/elements/gmf_io/codec_dev_io/esp_gmf_io_codec_dev.h
+## GMF Elements - Audio Codec
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_audio_dec.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_audio_enc.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_audio_helper.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_audio_param.h
+## GMF Elements - Audio Format Conversion
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_rate_cvt.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_ch_cvt.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_bit_cvt.h
+## GMF Elements - Audio Effects
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_eq.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_alc.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_fade.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_sonic.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_mixer.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_drc.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_mbc.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_interleave.h
+INPUT += $(PROJECT_PATH)/elements/gmf_audio/include/esp_gmf_deinterleave.h
+## GMF Elements - Video Codec & Types
+INPUT += $(PROJECT_PATH)/elements/gmf_video/include/esp_gmf_video_dec.h
+INPUT += $(PROJECT_PATH)/elements/gmf_video/include/esp_gmf_video_enc.h
+INPUT += $(PROJECT_PATH)/elements/gmf_video/include/esp_gmf_video_types.h
+INPUT += $(PROJECT_PATH)/elements/gmf_video/include/esp_gmf_video_param.h
+## GMF Elements - Video Hardware Acceleration & Mixing
+INPUT += $(PROJECT_PATH)/elements/gmf_video/include/esp_gmf_video_ppa.h
+INPUT += $(PROJECT_PATH)/elements/gmf_video/include/esp_gmf_video_overlay.h
+INPUT += $(PROJECT_PATH)/elements/gmf_video/include/esp_gmf_video_fps_cvt.h
+## GMF Elements - Video Software Effects
+INPUT += $(PROJECT_PATH)/elements/gmf_video/include/esp_gmf_video_color_convert.h
+INPUT += $(PROJECT_PATH)/elements/gmf_video/include/esp_gmf_video_crop.h
+INPUT += $(PROJECT_PATH)/elements/gmf_video/include/esp_gmf_video_scale.h
+INPUT += $(PROJECT_PATH)/elements/gmf_video/include/esp_gmf_video_rotate.h
+## GMF Elements - AI Audio
+INPUT += $(PROJECT_PATH)/elements/gmf_ai_audio/include/esp_gmf_afe_manager.h
+INPUT += $(PROJECT_PATH)/elements/gmf_ai_audio/include/esp_gmf_afe.h
+INPUT += $(PROJECT_PATH)/elements/gmf_ai_audio/include/esp_gmf_aec.h
+INPUT += $(PROJECT_PATH)/elements/gmf_ai_audio/include/esp_gmf_wn.h
+INPUT += $(PROJECT_PATH)/elements/gmf_ai_audio/include/esp_gmf_ai_audio_methods.h
+## GMF Elements - Miscellaneous
+INPUT += $(PROJECT_PATH)/elements/gmf_misc/include/esp_gmf_copier.h
+
+## Get warnings for functions that have no documentation for their parameters or return value
+##
+WARN_NO_PARAMDOC = YES
+
+## Enable preprocessing and remove __attribute__(...) expressions from the INPUT files
+##
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+PREDEFINED             = \
+    $(ENV_DOXYGEN_DEFINES) \
+    __attribute__(x)= \
+    IRAM_ATTR= \
+    configSUPPORT_DYNAMIC_ALLOCATION=1 \
+    configSUPPORT_STATIC_ALLOCATION=1 \
+    configQUEUE_REGISTRY_SIZE=1 \
+    configUSE_RECURSIVE_MUTEXES=1 \
+    configTHREAD_LOCAL_STORAGE_DELETE_CALLBACKS=1 \
+    configNUM_THREAD_LOCAL_STORAGE_POINTERS=1 \
+    configUSE_APPLICATION_TASK_TAG=1
+
+## Do not complain about not having dot
+##
+HAVE_DOT = NO
+
+## Generate XML that is required for Breathe
+##
+GENERATE_XML    = YES
+XML_OUTPUT      = xml
+
+GENERATE_HTML   = NO
+HAVE_DOT        = NO
+GENERATE_LATEX  = NO
+GENERATE_MAN    = YES
+GENERATE_RTF    = NO
+
+## Skip distracting progress messages
+##
+QUIET = YES

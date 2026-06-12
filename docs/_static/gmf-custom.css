@@ -1,0 +1,33 @@
+/* Tighten vertical whitespace around browser-rendered Mermaid diagrams.
+ * sphinxcontrib-mermaid wraps the diagram in <pre class="mermaid">; the default
+ * `<pre>` margin + forced 500px svg height creates large gaps above and below
+ * short diagrams (e.g. single-pipeline flowcharts). Match the figure-like
+ * spacing other diagrams in the page already use. */
+pre.mermaid {
+    margin: 0.8em auto;
+    padding: 0;
+    background: none;
+    border: 0;
+    text-align: center;
+    overflow: visible;
+}
+
+/* Use the SVG's intrinsic size when it fits; clamp only when it would exceed
+ * the page (width) or be taller than --gmf-mermaid-max-height (tall flowcharts
+ * with many subgraphs). preserveAspectRatio on the SVG keeps proportions, so
+ * tall diagrams scale down rather than introduce a scrollbar.
+ *
+ * `!important` is required because sphinxcontrib-mermaid injects its own
+ * `pre.mermaid > svg { width: 100%; height: ...; }` rules from JavaScript on
+ * `window.onload`, which otherwise come after this stylesheet and win. */
+:root {
+    --gmf-mermaid-max-height: 800px;
+}
+
+pre.mermaid > svg {
+    width: auto !important;
+    height: auto !important;
+    max-width: 100%;
+    max-height: var(--gmf-mermaid-max-height);
+    display: inline-block;
+}

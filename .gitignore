@@ -33,18 +33,16 @@ GPATH
 **/logs/
 
 # Doc build artifacts
-gmf_core/docs/*/_build/
-gmf_core/docs/*/doxygen-warning-log.txt
-gmf_core/docs/*/sphinx-warning-log.txt
-gmf_core/docs/*/sphinx-warning-log-sanitized.txt
-gmf_core/docs/*/xml/
-gmf_core/docs/*/xml_in/
-gmf_core/docs/*/man/
-gmf_core/docs/*/doxygen_sqlite3.db
-
-# Downloaded font files
-gmf_core/docs/_static/DejaVuSans.ttf
-gmf_core/docs/_static/NotoSansSC-Regular.otf
+docs/_build/
+docs/*/_build/
+docs/*/doxygen-warning-log.txt
+docs/*/sphinx-warning-log.txt
+docs/*/sphinx-warning-log-sanitized.txt
+docs/*/xml/
+docs/*/xml_in/
+docs/*/man/
+docs/*/doxygen_sqlite3.db
+docs/venv/
 
 # gcov coverage reports
 *.gcda
