@@ -1,0 +1,28 @@
+#
+# ESP32-P4 target defaults
+#
+CONFIG_IDF_TARGET="esp32p4"
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+
+#
+# Partition Table (P4 bootloader exceeds 0x6000 at default 0x8000 offset)
+#
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_esp32p4.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions_esp32p4.csv"
+CONFIG_PARTITION_TABLE_OFFSET=0x9000
+
+# See gmf_core/test_apps/sdkconfig.defaults.esp32p4 for rationale: route console
+# over USB-Serial-JTAG so pytest-embedded's writes to /dev/ttyACM0 reach the unity menu.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+#
+# SPI RAM
+#
+CONFIG_IDF_EXPERIMENTAL_FEATURES=y
+CONFIG_SPIRAM_SPEED_200M=y
+
+CONFIG_CACHE_L2_CACHE_256KB=y
+CONFIG_CACHE_L2_CACHE_LINE_64B=y
