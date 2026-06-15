@@ -8,10 +8,12 @@
 #include <inttypes.h>
 #include <string.h>
 
+#include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
+#include "esp_bit_defs.h"
 #include "esp_check.h"
 #include "esp_heap_caps.h"
 #include "esp_lc3_dec.h"
@@ -73,7 +75,7 @@ static inline void bt_audio_le_stream_flush_queue(bt_audio_le_stream_t *stream)
 }
 
 #if CONFIG_SOC_MODEM_SUPPORT_ETM
-static void bt_audio_le_stream_tx_sync_trigger(bool first_packet, uint32_t time_stamp, uint32_t pd)
+static void bt_audio_le_stream_tx_sync_trigger(bt_audio_le_stream_t *stream, uint32_t time_stamp, uint32_t pd)
 {
     extern int r_ble_ll_iso_i2s_start_tx(uint32_t time);
     extern int r_ble_ll_iso_i2s_tx_sync(uint32_t time);
@@ -85,21 +87,33 @@ static void bt_audio_le_stream_tx_sync_trigger(bool first_packet, uint32_t time_
         return;
     }
 
-    if (first_packet) {
-        ESP_LOGD(TAG, "I2S TX sync trigger: start_tx %" PRIu32 ", pd %" PRIu32, time_stamp, pd);
-        r_ble_ll_iso_i2s_start_tx(time_stamp + pd);
-    } else {
-        if (r_ble_ll_iso_i2s_last_tx_sync_get() != last_tx_sync) {
-            return;
+    if (stream->first_packet) {
+        ESP_LOGD(TAG, "TX sync trigger: time_stamp %" PRIu32 ", pd %" PRIu32, time_stamp, pd);
+        rc = r_ble_ll_iso_i2s_start_tx(time_stamp + pd);
+        if (rc != 0) {
+            ESP_LOGE(TAG, "Failed to start TX sync: %d, time_stamp %" PRIu32 ", pd %" PRIu32, rc, time_stamp, pd);
+        } else {
+            stream->first_packet = false;
         }
-        last_tx_sync = time_stamp;
-        while (1) {
-            rc = r_ble_ll_iso_i2s_tx_sync(last_tx_sync);
-            if (rc == 0) {
-                break;
-            }
-            last_tx_sync += pd;
+    }
+    uint32_t prev_tx_sync = r_ble_ll_iso_i2s_last_tx_sync_get();
+    if (prev_tx_sync != last_tx_sync) {
+        ESP_LOGD(TAG, "[0] TX sync sync: %d, prev_tx_sync %" PRIu32 ", last_tx_sync %" PRIu32
+                 ", time_stamp %" PRIu32 ", pd %" PRIu32,
+                 rc, prev_tx_sync, last_tx_sync, time_stamp, pd);
+        return;
+    }
+    uint32_t tx_sync = last_tx_sync;
+    last_tx_sync = time_stamp;
+    while (1) {
+        rc = r_ble_ll_iso_i2s_tx_sync(last_tx_sync);
+        if (rc == 0) {
+            break;
         }
+        ESP_LOGD(TAG, "[1] TX sync sync: %d, prev_tx_sync %" PRIu32 ", last_tx_sync %" PRIu32
+                 ", time_stamp %" PRIu32 ", pd %" PRIu32,
+                 rc, prev_tx_sync, tx_sync, time_stamp, pd);
+        last_tx_sync += pd;
     }
 }
 #endif  /* CONFIG_SOC_MODEM_SUPPORT_ETM */
@@ -171,7 +185,7 @@ static esp_err_t bt_audio_le_stream_release_write(esp_bt_audio_stream_handle_t h
     if (!stream->started || !stream->bap_stream.iso || !stream->bap_stream.iso->iso) {
         bt_audio_le_stream_release_packet(packet);
         ESP_LOGW(TAG, "Release write: stream is not started");
-        return ESP_ERR_INVALID_STATE;
+        return ESP_OK;
     }
 
     uint16_t iso_handle = stream->bap_stream.iso->iso->handle;
@@ -181,7 +195,7 @@ static esp_err_t bt_audio_le_stream_release_write(esp_bt_audio_stream_handle_t h
         if (!stream->started || !stream->bap_stream.iso || !stream->bap_stream.iso->iso) {
             bt_audio_le_stream_release_packet(packet);
             ESP_LOGW(TAG, "Release write: stream stopped while waiting for ISO buffer");
-            return ESP_ERR_INVALID_STATE;
+            return ESP_OK;
         }
         vTaskDelay(pdMS_TO_TICKS(10));
         free_num = r_ble_ll_iso_free_buf_num_get(iso_handle);
@@ -300,6 +314,16 @@ static void bt_audio_le_stream_started(esp_ble_audio_bap_stream_t *bap_stream)
     bt_audio_le_stream_t *stream = NULL;
     bt_audio_le_stream_find_by_bap_stream(bap_stream, &stream);
     if (stream) {
+        stream->iso_interval = 0;
+        if (stream->bap_stream.iso) {
+            esp_ble_iso_info_t info = {0};
+            if (esp_ble_iso_chan_get_info(stream->bap_stream.iso, &info) == ESP_OK) {
+                stream->iso_interval = info.iso_interval * 1250U;
+                ESP_LOGI(TAG, "ISO interval: raw=%u, us=%" PRIu32, info.iso_interval, stream->iso_interval);
+            } else {
+                ESP_LOGW(TAG, "Failed to get ISO channel info");
+            }
+        }
         bt_audio_le_stream_flush_queue(stream);
         stream->first_packet = true;
         stream->started = true;
@@ -314,6 +338,7 @@ static void bt_audio_le_stream_stopped(esp_ble_audio_bap_stream_t *bap_stream, u
     bt_audio_le_stream_find_by_bap_stream(bap_stream, &stream);
     if (stream) {
         stream->started = false;
+        stream->iso_interval = 0;
     }
 
     if (!stream || !stream->base.data_q) {
@@ -336,6 +361,7 @@ static void bt_audio_le_stream_released(esp_ble_audio_bap_stream_t *bap_stream)
     bt_audio_le_stream_find_by_bap_stream(bap_stream, &stream);
     if (stream) {
         stream->started = false;
+        stream->iso_interval = 0;
         bt_audio_le_stream_dispatch_state(stream, ESP_BT_AUDIO_STREAM_STATE_RELEASED);
     }
 }
@@ -358,13 +384,13 @@ static void bt_audio_le_stream_recv(esp_ble_audio_bap_stream_t *bap_stream,
     bt_audio_le_stream_t *stream = NULL;
     bt_audio_le_stream_find_by_bap_stream(bap_stream, &stream);
     if (!stream || len == 0) {
+        ESP_LOGD(TAG, "Invalid LE stream or length is 0, stream %p, len %u", stream, len);
         return;
     }
 
 #if CONFIG_SOC_MODEM_SUPPORT_ETM
     if (info) {
-        bt_audio_le_stream_tx_sync_trigger(stream->first_packet, info->ts, stream->presentation_delay);
-        stream->first_packet = false;
+        bt_audio_le_stream_tx_sync_trigger(stream, info->ts, stream->presentation_delay);
     }
 #endif  /* CONFIG_SOC_MODEM_SUPPORT_ETM */
 
@@ -379,7 +405,9 @@ static void bt_audio_le_stream_recv(esp_ble_audio_bap_stream_t *bap_stream,
     packet.bad_frame = (info && !(info->flags & BT_ISO_FLAGS_VALID));
     packet.is_done = false;
     packet.data_owner = packet.data;
-
+    if (packet.bad_frame) {
+        ESP_LOGW(TAG, "RX bad frame");
+    }
     if (!bt_audio_le_stream_send_packet(stream->base.data_q, &packet)) {
         ESP_LOGW(TAG, "LE stream queue full");
     }
@@ -448,8 +476,13 @@ esp_err_t bt_audio_le_stream_create(bt_audio_le_stream_t **out_stream)
     stream->first_packet = true;
     stream->started = false;
 
-    ESP_RETURN_ON_ERROR(esp_ble_audio_bap_stream_cb_register(&stream->bap_stream, &s_bt_audio_le_stream_ops),
-                        TAG, "Failed to register stream callbacks");
+    esp_err_t ret = esp_ble_audio_bap_stream_cb_register(&stream->bap_stream, &s_bt_audio_le_stream_ops);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to register stream callbacks");
+        vQueueDelete(stream->base.data_q);
+        heap_caps_free(stream);
+        return ret;
+    }
 
     *out_stream = stream;
     return ESP_OK;
@@ -482,5 +515,18 @@ esp_err_t bt_audio_le_stream_find_by_bap_stream(esp_ble_audio_bap_stream_t *bap_
     *out_stream = NULL;
     ESP_RETURN_ON_FALSE(bap_stream, ESP_ERR_INVALID_ARG, TAG, "BAP stream is NULL");
     *out_stream = __containerof(bap_stream, bt_audio_le_stream_t, bap_stream);
+    return ESP_OK;
+}
+
+esp_err_t esp_bt_audio_stream_get_iso_interval(esp_bt_audio_stream_handle_t handle, uint16_t *iso_interval)
+{
+    bt_audio_le_stream_t *stream = (bt_audio_le_stream_t *)handle;
+    ESP_RETURN_ON_FALSE(stream && iso_interval, ESP_ERR_INVALID_ARG, TAG,
+                        "Invalid arguments: handle=%p, iso_interval=%p", stream, iso_interval);
+    ESP_RETURN_ON_FALSE(stream->base.profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_UNICAST ||
+                            stream->base.profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST,
+                        ESP_ERR_INVALID_ARG, TAG, "Invalid profile");
+    ESP_RETURN_ON_FALSE(stream->base.data_q, ESP_ERR_INVALID_STATE, TAG, "Stream queue not initialized");
+    *iso_interval = stream->iso_interval;
     return ESP_OK;
 }

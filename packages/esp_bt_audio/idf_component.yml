@@ -12,6 +12,8 @@ tags:
    - "HFP"
    - "AVRC"
    - "PBAC"
+   - "LEAudio"
+   - "Auracast"
 
 dependencies:
   idf : ">=5.5"

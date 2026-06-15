@@ -1,5 +1,19 @@
 menu "BT Audio Basic Example (GMF)"
 
+    menu "BT UI Configuration"
+
+        config EXAMPLE_BT_UI_ENABLE
+            bool "Enable LVGL UI"
+            default y if IDF_TARGET_ESP32S31
+            default n
+            help
+                Enable the on-device LVGL touch-screen UI (splash, media control,
+                dialer, volume bar). Requires a board with LCD and touch
+                support (e.g. ESP32-S31 Korvo1), as well as the LVGL, esp_lvgl_port,
+                and esp_jpeg components in the project dependencies.
+
+    endmenu
+
     config GMF_EXAMPLE_AUDIO_TECH_CLASSIC
         bool "Enable Classic Bluetooth"
         depends on BT_CLASSIC_ENABLED

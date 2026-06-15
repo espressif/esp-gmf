@@ -6,7 +6,7 @@
 
 ## Example Brief
 
-This example initializes Bluetooth audio through the `esp_bt_audio` module and uses `esp_gmf_io_bt` to link the Bluetooth audio stream with a GMF pipeline, enabling Classic Bluetooth playback/uplink streaming and LE Audio TMAP unicast or broadcast-receiver flows when the target and Bluetooth configuration support them. It also provides serial commands to demonstrate control of Bluetooth audio playback, LE discovery/connection, and voice calls.
+This example initializes Bluetooth audio through the `esp_bt_audio` module and uses `esp_gmf_io_bt` to link the Bluetooth audio stream with a GMF pipeline, enabling Classic Bluetooth playback/uplink streaming and LE Audio TMAP unicast or broadcast-receiver flows when the target and Bluetooth configuration support them. It also provides serial commands to demonstrate control of Bluetooth audio playback, LE discovery/connection, and voice calls. When `CONFIG_EXAMPLE_BT_UI_ENABLE` is enabled on a board with LCD and touch support, the example additionally provides an on-device LVGL touch-screen UI with a media player, dialer, and volume bar.
 
 ### Typical Scenarios
 
@@ -14,6 +14,7 @@ This example initializes Bluetooth audio through the `esp_bt_audio` module and u
 - **Bluetooth source (A2DP Source)**: Device discovers and connects to Bluetooth headphones or speakers and streams local or microSD audio to the remote device
 - **Bluetooth voice call (HFP HF)**: Answer/reject incoming calls, dial; call state and telephony status reporting; AEC in the GMF pipeline to improve call clarity; fetch phonebook and call history
 - **LE Audio speaker/headset (TMAP)**: Device exposes LE Audio sink/source capabilities for unicast media or conversational audio, and can optionally act as a broadcast media receiver
+- **On-device UI (optional)**: LVGL touch-screen UI with splash screen, media player (cover art, track info, playback controls), dialer (numeric keypad with call button), and auto-hiding volume bar
 
 ### Prerequisites
 
@@ -29,7 +30,7 @@ This example initializes Bluetooth audio through the `esp_bt_audio` module and u
 ### Hardware Required
 
 - **Board**: Default Classic Bluetooth setup is `lyrat_mini_v1_1`; for LE Audio, use an ESP target and controller configuration that support BLE ISO/Bluetooth Audio, plus an audio board with I2S codec resources
-- **Peripherals**: Audio DAC, Audio ADC, I2S, microSD card (for A2DP Source, store `media0.mp3`, `media1.mp3`, `media2.mp3`)
+- **Peripherals**: Audio DAC, Audio ADC, I2S, microSD card (for A2DP Source, store `media0.mp3`, `media1.mp3`, `media2.mp3`), LCD and touch panel (required for the optional UI)
 - **Bluetooth**: Classic Bluetooth (BR/EDR) for A2DP, AVRCP, and HFP; LE Audio requires NimBLE, Bluetooth Audio, and ISO support
 
 ### Default IDF Branch
@@ -136,6 +137,7 @@ Configure the following in menuconfig (example):
 
 - `BT Audio Basic Example (GMF)` → `Classic Audio Roles Configuration` → Select A2DP role (A2DP Sink / A2DP Source) or HFP HF, etc
 - `BT Audio Basic Example (GMF)` → `Enable LE Audio` → enable the LE Audio example flow when the target supports it
+- Optional: `BT UI Configuration` → `Enable LVGL UI` → enable the on-device touch-screen UI (requires LCD and touch panel)
 - Optional: `LE Audio Configuration` → select the LE Audio user case and TMAP roles, then configure LE audio location, source capability, and coordinated set size
 - For A2DP Source, ensure microSD is configured and the card contains `media0.mp3`, `media1.mp3`, `media2.mp3`
 
@@ -166,7 +168,8 @@ Exit the monitor with `Ctrl-]`.
 - **A2DP Source**: Use `start_discovery` and `connect <mac>` to discover and connect to a Bluetooth speaker or headphones; use `start_media` and `stop_media` to control streaming
 - **HFP HF**: Supports answer/reject incoming call, dial, and call/telephony status reporting; the AEC element in the GMF pipeline is used for echo cancellation during calls
 - **PBAP Client**: Use the `pb_fetch` command to retrieve the phonebook and call history
-- **LE Audio**: Use `le_scan_start [timeout_ms]` and `le_scan_stop` to discover LE Audio devices, `le_connect <addr_type> <mac_address> [timeout_ms]` to connect to a peer, and `le_disconnect` to disconnect the current LE ACL link. Media, volume, call, and stream events are reported through the same `esp_bt_audio` event path.
+- **LE Audio**: Use `le_scan_start [timeout_ms]` and `le_scan_stop` to discover LE Audio devices, `le_connect <addr_type> <mac_address> [timeout_ms]` to connect to a peer, and `le_disconnect` to disconnect the current LE ACL link. Media, volume, call, and stream events are reported through the same `esp_bt_audio` event path
+- **LVGL UI** (when `CONFIG_EXAMPLE_BT_UI_ENABLE=y`): The on-device touch-screen UI shows a splash screen before Bluetooth connection and switches to a tab-based main screen on connection with a **media player** (cover art display, track title/artist, play/pause/prev/next controls, stream-type indicator for CIS/BIS) and a **dialer** (numeric keypad, call start/end, incoming/active call display). An auto-hiding **volume bar** appears on volume-change events
 - **Companion devices**: A2DP Sink needs a phone or other A2DP Source; A2DP Source needs Bluetooth headphones or a speaker; HFP needs a phone that supports HFP AG; LE Audio needs a compatible LE Audio peer or broadcast device
 
 ### Log Output

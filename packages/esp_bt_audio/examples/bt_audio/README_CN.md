@@ -6,7 +6,7 @@
 
 ## 例程简介
 
-本例程通过 `esp_bt_audio` 模块初始化蓝牙音频，并使用 `esp_gmf_io_bt` 将蓝牙音频流与 GMF Pipeline 进行关联，从而实现经典蓝牙播放/写入，以及在目标芯片与蓝牙配置支持时的 LE Audio 单播或广播流程；同时通过串口指令展示蓝牙音频播放、LE 发现/连接与通话控制。
+本例程通过 `esp_bt_audio` 模块初始化蓝牙音频，并使用 `esp_gmf_io_bt` 将蓝牙音频流与 GMF Pipeline 进行关联，从而实现经典蓝牙播放/写入，以及在目标芯片与蓝牙配置支持时的 LE Audio 单播或广播流程；同时通过串口指令展示蓝牙音频播放、LE 发现/连接与通话控制。当在支持 LCD 与触摸的板子上开启 `CONFIG_EXAMPLE_BT_UI_ENABLE` 时，例程还会额外提供基于 LVGL 的触屏界面，包含媒体播放器、拨号盘与音量条。
 
 ### 典型场景
 
@@ -14,6 +14,7 @@
 - 蓝牙音源（A2DP Source）：设备发现并连接蓝牙耳机/音响，将本地或 microSD 音频推送到远端播放
 - 蓝牙通话（HFP HF/PBAP Client）：接听/拒接来电、拨号，使用 AEC 提升清晰度，获取通讯录与通话记录
 - LE Audio 音箱/耳机（TMAP）：设备暴露 LE Audio sink/source 能力，用于单播媒体或通话音频，也可按配置作为广播媒体接收端
+- 本地触屏界面（可选）：基于 LVGL 的触屏 UI，包含启动画面、媒体播放器（封面、曲目标题/艺术家、播放控制、CIS/BIS 流类型指示）、拨号盘（数字键盘、拨打/挂断、来电/通话显示）与自动隐藏的音量条
 
 ### 预备知识
 
@@ -29,7 +30,7 @@
 ### 硬件要求
 
 - **开发板**：默认经典蓝牙配置使用 `lyrat_mini_v1_1`；LE Audio 需使用支持 BLE ISO/Bluetooth Audio 的 ESP 芯片与 controller 配置，并准备具备 I2S Codec 资源的音频板
-- **外设**：Audio DAC、Audio ADC、I2S、microSD 卡（A2DP Source 角色需存放 `media0.mp3`、`media1.mp3`、`media2.mp3`）
+- **外设**：Audio DAC、Audio ADC、I2S、microSD 卡（A2DP Source 角色需存放 `media0.mp3`、`media1.mp3`、`media2.mp3`）,LCD 与触摸面板（可选的 UI 需要）
 - **蓝牙**：经典蓝牙（BR/EDR）用于 A2DP、AVRCP、HFP；LE Audio 需 NimBLE、Bluetooth Audio 与 ISO 支持
 
 ### 默认 IDF 分支
@@ -136,6 +137,7 @@ idf.py menuconfig
 
 - `BT Audio Basic Example (GMF)` → `Classic Audio Roles Configuration` → 选择 A2DP 角色（A2DP Sink / A2DP Source）或 HFP HF 等
 - `BT Audio Basic Example (GMF)` → `Enable LE Audio` → 在目标芯片支持时开启 LE Audio 例程流程
+- 可选：`BT UI Configuration` → `Enable LVGL UI` → 开启本地触屏界面（需要 LCD 与触摸面板）
 - 可选：`LE Audio Configuration` → 选择 LE Audio user case 和 TMAP roles，再配置 LE audio location、source capability 和 coordinated set size
 - 若为 A2DP Source，确保 microSD 相关配置正确，且卡内已放置 `media0.mp3`、`media1.mp3`、`media2.mp3`
 
@@ -166,7 +168,8 @@ idf.py -p PORT flash monitor
 - **A2DP Source**：通过 `start_discovery`、`connect <mac>` 发现并连接蓝牙音响/耳机，使用 `start_media`、`stop_media` 控制推流启停
 - **HFP HF**：支持来电接听/拒接、拨号，以及通话状态与话务状态上报；通话场景下通过 GMF 管道中的 AEC 元件进行回声消除
 - **PBAP Client**: 通过 `pb_fetch` 指令获取通讯录和通话记录
-- **LE Audio**：使用 `le_scan_start [timeout_ms]` 与 `le_scan_stop` 发现 LE Audio 设备，使用 `le_connect <addr_type> <mac_address> [timeout_ms]` 连接 peer，使用 `le_disconnect` 断开当前 LE ACL 链路。媒体、音量、通话与 stream 事件通过同一套 `esp_bt_audio` 事件路径上报。
+- **LE Audio**：使用 `le_scan_start [timeout_ms]` 与 `le_scan_stop` 发现 LE Audio 设备，使用 `le_connect <addr_type> <mac_address> [timeout_ms]` 连接 peer，使用 `le_disconnect` 断开当前 LE ACL 链路。媒体、音量、通话与 stream 事件通过同一套 `esp_bt_audio` 事件路径上报
+- **LVGL 触屏 UI**（需 `CONFIG_EXAMPLE_BT_UI_ENABLE=y`）：本地触屏界面在蓝牙连接前显示启动画面，连接后切换到包含两个标签页的主界面——**媒体播放器**（封面显示、曲目标题/艺术家、播放/暂停/上一曲/下一曲控件、CIS/BIS 流类型指示）与**拨号盘**（数字键盘、拨打/挂断、来电/通话状态显示）。音量变化时弹出自动隐藏的**音量条**
 - **配合设备**：A2DP Sink 需手机或其它 A2DP Source；A2DP Source 需蓝牙耳机或音响；HFP 需支持 HFP AG 的手机；LE Audio 需兼容的 LE Audio peer 或广播设备
 
 ### 日志输出

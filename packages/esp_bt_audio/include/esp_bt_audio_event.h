@@ -33,6 +33,7 @@ typedef enum {
     ESP_BT_AUDIO_EVENT_PHONEBOOK_ENTRY,       /*!< Phonebook entry event, the event data is esp_bt_audio_pb_entry_t */
     ESP_BT_AUDIO_EVENT_PHONEBOOK_HISTORY,     /*!< Phonebook history event, the event data is esp_bt_audio_pb_history_t */
     ESP_BT_AUDIO_EVENT_BIG_SYNC_LOST,         /*!< LE Audio BIG sync lost event */
+    ESP_BT_AUDIO_EVENT_PA_SYNC_LOST,          /*!< LE Audio PA sync lost event */
 } esp_bt_audio_event_t;
 
 /**

@@ -29,6 +29,7 @@ typedef struct {
     uint16_t                    max_sdu;             /*!< Max SDU size from QoS */
     bool                        first_packet;        /*!< First RX packet flag */
     volatile bool               started;             /*!< Stream has entered started state */
+    uint16_t                    iso_interval;        /*!< ISO interval in 125 us units, 0 if unavailable */
 } bt_audio_le_stream_t;
 
 /**

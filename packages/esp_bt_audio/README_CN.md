@@ -40,6 +40,7 @@
   - 通讯录、通话记录条目
 - **Stream 抽象**（`esp_bt_audio_stream_handle_t`）
   - 查询 codec 信息、方向、上下文
+  - 查询 LE Audio stream 的 ISO 间隔（`esp_bt_audio_stream_get_iso_interval`）
   - 获取/释放读、写数据包
 - **可选 ESP-GMF 集成**
   - `esp_gmf_io_bt` 将蓝牙 stream 接入 GMF pipeline
@@ -90,7 +91,7 @@ flowchart TB
 | `esp_bt_audio_vol.h` | 绝对/相对音量控制 + 通知 |
 | `esp_bt_audio_tel.h` | 电话：通话状态、电话状态，通话控制 |
 | `esp_bt_audio_pb.h` | 通讯录，通话记录 |
-| `esp_bt_audio_le_playback_sync.h` | 可选 LE Audio 播放时钟同步辅助接口（`CONFIG_SOC_MODEM_SUPPORT_ETM`） |
+| `esp_bt_audio_le_playback_sync.h` | 可选 LE Audio 播放启动/时钟同步辅助接口（`CONFIG_SOC_MODEM_SUPPORT_ETM`） |
 | `io/esp_gmf_io_bt.h` | 可选 GMF I/O 适配（`CONFIG_ESP_BT_AUDIO_GMF_IO_SUPPORT=y`） |
 
 ### 事件类型
@@ -114,6 +115,7 @@ flowchart TB
 | `ESP_BT_AUDIO_EVENT_PHONEBOOK_ENTRY` | `esp_bt_audio_pb_entry_t` | 单条通讯录：姓名、号码列表等 |
 | `ESP_BT_AUDIO_EVENT_PHONEBOOK_HISTORY` | `esp_bt_audio_pb_history_t` | 单条通话记录：联系人、类型、时间戳等 |
 | `ESP_BT_AUDIO_EVENT_BIG_SYNC_LOST` | 无 | LE Audio BIG 同步丢失 |
+| `ESP_BT_AUDIO_EVENT_PA_SYNC_LOST` | 无 | LE Audio PA 同步丢失 |
 
 #### 典型事件流程
 
@@ -379,6 +381,10 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
     }
     case ESP_BT_AUDIO_EVENT_BIG_SYNC_LOST: {
         // LE Audio BIG 同步丢失；可按需重新执行广播发现/同步流程
+        break;
+    }
+    case ESP_BT_AUDIO_EVENT_PA_SYNC_LOST: {
+        // LE Audio PA 同步丢失；可按需重新执行 PA 同步流程
         break;
     }
     default:

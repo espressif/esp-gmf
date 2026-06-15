@@ -263,6 +263,8 @@ static int bt_audio_le_gap_cb(struct ble_gap_event *event, void *arg)
         event->type == BLE_GAP_EVENT_PERIODIC_SYNC ||
         event->type == BLE_GAP_EVENT_PERIODIC_REPORT ||
         event->type == BLE_GAP_EVENT_PERIODIC_SYNC_LOST ||
+        event->type == BLE_GAP_EVENT_PERIODIC_TRANSFER ||
+        event->type == BLE_GAP_EVENT_PERIODIC_TRANSFER_V2 ||
         event->type == BLE_GAP_EVENT_CONNECT ||
         event->type == BLE_GAP_EVENT_DISCONNECT ||
         event->type == BLE_GAP_EVENT_ENC_CHANGE) {
@@ -372,11 +374,6 @@ static esp_err_t bt_audio_le_stop_scan(void)
     };
     bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_DISCOVERY_STATE_CHG, &event);
     return ESP_OK;
-}
-
-static esp_err_t bt_audio_le_scan_delegator_start_scan(uint32_t timeout_ms)
-{
-    return bt_audio_le_start_scan(NULL, timeout_ms);
 }
 
 static void bt_audio_le_iso_gap_cb(esp_ble_audio_gap_app_event_t *event)
@@ -623,9 +620,7 @@ static esp_err_t bt_audio_le_load_user_case_tmap(const esp_bt_audio_le_cfg_t *cf
 
     if (roles & ESP_BLE_AUDIO_TMAP_ROLE_BMR) {
 #if CONFIG_BT_BAP_SCAN_DELEGATOR && CONFIG_BT_BAP_BROADCAST_SINK
-        ESP_RETURN_ON_ERROR(bt_audio_le_scan_delegator_init(s_le->adv_builder,
-                                                            bt_audio_le_scan_delegator_start_scan,
-                                                            bt_audio_le_stop_scan),
+        ESP_RETURN_ON_ERROR(bt_audio_le_scan_delegator_init(s_le->adv_builder),
                             TAG, "Failed to init scan delegator");
         s_le->inited_scan_delegator = true;
 
@@ -741,9 +736,7 @@ static esp_err_t bt_audio_le_load_user_case(const esp_bt_audio_le_cfg_t *cfg)
     }
     if (cfg->roles & ESP_BT_AUDIO_LE_ROLE_SCAN_DELEGATOR) {
 #if CONFIG_BT_BAP_SCAN_DELEGATOR
-        ESP_RETURN_ON_ERROR(bt_audio_le_scan_delegator_init(s_le->adv_builder,
-                                                            bt_audio_le_scan_delegator_start_scan,
-                                                            bt_audio_le_stop_scan),
+        ESP_RETURN_ON_ERROR(bt_audio_le_scan_delegator_init(s_le->adv_builder),
                             TAG, "Failed to init scan delegator");
         s_le->inited_scan_delegator = true;
 #else

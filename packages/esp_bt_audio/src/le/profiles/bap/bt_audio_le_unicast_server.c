@@ -112,7 +112,7 @@ static int bt_audio_le_unicast_server_qos_cb(esp_ble_audio_bap_stream_t *stream,
         ESP_LOGW(TAG, "QoS config: BAP stream is invalid");
         return -EINVAL;
     }
-
+    ESP_LOGI(TAG, "QoS config: presentation delay %u, max SDU %u", qos->pd, qos->sdu);
     le_stream->presentation_delay = qos->pd;
     le_stream->max_sdu = qos->sdu;
     *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_SUCCESS,
