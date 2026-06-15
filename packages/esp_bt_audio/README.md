@@ -40,6 +40,7 @@ In addition, `esp_bt_audio` provides flexible data access methods:
   - phonebook and call-history entries
 - **Stream abstraction** (`esp_bt_audio_stream_handle_t`)
   - query codec info, direction, context
+  - query ISO interval for LE Audio streams (`esp_bt_audio_stream_get_iso_interval`)
   - acquire/release read and write packets
 - **Optional ESP-GMF integration**
   - `esp_gmf_io_bt` connects a Bluetooth stream to a GMF pipeline
@@ -90,7 +91,7 @@ flowchart TB
 | `esp_bt_audio_vol.h` | absolute/relative volume control + notifications |
 | `esp_bt_audio_tel.h` | telephony: call state, tel status, call control |
 | `esp_bt_audio_pb.h` | phonebook and call history |
-| `esp_bt_audio_le_playback_sync.h` | optional LE Audio playback clock synchronization helpers (`CONFIG_SOC_MODEM_SUPPORT_ETM`) |
+| `esp_bt_audio_le_playback_sync.h` | optional LE Audio playback start/clock synchronization helpers (`CONFIG_SOC_MODEM_SUPPORT_ETM`) |
 | `io/esp_gmf_io_bt.h` | optional GMF I/O adapter (`CONFIG_ESP_BT_AUDIO_GMF_IO_SUPPORT=y`) |
 
 ### Event types
@@ -114,6 +115,7 @@ flowchart TB
 | `ESP_BT_AUDIO_EVENT_PHONEBOOK_ENTRY` | `esp_bt_audio_pb_entry_t` | one phonebook record: names and number list |
 | `ESP_BT_AUDIO_EVENT_PHONEBOOK_HISTORY` | `esp_bt_audio_pb_history_t` | one call-history record: contact, type, timestamp |
 | `ESP_BT_AUDIO_EVENT_BIG_SYNC_LOST` | none | LE Audio BIG synchronization lost |
+| `ESP_BT_AUDIO_EVENT_PA_SYNC_LOST` | none | LE Audio PA synchronization lost |
 
 #### Typical event flow
 
@@ -379,6 +381,10 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
     }
     case ESP_BT_AUDIO_EVENT_BIG_SYNC_LOST: {
         // LE Audio BIG synchronization was lost; restart broadcast discovery/sync as needed
+        break;
+    }
+    case ESP_BT_AUDIO_EVENT_PA_SYNC_LOST: {
+        // LE Audio PA synchronization was lost; restart PA sync as needed
         break;
     }
     default:

@@ -20,3 +20,9 @@ dependencies:
   espressif/esp_bt_audio:
     version: "^0.8"
     override_path: "../../../../esp_bt_audio"
+  espressif/esp_lvgl_port:
+    version: "^2.8"
+  lvgl/lvgl:
+    version: "^9.5"
+  espressif/esp_jpeg:
+    version: "^1.3"

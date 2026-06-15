@@ -86,6 +86,30 @@ esp_err_t bt_audio_le_broadcast_sink_accept_scan_delegator_req(const esp_ble_aud
                                                                uint32_t bit_field);
 
 /**
+ * @brief  Enable receiving PA sync through Periodic Advertising Sync Transfer.
+ *
+ * @param[in]  conn        Connection with the broadcast assistant.
+ * @param[in]  recv_state  Receive state from the assistant.
+ *
+ * @return
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_INVALID_STATE  If sink is not ready or PAST is unsupported
+ */
+esp_err_t bt_audio_le_broadcast_sink_sync_with_past(struct bt_conn *conn,
+                                                    const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state);
+
+/**
+ * @brief  Enable receiving PA sync without PAST through Periodic Advertising Sync Transfer.
+ *
+ * @param[in]  recv_state  Receive state from the assistant.
+ *
+ * @return
+ *       - ESP_OK               On success
+ *       - ESP_ERR_INVALID_ARG  If recv_state is NULL
+ */
+esp_err_t bt_audio_le_broadcast_sink_sync_without_past(const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state);
+
+/**
  * @brief  Provide broadcast code for an encrypted BIG and retry sync.
  *
  * @param[in]  recv_state      Current receive state reference.
@@ -110,6 +134,17 @@ esp_err_t bt_audio_le_broadcast_sink_set_broadcast_code(const esp_ble_audio_bap_
  */
 esp_err_t bt_audio_le_broadcast_sink_set_bis_sync_req(const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state,
                                                       uint32_t bit_field);
+
+/**
+ * @brief  Set the receive state for the broadcast sink.
+ *
+ * @param[in]  recv_state  Receive state from the assistant.
+ *
+ * @return
+ *       - ESP_OK               On success
+ *       - ESP_ERR_INVALID_ARG  If recv_state is NULL
+ */
+esp_err_t bt_audio_le_broadcast_sink_set_recv_state(const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state);
 
 /**
  * @brief  Handle an application-level device discovered event (sink filters).

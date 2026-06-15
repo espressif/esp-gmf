@@ -16,6 +16,7 @@
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_rate_cvt.h"
 #include "esp_gmf_ch_cvt.h"
+#include "esp_gmf_asrc.h"
 #include "esp_gmf_bit_cvt.h"
 #include "esp_gmf_aec.h"
 
@@ -29,6 +30,11 @@
 #include "esp_board_manager_defs.h"
 
 static const char *TAG = "POOL_INIT";
+
+static float asrc_stereo_weight[] = {
+    1.0f, 0.0f,
+    0.0f, 1.0f,
+};
 
 /**
  * @brief  Register GMF pool with required elements and IO types
@@ -117,6 +123,16 @@ esp_gmf_err_t pool_reg(esp_gmf_pool_handle_t pool)
     ret = esp_gmf_pool_register_element(pool, element, NULL);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register AEC");
     ESP_LOGI(TAG, "Registered: aud_aec");
+
+    // 6. Audio ASRC (aud_asrc)
+    esp_asrc_cfg_t asrc_cfg = DEFAULT_ESP_GMF_ASRC_CONFIG();
+    asrc_cfg.weight = asrc_stereo_weight;
+    asrc_cfg.weight_len = sizeof(asrc_stereo_weight) / sizeof(asrc_stereo_weight[0]);
+    ret = esp_gmf_asrc_init(&asrc_cfg, &element);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init ASRC");
+    ret = esp_gmf_pool_register_element(pool, element, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register ASRC");
+    ESP_LOGD(TAG, "Registered: aud_asrc");
 
     // ========== Register GMF IO Types ==========
     dev_audio_codec_handles_t *dac_handle = NULL;

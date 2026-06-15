@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -814,6 +815,46 @@ static int tasks_info(int argc, char **argv)
     return esp_gmf_oal_sys_get_real_time_stats(1000, false);
 }
 
+static bool parse_log_level(const char *level_str, esp_log_level_t *level)
+{
+    if (strcmp(level_str, "none") == 0 || strcmp(level_str, "0") == 0) {
+        *level = ESP_LOG_NONE;
+    } else if (strcmp(level_str, "error") == 0 || strcmp(level_str, "err") == 0 || strcmp(level_str, "1") == 0) {
+        *level = ESP_LOG_ERROR;
+    } else if (strcmp(level_str, "warn") == 0 || strcmp(level_str, "warning") == 0 || strcmp(level_str, "2") == 0) {
+        *level = ESP_LOG_WARN;
+    } else if (strcmp(level_str, "info") == 0 || strcmp(level_str, "3") == 0) {
+        *level = ESP_LOG_INFO;
+    } else if (strcmp(level_str, "debug") == 0 || strcmp(level_str, "4") == 0) {
+        *level = ESP_LOG_DEBUG;
+    } else if (strcmp(level_str, "verbose") == 0 || strcmp(level_str, "5") == 0) {
+        *level = ESP_LOG_VERBOSE;
+    } else {
+        return false;
+    }
+    return true;
+}
+
+static int log_level(int argc, char **argv)
+{
+    if (argc != 3) {
+        printf("Usage: log_level <tag|*> <none|error|warn|info|debug|verbose|0-5>\n");
+        printf("Example: log_level CLK_SYNC_EL debug\n");
+        printf("Example: log_level * warn\n");
+        return 1;
+    }
+
+    esp_log_level_t level = ESP_LOG_NONE;
+    if (!parse_log_level(argv[2], &level)) {
+        printf("Invalid log level: %s\n", argv[2]);
+        return 1;
+    }
+
+    esp_log_level_set(argv[1], level);
+    printf("Set log level: tag=%s level=%s\n", argv[1], argv[2]);
+    return 0;
+}
+
 void cli_register_sys()
 {
     static const esp_console_cmd_t cmds[] = {
@@ -834,6 +875,12 @@ void cli_register_sys()
             .help = "Get information about running tasks",
             .hint = NULL,
             .func = &tasks_info,
+        },
+        {
+            .command = "log_level",
+            .help = "Set runtime log level for a tag or *",
+            .hint = "<tag|*> <level>",
+            .func = &log_level,
         }};
 
     for (int i = 0; i < sizeof(cmds) / sizeof(esp_console_cmd_t); i++) {

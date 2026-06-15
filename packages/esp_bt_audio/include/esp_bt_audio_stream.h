@@ -279,6 +279,19 @@ esp_err_t esp_bt_audio_stream_acquire_read(esp_bt_audio_stream_handle_t handle, 
  */
 esp_err_t esp_bt_audio_stream_release_read(esp_bt_audio_stream_handle_t handle, esp_bt_audio_stream_packet_t *packet);
 
+/**
+ * @brief  Get ISO interval of a LE audio stream
+ *
+ * @param[in]   handle        Stream handle
+ * @param[out]  iso_interval  Pointer to store ISO interval in us units
+ *
+ * @return
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_INVALID_ARG    Invalid argument
+ *       - ESP_ERR_INVALID_STATE  Invalid stream state
+ */
+esp_err_t esp_bt_audio_stream_get_iso_interval(esp_bt_audio_stream_handle_t handle, uint16_t *iso_interval);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */
