@@ -104,7 +104,7 @@ static void paused_playback(esp_player_stream_t *stream);
 static void finished_playback(esp_player_stream_t *stream);
 static void pause_playback(esp_player_stream_t *stream);
 static void stop_playback(esp_player_stream_t *stream);
-static void prepare_pipelines_for_seek(esp_player_stream_t *stream, esp_player_state_t old_state);
+static void prepare_pipelines_for_seek(esp_player_stream_t *stream);
 static void seek_playback(esp_player_stream_t *stream, esp_player_state_t old_state);
 static void handle_playback_finished(esp_player_stream_t *stream);
 static void handle_error_state(esp_player_stream_t *stream, esp_player_state_t old_state);
@@ -144,7 +144,7 @@ static bool handle_cmd_seek(esp_player_stream_t *stream, const esp_player_cmd_ms
     stream->is_seeking = true;
 
     player_sync_set_seek_in_progress(stream->sync_handle, true);
-    prepare_pipelines_for_seek(stream, current_state);
+    prepare_pipelines_for_seek(stream);
     if (current_state == PLAYER_STATE_PLAYING || current_state == PLAYER_STATE_PAUSED) {
         seek_playback(stream, current_state);
     }
@@ -276,6 +276,9 @@ static void enter_preparing(esp_player_stream_t *stream, esp_player_state_t old_
     (void)old_state;
     ESP_LOGI(TAG, "Entering PREPARING state");
     stream->_is_stop = false;
+    if (stream->input_state == ESP_PLAYER_INPUT_OPEN_FAILED) {
+        stream->input_state = ESP_PLAYER_INPUT_CLOSED;
+    }
     start_playback(stream);
 }
 
@@ -367,11 +370,8 @@ static const state_enter_fn_t k_state_enter[] = {
     [PLAYER_STATE_ERROR]     = enter_error,
 };
 
-static void prepare_pipelines_for_seek(esp_player_stream_t *stream, esp_player_state_t old_state)
+static void prepare_pipelines_for_seek(esp_player_stream_t *stream)
 {
-    if (old_state == PLAYER_STATE_PLAYING) {
-        player_sync_pause(stream->sync_handle);
-    }
     esp_gmf_err_t ret = ESP_GMF_ERR_FAIL;
     esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_INITIALIZED;
     esp_gmf_db_handle_t aud_db = player_audio_db(stream);
@@ -654,7 +654,7 @@ static void seek_playback(esp_player_stream_t *stream, esp_player_state_t old_st
              __func__, __LINE__, get_state_name(old_state), stream->expected_tasks, stream->task_status);
     if (stream->sync_handle) {
         player_sync_reset(stream->sync_handle);
-        if (old_state == PLAYER_STATE_PLAYING || old_state == PLAYER_STATE_PAUSED) {
+        if (old_state == PLAYER_STATE_PAUSED) {
             player_sync_pause(stream->sync_handle);
         }
     }

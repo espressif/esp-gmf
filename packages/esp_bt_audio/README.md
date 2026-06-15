@@ -231,7 +231,7 @@ If you use the ESP-IDF Component Manager:
 ```yaml
 dependencies:
   espressif/esp_bt_audio:
-    version: "^0.8"
+    version: "^1.0"
 ```
 
 This component depends on ESP-IDF's `bt` component. When `CONFIG_ESP_BT_AUDIO_GMF_IO_SUPPORT=y`, it also pulls in `gmf_core` and `gmf_io` (see `idf_component.yml`).

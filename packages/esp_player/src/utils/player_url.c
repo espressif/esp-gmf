@@ -1033,6 +1033,6 @@ esp_player_err_t _player_update_url(esp_player_stream_t *stream, const char *new
         stream->dec_frame_mode = ESP_PLAYER_DEC_FRAME_MODE_UNKNOWN;
         return ret;
     }
-    stream->input_opened = false;
+    stream->input_state = ESP_PLAYER_INPUT_CLOSED;
     return ESP_PLAYER_ERR_OK;
 }

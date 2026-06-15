@@ -1,4 +1,4 @@
-version: "0.8.2"
+version: "1.0.0"
 description: Espressif Bluetooth Audio Module for Classic and LE Audio
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_bt_audio
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_bt_audio/README.md"
@@ -22,12 +22,12 @@ dependencies:
     version: "^2.5"
   espressif/gmf_core:
     require: "public"
-    version: "^0.8"
+    version: "^1.0"
     matches:
       - if: "$CONFIG{ESP_BT_AUDIO_GMF_IO_SUPPORT} == True"
   espressif/gmf_io:
     require: "public"
-    version: "^0.8"
+    version: "^1.0"
     matches:
       - if: "$CONFIG{ESP_BT_AUDIO_GMF_IO_SUPPORT} == True"
 

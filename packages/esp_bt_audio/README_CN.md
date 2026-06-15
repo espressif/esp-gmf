@@ -231,7 +231,7 @@ flowchart LR
 ```yaml
 dependencies:
   espressif/esp_bt_audio:
-    version: "^0.8"
+    version: "^1.0"
 ```
 
 该组件依赖 ESP-IDF 的 `bt` 组件；当 `CONFIG_ESP_BT_AUDIO_GMF_IO_SUPPORT=y` 时，还会引入 `gmf_core` 与 `gmf_io`（见 `idf_component.yml`）。

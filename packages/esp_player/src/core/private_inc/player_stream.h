@@ -126,6 +126,12 @@ typedef struct {
     uint32_t                  avg_video_frame_ms;  /*!< EWMA video frame duration for queue→ms estimate. */
 } player_buffer_ctrl_t;
 
+typedef enum {
+    ESP_PLAYER_INPUT_CLOSED = 0,   /*!< Input IO not opened yet (reopen allowed) */
+    ESP_PLAYER_INPUT_OPENED,       /*!< Input IO opened successfully */
+    ESP_PLAYER_INPUT_OPEN_FAILED,  /*!< Input IO open latched as failed; stops reopen retries within one prepare */
+} esp_player_input_state_t;
+
 typedef struct esp_player_stream {
     /* Protect */
     SemaphoreHandle_t   lock;           /*!< API mutex: cmd enqueue & short sections; release before blocking sync wait. */
@@ -160,13 +166,13 @@ typedef struct esp_player_stream {
     player_buffer_ctrl_t        *buffer_ctrl;     /*!< Optional network rebuffer ctrl */
 
     /* Private (masks & flags) */
-    uint8_t  av_mask;         /*!< Audio/Video mask */
-    uint8_t  task_status;     /*!< TASK_STATUS_* running bits */
-    uint8_t  expected_tasks;  /*!< Expected TASK_STATUS_* bits */
-    uint8_t  runned_status;   /*!< Reached RUNNING at least once */
-    bool     _is_stop;        /*!< Stop requested (internal) */
-    bool     is_seeking;      /*!< Seek in flight */
-    bool     input_opened;    /*!< Input IO opened */
+    uint8_t                   av_mask;         /*!< Audio/Video mask */
+    uint8_t                   task_status;     /*!< TASK_STATUS_* running bits */
+    uint8_t                   expected_tasks;  /*!< Expected TASK_STATUS_* bits */
+    uint8_t                   runned_status;   /*!< Reached RUNNING at least once */
+    bool                      _is_stop;        /*!< Stop requested (internal) */
+    bool                      is_seeking;      /*!< Seek in flight */
+    esp_player_input_state_t  input_state;     /*!< Input IO open state */
 
     /* Private (FSM) */
     esp_player_state_t         main_state;    /*!< High-level player state */
