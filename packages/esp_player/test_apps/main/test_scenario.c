@@ -609,7 +609,7 @@ TEST_CASE("[mixer]:test_player_mixer_independent_control", "[player][scenario]")
     if (!sc_get_first_file(TEST_FILE_AUDIO_PATH, ".m4a", file_a, sizeof(file_a))) {
         TEST_IGNORE_MESSAGE("No .m4a file found, skip");
     }
-    if (!sc_get_first_file(TEST_FILE_AUDIO_PATH, ".mp3", file_b, sizeof(file_b))) {
+    if (!sc_get_first_file(TEST_FILE_AUDIO_PATH, ".aac", file_b, sizeof(file_b))) {
         strlcpy(file_b, file_a, sizeof(file_b));
     }
 
@@ -627,7 +627,7 @@ TEST_CASE("[mixer]:test_player_mixer_independent_control", "[player][scenario]")
     esp_player_set_url(ctx1.player, file_b);
     TEST_ASSERT_TRUE(sc_run_and_wait_played(&ctx1));
 
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    vTaskDelay(pdMS_TO_TICKS(1000));
 
     ESP_LOGI(TAG, "Pausing stream1 while stream0 keeps playing...");
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_pause(ctx1.player));

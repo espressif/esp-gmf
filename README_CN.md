@@ -2,6 +2,8 @@
 
 - [English](./README.md)
 
+📖 [文档 (中文)](https://docs.espressif.com/projects/esp-gmf/zh_CN/latest/) · [Documentation (English)](https://docs.espressif.com/projects/esp-gmf/en/latest/)
+
 为 Espressif 芯片打造多媒体产品，从一个轻量、模块化、容易扩展的框架开始。
 
 ESP-GMF 全称 Espressif General Multimedia Framework，是乐鑫开发的应用于 IoT 多媒体领域的轻量级通用软件框架。它灵活性高，可扩展性强，专为 IoT 芯片量身打造，RAM 资源占用只有 7 KB。ESP-GMF 可应用于音频、图像、视频等产品，还可应用于任何流式处理数据的产品中。无论你是在做第一个 Demo，还是在构建面向量产的多媒体 pipeline，ESP-GMF 都希望帮助你从小处起步，并稳定地向前推进。

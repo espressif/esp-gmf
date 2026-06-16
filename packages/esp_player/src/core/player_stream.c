@@ -180,7 +180,7 @@ void player_destroy_input_io(esp_player_stream_t *stream)
         esp_gmf_obj_delete(stream->input_handle);
         stream->input_handle = NULL;
     }
-    stream->input_opened = false;
+    stream->input_state = ESP_PLAYER_INPUT_CLOSED;
 }
 
 void player_destroy_audio_path(esp_player_stream_t *stream)
@@ -324,9 +324,9 @@ void player_pause_extractor_task(esp_player_stream_t *stream,
 {
     esp_gmf_task_handle_t tsk = player_pipeline_task(stream->extractor);
     uint32_t retry = 0;
+    player_drop_all_queues(stream);
     while (tsk && *state != ESP_GMF_EVENT_STATE_PAUSED
            && (stream->task_status & TASK_STATUS_EXTRACTOR_RUNNING)) {
-        player_drop_all_queues(stream);
         *ret |= esp_gmf_task_pause(tsk);
         esp_gmf_task_get_state(tsk, state);
         if (++retry > 1000) {
@@ -343,25 +343,24 @@ void player_pause_decoder_task(esp_player_stream_t *stream,
                                uint8_t bit, esp_gmf_err_t *ret)
 {
     player_set_task_timeout(decoder_task, 100);
+    if (queue) {
+        player_drop_single_queue(stream, queue);
+    }
     uint32_t retry = 0;
     while (*state != ESP_GMF_EVENT_STATE_PAUSED && (stream->task_status & bit)) {
-        player_drop_all_queues(stream);
+        if (queue && uxQueueSpacesAvailable(queue) > 0) {
+            esp_gmf_payload_t load = {
+                .buf = NULL,
+                .valid_size = 0,
+                .is_done = false,
+            };
+            xQueueSend(queue, &load, 0);
+        }
         if (db) {
             player_reset_data_bus_meta_for_db(stream, db);
             esp_gmf_db_abort(db);
         }
         *ret |= esp_gmf_task_pause(decoder_task);
-        if (queue) {
-            UBaseType_t queue_space = uxQueueSpacesAvailable(queue);
-            for (size_t i = 0; i < queue_space; i++) {
-                esp_gmf_payload_t load = {
-                    .buf = NULL,
-                    .valid_size = 0,
-                    .is_done = false,
-                };
-                xQueueSend(queue, &load, 0);
-            }
-        }
         esp_gmf_task_get_state(decoder_task, state);
         if (++retry > 1000) {
             ESP_LOGW(ESP_PLAYER_TAG, "Pause decoder retry overflow");

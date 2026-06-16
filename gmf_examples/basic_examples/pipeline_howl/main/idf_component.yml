@@ -12,7 +12,7 @@ dependencies:
   espressif/gmf_misc:
     override_path: ../../../../elements/gmf_misc
   espressif/gmf_loader:
-    version: "^0.8"
+    version: "^1.0"
     override_path: ../../../../packages/gmf_loader
   espressif/esp_board_manager:
     version: "*"

@@ -97,17 +97,21 @@ static void player_extractor_raw_read_pace(esp_player_stream_t *stream, esp_gmf_
 
 static esp_player_err_t player_ensure_input_open(esp_player_stream_t *stream)
 {
-    if (stream->input_opened) {
+    if (stream->input_state == ESP_PLAYER_INPUT_OPENED) {
         return ESP_PLAYER_ERR_OK;
+    }
+    if (stream->input_state == ESP_PLAYER_INPUT_OPEN_FAILED) {
+        return ESP_PLAYER_ERR_FAIL;
     }
     if (stream->_is_stop) {
         return ESP_PLAYER_ERR_FAIL;
     }
     if (esp_gmf_io_open(stream->input_handle) != ESP_GMF_ERR_OK) {
         ESP_LOGE(ESP_PLAYER_TAG, "Failed to open input handle");
+        stream->input_state = ESP_PLAYER_INPUT_OPEN_FAILED;
         return ESP_PLAYER_ERR_FAIL;
     }
-    stream->input_opened = true;
+    stream->input_state = ESP_PLAYER_INPUT_OPENED;
     return ESP_PLAYER_ERR_OK;
 }
 

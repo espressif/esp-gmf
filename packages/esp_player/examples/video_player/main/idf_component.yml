@@ -1,25 +1,28 @@
 dependencies:
   espressif/esp_player:
-    version: "^1.0.0"
+    version: "^1.0"
     override_path: "../../../"
   espressif/esp_board_manager:
     version: ">=0.5"
   espressif/esp_audio_render:
-    version: "^0.8"
+    version: "^1.0"
     override_path: "../../../../esp_audio_render"
   espressif/esp_video_render:
-    version: "^0.8"
+    version: "^1.0"
     override_path: "../../../../esp_video_render"
   espressif/esp_video_codec:
     version: "^0.5"
   espressif/gmf_core:
-    version: "^0.8"
+    version: "^1.0"
     override_path: "../../../../../gmf_core"
   espressif/gmf_audio:
-    version: "^0.8"
+    version: "^1.0"
     override_path: "../../../../../elements/gmf_audio"
+  espressif/gmf_io:
+    version: "^1.0"
+    override_path: "../../../../../elements/gmf_io"
   espressif/gmf_video:
-    version: "^0.8"
+    version: "^1.0"
     override_path: "../../../../../elements/gmf_video"
   espressif/media_lib_sal:
-    version: "^0.9"
+    version: "^1.0"

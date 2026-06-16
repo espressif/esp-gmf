@@ -1,13 +1,13 @@
 # Changelog
 
-## 1.0.0
+## v1.0.0
 
 ### Features
 
 - Added scalar C fallback for targets without PIE assembly, extending support to all ESP32 series.
 - Added ESP32-S31 PIE assembly support
 
-## 0.1.0
+## v0.1.0
 
 ### Features
 - Q15 real FFT / IFFT (`esp_gmf_fft_*`), PIE assembly for ESP32-S3 and ESP32-P4.

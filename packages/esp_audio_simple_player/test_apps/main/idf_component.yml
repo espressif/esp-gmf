@@ -1,6 +1,6 @@
 dependencies:
   espressif/esp_audio_simple_player:
-    version: "~0.9"
+    version: "~1.0"
     override_path: "../../../esp_audio_simple_player"
   espressif/gmf_io:
     override_path: "../../../../elements/gmf_io"

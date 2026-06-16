@@ -71,6 +71,9 @@ static inline int64_t sync_master_clock_drop_late_ms(const player_sync_internal_
 
 static inline void sync_handle_audio_pause(player_sync_internal_t *sync)
 {
+    if (sync->seek_in_progress) {
+        return;
+    }
     if (sync->is_audio_paused == true) {
         if (player_wait_events(sync->config.bit_ctx, sync->config.audio_resume_bit, UINT32_MAX) != ESP_PLAYER_ERR_OK) {
             return;
@@ -81,6 +84,9 @@ static inline void sync_handle_audio_pause(player_sync_internal_t *sync)
 
 static inline void sync_handle_video_pause(player_sync_internal_t *sync)
 {
+    if (sync->seek_in_progress) {
+        return;
+    }
     if (sync->is_video_paused == true) {
         if (player_wait_events(sync->config.bit_ctx, sync->config.video_resume_bit, UINT32_MAX) != ESP_PLAYER_ERR_OK) {
             return;

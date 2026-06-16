@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: Espressif Player is a module for embedded multimedia playback with demux, decode, and audio/video render
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_player
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_player/README.md"
@@ -27,18 +27,18 @@ dependencies:
       - if: "$CONFIG{ESP_PLAYER_ENABLE_HLS_IO} == True"
   espressif/gmf_core:
     require: public
-    version: "^0.8"
+    version: "^1.0"
   espressif/gmf_io:
     require: public
-    version: "^0.8"
+    version: "^1.0"
   espressif/gmf_audio:
     require: public
-    version: "^0.8"
+    version: "^1.0"
     matches:
       - if: "$CONFIG{ESP_PLAYER_ENABLE_AUDIO} == True"
   espressif/gmf_video:
     require: public
-    version: "^0.8"
+    version: "^1.0"
     matches:
       - if: "$CONFIG{ESP_PLAYER_ENABLE_VIDEO} == True"
   espressif/esp_video_codec:
@@ -46,10 +46,10 @@ dependencies:
     matches:
       - if: "$CONFIG{ESP_PLAYER_ENABLE_VIDEO} == True"
   espressif/esp_audio_render:
-    version: "^0.8"
+    version: "^1.0"
     matches:
       - if: "$CONFIG{ESP_PLAYER_ENABLE_AUDIO} == True"
   espressif/esp_video_render:
-    version: "^0.8"
+    version: "^1.0"
     matches:
       - if: "$CONFIG{ESP_PLAYER_ENABLE_VIDEO} == True"

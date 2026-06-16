@@ -42,20 +42,15 @@ esp_gmf_err_t _audio_decoder_pipe_event_handler(esp_gmf_event_pkt_t *event, void
                     player_set_events(stream, _CTRL_PLAYER_RUN);
                 }
                 break;
-            case ESP_GMF_EVENT_STATE_STOPPED: {
+            case ESP_GMF_EVENT_STATE_STOPPED:
                 ESP_LOGD(TAG, "Audio decoder stopped, task_status: %" PRIu8 " runned_status: %" PRIu8 " expected_tasks: %" PRIu8,
                          stream->task_status, stream->runned_status, stream->expected_tasks);
                 stream->task_status &= ~TASK_STATUS_AUDIO_DECODER_RUNNING;
-                esp_gmf_db_handle_t aud_db = player_audio_db(stream);
-                if (aud_db) {
-                    esp_gmf_db_done_write(aud_db);
-                }
                 if (stream->is_seeking) {
                     ESP_LOGD(TAG, "Audio decoder stopped seeking");
                     player_set_events(stream, _CTRL_PLAYER_DECODER_AUDIO_SEEK_DONE);
                 }
                 break;
-            }
             case ESP_GMF_EVENT_STATE_FINISHED: {
                 ESP_LOGD(TAG, "Audio decoder finished, task_status: %" PRIu8 " runned_status: %" PRIu8 " expected_tasks: %" PRIu8,
                          stream->task_status, stream->runned_status, stream->expected_tasks);
