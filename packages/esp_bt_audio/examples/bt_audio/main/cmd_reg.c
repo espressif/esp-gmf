@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <stdint.h>
-#include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -475,8 +475,6 @@ static int cmd_le_scan_start(int argc, char **argv)
 
 static int cmd_le_scan_stop(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
     esp_err_t ret = esp_bt_audio_le_scan_stop();
     if (ret == ESP_OK) {
         printf("LE scan stopped\n");
@@ -517,8 +515,6 @@ static int cmd_le_connect(int argc, char **argv)
 
 static int cmd_le_disconnect(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
     esp_err_t ret = esp_bt_audio_le_disconnect();
     if (ret == ESP_OK) {
         printf("LE disconnect requested\n");
@@ -527,6 +523,30 @@ static int cmd_le_disconnect(int argc, char **argv)
     }
     return ret == ESP_OK ? 0 : 1;
 }
+
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+static int cmd_bms_start(int argc, char **argv)
+{
+    esp_err_t ret = esp_bt_audio_le_broadcast_source_start();
+    if (ret == ESP_OK) {
+        printf("BMS stream started\n");
+    } else {
+        printf("Failed to start BMS stream: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
+}
+
+static int cmd_bms_stop(int argc, char **argv)
+{
+    esp_err_t ret = esp_bt_audio_le_broadcast_source_stop();
+    if (ret == ESP_OK) {
+        printf("BMS stream stopped\n");
+    } else {
+        printf("Failed to stop BMS stream: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
+}
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 
 #if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
@@ -841,6 +861,28 @@ void cli_register_bt(void)
         };
         ESP_ERROR_CHECK(esp_console_cmd_register(&le_disconnect_cmd));
     }
+
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+    {
+        const esp_console_cmd_t bms_start_cmd = {
+            .command = "bms_start",
+            .help = "Start BMS stream",
+            .hint = NULL,
+            .func = &cmd_bms_start,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&bms_start_cmd));
+    }
+
+    {
+        const esp_console_cmd_t bms_stop_cmd = {
+            .command = "bms_stop",
+            .help = "Stop BMS stream",
+            .hint = NULL,
+            .func = &cmd_bms_stop,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&bms_stop_cmd));
+    }
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 }
 

@@ -31,16 +31,12 @@ static void bt_audio_le_csip_lock_changed(esp_ble_conn_t *conn,
                                           esp_ble_audio_csip_set_member_svc_inst_t *inst,
                                           bool locked)
 {
-    (void)conn;
-    (void)inst;
     ESP_LOGI(TAG, "CSIP lock %s", locked ? "set" : "released");
 }
 
 static uint8_t bt_audio_le_csip_sirk_read_req(esp_ble_conn_t *conn,
                                               esp_ble_audio_csip_set_member_svc_inst_t *inst)
 {
-    (void)conn;
-    (void)inst;
     ESP_LOGD(TAG, "CSIP SIRK read request");
     return ESP_BLE_AUDIO_CSIP_READ_SIRK_REQ_RSP_ACCEPT;
 }

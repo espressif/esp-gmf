@@ -18,7 +18,7 @@
 extern "C" {
 #endif  /* __cplusplus */
 
-#if CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
+#if CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
 
 /**
  * @brief  Opaque handle for LE playback synchronization (I2S / modem ETM)
@@ -151,7 +151,7 @@ esp_err_t esp_bt_audio_le_clk_sync_disable(esp_bt_audio_le_clk_sync_handle_t han
  */
 esp_err_t esp_bt_audio_le_clk_sync_deinit(esp_bt_audio_le_clk_sync_handle_t handle);
 
-#endif  /* CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
+#endif  /* CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,18 @@
 menu "BT Audio Basic Example (GMF)"
 
+    config GMF_EXAMPLE_BT_DEVICE_NAME
+        string "Bluetooth device name"
+        default "ESP_BT_AUDIO"
+        help
+            Set the Bluetooth device name advertised by this example.
+
+    config GMF_EXAMPLE_BT_DEVICE_NAME_APPEND_MAC
+        bool "Append MAC address suffix to Bluetooth device name"
+        default y
+        help
+            Append the last two bytes of the Bluetooth MAC address to the
+            configured device name, for example esp_bt_audio_A1B2.
+
     menu "BT UI Configuration"
 
         config EXAMPLE_BT_UI_ENABLE
@@ -20,15 +33,6 @@ menu "BT Audio Basic Example (GMF)"
         default y
         help
             Enable classic Bluetooth profile examples (A2DP/HFP/AVRCP/PBAP).
-
-    config GMF_EXAMPLE_AUDIO_TECH_LE
-        bool "Enable LE Audio"
-        depends on BT_NIMBLE_ENABLED && BT_AUDIO && BT_ISO
-        default y
-        help
-            Enable LE Audio unicast server example flow. This option can be
-            enabled together with Classic Bluetooth when the selected BT host
-            and controller configuration support both technologies.
 
     menu "Classic Audio Roles Configuration"
         depends on BT_CLASSIC_ENABLED && GMF_EXAMPLE_AUDIO_TECH_CLASSIC
@@ -102,6 +106,15 @@ menu "BT Audio Basic Example (GMF)"
                 Enable phone book client equipment role
     endmenu
 
+    config GMF_EXAMPLE_AUDIO_TECH_LE
+        bool "Enable LE Audio"
+        depends on BT_AUDIO && BT_ISO
+        default y
+        help
+            Enable LE Audio unicast server example flow. This option can be
+            enabled together with Classic Bluetooth when the selected BT host
+            and controller configuration support both technologies.
+
     menu "LE Audio Configuration"
         depends on GMF_EXAMPLE_AUDIO_TECH_LE
 
@@ -139,21 +152,59 @@ menu "BT Audio Basic Example (GMF)"
             help
                 Enable the TMAP Broadcast Media Receiver role.
 
-        choice
+        config GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+            bool "TMAP broadcast media sender role"
+            depends on GMF_EXAMPLE_LE_USER_CASE_TMAP && BT_BAP_BROADCAST_SOURCE
+            default n
+            help
+                Enable the TMAP Broadcast Media Sender role. The example sends
+                local microSD media files as an LC3 BIS broadcast source.
+
+        config GMF_EXAMPLE_LE_BSRC_NAME
+            string "LE Audio broadcast source name"
+            depends on GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+            default "GMF_BIS_Source"
+            help
+                Set the Broadcast_Name field advertised by the BIS source.
+
+        config GMF_EXAMPLE_LE_BSRC_CODE
+            string "LE Audio broadcast code string (optional)"
+            depends on GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+            default ""
+            help
+                Set the broadcast code as a plain string. The example copies up
+                to 16 characters into the 16-byte Broadcast_Code field and pads
+                the rest with zeros. Keep this empty to advertise an unencrypted
+                broadcast.
+
+        config GMF_EXAMPLE_LE_BSRC_STREAM_NUM
+            int "LE Audio broadcast source stream count"
+            depends on GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+            default 1
+            range 1 2
+            help
+                Set the number of BIS source streams requested by the example.
+                The esp_bt_audio component clamps this value to the ESP-IDF
+                CONFIG_BT_BAP_BROADCAST_SRC_STREAM_COUNT limit.
+
+        choice GMF_EXAMPLE_LE_LOCATION
             prompt "LE Audio location"
             default GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
-            help
-                Select the audio location advertised by the LE Audio example.
 
-        config GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT
-            bool "Front left"
-            help
-                Advertise the LE Audio location as front left.
+            config GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT
+                bool "Front left"
+                help
+                    Advertise the LE Audio front left location.
 
-        config GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
-            bool "Front right"
-            help
-                Advertise the LE Audio location as front right.
+            config GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
+                bool "Front right"
+                help
+                    Advertise the LE Audio front right location.
+
+            config GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT_RIGHT
+                bool "Front left and right"
+                help
+                    Advertise both LE Audio front left and front right locations.
 
         endchoice
 
@@ -174,9 +225,20 @@ menu "BT Audio Basic Example (GMF)"
             int
             default 1 if GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT
             default 2 if GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
+            default 2 if GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT_RIGHT
+            default 2
             range 1 2
             help
                 Set the CSIP rank for this set member based on the advertised location.
+
+        config GMF_EXAMPLE_LE_CSIP_SIRK
+            string "CSIP SIRK (16 hex bytes)"
+            depends on GMF_EXAMPLE_LE_COORDINATE_SET_SIZE > 1
+            default "b803aac6afbb65625a41f15305698f84"
+            help
+                CSIP Set Identity Resolving Key as 32 hex characters
+                (representing 16 bytes). The default value matches the
+                previously hardcoded SIRK.
 
         config GMF_EXAMPLE_LE_SCAN_TIMEOUT_MS
             int "Default LE scan timeout (ms)"

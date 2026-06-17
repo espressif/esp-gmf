@@ -465,7 +465,7 @@ static void bt_audio_hfp_hf_client_cb(esp_hf_client_cb_event_t event, esp_hf_cli
 
         case ESP_HF_CLIENT_COPS_CURRENT_OPERATOR_EVT: {
             ESP_LOGI(TAG, "--operator name: %s",
-                     param->cops.name);
+                     param->cops.name ? param->cops.name : "");
             esp_bt_audio_tel_status_event_t tel_status = {0};
             if (param->cops.name) {
                 strncpy(tel_status.operator_name.name, param->cops.name, sizeof(tel_status.operator_name.name) - 1);
@@ -635,13 +635,11 @@ static esp_err_t hfp_hf_disconnect(uint8_t *bda)
 
 static esp_err_t hfp_hf_answer_call(uint8_t idx)
 {
-    (void)idx;
     return esp_hf_client_answer_call();
 }
 
 static esp_err_t hfp_hf_reject_call(uint8_t idx)
 {
-    (void)idx;
     return esp_hf_client_reject_call();
 }
 

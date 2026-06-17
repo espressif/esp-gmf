@@ -6,10 +6,11 @@
  */
 
 #include <string.h>
+#include <stdbool.h>
 
-#include "host/ble_gap.h"
-#include "host/ble_hs_adv.h"
-#include "os/os_mbuf.h"
+#include "bt_audio_host_ops.h"
+#include "bt_audio_le_broadcast_source.h"
+#include "bt_audio_le_stream.h"
 
 #include "esp_check.h"
 #include "esp_heap_caps.h"
@@ -21,8 +22,7 @@
 #include "esp_ble_audio_defs.h"
 #include "esp_ble_iso_common_api.h"
 
-#include "bt_audio_le_broadcast_source.h"
-#include "bt_audio_le_stream.h"
+/* net_buf_simple types are provided by esp_ble_iso through the Zephyr compatibility layer. */
 
 /* Broadcast Audio Announcement: Broadcast_Name AD type (assigned number 0x30) */
 #define BT_AUDIO_LE_ADV_TYPE_BROADCAST_NAME  0x30U
@@ -34,68 +34,62 @@ typedef struct {
     esp_ble_audio_bap_broadcast_source_t *source;        /*!< BLE Audio broadcast source instance */
     bt_audio_le_stream_t                **streams;       /*!< Source stream wrappers */
     uint8_t                               stream_count;  /*!< Number of source streams */
+    bool                                  big_adv_added; /*!< BIG has been associated with extended advertising */
 } bt_audio_le_broadcast_source_ctx_t;
 
 static const char *TAG = "BT_AUD_LE_BSRC";
 static bt_audio_le_broadcast_source_ctx_t *s_bsrc;
 
-NET_BUF_SIMPLE_DEFINE(s_base_buf, 128);
 ESP_BLE_AUDIO_BAP_LC3_BROADCAST_PRESET_48_2_1_DEFINE(s_preset, ESP_BLE_AUDIO_LOCATION_MONO_AUDIO,
                                                      ESP_BLE_AUDIO_CONTEXT_TYPE_MEDIA);
 
+NET_BUF_SIMPLE_DEFINE(s_base_buf, 128);
+
 static esp_err_t bt_audio_le_broadcast_source_set_periodic_data(uint8_t adv_handle)
 {
-    struct os_mbuf *per_adv_data = NULL;
-    uint8_t per_len;
-    uint8_t type = BLE_HS_ADV_TYPE_SVC_DATA_UUID16;
-    int err;
+    uint8_t per_adv_data[256];
+    size_t pos = 0;
+    uint8_t type = BT_AUDIO_AD_TYPE_SVC_DATA_UUID16;
 
+    /* Retrieve BASE from the BAP broadcast source. */
     net_buf_simple_reset(&s_base_buf);
     ESP_RETURN_ON_ERROR(esp_ble_audio_bap_broadcast_source_get_base(s_bsrc->source, &s_base_buf),
                         TAG, "Failed to get broadcast BASE");
 
-    per_len = s_base_buf.len + 1;
-    per_adv_data = os_msys_get_pkthdr(sizeof(per_len) + sizeof(type) + s_base_buf.len, 0);
-    ESP_RETURN_ON_FALSE(per_adv_data, ESP_ERR_NO_MEM, TAG, "Failed to allocate periodic adv data");
-
-    err = os_mbuf_append(per_adv_data, &per_len, sizeof(per_len));
-    err |= os_mbuf_append(per_adv_data, &type, sizeof(type));
-    err |= os_mbuf_append(per_adv_data, s_base_buf.data, s_base_buf.len);
-    if (err) {
-        ESP_LOGE(TAG, "Set periodic adv data failed: mbuf append error");
-        os_mbuf_free_chain(per_adv_data);
-        return ESP_FAIL;
+    /* Build periodic advertising data: [length][AD type][BASE data]. */
+    uint8_t per_len = s_base_buf.len + 1;
+    if (pos + 1 + 1 + s_base_buf.len > sizeof(per_adv_data)) {
+        ESP_LOGE(TAG, "Periodic adv data too large");
+        return ESP_ERR_NO_MEM;
     }
+    per_adv_data[pos++] = per_len;
+    per_adv_data[pos++] = type;
+    memcpy(per_adv_data + pos, s_base_buf.data, s_base_buf.len);
+    pos += s_base_buf.len;
 
-    err = ble_gap_periodic_adv_set_data(adv_handle, per_adv_data);
-    if (err) {
-        ESP_LOGE(TAG, "Set periodic adv data failed: ble_gap_periodic_adv_set_data err %d", err);
-        os_mbuf_free_chain(per_adv_data);
-        return ESP_FAIL;
+    esp_err_t ret = bt_audio_host_periodic_adv_set_data(adv_handle, per_adv_data, pos);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Set periodic adv data failed");
     }
-    return ESP_OK;
+    return ret;
 }
 
 esp_err_t bt_audio_le_broadcast_source_start_periodic_adv(uint8_t adv_handle)
 {
-    struct ble_gap_periodic_adv_params params = {0};
-    int err;
+    bt_audio_periodic_adv_params_t params = {0};
 
     ESP_RETURN_ON_FALSE(s_bsrc && s_bsrc->source, ESP_ERR_INVALID_STATE, TAG, "Broadcast source not initialized");
 
-    params.include_tx_power = 0;
-    params.itvl_min = BLE_GAP_ADV_ITVL_MS(100);
-    params.itvl_max = BLE_GAP_ADV_ITVL_MS(100);
-    err = ble_gap_periodic_adv_configure(adv_handle, &params);
-    ESP_RETURN_ON_FALSE(err == 0, ESP_FAIL, TAG, "Failed to configure periodic adv: %d", err);
+    params.include_tx_power = false;
+    params.itvl_min = BT_AUDIO_PERIODIC_ADV_ITVL_MS(100);
+    params.itvl_max = BT_AUDIO_PERIODIC_ADV_ITVL_MS(100);
+    esp_err_t ret = bt_audio_host_periodic_adv_configure(adv_handle, &params);
+    ESP_RETURN_ON_FALSE(ret == ESP_OK, ESP_FAIL, TAG, "Failed to configure periodic adv");
 
     ESP_RETURN_ON_ERROR(bt_audio_le_broadcast_source_set_periodic_data(adv_handle), TAG,
                         "Failed to set periodic adv data");
-    err = ble_gap_periodic_adv_start(adv_handle);
-    if (err != 0) {
-        ESP_LOGE(TAG, "Start periodic adv failed: GAP error %d", err);
-        return ESP_FAIL;
-    }
+    ret = bt_audio_host_periodic_adv_start(adv_handle);
+    ESP_RETURN_ON_FALSE(ret == ESP_OK, ESP_FAIL, TAG, "Failed to start periodic adv");
     return ESP_OK;
 }
 
@@ -106,10 +100,26 @@ esp_err_t bt_audio_le_broadcast_source_start(uint8_t adv_handle)
     };
 
     ESP_RETURN_ON_FALSE(s_bsrc && s_bsrc->source, ESP_ERR_INVALID_STATE, TAG, "Broadcast source not initialized");
-    ESP_RETURN_ON_ERROR(esp_ble_iso_big_ext_adv_add(&info), TAG, "Failed to add BIG ext adv");
+    for (uint8_t i = 0; i < s_bsrc->stream_count; i++) {
+        bt_audio_le_stream_dispatch_allocated(s_bsrc->streams[i]);
+    }
+    if (!s_bsrc->big_adv_added) {
+        ESP_RETURN_ON_ERROR(esp_ble_iso_big_ext_adv_add(&info), TAG, "Failed to add BIG ext adv");
+        s_bsrc->big_adv_added = true;
+    }
     esp_err_t ret = esp_ble_audio_bap_broadcast_source_start(s_bsrc->source, adv_handle);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Start broadcast source failed: %s", esp_err_to_name(ret));
+    }
+    return ret;
+}
+
+esp_err_t bt_audio_le_broadcast_source_stop(void)
+{
+    ESP_RETURN_ON_FALSE(s_bsrc && s_bsrc->source, ESP_ERR_INVALID_STATE, TAG, "Broadcast source not initialized");
+    esp_err_t ret = esp_ble_audio_bap_broadcast_source_stop(s_bsrc->source);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Stop broadcast source failed: %s", esp_err_to_name(ret));
     }
     return ret;
 }
@@ -143,6 +153,7 @@ esp_err_t bt_audio_le_broadcast_source_init(const esp_bt_audio_le_cfg_t *cfg, bt
                           "Failed to create broadcast stream");
         s_bsrc->streams[i]->base.profile = ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST;
         s_bsrc->streams[i]->base.direction = ESP_BT_AUDIO_STREAM_DIR_SOURCE;
+        s_bsrc->streams[i]->base.context = ESP_BT_AUDIO_STREAM_CONTEXT_MEDIA;
         stream_params[i].stream = &s_bsrc->streams[i]->bap_stream;
         stream_params[i].data = mono;
         stream_params[i].data_len = sizeof(mono);

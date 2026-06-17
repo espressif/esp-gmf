@@ -109,19 +109,19 @@ typedef struct {
 } esp_bt_audio_le_csip_cfg_t;
 
 /**
- * @brief  Structure for LE Audio VCP volume renderer configuration
+ * @brief  Structure for LE Audio VCP renderer configuration
  */
 typedef struct {
     uint8_t  step;    /*!< Volume control step size */
     uint8_t  mute;    /*!< Initial mute state */
     uint8_t  volume;  /*!< Initial volume level */
-} esp_bt_audio_le_vcp_cfg_t;
+} esp_bt_audio_le_vcp_rend_cfg_t;
 
 /**
  * @brief  Structure for LE Audio Broadcast Source configuration
  */
 typedef struct {
-    uint8_t  broadcast_code[16];  /*!< Broadcast code */
+    uint8_t  broadcast_code[16];  /*!< Broadcast code string bytes, zero-padded */
     uint8_t  broadcast_name[32];  /*!< Broadcast name */
     uint8_t  stream_num;          /*!< Number of streams */
 } esp_bt_audio_le_bsrc_cfg_t;
@@ -130,14 +130,14 @@ typedef struct {
  * @brief  Structure for LE Audio configuration
  */
 typedef struct {
-    uint32_t                    roles;      /*!< LE roles for the selected user case, e.g. ESP_BLE_AUDIO_TMAP_ROLE_* for TMAP */
-    uint32_t                    user_case;  /*!< LE Audio use case, e.g. esp_bt_audio_le_user_case_t */
-    uint8_t                     snk_cnt;    /*!< Number of sink ASEs to register as unicast server */
-    uint8_t                     src_cnt;    /*!< Number of source ASEs to register as unicast server */
-    esp_bt_audio_le_pacs_cfg_t  pacs;       /*!< PACS configuration */
-    esp_bt_audio_le_csip_cfg_t  csip;       /*!< CSIP set member configuration */
-    esp_bt_audio_le_vcp_cfg_t   vcp;        /*!< VCP volume renderer configuration */
-    esp_bt_audio_le_bsrc_cfg_t  bsrc;       /*!< Broadcast source configuration */
+    uint32_t                        roles;      /*!< LE roles for the selected user case, e.g. ESP_BLE_AUDIO_TMAP_ROLE_* for TMAP */
+    uint32_t                        user_case;  /*!< LE Audio use case, e.g. esp_bt_audio_le_user_case_t */
+    uint8_t                         snk_cnt;    /*!< Number of sink ASEs to register as unicast server */
+    uint8_t                         src_cnt;    /*!< Number of source ASEs to register as unicast server */
+    esp_bt_audio_le_pacs_cfg_t      pacs;       /*!< PACS configuration */
+    esp_bt_audio_le_csip_cfg_t      csip;       /*!< CSIP set member configuration */
+    esp_bt_audio_le_vcp_rend_cfg_t  vcp_rend;   /*!< VCP renderer configuration */
+    esp_bt_audio_le_bsrc_cfg_t      bsrc;       /*!< Broadcast source configuration */
 } esp_bt_audio_le_cfg_t;
 
 #ifdef __cplusplus

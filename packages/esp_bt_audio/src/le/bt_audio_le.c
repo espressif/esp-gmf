@@ -7,10 +7,8 @@
 
 #include <string.h>
 
-#include "host/ble_hs.h"
-#include "host/ble_gap.h"
-#include "os/os_mbuf.h"
-#include "services/gap/ble_svc_gap.h"
+#include "bt_audio_host_ops.h"
+#include "bt_audio_ops.h"
 
 #include "esp_check.h"
 #include "esp_heap_caps.h"
@@ -52,9 +50,8 @@
 #include "bt_audio_le_unicast_server.h"
 #endif  /* CONFIG_BT_BAP_UNICAST_SERVER */
 #if CONFIG_BT_VCP_VOL_REND
-#include "bt_audio_le_vcp.h"
+#include "bt_audio_le_vcp_rend.h"
 #endif  /* CONFIG_BT_VCP_VOL_REND */
-#include "bt_audio_ops.h"
 
 #define BT_AUDIO_LE_ADV_HANDLE               0x00
 #define BT_AUDIO_LE_ADV_BUFFER_SIZE          128
@@ -82,14 +79,64 @@ typedef struct {
     bool                        inited_mcc              : 1;            /*!< MCC module has been initialized */
     bool                        inited_micp             : 1;            /*!< MICP module has been initialized */
     bool                        inited_ccp              : 1;            /*!< CCP module has been initialized */
-    bool                        inited_vcp              : 1;            /*!< VCP module has been initialized */
+    bool                        inited_vcp_rend         : 1;            /*!< VCP renderer module has been initialized */
     bool                        started                 : 1;            /*!< Common BLE Audio layer has been started */
+    bool                        broadcast_source_started : 1;           /*!< Broadcast source audio path has been started */
+    bool                        adv_configured          : 1;            /*!< Extended advertising set has been configured */
+    bool                        adv_enabled             : 1;            /*!< Extended advertising is allowed to run */
+    bool                        adv_running             : 1;            /*!< Extended advertising is running */
+    bool                        periodic_adv_running    : 1;            /*!< Periodic advertising is running */
+    bool                        user_connected_notified : 1;            /*!< User has been notified of the current LE connection */
     esp_bt_audio_le_cfg_t       cfg;                                    /*!< Cached user configuration */
 } bt_audio_le_ctx_t;
 
 static const char *TAG = "BT_AUD_LE";
 static bt_audio_le_ctx_t *s_le;
 static esp_err_t bt_audio_le_start_ext_adv(void);
+
+static esp_err_t bt_audio_le_start_periodic_adv(void)
+{
+#if CONFIG_BT_BAP_BROADCAST_SOURCE
+    ESP_RETURN_ON_FALSE(s_le, ESP_ERR_INVALID_STATE, TAG, "LE Audio not initialized");
+    if (!s_le->inited_broadcast_source || s_le->periodic_adv_running) {
+        return ESP_OK;
+    }
+
+    ESP_RETURN_ON_ERROR(bt_audio_le_broadcast_source_start_periodic_adv(BT_AUDIO_LE_ADV_HANDLE),
+                        TAG, "Failed to start broadcast source periodic advertising");
+    s_le->periodic_adv_running = true;
+#endif  /* CONFIG_BT_BAP_BROADCAST_SOURCE */
+    return ESP_OK;
+}
+
+static esp_err_t bt_audio_le_stop_periodic_adv(void)
+{
+#if CONFIG_BT_BAP_BROADCAST_SOURCE
+    ESP_RETURN_ON_FALSE(s_le, ESP_ERR_INVALID_STATE, TAG, "LE Audio not initialized");
+    if (!s_le->inited_broadcast_source || !s_le->periodic_adv_running) {
+        return ESP_OK;
+    }
+
+    esp_err_t err = bt_audio_host_periodic_adv_stop(BT_AUDIO_LE_ADV_HANDLE);
+    ESP_RETURN_ON_FALSE(err == ESP_OK, ESP_FAIL, TAG, "Failed to stop broadcast source periodic advertising");
+    s_le->periodic_adv_running = false;
+#endif  /* CONFIG_BT_BAP_BROADCAST_SOURCE */
+    return ESP_OK;
+}
+
+static inline void bt_audio_le_stop_ext_adv(void)
+{
+    if (!s_le->adv_running) {
+        return;
+    }
+
+    esp_err_t err = bt_audio_host_ext_adv_stop(BT_AUDIO_LE_ADV_HANDLE);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to stop extended advertising: %s", esp_err_to_name(err));
+        return;
+    }
+    s_le->adv_running = false;
+}
 
 static inline uint16_t bt_audio_le_get_u16(const uint8_t *data)
 {
@@ -111,7 +158,6 @@ static inline bool bt_audio_le_pacs_enabled(const esp_bt_audio_le_pacs_cfg_t *pa
 #if CONFIG_BT_MCC && CONFIG_BT_TBS_CLIENT
 static void bt_audio_le_mcc_discover_after_ccp(uint16_t conn_handle, void *user_ctx)
 {
-    (void)user_ctx;
     if (s_le && s_le->inited_mcc) {
         bt_audio_le_mcc_discover(conn_handle);
     }
@@ -174,8 +220,8 @@ static bool bt_audio_le_device_found(uint8_t type, const uint8_t *data, uint8_t 
     esp_bt_audio_event_device_discovered_t *disc = user_data;
 
     switch (type) {
-        case BLE_HS_ADV_TYPE_INCOMP_NAME:
-        case BLE_HS_ADV_TYPE_COMP_NAME:
+        case BT_AUDIO_AD_TYPE_INCOMP_NAME:
+        case BT_AUDIO_AD_TYPE_COMP_NAME:
             memcpy(disc->name, data, MIN(data_len, sizeof(disc->name) - 1));
             break;
         case BT_AUDIO_LE_ADV_TYPE_BROADCAST_NAME: {
@@ -183,14 +229,14 @@ static bool bt_audio_le_device_found(uint8_t type, const uint8_t *data, uint8_t 
             memcpy(disc->disc_data.le.broadcast_name, data, MIN((size_t)data_len, bn_cap));
             break;
         }
-        case BLE_HS_ADV_TYPE_SVC_DATA_UUID16:
+        case BT_AUDIO_AD_TYPE_SVC_DATA_UUID16:
             if (data_len >= ESP_BLE_AUDIO_UUID_SIZE_16 + ESP_BLE_AUDIO_BROADCAST_ID_SIZE &&
                 bt_audio_le_get_u16(data) == ESP_BLE_AUDIO_UUID_BROADCAST_AUDIO_VAL) {
                 disc->disc_data.le.broadcast_id = bt_audio_le_get_u24(data + ESP_BLE_AUDIO_UUID_SIZE_16);
             }
             break;
-        case BLE_HS_ADV_TYPE_INCOMP_UUIDS16:
-        case BLE_HS_ADV_TYPE_COMP_UUIDS16:
+        case BT_AUDIO_AD_TYPE_INCOMP_UUIDS16:
+        case BT_AUDIO_AD_TYPE_COMP_UUIDS16:
             for (uint8_t i = 0; i + ESP_BLE_AUDIO_UUID_SIZE_16 <= data_len; i += ESP_BLE_AUDIO_UUID_SIZE_16) {
                 uint16_t uuid = bt_audio_le_get_u16(data + i);
                 if (uuid == ESP_BLE_AUDIO_UUID_BASS_VAL) {
@@ -206,126 +252,85 @@ static bool bt_audio_le_device_found(uint8_t type, const uint8_t *data, uint8_t 
     return true;
 }
 
-static inline void bt_audio_le_get_conn_addr(uint16_t conn_handle, uint8_t addr[6])
-{
-    struct ble_gap_conn_desc desc = {0};
-
-    if (ble_gap_conn_find(conn_handle, &desc) == 0) {
-        memcpy(addr, desc.peer_id_addr.val, 6);
-    }
-}
-
-static int bt_audio_le_gap_cb(struct ble_gap_event *event, void *arg)
-{
-    (void)arg;
-
-    switch (event->type) {
-        case BLE_GAP_EVENT_DISC_COMPLETE:
-            if (s_le) {
-                s_le->scan_running = false;
-                memset(s_le->connect_target, 0, sizeof(s_le->connect_target));
-            }
-            break;
-        case BLE_GAP_EVENT_CONNECT:
-            if (event->connect.status == 0) {
-                if (s_le) {
-                    s_le->conn_handle = event->connect.conn_handle;
-                }
-                esp_bt_audio_event_connection_st_t  conn = {
-                    .tech = ESP_BT_AUDIO_TECH_LE,
-                    .connected = true,
-                };
-                bt_audio_le_get_conn_addr(event->connect.conn_handle, conn.addr);
-                bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_CONNECTION_STATE_CHG, &conn);
-            }
-            break;
-        case BLE_GAP_EVENT_DISCONNECT: {
-            esp_bt_audio_event_connection_st_t  conn = {
-                .tech = ESP_BT_AUDIO_TECH_LE,
-                .connected = false,
-            };
-            memcpy(conn.addr, event->disconnect.conn.peer_id_addr.val, sizeof(conn.addr));
-            ESP_LOGI(TAG, "LE disconnected, reason 0x%02x", event->disconnect.reason);
-            if (s_le) {
-                s_le->conn_handle = 0;
-            }
-            bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_CONNECTION_STATE_CHG, &conn);
-            if (s_le && s_le->started) {
-                bt_audio_le_start_ext_adv();
-            }
-            break;
-        }
-        default:
-            break;
-    }
-
-    if (event->type == BLE_GAP_EVENT_EXT_DISC ||
-        event->type == BLE_GAP_EVENT_PERIODIC_SYNC ||
-        event->type == BLE_GAP_EVENT_PERIODIC_REPORT ||
-        event->type == BLE_GAP_EVENT_PERIODIC_SYNC_LOST ||
-        event->type == BLE_GAP_EVENT_PERIODIC_TRANSFER ||
-        event->type == BLE_GAP_EVENT_PERIODIC_TRANSFER_V2 ||
-        event->type == BLE_GAP_EVENT_CONNECT ||
-        event->type == BLE_GAP_EVENT_DISCONNECT ||
-        event->type == BLE_GAP_EVENT_ENC_CHANGE) {
-        esp_ble_audio_gap_app_post_event(event->type, event);
-    } else if (event->type == BLE_GAP_EVENT_MTU ||
-               event->type == BLE_GAP_EVENT_NOTIFY_RX ||
-               event->type == BLE_GAP_EVENT_NOTIFY_TX ||
-               event->type == BLE_GAP_EVENT_SUBSCRIBE) {
-        esp_ble_audio_gatt_app_post_event(event->type, event);
-    }
-
-    return 0;
-}
-
 static esp_err_t bt_audio_le_start_ext_adv(void)
 {
-    struct ble_gap_ext_adv_params params = {0};
-    struct os_mbuf *data = NULL;
+    bt_audio_ext_adv_params_t params = {0};
     size_t adv_len = 0;
-    int err;
+    esp_err_t err;
 
-    params.connectable = 1;
-    params.scannable = 0;
-    params.legacy_pdu = 0;
-    params.own_addr_type = BLE_OWN_ADDR_PUBLIC;
-    params.primary_phy = BLE_HCI_LE_PHY_1M;
-    params.secondary_phy = BLE_HCI_LE_PHY_2M;
-    params.tx_power = 127;
-    params.sid = 0;
-    params.itvl_min = BLE_GAP_ADV_ITVL_MS(200);
-    params.itvl_max = BLE_GAP_ADV_ITVL_MS(200);
-
-    err = ble_gap_ext_adv_configure(BT_AUDIO_LE_ADV_HANDLE, &params, NULL, bt_audio_le_gap_cb, NULL);
-    ESP_RETURN_ON_FALSE(err == 0, ESP_FAIL, TAG, "Failed to configure extended advertising: %d", err);
-
-    ESP_RETURN_ON_ERROR(bt_audio_le_adv_builder_get_buffer(s_le->adv_builder, s_le->adv_data,
-                                                           sizeof(s_le->adv_data), &adv_len),
-                        TAG, "Failed to build extended advertising data");
-
-    data = os_msys_get_pkthdr(adv_len, 0);
-    ESP_RETURN_ON_FALSE(data, ESP_ERR_NO_MEM, TAG, "Failed to allocate advertising mbuf");
-    err = os_mbuf_append(data, s_le->adv_data, adv_len);
-    if (err) {
-        ESP_LOGE(TAG, "Start extended advertising failed: append data error %d", err);
-        os_mbuf_free_chain(data);
-        return ESP_FAIL;
+    ESP_RETURN_ON_FALSE(s_le, ESP_ERR_INVALID_STATE, TAG, "LE Audio not initialized");
+    if (s_le->adv_running) {
+        return ESP_OK;
     }
 
-    err = ble_gap_ext_adv_set_data(BT_AUDIO_LE_ADV_HANDLE, data);
-    ESP_RETURN_ON_FALSE(err == 0, ESP_FAIL, TAG, "Failed to set extended advertising data: %d", err);
+    params.connectable = !s_le->inited_broadcast_source;
+    params.scannable = false;
+    params.legacy_pdu = false;
+    params.own_addr_type = BT_AUDIO_OWN_ADDR_PUBLIC;
+    params.primary_phy = BT_AUDIO_LE_PHY_1M;
+    params.secondary_phy = BT_AUDIO_LE_PHY_2M;
+    params.tx_power = 127;
+    params.sid = 0;
+    params.itvl_min = BT_AUDIO_ADV_ITVL_MS(200);
+    params.itvl_max = BT_AUDIO_ADV_ITVL_MS(200);
 
-    err = ble_gap_ext_adv_start(BT_AUDIO_LE_ADV_HANDLE, 0, 0);
-    ESP_RETURN_ON_FALSE(err == 0, ESP_FAIL, TAG, "Failed to start extended advertising: %d", err);
+    if (!s_le->adv_configured) {
+        err = bt_audio_host_ext_adv_configure(BT_AUDIO_LE_ADV_HANDLE, &params);
+        ESP_RETURN_ON_FALSE(err == ESP_OK, ESP_FAIL, TAG, "Failed to configure extended advertising");
+
+        ESP_RETURN_ON_ERROR(bt_audio_le_adv_builder_get_buffer(s_le->adv_builder, s_le->adv_data,
+                                                               sizeof(s_le->adv_data), &adv_len),
+                            TAG, "Failed to build extended advertising data");
+
+        err = bt_audio_host_ext_adv_set_data(BT_AUDIO_LE_ADV_HANDLE, s_le->adv_data, adv_len);
+        ESP_RETURN_ON_FALSE(err == ESP_OK, ESP_FAIL, TAG, "Failed to set extended advertising data");
+        s_le->adv_configured = true;
+    }
+
+    err = bt_audio_host_ext_adv_start(BT_AUDIO_LE_ADV_HANDLE, 0, 0);
+    ESP_RETURN_ON_FALSE(err == ESP_OK, ESP_FAIL, TAG, "Failed to start extended advertising");
+    s_le->adv_running = true;
+    return ESP_OK;
+}
+
+static esp_err_t bt_audio_le_start_adv(void)
+{
+    ESP_RETURN_ON_ERROR(bt_audio_le_start_ext_adv(), TAG, "Failed to start LE advertising");
+
+    esp_err_t err = bt_audio_le_start_periodic_adv();
+    if (err != ESP_OK) {
+        bt_audio_le_stop_ext_adv();
+        ESP_LOGE(TAG, "Failed to start LE periodic advertising: %s", esp_err_to_name(err));
+        return err;
+    }
+    return ESP_OK;
+}
+
+esp_err_t esp_bt_audio_le_set_advertising(bool enable)
+{
+    ESP_RETURN_ON_FALSE(s_le, ESP_ERR_INVALID_STATE, TAG, "LE Audio not initialized");
+    ESP_RETURN_ON_FALSE(s_le->started, ESP_ERR_INVALID_STATE, TAG, "LE Audio not started");
+
+    s_le->adv_enabled = enable;
+    if (enable) {
+        return bt_audio_le_start_adv();
+    }
+
+    if (!s_le->adv_running) {
+        return bt_audio_le_stop_periodic_adv();
+    }
+
+    ESP_RETURN_ON_ERROR(bt_audio_le_stop_periodic_adv(), TAG, "Failed to stop LE periodic advertising");
+    esp_err_t err = bt_audio_host_ext_adv_stop(BT_AUDIO_LE_ADV_HANDLE);
+    ESP_RETURN_ON_FALSE(err == ESP_OK, ESP_FAIL, TAG, "Failed to stop extended advertising");
+    s_le->adv_running = false;
     return ESP_OK;
 }
 
 static esp_err_t bt_audio_le_start_scan(const uint8_t *target, uint32_t timeout_ms)
 {
-    struct ble_gap_disc_params params = {0};
+    bt_audio_scan_params_t params = {0};
     uint8_t own_addr_type = 0;
-    int err;
 
     ESP_RETURN_ON_FALSE(s_le, ESP_ERR_INVALID_STATE, TAG, "LE Audio not initialized");
     ESP_RETURN_ON_FALSE(!s_le->scan_running, ESP_ERR_INVALID_STATE, TAG, "Scan already running");
@@ -337,15 +342,15 @@ static esp_err_t bt_audio_le_start_scan(const uint8_t *target, uint32_t timeout_
         timeout_ms = BT_AUDIO_LE_SCAN_TIMEOUT_MS;
     }
 
-    err = ble_hs_id_infer_auto(0, &own_addr_type);
-    ESP_RETURN_ON_FALSE(err == 0, ESP_FAIL, TAG, "Failed to infer own addr type: %d", err);
+    esp_err_t ret = bt_audio_host_id_infer_auto(0, &own_addr_type);
+    ESP_RETURN_ON_FALSE(ret == ESP_OK, ESP_FAIL, TAG, "Failed to infer own addr type");
 
-    params.passive = 1;
+    params.passive = true;
     params.itvl = 160;
     params.window = 160;
-    params.filter_duplicates = 1;
-    err = ble_gap_disc(own_addr_type, timeout_ms, &params, bt_audio_le_gap_cb, NULL);
-    ESP_RETURN_ON_FALSE(err == 0, ESP_FAIL, TAG, "Failed to start scan: %d", err);
+    params.filter_duplicates = true;
+    ret = bt_audio_host_disc(own_addr_type, &params, timeout_ms);
+    ESP_RETURN_ON_FALSE(ret == ESP_OK, ESP_FAIL, TAG, "Failed to start scan");
 
     s_le->scan_running = true;
     esp_bt_audio_event_discovery_st_t event = {
@@ -360,9 +365,9 @@ static esp_err_t bt_audio_le_stop_scan(void)
 {
     ESP_RETURN_ON_FALSE(s_le, ESP_ERR_INVALID_STATE, TAG, "LE Audio not initialized");
 
-    int err = ble_gap_disc_cancel();
-    if (err && err != BLE_HS_EALREADY) {
-        ESP_LOGE(TAG, "Stop scan failed: GAP cancel error %d", err);
+    esp_err_t err = bt_audio_host_disc_cancel();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Stop scan failed: %s", esp_err_to_name(err));
         return ESP_FAIL;
     }
 
@@ -407,9 +412,74 @@ static void bt_audio_le_iso_gap_cb(esp_ble_audio_gap_app_event_t *event)
                 bt_audio_le_stop_scan();
             }
             break;
-        case ESP_BLE_AUDIO_GAP_EVENT_ACL_CONNECT:
-            ble_gap_security_initiate(event->acl_connect.conn_handle);
+        case ESP_BLE_AUDIO_GAP_EVENT_ACL_CONNECT: {
+            if (event->acl_connect.status == 0) {
+                bt_audio_addr_t peer = {
+                    .type = event->acl_connect.dst.type,
+                };
+                memcpy(peer.val, event->acl_connect.dst.val, sizeof(peer.val));
+                bt_audio_host_acl_connected(event->acl_connect.conn_handle, &peer);
+                if (s_le) {
+                    s_le->conn_handle = event->acl_connect.conn_handle;
+                    s_le->adv_running = false;
+                    s_le->user_connected_notified = false;
+                    memcpy(s_le->connect_target, event->acl_connect.dst.val, sizeof(s_le->connect_target));
+                }
+                ESP_LOGI(TAG, "LE connected, conn_handle %u", event->acl_connect.conn_handle);
+                bt_audio_host_security_initiate(event->acl_connect.conn_handle);
+            }
             break;
+        }
+        case ESP_BLE_AUDIO_GAP_EVENT_SECURITY_CHANGE: {
+            if (event->security_change.status == 0) {
+                esp_bt_audio_event_connection_st_t conn = {
+                    .tech = ESP_BT_AUDIO_TECH_LE,
+                    .connected = true,
+                };
+                if (s_le) {
+                    memcpy(conn.addr, s_le->connect_target, sizeof(conn.addr));
+                    s_le->user_connected_notified = true;
+                }
+                ESP_LOGI(TAG, "LE security established, conn_handle %u", event->security_change.conn_handle);
+                bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_CONNECTION_STATE_CHG, &conn);
+            }
+            break;
+        }
+        case ESP_BLE_AUDIO_GAP_EVENT_ACL_DISCONNECT: {
+            bool notify_user = s_le && s_le->user_connected_notified;
+            esp_bt_audio_event_connection_st_t conn = {
+                .tech = ESP_BT_AUDIO_TECH_LE,
+                .connected = false,
+            };
+            if (s_le) {
+                bt_audio_host_acl_disconnected(s_le->conn_handle);
+#if CONFIG_BT_MCC
+                if (s_le->inited_mcc) {
+                    bt_audio_le_mcc_on_disconnect();
+                }
+#endif  /* CONFIG_BT_MCC */
+#if CONFIG_BT_TBS_CLIENT
+                if (s_le->inited_ccp) {
+                    bt_audio_le_ccp_on_disconnect();
+                }
+#endif  /* CONFIG_BT_TBS_CLIENT */
+                memcpy(conn.addr, s_le->connect_target, sizeof(conn.addr));
+                s_le->user_connected_notified = false;
+                s_le->conn_handle = 0;
+                memset(s_le->connect_target, 0, sizeof(s_le->connect_target));
+            }
+            ESP_LOGI(TAG, "LE disconnected, reason 0x%02x", event->acl_disconnect.reason);
+            if (notify_user) {
+                bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_CONNECTION_STATE_CHG, &conn);
+            }
+            if (s_le && s_le->started && s_le->adv_enabled) {
+                esp_err_t ret = bt_audio_le_start_adv();
+                if (ret != ESP_OK) {
+                    ESP_LOGW(TAG, "Failed to restart LE advertising: %s", esp_err_to_name(ret));
+                }
+            }
+            break;
+        }
         default:
             break;
     }
@@ -470,15 +540,14 @@ static void bt_audio_le_iso_gatt_cb(esp_ble_audio_gatt_app_event_t *event)
 
 static esp_err_t bt_audio_le_connect(uint8_t addr_type, const uint8_t *bt_dev_addr, uint32_t timeout_ms)
 {
-    struct ble_gap_conn_params params = {0};
-    ble_addr_t peer = {0};
+    bt_audio_conn_params_t params = {0};
+    bt_audio_addr_t peer = {0};
     uint8_t own_addr_type = 0;
-    int err;
 
     ESP_RETURN_ON_FALSE(s_le && bt_dev_addr, ESP_ERR_INVALID_ARG, TAG, "Invalid connect args");
 
-    err = ble_hs_id_infer_auto(0, &own_addr_type);
-    ESP_RETURN_ON_FALSE(err == 0, ESP_FAIL, TAG, "Failed to infer own addr type: %d", err);
+    esp_err_t ret = bt_audio_host_id_infer_auto(0, &own_addr_type);
+    ESP_RETURN_ON_FALSE(ret == ESP_OK, ESP_FAIL, TAG, "Failed to infer own addr type");
 
     peer.type = addr_type;
     memcpy(peer.val, bt_dev_addr, sizeof(peer.val));
@@ -490,13 +559,13 @@ static esp_err_t bt_audio_le_connect(uint8_t addr_type, const uint8_t *bt_dev_ad
     params.supervision_timeout = 400;
 
     if (s_le->scan_running) {
-        ble_gap_disc_cancel();
+        bt_audio_host_disc_cancel();
         s_le->scan_running = false;
     }
-    err = ble_gap_connect(own_addr_type, &peer, timeout_ms ? timeout_ms : BT_AUDIO_LE_SCAN_TIMEOUT_MS,
-                          &params, bt_audio_le_gap_cb, NULL);
-    if (err != 0) {
-        ESP_LOGE(TAG, "Connect failed: GAP connect error %d", err);
+    ret = bt_audio_host_connect(own_addr_type, &peer, &params,
+                                timeout_ms ? timeout_ms : BT_AUDIO_LE_SCAN_TIMEOUT_MS);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Connect failed: %s", esp_err_to_name(ret));
         return ESP_FAIL;
     }
     return ESP_OK;
@@ -504,10 +573,9 @@ static esp_err_t bt_audio_le_connect(uint8_t addr_type, const uint8_t *bt_dev_ad
 
 static esp_err_t bt_audio_le_disconnect(const uint8_t *bt_dev_addr)
 {
-    (void)bt_dev_addr;
     ESP_RETURN_ON_FALSE(s_le, ESP_ERR_INVALID_STATE, TAG, "LE Audio not initialized");
     ESP_RETURN_ON_FALSE(s_le->conn_handle, ESP_ERR_INVALID_STATE, TAG, "No LE ACL connection");
-    return ble_gap_terminate(s_le->conn_handle, BLE_ERR_REM_USER_CONN_TERM) == 0 ? ESP_OK : ESP_FAIL;
+    return bt_audio_host_disconnect(s_le->conn_handle, BT_AUDIO_ERR_REM_USER_CONN_TERM);
 }
 
 static esp_err_t bt_audio_le_broadcast_sync(const uint8_t *broadcast_name,
@@ -520,10 +588,6 @@ static esp_err_t bt_audio_le_broadcast_sync(const uint8_t *broadcast_name,
                         TAG, "Failed to prepare broadcast sync");
     return bt_audio_le_start_scan(NULL, timeout_ms);
 #else
-    (void)broadcast_name;
-    (void)broadcast_code;
-    (void)bit_field;
-    (void)timeout_ms;
     ESP_LOGE(TAG, "Broadcast sync failed: broadcast sink is not supported");
     return ESP_ERR_NOT_SUPPORTED;
 #endif  /* CONFIG_BT_BAP_BROADCAST_SINK */
@@ -539,6 +603,45 @@ static esp_err_t bt_audio_le_pa_sync_terminate(void)
 #endif  /* CONFIG_BT_BAP_BROADCAST_SINK */
 }
 
+static esp_err_t bt_audio_le_broadcast_source_start_audio(void)
+{
+#if CONFIG_BT_BAP_BROADCAST_SOURCE
+    ESP_RETURN_ON_FALSE(s_le, ESP_ERR_INVALID_STATE, TAG, "LE Audio not initialized");
+    ESP_RETURN_ON_FALSE(s_le->inited_broadcast_source, ESP_ERR_INVALID_STATE, TAG, "Broadcast source not initialized");
+    ESP_RETURN_ON_FALSE(s_le->started, ESP_ERR_INVALID_STATE, TAG, "LE Audio not started");
+    if (s_le->broadcast_source_started) {
+        return ESP_OK;
+    }
+
+    ESP_RETURN_ON_ERROR(bt_audio_le_broadcast_source_start(BT_AUDIO_LE_ADV_HANDLE),
+                        TAG, "Failed to start broadcast source");
+    s_le->broadcast_source_started = true;
+    return ESP_OK;
+#else
+    ESP_LOGE(TAG, "Broadcast source start failed: broadcast source is not supported");
+    return ESP_ERR_NOT_SUPPORTED;
+#endif  /* CONFIG_BT_BAP_BROADCAST_SOURCE */
+}
+
+static esp_err_t bt_audio_le_broadcast_source_stop_audio(void)
+{
+#if CONFIG_BT_BAP_BROADCAST_SOURCE
+    ESP_RETURN_ON_FALSE(s_le, ESP_ERR_INVALID_STATE, TAG, "LE Audio not initialized");
+    ESP_RETURN_ON_FALSE(s_le->inited_broadcast_source, ESP_ERR_INVALID_STATE, TAG, "Broadcast source not initialized");
+    if (!s_le->broadcast_source_started) {
+        return ESP_OK;
+    }
+
+    ESP_RETURN_ON_ERROR(bt_audio_le_broadcast_source_stop(),
+                        TAG, "Failed to stop broadcast source");
+    s_le->broadcast_source_started = false;
+    return ESP_OK;
+#else
+    ESP_LOGE(TAG, "Broadcast source stop failed: broadcast source is not supported");
+    return ESP_ERR_NOT_SUPPORTED;
+#endif  /* CONFIG_BT_BAP_BROADCAST_SOURCE */
+}
+
 static inline esp_err_t bt_audio_le_register_ops(void)
 {
     esp_bt_audio_le_ops_t le_ops = {
@@ -546,6 +649,8 @@ static inline esp_err_t bt_audio_le_register_ops(void)
         .stop_scan = bt_audio_le_stop_scan,
         .connect = bt_audio_le_connect,
         .disconnect = bt_audio_le_disconnect,
+        .broadcast_source_start = bt_audio_le_broadcast_source_start_audio,
+        .broadcast_source_stop = bt_audio_le_broadcast_source_stop_audio,
         .broadcast_sync = bt_audio_le_broadcast_sync,
         .pa_sync_terminate = bt_audio_le_pa_sync_terminate,
     };
@@ -584,7 +689,7 @@ static esp_err_t bt_audio_le_prepare_adv_builder(const esp_bt_audio_le_cfg_t *cf
 #endif  /* CONFIG_BT_TMAP */
     }
 
-    const char *name = ble_svc_gap_device_name();
+    const char *name = bt_audio_host_svc_gap_device_name();
     if (name) {
         bt_audio_le_adv_builder_add_name(s_le->adv_builder, name);
     }
@@ -624,7 +729,7 @@ static esp_err_t bt_audio_le_load_user_case_tmap(const esp_bt_audio_le_cfg_t *cf
                             TAG, "Failed to init scan delegator");
         s_le->inited_scan_delegator = true;
 
-        ESP_RETURN_ON_ERROR(bt_audio_le_broadcast_sink_init(cfg->pacs.sink_locations, bt_audio_le_gap_cb),
+        ESP_RETURN_ON_ERROR(bt_audio_le_broadcast_sink_init(cfg->pacs.sink_locations),
                             TAG, "Failed to init broadcast sink");
         s_le->inited_broadcast_sink = true;
 #else
@@ -635,8 +740,9 @@ static esp_err_t bt_audio_le_load_user_case_tmap(const esp_bt_audio_le_cfg_t *cf
 
 #if CONFIG_BT_VCP_VOL_REND
     if (roles & (ESP_BLE_AUDIO_TMAP_ROLE_UMR | ESP_BLE_AUDIO_TMAP_ROLE_CT)) {
-        ESP_RETURN_ON_ERROR(bt_audio_le_vcp_init(&cfg->vcp, s_le->adv_builder), TAG, "Failed to init VCP");
-        s_le->inited_vcp = true;
+        ESP_RETURN_ON_ERROR(bt_audio_le_vcp_rend_init(&cfg->vcp_rend, s_le->adv_builder),
+                            TAG, "Failed to init VCP renderer");
+        s_le->inited_vcp_rend = true;
     }
 #endif  /* CONFIG_BT_VCP_VOL_REND */
 
@@ -680,7 +786,6 @@ static esp_err_t bt_audio_le_load_user_case_tmap(const esp_bt_audio_le_cfg_t *cf
     }
     return ret;
 #else
-    (void)cfg;
     ESP_LOGE(TAG, "Load TMAP failed: TMAP is not supported");
     return ESP_ERR_NOT_SUPPORTED;
 #endif  /* CONFIG_BT_TMAP */
@@ -716,7 +821,7 @@ static esp_err_t bt_audio_le_load_user_case(const esp_bt_audio_le_cfg_t *cfg)
     }
     if (cfg->roles & ESP_BT_AUDIO_LE_ROLE_BROADCAST_SINK) {
 #if CONFIG_BT_BAP_BROADCAST_SINK
-        ESP_RETURN_ON_ERROR(bt_audio_le_broadcast_sink_init(cfg->pacs.sink_locations, bt_audio_le_gap_cb),
+        ESP_RETURN_ON_ERROR(bt_audio_le_broadcast_sink_init(cfg->pacs.sink_locations),
                             TAG, "Failed to init broadcast sink");
         s_le->inited_broadcast_sink = true;
 #else
@@ -763,6 +868,7 @@ esp_err_t bt_audio_le_init(const esp_bt_audio_le_cfg_t *cfg)
         .gap_cb = bt_audio_le_iso_gap_cb,
         .gatt_cb = bt_audio_le_iso_gatt_cb,
     };
+    ESP_GOTO_ON_ERROR(bt_audio_host_register_event_cb(), fail, TAG, "Failed to register LE host event callback");
     ESP_GOTO_ON_ERROR(esp_ble_audio_common_init(&init_info), fail, TAG, "Failed to init BLE Audio common");
     s_le->inited_common = true;
 
@@ -788,19 +894,8 @@ esp_err_t bt_audio_le_init(const esp_bt_audio_le_cfg_t *cfg)
     esp_ble_audio_start_info_t *start_info = s_le->inited_csip ? &s_le->start_info : NULL;
     ESP_GOTO_ON_ERROR(esp_ble_audio_common_start(start_info), fail, TAG, "Failed to start BLE Audio common");
     s_le->started = true;
-    if (s_le->inited_broadcast_source) {
-#if CONFIG_BT_BAP_BROADCAST_SOURCE
-        ESP_GOTO_ON_ERROR(bt_audio_le_broadcast_source_start_periodic_adv(BT_AUDIO_LE_ADV_HANDLE),
-                          fail, TAG, "Failed to start broadcast source periodic advertising");
-#endif  /* CONFIG_BT_BAP_BROADCAST_SOURCE */
-    }
-    ESP_GOTO_ON_ERROR(bt_audio_le_start_ext_adv(), fail, TAG, "Failed to start extended advertising");
-    if (s_le->inited_broadcast_source) {
-#if CONFIG_BT_BAP_BROADCAST_SOURCE
-        ESP_GOTO_ON_ERROR(bt_audio_le_broadcast_source_start(BT_AUDIO_LE_ADV_HANDLE),
-                          fail, TAG, "Failed to start broadcast source");
-#endif  /* CONFIG_BT_BAP_BROADCAST_SOURCE */
-    }
+    s_le->adv_enabled = true;
+    ESP_GOTO_ON_ERROR(bt_audio_le_start_adv(), fail, TAG, "Failed to start LE advertising");
     ESP_GOTO_ON_ERROR(bt_audio_le_register_ops(), fail, TAG, "Failed to register LE ops");
 
     return ESP_OK;
@@ -818,10 +913,12 @@ void bt_audio_le_deinit(void)
     }
 
     bt_audio_ops_set_le(NULL);
+    bt_audio_le_stop_periodic_adv();
+    bt_audio_le_stop_ext_adv();
 
 #if CONFIG_BT_VCP_VOL_REND
-    if (s_le->inited_vcp) {
-        bt_audio_le_vcp_deinit();
+    if (s_le->inited_vcp_rend) {
+        bt_audio_le_vcp_rend_deinit();
     }
 #endif  /* CONFIG_BT_VCP_VOL_REND */
 

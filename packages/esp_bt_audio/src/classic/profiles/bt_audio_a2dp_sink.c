@@ -51,7 +51,38 @@ typedef struct {
 
 static a2dp_sink_ctx_t *a2dp_sink = NULL;
 
-static inline int get_sample_rate_from_sbc_info(esp_a2d_cie_sbc_t *sbc_info)
+static void a2dp_sink_release_stream(void)
+{
+    if (!a2dp_sink || !a2dp_sink->stream) {
+        return;
+    }
+
+    esp_bt_audio_stream_packet_t msg = {
+        .is_done = true,
+    };
+    if (uxQueueSpacesAvailable(a2dp_sink->stream->base.data_q) == 0 &&
+        xQueueReceive(a2dp_sink->stream->base.data_q, &msg, 0) == pdTRUE &&
+        msg.data_owner) {
+        esp_a2d_audio_buff_free(msg.data_owner);
+    }
+    memset(&msg, 0, sizeof(msg));
+    msg.is_done = true;
+    if (xQueueSend(a2dp_sink->stream->base.data_q, &msg, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "A2DP sink failed to send done packet to queue");
+    }
+
+    esp_bt_audio_event_stream_st_t event_data = {
+        .stream_handle = a2dp_sink->stream,
+    };
+    event_data.state = ESP_BT_AUDIO_STREAM_STATE_STOPPED;
+    bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
+    event_data.state = ESP_BT_AUDIO_STREAM_STATE_RELEASED;
+    bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
+    bt_audio_classic_stream_destroy(a2dp_sink->stream);
+    a2dp_sink->stream = NULL;
+}
+
+static int get_sample_rate_from_sbc_info(esp_a2d_cie_sbc_t *sbc_info)
 {
     int sample_rate = 16000;
     if (sbc_info->samp_freq & 0x04) {
@@ -351,7 +382,6 @@ static void a2dp_sink_handle_audio_cfg(esp_a2d_mcc_t *mcc)
 
 static void bt_a2d_sink_data_cb(esp_a2d_conn_hdl_t conn_hdl, esp_a2d_audio_buff_t *audio_buf)
 {
-    (void)conn_hdl;
     if (audio_buf == NULL) {
         return;
     }
@@ -404,6 +434,7 @@ static void bt_a2d_event_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *p_para
                     bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_CONNECTION_STATE_CHG, &event_data);
                     break;
                 case ESP_A2D_CONNECTION_STATE_DISCONNECTED:
+                    a2dp_sink_release_stream();
                     a2dp_sink->conn_hdl = 0;
                     memset(&a2dp_sink->a2d_codec, 0, sizeof(esp_bt_audio_stream_codec_info_t));
 #if CONFIG_BT_A2DP_CODEC_AAC_ENABLED
@@ -457,30 +488,7 @@ static void bt_a2d_event_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *p_para
                 event_data.state = ESP_BT_AUDIO_STREAM_STATE_STARTED;
                 bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
             } else if (ESP_A2D_AUDIO_STATE_SUSPEND == a2d->audio_stat.state) {
-                if (a2dp_sink->stream) {
-                    esp_bt_audio_stream_packet_t msg = {0};
-                    if (uxQueueSpacesAvailable(a2dp_sink->stream->base.data_q) == 0) {
-                        if (xQueueReceive(a2dp_sink->stream->base.data_q, &msg, 0) == pdTRUE) {
-                            if (msg.data_owner) {
-                                esp_a2d_audio_buff_free(msg.data_owner);
-                            }
-                        }
-                    }
-                    msg.data = NULL;
-                    msg.size = 0;
-                    msg.bad_frame = false;
-                    msg.data_owner = NULL;
-                    msg.is_done = true;
-                    if (xQueueSend(a2dp_sink->stream->base.data_q, &msg, 0) != pdTRUE) {
-                        ESP_LOGE(TAG, "A2DP sink failed to send done packet to queue");
-                    }
-                    event_data.state = ESP_BT_AUDIO_STREAM_STATE_STOPPED;
-                    bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
-                    event_data.state = ESP_BT_AUDIO_STREAM_STATE_RELEASED;
-                    bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
-                    bt_audio_classic_stream_destroy(a2dp_sink->stream);
-                    a2dp_sink->stream = NULL;
-                }
+                a2dp_sink_release_stream();
             }
             break;
         }

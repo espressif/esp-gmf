@@ -126,7 +126,6 @@ static void a2dp_src_clear_packets(void)
 static uint8_t calc_optimal_bitpool(int sample_rate, esp_sbc_ch_mode_t ch_mode,
                                     uint8_t min_bitpool, uint8_t max_bitpool)
 {
-    (void)sample_rate;
     uint8_t optimal_bitpool = 0;
     if (ch_mode == ESP_SBC_CH_MODE_MONO) {
         optimal_bitpool = A2DP_SRC_BITPOOL_MONO_DEFAULT;
@@ -759,7 +758,6 @@ static void a2dp_src_send_data(bt_audio_classic_stream_t *stream)
 
 static void a2dp_src_timer_cb(void *arg)
 {
-    (void)arg;
     if (!a2dp_src || !a2dp_src->events) {
         return;
     }
@@ -814,8 +812,8 @@ static void a2dp_src_stop_send()
 
     if (a2dp_src->events) {
         xEventGroupSetBits(a2dp_src->events, A2DP_SRC_EVT_EXITING);
-        (void)xEventGroupWaitBits(a2dp_src->events, A2DP_SRC_EVT_EXITED,
-                                  pdTRUE, pdTRUE, pdMS_TO_TICKS(2000));
+        xEventGroupWaitBits(a2dp_src->events, A2DP_SRC_EVT_EXITED,
+                            pdTRUE, pdTRUE, pdMS_TO_TICKS(2000));
         if (a2dp_src->task) {
             vTaskDelete(a2dp_src->task);
             a2dp_src->task = NULL;
@@ -925,9 +923,26 @@ error:
     return ret;
 }
 
+static void a2dp_src_release_stream(void)
+{
+    if (!a2dp_src || !a2dp_src->stream) {
+        return;
+    }
+
+    esp_bt_audio_event_stream_st_t event_data = {
+        .stream_handle = a2dp_src->stream,
+    };
+    event_data.state = ESP_BT_AUDIO_STREAM_STATE_STOPPED;
+    bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
+    a2dp_src_stop_send();
+    event_data.state = ESP_BT_AUDIO_STREAM_STATE_RELEASED;
+    bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
+    bt_audio_classic_stream_destroy(a2dp_src->stream);
+    a2dp_src->stream = NULL;
+}
+
 static esp_err_t a2dp_src_media_start(void *config)
 {
-    (void)config;
     if (!a2dp_src || a2dp_src->media_state != A2DP_MEDIA_STATE_IDLE) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -977,6 +992,7 @@ static void bt_a2d_event_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *p_para
                     bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_CONNECTION_STATE_CHG, &event_data);
                     break;
                 case ESP_A2D_CONNECTION_STATE_DISCONNECTED:
+                    a2dp_src_release_stream();
                     a2dp_src->conn_hdl = 0;
                     a2dp_src->audio_mtu = 0;
                     a2dp_src->media_state = A2DP_MEDIA_STATE_IDLE;
@@ -1029,15 +1045,7 @@ static void bt_a2d_event_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *p_para
                 event_data.state = ESP_BT_AUDIO_STREAM_STATE_STARTED;
                 bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
             } else if (ESP_A2D_AUDIO_STATE_SUSPEND == a2d->audio_stat.state) {
-                if (a2dp_src->stream) {
-                    event_data.state = ESP_BT_AUDIO_STREAM_STATE_STOPPED;
-                    bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
-                    a2dp_src_stop_send();
-                    event_data.state = ESP_BT_AUDIO_STREAM_STATE_RELEASED;
-                    bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
-                    bt_audio_classic_stream_destroy(a2dp_src->stream);
-                    a2dp_src->stream = NULL;
-                }
+                a2dp_src_release_stream();
                 a2dp_src->media_state = A2DP_MEDIA_STATE_IDLE;
             }
             break;
@@ -1071,17 +1079,7 @@ static void bt_a2d_event_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *p_para
                     ESP_LOGI(TAG, "A2DP media suspend successfully.");
                 } else {
                     ESP_LOGI(TAG, "A2DP media suspend failed.");
-                    if (a2dp_src->stream) {
-                        esp_bt_audio_event_stream_st_t event_data = {0};
-                        event_data.stream_handle = a2dp_src->stream;
-                        event_data.state = ESP_BT_AUDIO_STREAM_STATE_STOPPED;
-                        bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
-                        a2dp_src_stop_send();
-                        event_data.state = ESP_BT_AUDIO_STREAM_STATE_RELEASED;
-                        bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG, &event_data);
-                        bt_audio_classic_stream_destroy(a2dp_src->stream);
-                        a2dp_src->stream = NULL;
-                    }
+                    a2dp_src_release_stream();
                 }
             }
             break;

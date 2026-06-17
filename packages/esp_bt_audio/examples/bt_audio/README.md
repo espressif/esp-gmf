@@ -6,14 +6,14 @@
 
 ## Example Brief
 
-This example initializes Bluetooth audio through the `esp_bt_audio` module and uses `esp_gmf_io_bt` to link the Bluetooth audio stream with a GMF pipeline, enabling Classic Bluetooth playback/uplink streaming and LE Audio TMAP unicast or broadcast-receiver flows when the target and Bluetooth configuration support them. It also provides serial commands to demonstrate control of Bluetooth audio playback, LE discovery/connection, and voice calls. When `CONFIG_EXAMPLE_BT_UI_ENABLE` is enabled on a board with LCD and touch support, the example additionally provides an on-device LVGL touch-screen UI with a media player, dialer, and volume bar.
+This example initializes Bluetooth audio through the `esp_bt_audio` module and uses `esp-gmf` for Bluetooth audio playback/uplink streaming. When supported by the target and Bluetooth configuration, it can also demonstrate LE Audio unicast and BIS broadcast source/receiver flows. It also provides serial commands to demonstrate Bluetooth audio playback, LE discovery/connection, and voice call control. When `CONFIG_EXAMPLE_BT_UI_ENABLE` is enabled on a board with LCD and touch support, the example additionally provides an on-device LVGL touch-screen UI with a media player, dialer, and volume bar.
 
 ### Typical Scenarios
 
 - **Bluetooth speaker (A2DP Sink)**: Phone connects to the device to play music; supports play/pause/next/previous, volume, and metadata
 - **Bluetooth source (A2DP Source)**: Device discovers and connects to Bluetooth headphones or speakers and streams local or microSD audio to the remote device
 - **Bluetooth voice call (HFP HF)**: Answer/reject incoming calls, dial; call state and telephony status reporting; AEC in the GMF pipeline to improve call clarity; fetch phonebook and call history
-- **LE Audio speaker/headset (TMAP)**: Device exposes LE Audio sink/source capabilities for unicast media or conversational audio, and can optionally act as a broadcast media receiver
+- **LE Audio speaker/headset (TMAP)**: Device exposes LE Audio sink/source capabilities for unicast media or conversational audio, and can optionally act as a BIS broadcast media source or receiver
 - **On-device UI (optional)**: LVGL touch-screen UI with splash screen, media player (cover art, track info, playback controls), dialer (numeric keypad with call button), and auto-hiding volume bar
 
 ### Prerequisites
@@ -23,15 +23,15 @@ This example initializes Bluetooth audio through the `esp_bt_audio` module and u
 
 ### Resources
 
-- An audio development board with Audio DAC/ADC, I2S, and microSD (e.g. esp32_lyrat_mini_1_1); for A2DP Source, prepare a microSD card and test audio files
+- An audio development board with Audio DAC/ADC, I2S, and microSD (e.g. esp32_lyrat_mini_1_1); for A2DP Source or BIS Source, prepare a microSD card and test audio files
 
 ## Environment Setup
 
 ### Hardware Required
 
 - **Board**: Default Classic Bluetooth setup is `esp32_lyrat_mini_1_1`; for LE Audio, use an ESP target and controller configuration that support BLE ISO/Bluetooth Audio, plus an audio board with I2S codec resources
-- **Peripherals**: Audio DAC, Audio ADC, I2S, microSD card (for A2DP Source, store `media0.mp3`, `media1.mp3`, `media2.mp3`), LCD and touch panel (required for the optional UI)
-- **Bluetooth**: Classic Bluetooth (BR/EDR) for A2DP, AVRCP, and HFP; LE Audio requires NimBLE, Bluetooth Audio, and ISO support
+- **Peripherals**: Audio DAC, Audio ADC, I2S, microSD card (for A2DP Source or BIS Source, store `media0.mp3`, `media1.mp3`, `media2.mp3`), LCD and touch panel (required for the optional UI)
+- **Bluetooth**: Classic Bluetooth (BR/EDR) for A2DP, AVRCP, and HFP; LE Audio requires a supported NimBLE or Bluedroid host configuration, Bluetooth Audio, and ISO support
 
 ### Default IDF Branch
 
@@ -39,9 +39,9 @@ This example supports IDF release/v5.5 (>= v5.5.2).
 
 ### Software Requirements
 
-- For A2DP Source, place three test audio files on the microSD root: `media0.mp3`, `media1.mp3`, `media2.mp3`
+- For A2DP Source or BIS Source, place three test audio files on the microSD root: `media0.mp3`, `media1.mp3`, `media2.mp3`
 - For A2DP Sink, a phone or other A2DP Source device is needed; for A2DP Source, Bluetooth headphones or a speaker are needed
-- For LE Audio, enable `CONFIG_BT_NIMBLE_ENABLED`, `CONFIG_BT_AUDIO`, `CONFIG_BT_ISO`, and the required ESP-IDF LE Audio profile options; use an LE Audio peer or broadcast receiver/source that matches the selected role
+- For LE Audio, enable a supported NimBLE or Bluedroid host configuration, `CONFIG_BT_AUDIO`, `CONFIG_BT_ISO`, and the required ESP-IDF LE Audio profile options; use an LE Audio peer or broadcast receiver/source that matches the selected role
 
 ## Build and Flash
 
@@ -69,10 +69,18 @@ cd $YOUR_GMF_PATH/packages/esp_bt_audio/examples/bt_audio
 > ```text
 > export SDKCONFIG_DEFAULTS=sdkconfig.defaults.esp32s31.classic
 > # or:
-> export SDKCONFIG_DEFAULTS=sdkconfig.defaults.esp32s31.le
+> export SDKCONFIG_DEFAULTS=sdkconfig.defaults.esp32s31.nimble
+> # or:
+> export SDKCONFIG_DEFAULTS=sdkconfig.defaults.esp32s31.bluedroid
 > # PowerShell:
 > $env:SDKCONFIG_DEFAULTS = "sdkconfig.defaults.esp32s31.classic"
 > ```
+
+The three S31 defaults files differ as follows:
+
+- `sdkconfig.defaults.esp32s31.classic`: enables the BlueDroid host and Classic BT only, for Classic Bluetooth audio features such as A2DP, AVRCP, HFP, and PBAP.
+- `sdkconfig.defaults.esp32s31.nimble`: enables the NimBLE host and BLE controller for LE Audio features, without Classic BT profiles.
+- `sdkconfig.defaults.esp32s31.bluedroid`: enables the BlueDroid host with both Classic BT and BLE/LE Audio configurations, for cases that need both feature sets with BlueDroid.
 
 This example uses [ESP Board Manager](https://github.com/espressif/esp-board-manager) to manage board-level resources. The [`esp-bmgr-assist`](https://pypi.org/project/esp-bmgr-assist/) helper tool is recommended as the default entry point.
 
@@ -146,8 +154,8 @@ Configure the following in menuconfig (example):
 - `BT Audio Basic Example (GMF)` → `Classic Audio Roles Configuration` → Select HFP role (None / HFP Handsfree / HFP Audio Gateway)
 - `BT Audio Basic Example (GMF)` → `Enable LE Audio` → enable the LE Audio example flow when the target supports it
 - Optional: `BT UI Configuration` → `Enable LVGL UI` → enable the on-device touch-screen UI (requires LCD and touch panel)
-- Optional: `LE Audio Configuration` → select the LE Audio user case and TMAP roles, then configure LE audio location, source capability, and coordinated set size
-- For A2DP Source, ensure microSD is configured and the card contains `media0.mp3`, `media1.mp3`, `media2.mp3`
+- Optional: `LE Audio Configuration` → select the LE Audio user case and TMAP roles, then configure LE audio location, source capability, coordinated set size, and BIS source name/code/stream count
+- For A2DP Source or BIS Source, ensure microSD is configured and the card contains `media0.mp3`, `media1.mp3`, `media2.mp3`
 
 > Press `s` to save and `Esc` to exit after configuration.
 
@@ -178,8 +186,9 @@ Exit the monitor with `Ctrl-]`.
 - **HFP AG**: Use `start_discovery` and `ag_connect <mac>` to connect to a Bluetooth HF device such as a headset; use `call_dial [number]`, `call_answer`, and `call_reject` to simulate call state changes and open/close the HFP audio stream; use `ag_disconnect` to disconnect
 - **PBAP Client**: Use the `pb_fetch` command to retrieve the phonebook and call history
 - **LE Audio**: Use `le_scan_start [timeout_ms]` and `le_scan_stop` to discover LE Audio devices, `le_connect <addr_type> <mac_address> [timeout_ms]` to connect to a peer, and `le_disconnect` to disconnect the current LE ACL link. Media, volume, call, and stream events are reported through the same `esp_bt_audio` event path
+- **BIS Source**: Build with an LE Audio defaults file such as `sdkconfig.defaults.esp32s31.nimble` or `sdkconfig.defaults.esp32s31.bluedroid`, then enable `GMF_EXAMPLE_LE_TMAP_ROLE_BMS`. On startup, the example advertises a BIS broadcast using `GMF_EXAMPLE_LE_BSRC_NAME`; run `bms_start` to start the broadcast source stream and `bms_stop` to stop it. While the stream is started, the shared local-to-BT media pipeline sends `media0.mp3`, `media1.mp3`, and `media2.mp3` from the microSD card in a loop. Use another board running the BMR role, or a compatible LE Audio broadcast receiver, to synchronize to the advertised broadcast
 - **LVGL UI** (when `CONFIG_EXAMPLE_BT_UI_ENABLE=y`): The on-device touch-screen UI shows a splash screen before Bluetooth connection and switches to a tab-based main screen on connection with a **media player** (cover art display, track title/artist, play/pause/prev/next controls, stream-type indicator for CIS/BIS) and a **dialer** (numeric keypad, call start/end, incoming/active call display). An auto-hiding **volume bar** appears on volume-change events
-- **Companion devices**: A2DP Sink needs a phone or other A2DP Source; A2DP Source needs Bluetooth headphones or a speaker; HFP HF needs a phone that supports HFP AG; HFP AG needs a headset or other HFP HF device; LE Audio needs a compatible LE Audio peer or broadcast device
+- **Companion devices**: A2DP Sink needs a phone or other A2DP Source; A2DP Source needs Bluetooth headphones or a speaker; HFP HF needs a phone that supports HFP AG; HFP AG needs a headset or other HFP HF device; LE Audio unicast needs a compatible LE Audio peer; BIS Source/BMR needs a compatible LE Audio broadcast receiver/source
 
 ### Log Output
 
@@ -293,7 +302,7 @@ Connection and media control output may vary. To reduce log noise, use `esp_log_
 
 ## Troubleshooting
 
-### microSD or Audio File Not Found (A2DP Source)
+### microSD or Audio File Not Found (A2DP Source / BIS Source)
 
 If the log shows file open or path errors, ensure the microSD card is mounted and the root directory contains `media0.mp3`, `media1.mp3`, and `media2.mp3` (or the filenames configured in code).
 

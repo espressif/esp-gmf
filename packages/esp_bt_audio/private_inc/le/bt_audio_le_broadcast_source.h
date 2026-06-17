@@ -57,6 +57,16 @@ esp_err_t bt_audio_le_broadcast_source_start_periodic_adv(uint8_t adv_handle);
 esp_err_t bt_audio_le_broadcast_source_start(uint8_t adv_handle);
 
 /**
+ * @brief  Stop the broadcast source audio path.
+ *
+ * @return
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_INVALID_STATE  If not initialized
+ *       - Other                  non-zero codes from BAP broadcast stop APIs
+ */
+esp_err_t bt_audio_le_broadcast_source_stop(void);
+
+/**
  * @brief  Stop and destroy broadcast source, streams, and ISO state.
  */
 void bt_audio_le_broadcast_source_deinit(void);

@@ -28,14 +28,14 @@
 #include "esp_gmf_pool.h"
 #include "esp_gmf_io_bt.h"
 #include "esp_gmf_asrc.h"
-#if CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
+#if CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
 #include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
 #include "esp_board_periph.h"
 #include "esp_codec_dev.h"
 #include "dev_audio_codec.h"
 #include "esp_bt_audio_le_playback_sync.h"
-#endif  /* CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
+#endif  /* CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
 
 #include "stream_proc.h"
 #include "codec_defs.h"
@@ -45,6 +45,7 @@
 #define STREAM_PROC_CMD_QUEUE_SIZE       12
 #define STREAM_PROC_TASK_STACK_SIZE      4096
 #define STREAM_PROC_TASK_PRIO            20
+#define STREAM_PROC_TASK_CORE_ID         1
 
 typedef enum {
     STREAM_PROC_PIPELINE_PREPARE,
@@ -187,11 +188,12 @@ static void stream_proc_set_asrc_dest(esp_gmf_pipeline_handle_t pipe, uint8_t in
     }
 }
 
-#if CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
+#if CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
 #define STREAM_PROC_CLK_SYNC_DIFF_THRESHOLD  2
 #define STREAM_PROC_CLK_SYNC_MON_QUEUE_SIZE  10
 #define STREAM_PROC_CLK_SYNC_MON_TASK_STACK  4096
 #define STREAM_PROC_CLK_SYNC_MON_TASK_PRIO   5
+#define STREAM_PROC_CLK_SYNC_MON_TASK_CORE_ID  0
 
 static esp_bt_audio_le_playback_sync_handle_t playback_sync = NULL;
 static esp_bt_audio_le_clk_sync_handle_t clk_sync = NULL;
@@ -217,13 +219,12 @@ static i2s_chan_handle_t get_i2s_chan_handle(const char *name)
     ESP_RETURN_ON_FALSE(ret == ESP_OK, NULL, TAG, "get device config failed");
     ret = esp_board_periph_get_handle(codec_config->i2s_cfg.name, (void **)&ch);
     ESP_RETURN_ON_FALSE(ret == ESP_OK, NULL, TAG, "get i2s chan handle failed");
-    ESP_LOGI(TAG, "get i2s[%s:%s] handle %p", name, codec_config->i2s_cfg.name, ch);
+    ESP_LOGD(TAG, "get i2s[%s:%s] handle %p", name, codec_config->i2s_cfg.name, ch);
     return ch;
 }
 
 static void stream_proc_clk_sync_monitor_task(void *arg)
 {
-    (void)arg;
     esp_bt_audio_le_clk_sync_msg_t msg = {0};
 
     while (clk_sync_monitor_task_running) {
@@ -237,7 +238,7 @@ static void stream_proc_clk_sync_monitor_task(void *arg)
                  (long)msg.diff, msg.fifo_cnt, msg.bck_cnt);
     }
     clk_sync_monitor_task = NULL;
-    vTaskDelete(NULL);
+    vTaskDeleteWithCaps(NULL);
 }
 
 static esp_err_t stream_proc_ensure_clk_sync_monitor(void)
@@ -250,9 +251,12 @@ static esp_err_t stream_proc_ensure_clk_sync_monitor(void)
 
     if (!clk_sync_monitor_task) {
         clk_sync_monitor_task_running = true;
-        BaseType_t ret = xTaskCreate(stream_proc_clk_sync_monitor_task, "clk_sync_mon",
-                                     STREAM_PROC_CLK_SYNC_MON_TASK_STACK, NULL,
-                                     STREAM_PROC_CLK_SYNC_MON_TASK_PRIO, &clk_sync_monitor_task);
+        BaseType_t ret = xTaskCreatePinnedToCoreWithCaps(stream_proc_clk_sync_monitor_task, "clk_sync_mon",
+                                                         STREAM_PROC_CLK_SYNC_MON_TASK_STACK, NULL,
+                                                         STREAM_PROC_CLK_SYNC_MON_TASK_PRIO,
+                                                         &clk_sync_monitor_task,
+                                                         STREAM_PROC_CLK_SYNC_MON_TASK_CORE_ID,
+                                                         MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (ret != pdPASS) {
             clk_sync_monitor_task_running = false;
             ESP_LOGE(TAG, "Create clock sync monitor task failed");
@@ -276,7 +280,7 @@ static void stream_proc_deinit_clk_sync_monitor(void)
             vTaskDelay(pdMS_TO_TICKS(10));
         }
         if (clk_sync_monitor_task) {
-            vTaskDelete(clk_sync_monitor_task);
+            vTaskDeleteWithCaps(clk_sync_monitor_task);
             clk_sync_monitor_task = NULL;
         }
     }
@@ -436,7 +440,6 @@ static void stream_proc_prepare_clk_sync()
 
 static void stream_proc_enable_clk_sync(esp_bt_audio_stream_handle_t stream)
 {
-    (void)stream;
 }
 
 static void stream_proc_deinit_playback_sync(void)
@@ -450,7 +453,7 @@ static void stream_proc_deinit_clk_sync(void)
 static void stream_proc_deinit_clk_sync_monitor(void)
 {
 }
-#endif  /* CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
+#endif  /* CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
 
 static const char *gmf_state_to_str(int state)
 {
@@ -490,7 +493,7 @@ static void local2bt_play(const char *uri)
     esp_gmf_pipeline_reset(local2bt_pipe);
     esp_gmf_io_bt_set_stream(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(local2bt_pipe), local2bt_stream);
     esp_gmf_pipeline_set_in_uri(local2bt_pipe, uri);
-    ESP_LOGI(TAG, "A2DP Source play: %s (index %d)", uri, playlist_cur_index);
+    ESP_LOGI(TAG, "Local to BT media play: %s (index %d)", uri, playlist_cur_index);
     esp_gmf_pipeline_loading_jobs(local2bt_pipe);
     esp_gmf_pipeline_run(local2bt_pipe);
 }
@@ -564,7 +567,13 @@ static void stream_proc_prepare(esp_bt_audio_stream_handle_t stream, stream_user
         stream_proc_set_asrc_dest(user_d->pipe, 0, CODEC_DAC_SAMPLE_RATE, __builtin_popcount(codec_info.channels),
                                   CODEC_DAC_CHANNELS, bt2codec_asrc_weight, STREAM_PROC_ASRC_MAX_WEIGHT_LEN);
 
-        stream_proc_prepare_playback_sync();
+        /* Playback sync is only needed for LE Audio streams */
+        esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+        esp_bt_audio_stream_get_profile(stream, &profile);
+        if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_UNICAST ||
+            profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
+            stream_proc_prepare_playback_sync();
+        }
         stream_proc_post_pipeline_action(user_d->pipe, STREAM_PROC_PIPELINE_PREPARE);
     } else {
         uint8_t output_asrc_index = 0;
@@ -641,8 +650,13 @@ void stream_proc_state_chg(esp_bt_audio_stream_handle_t stream, esp_bt_audio_str
             esp_bt_audio_stream_get_local_data(stream, (void **)&user_d);
             if (user_d && user_d->pipe) {
                 if (dir == ESP_BT_AUDIO_STREAM_DIR_SINK) {
-                    stream_proc_prepare_clk_sync();
-                    stream_proc_enable_clk_sync(stream);
+                    esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+                    esp_bt_audio_stream_get_profile(stream, &profile);
+                    if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_UNICAST ||
+                        profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
+                        stream_proc_prepare_clk_sync();
+                        stream_proc_enable_clk_sync(stream);
+                    }
                 }
                 stream_proc_post_pipeline_action(user_d->pipe, STREAM_PROC_PIPELINE_RUN);
             } else {
@@ -658,8 +672,13 @@ void stream_proc_state_chg(esp_bt_audio_stream_handle_t stream, esp_bt_audio_str
                 stream_proc_post_pipeline_action(user_d->pipe, STREAM_PROC_PIPELINE_STOP_RESET);
             }
             if (dir == ESP_BT_AUDIO_STREAM_DIR_SINK) {
-                stream_proc_deinit_clk_sync();
-                stream_proc_deinit_playback_sync();
+                esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+                esp_bt_audio_stream_get_profile(stream, &profile);
+                if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_UNICAST ||
+                    profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
+                    stream_proc_deinit_clk_sync();
+                    stream_proc_deinit_playback_sync();
+                }
             }
             break;
         }
@@ -667,8 +686,13 @@ void stream_proc_state_chg(esp_bt_audio_stream_handle_t stream, esp_bt_audio_str
             stream_user_data_t *user_d = NULL;
             esp_bt_audio_stream_get_local_data(stream, (void **)&user_d);
             if (dir == ESP_BT_AUDIO_STREAM_DIR_SINK) {
-                stream_proc_deinit_clk_sync();
-                stream_proc_deinit_playback_sync();
+                esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+                esp_bt_audio_stream_get_profile(stream, &profile);
+                if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_UNICAST ||
+                    profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
+                    stream_proc_deinit_clk_sync();
+                    stream_proc_deinit_playback_sync();
+                }
             }
             if (user_d) {
                 stream_proc_destroy(user_d);
@@ -712,15 +736,17 @@ static esp_gmf_err_t local2bt_pipe_event_cb(esp_gmf_event_pkt_t *pkt, void *ctx)
         return ESP_GMF_ERR_OK;
     }
     if (pkt->type == ESP_GMF_EVT_TYPE_CHANGE_STATE) {
-        ESP_LOGI(TAG, "[a2dp source pipeline] state => %s(%d)", gmf_state_to_str(pkt->sub), pkt->sub);
+        ESP_LOGI(TAG, "[local to bt media pipeline] state => %s(%d)", gmf_state_to_str(pkt->sub), pkt->sub);
         if (pkt->sub == ESP_GMF_EVENT_STATE_FINISHED) {
-            ESP_LOGI(TAG, "A2DP Source finished");
+            ESP_LOGI(TAG, "Local to BT media finished");
             if (local2bt_stream) {
                 local2bt_play_next();
             }
         } else if (pkt->sub == ESP_GMF_EVENT_STATE_ERROR) {
-            ESP_LOGE(TAG, "A2DP Source error");
+            ESP_LOGE(TAG, "Local to BT media error");
+#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
             esp_bt_audio_media_stop(ESP_BT_AUDIO_CLASSIC_ROLE_A2DP_SRC);
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) */
         }
     }
     return ESP_GMF_ERR_OK;
@@ -782,7 +808,6 @@ static void setup_pipeline_local2bt(esp_gmf_pool_handle_t pool)
 
 static void stream_proc_task(void *arg)
 {
-    (void)arg;
     stream_proc_cmd_t cmd = {0};
 
     while (true) {
@@ -833,8 +858,10 @@ static void setup_stream_proc_task(void)
         return;
     }
 
-    BaseType_t ret = xTaskCreate(stream_proc_task, "stream_proc_task", STREAM_PROC_TASK_STACK_SIZE, NULL,
-                                 STREAM_PROC_TASK_PRIO, NULL);
+    BaseType_t ret = xTaskCreatePinnedToCoreWithCaps(stream_proc_task, "stream_proc_task",
+                                                     STREAM_PROC_TASK_STACK_SIZE, NULL, STREAM_PROC_TASK_PRIO,
+                                                     NULL, STREAM_PROC_TASK_CORE_ID,
+                                                     MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Create stream processor task failed");
         vQueueDelete(stream_proc_cmd_queue);

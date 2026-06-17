@@ -18,12 +18,6 @@
 #include "modem/modem_etm.h"
 #include "soc/soc_caps.h"
 
-#define BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR       0
-#define BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO  13
-
-#define BT_AUDIO_LE_CLK_SYNC_MONITOR       0
-#define BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO  14
-
 /**
  * @brief  ETM resources used to start I2S from the BLE ISO timing event.
  */
@@ -31,10 +25,10 @@ struct esp_bt_audio_le_playback_sync {
     esp_etm_channel_handle_t  etm_ch;          /*!< ETM channel connecting modem event to I2S task */
     esp_etm_task_handle_t     i2s_start_task;  /*!< I2S start ETM task */
     esp_etm_event_handle_t    modem_event;     /*!< Modem ETM timing event */
-#if BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
     esp_etm_channel_handle_t  monitor_ch;      /*!< Extra ETM channel toggling a GPIO on G1 event */
     esp_etm_task_handle_t     gpio_task;       /*!< GPIO toggle ETM task */
-#endif  /* BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
 };
 
 struct esp_bt_audio_le_clk_sync {
@@ -46,15 +40,15 @@ struct esp_bt_audio_le_clk_sync {
     bool                      enabled;              /*!< Whether the ETM channel is enabled */
     bool                      fifo_sync_configured; /*!< Whether TX FIFO sync has been configured */
     bool                      callback_registered;  /*!< Whether TX sync callback has been registered */
-#if BT_AUDIO_LE_CLK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR
     esp_etm_channel_handle_t  monitor_ch;           /*!< Extra ETM channel toggling a GPIO on G2 event */
     esp_etm_task_handle_t     gpio_task;            /*!< GPIO toggle ETM task */
-#endif  /* BT_AUDIO_LE_CLK_SYNC_MONITOR */
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR */
 };
 
 static const char *TAG = "PLAYBACK_SYNC";
 
-#if CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
+#if CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
 
 #if SOC_I2S_SUPPORTS_TX_FIFO_SYNC
 static bool IRAM_ATTR i2s_clk_sync_callback(i2s_chan_handle_t handle,
@@ -139,44 +133,44 @@ esp_err_t esp_bt_audio_le_playback_sync_init(i2s_chan_handle_t tx_handle,
     ESP_GOTO_ON_ERROR(esp_etm_channel_connect(sync->etm_ch, sync->modem_event, sync->i2s_start_task),
                       err, TAG, "ETM channel connect failed");
 
-#if BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
     gpio_config_t io_conf = {
         .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = BIT64(BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO),
+        .pin_bit_mask = BIT64(CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO),
         .pull_down_en = 0,
         .pull_up_en = 0,
     };
     ESP_GOTO_ON_ERROR(gpio_config(&io_conf), err, TAG, "Playback sync monitor GPIO config failed");
-    gpio_set_level(BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO, 0);
+    gpio_set_level(CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO, 0);
 
     gpio_etm_task_config_t gpio_task_cfg = {
         .action = GPIO_ETM_TASK_ACTION_TOG,
     };
     ESP_GOTO_ON_ERROR(gpio_new_etm_task(&gpio_task_cfg, &sync->gpio_task),
                       err, TAG, "Playback sync monitor GPIO ETM task alloc failed");
-    ESP_GOTO_ON_ERROR(gpio_etm_task_add_gpio(sync->gpio_task, BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO),
+    ESP_GOTO_ON_ERROR(gpio_etm_task_add_gpio(sync->gpio_task, CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO),
                       err, TAG, "Playback sync monitor GPIO ETM task add GPIO failed");
     esp_etm_channel_config_t monitor_etm_cfg = {};
     ESP_GOTO_ON_ERROR(esp_etm_new_channel(&monitor_etm_cfg, &sync->monitor_ch),
                       err, TAG, "Playback sync monitor ETM channel alloc failed");
     ESP_GOTO_ON_ERROR(esp_etm_channel_connect(sync->monitor_ch, sync->modem_event, sync->gpio_task),
                       err, TAG, "Playback sync monitor ETM channel connect failed");
-#endif  /* BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
 
     *out_handle = sync;
     return ESP_OK;
 
 err:
     if (sync) {
-#if BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
         if (sync->monitor_ch) {
             esp_etm_del_channel(sync->monitor_ch);
         }
         if (sync->gpio_task) {
-            gpio_etm_task_rm_gpio(sync->gpio_task, BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO);
+            gpio_etm_task_rm_gpio(sync->gpio_task, CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO);
             esp_etm_del_task(sync->gpio_task);
         }
-#endif  /* BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
         if (sync->etm_ch) {
             esp_etm_del_channel(sync->etm_ch);
         }
@@ -197,9 +191,9 @@ err:
 esp_err_t esp_bt_audio_le_playback_sync_enable(esp_bt_audio_le_playback_sync_handle_t handle)
 {
     ESP_RETURN_ON_FALSE(handle, ESP_ERR_INVALID_ARG, TAG, "Enable failed: handle is NULL");
-#if BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
     esp_etm_channel_enable(handle->monitor_ch);
-#endif  /* BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
     esp_err_t err = esp_etm_channel_enable(handle->etm_ch);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Enable failed: %s", esp_err_to_name(err));
@@ -210,9 +204,9 @@ esp_err_t esp_bt_audio_le_playback_sync_enable(esp_bt_audio_le_playback_sync_han
 esp_err_t esp_bt_audio_le_playback_sync_disable(esp_bt_audio_le_playback_sync_handle_t handle)
 {
     ESP_RETURN_ON_FALSE(handle, ESP_ERR_INVALID_ARG, TAG, "Disable failed: handle is NULL");
-#if BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
     esp_etm_channel_disable(handle->monitor_ch);
-#endif  /* BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
     esp_err_t err = esp_etm_channel_disable(handle->etm_ch);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Disable failed: %s", esp_err_to_name(err));
@@ -223,15 +217,15 @@ esp_err_t esp_bt_audio_le_playback_sync_disable(esp_bt_audio_le_playback_sync_ha
 esp_err_t esp_bt_audio_le_playback_sync_deinit(esp_bt_audio_le_playback_sync_handle_t handle)
 {
     ESP_RETURN_ON_FALSE(handle, ESP_ERR_INVALID_ARG, TAG, "Deinit failed: handle is NULL");
-#if BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
     esp_etm_channel_disable(handle->monitor_ch);
     esp_etm_del_channel(handle->monitor_ch);
-    gpio_etm_task_rm_gpio(handle->gpio_task, BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO);
+    gpio_etm_task_rm_gpio(handle->gpio_task, CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO);
     esp_etm_del_task(handle->gpio_task);
-    gpio_reset_pin(BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO);
-    gpio_set_direction(BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level(BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO, 0);
-#endif  /* BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
+    gpio_reset_pin(CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO);
+    gpio_set_direction(CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_level(CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO, 0);
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR */
     esp_etm_channel_disable(handle->etm_ch);
     esp_etm_del_channel(handle->etm_ch);
     esp_etm_del_task(handle->i2s_start_task);
@@ -279,44 +273,44 @@ esp_err_t esp_bt_audio_le_clk_sync_init(i2s_chan_handle_t tx_handle,
     ESP_GOTO_ON_ERROR(esp_etm_channel_connect(sync->etm_ch, sync->modem_event, sync->i2s_sync_task),
                       err, TAG, "ETM channel connect failed");
 
-#if BT_AUDIO_LE_CLK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR
     gpio_config_t io_conf = {
         .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = BIT64(BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO),
+        .pin_bit_mask = BIT64(CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO),
         .pull_down_en = 0,
         .pull_up_en = 0,
     };
     ESP_GOTO_ON_ERROR(gpio_config(&io_conf), err, TAG, "Clock sync monitor GPIO config failed");
-    gpio_set_level(BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO, 0);
+    gpio_set_level(CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO, 0);
 
     gpio_etm_task_config_t gpio_task_cfg = {
         .action = GPIO_ETM_TASK_ACTION_TOG,
     };
     ESP_GOTO_ON_ERROR(gpio_new_etm_task(&gpio_task_cfg, &sync->gpio_task),
                       err, TAG, "Clock sync monitor GPIO ETM task alloc failed");
-    ESP_GOTO_ON_ERROR(gpio_etm_task_add_gpio(sync->gpio_task, BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO),
+    ESP_GOTO_ON_ERROR(gpio_etm_task_add_gpio(sync->gpio_task, CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO),
                       err, TAG, "Clock sync monitor GPIO ETM task add GPIO failed");
     esp_etm_channel_config_t monitor_etm_cfg = {};
     ESP_GOTO_ON_ERROR(esp_etm_new_channel(&monitor_etm_cfg, &sync->monitor_ch),
                       err, TAG, "Clock sync monitor ETM channel alloc failed");
     ESP_GOTO_ON_ERROR(esp_etm_channel_connect(sync->monitor_ch, sync->modem_event, sync->gpio_task),
                       err, TAG, "Clock sync monitor ETM channel connect failed");
-#endif  /* BT_AUDIO_LE_CLK_SYNC_MONITOR */
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR */
 
     *out_handle = sync;
     return ESP_OK;
 
 err:
     if (sync) {
-#if BT_AUDIO_LE_CLK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR
         if (sync->monitor_ch) {
             esp_etm_del_channel(sync->monitor_ch);
         }
         if (sync->gpio_task) {
-            gpio_etm_task_rm_gpio(sync->gpio_task, BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO);
+            gpio_etm_task_rm_gpio(sync->gpio_task, CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO);
             esp_etm_del_task(sync->gpio_task);
         }
-#endif  /* BT_AUDIO_LE_CLK_SYNC_MONITOR */
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR */
         if (sync->etm_ch) {
             esp_etm_del_channel(sync->etm_ch);
         }
@@ -370,9 +364,9 @@ esp_err_t esp_bt_audio_le_clk_sync_enable(esp_bt_audio_le_clk_sync_handle_t hand
     ESP_RETURN_ON_ERROR(i2s_channel_enable_tx_fifo_sync(handle->tx_handle, true),
                         TAG, "I2S TX FIFO sync enable failed");
 #endif  /* SOC_I2S_SUPPORTS_TX_FIFO_SYNC */
-#if BT_AUDIO_LE_CLK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR
     esp_etm_channel_enable(handle->monitor_ch);
-#endif  /* BT_AUDIO_LE_CLK_SYNC_MONITOR */
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR */
     esp_err_t err = esp_etm_channel_enable(handle->etm_ch);
     if (err == ESP_OK) {
         handle->enabled = true;
@@ -393,9 +387,9 @@ esp_err_t esp_bt_audio_le_clk_sync_disable(esp_bt_audio_le_clk_sync_handle_t han
     if (!handle->enabled) {
         return ESP_OK;
     }
-#if BT_AUDIO_LE_CLK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR
     esp_etm_channel_disable(handle->monitor_ch);
-#endif  /* BT_AUDIO_LE_CLK_SYNC_MONITOR */
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR */
     esp_err_t err = esp_etm_channel_disable(handle->etm_ch);
     if (err == ESP_OK) {
 #if SOC_I2S_SUPPORTS_TX_FIFO_SYNC
@@ -418,15 +412,15 @@ esp_err_t esp_bt_audio_le_clk_sync_deinit(esp_bt_audio_le_clk_sync_handle_t hand
     }
     i2s_clk_sync_unregister_callback(handle);
 #endif  /* SOC_I2S_SUPPORTS_TX_FIFO_SYNC */
-#if BT_AUDIO_LE_CLK_SYNC_MONITOR
+#if CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR
     esp_etm_channel_disable(handle->monitor_ch);
     esp_etm_del_channel(handle->monitor_ch);
-    gpio_etm_task_rm_gpio(handle->gpio_task, BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO);
+    gpio_etm_task_rm_gpio(handle->gpio_task, CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO);
     esp_etm_del_task(handle->gpio_task);
-    gpio_reset_pin(BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO);
-    gpio_set_direction(BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level(BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO, 0);
-#endif  /* BT_AUDIO_LE_CLK_SYNC_MONITOR */
+    gpio_reset_pin(CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO);
+    gpio_set_direction(CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_level(CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO, 0);
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR */
     esp_etm_channel_disable(handle->etm_ch);
     esp_etm_del_channel(handle->etm_ch);
     esp_etm_del_task(handle->i2s_sync_task);
@@ -435,4 +429,4 @@ esp_err_t esp_bt_audio_le_clk_sync_deinit(esp_bt_audio_le_clk_sync_handle_t hand
     return ESP_OK;
 }
 
-#endif  /* CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
+#endif  /* CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
