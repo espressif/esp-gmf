@@ -1,10 +1,11 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include <inttypes.h>
 #include "esp_capture.h"
 #include "esp_capture_sink.h"
@@ -888,7 +889,13 @@ static bool verify_test_result(capture_sys_t *capture_sys, bool dual, int flag, 
                 return false;
             }
         }
+        if ((flag & TEST_RESULT_VERIFY_AUDIO) && (flag & TEST_RESULT_VERIFY_VIDEO)) {
+            if (capture_sys->run_result.pts_error[i]) {
+                return false;
+            }
+        }
     }
+
     return true;
 }
 
@@ -1201,10 +1208,10 @@ int manual_video_only_path_test(int timeout, bool dual)
         BREAK_ON_FAIL(ret);
 #if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
         // We know that only need encoder so we only add video encoder into it
-        const char *vid_elements[] = {"vid_fps_cvt","vid_ppa", "vid_enc"};
+        const char *vid_elements[] = {"vid_fps_cvt", "vid_ppa", "vid_enc"};
 #else
         const char *vid_elements[] = {"vid_fps_cvt", "vid_color_cvt", "vid_enc"};
-#endif   /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
         ret = esp_capture_sink_build_pipeline(capture_sys.capture_sink[0], ESP_CAPTURE_STREAM_TYPE_VIDEO,
                                               vid_elements, ELEMS(vid_elements));
         BREAK_ON_FAIL(ret);
@@ -2147,10 +2154,22 @@ int dynamic_setup_after_start(int timeout, bool dual_path)
 
 #ifdef TEST_WITH_VIDEO
 
+/* Functional decode-path cases: keep modest size so later tests still have heap. */
 #define DEC_TEST_W        320
 #define DEC_TEST_H        240
 #define DEC_TEST_FPS      10
 #define DEC_TEST_TIMEOUT  (10000)
+
+/* Full-speed decode perf only (1080p on P4). */
+#ifdef CONFIG_IDF_TARGET_ESP32P4
+#define PERF_TEST_W    1920
+#define PERF_TEST_H    1080
+#define PERF_TEST_FPS  30
+#else
+#define PERF_TEST_W    DEC_TEST_W
+#define PERF_TEST_H    DEC_TEST_H
+#define PERF_TEST_FPS  DEC_TEST_FPS
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
 
 typedef struct {
     esp_capture_video_src_if_t *vid_src;
@@ -2175,18 +2194,19 @@ static void decode_cap_destroy(decode_cap_ctx_t *m)
     m->preview_sink = NULL;
 }
 
-static int decode_cap_open_mjpeg_src(decode_cap_ctx_t *m, const uint8_t *mjpeg, uint32_t mjlen)
+static int decode_cap_open_mjpeg_src_ex(decode_cap_ctx_t *m, const uint8_t *mjpeg, uint32_t mjlen,
+                                        int width, int height, int fps)
 {
-    m->vid_src = esp_capture_new_video_fake_src(3);
+    m->vid_src = esp_capture_new_video_fake_src(2);
     if (m->vid_src == NULL) {
         return -1;
     }
     do {
         esp_capture_video_info_t caps = {
             .format_id = ESP_CAPTURE_FMT_ID_MJPEG,
-            .width = DEC_TEST_W,
-            .height = DEC_TEST_H,
-            .fps = DEC_TEST_FPS,
+            .width = width,
+            .height = height,
+            .fps = fps,
         };
         if (m->vid_src->set_fixed_caps(m->vid_src, &caps) != ESP_CAPTURE_ERR_OK) {
             break;
@@ -2201,9 +2221,17 @@ static int decode_cap_open_mjpeg_src(decode_cap_ctx_t *m, const uint8_t *mjpeg, 
     return -1;
 }
 
-static int decode_cap_create(decode_cap_ctx_t *m, esp_capture_sink_cfg_t sink_cfg[2])
+static int decode_cap_open_mjpeg_src(decode_cap_ctx_t *m, const uint8_t *mjpeg, uint32_t mjlen)
 {
-    esp_capture_cfg_t capture_cfg = {.video_src = m->vid_src};
+    return decode_cap_open_mjpeg_src_ex(m, mjpeg, mjlen, DEC_TEST_W, DEC_TEST_H, DEC_TEST_FPS);
+}
+
+static int decode_cap_create_ex(decode_cap_ctx_t *m, esp_capture_sink_cfg_t sink_cfg[2], bool full_speed_decode)
+{
+    esp_capture_cfg_t capture_cfg = {
+        .video_src = m->vid_src,
+        .full_speed_decode = full_speed_decode,
+    };
     if (esp_capture_open(&capture_cfg, &m->capture) != ESP_CAPTURE_ERR_OK) {
         return -1;
     }
@@ -2220,6 +2248,11 @@ static int decode_cap_create(decode_cap_ctx_t *m, esp_capture_sink_cfg_t sink_cf
         }
     }
     return 0;
+}
+
+static int decode_cap_create(decode_cap_ctx_t *m, esp_capture_sink_cfg_t sink_cfg[2])
+{
+    return decode_cap_create_ex(m, sink_cfg, false);
 }
 
 static int decode_wait_one_frame(esp_capture_sink_handle_t sink, uint32_t expect_raw, const char *tag, int frame_count)
@@ -2286,7 +2319,7 @@ static int decode_wait_dual(decode_cap_ctx_t *m, uint32_t exp0, uint32_t exp1, c
     return (recv_count[0] > 0 && recv_count[1] > 0) ? 0 : -1;
 }
 
-static int decode_tests_make_ref_mjpeg(uint8_t **out_buf, uint32_t *out_len)
+static int decode_tests_make_ref_mjpeg_ex(uint8_t **out_buf, uint32_t *out_len, int width, int height, int fps)
 {
     esp_capture_video_src_if_t *vid = esp_capture_new_video_fake_src(3);
     esp_capture_handle_t capture = NULL;
@@ -2297,9 +2330,9 @@ static int decode_tests_make_ref_mjpeg(uint8_t **out_buf, uint32_t *out_len)
     do {
         esp_capture_video_info_t caps = {
             .format_id = ESP_CAPTURE_FMT_ID_RGB565,
-            .width = DEC_TEST_W,
-            .height = DEC_TEST_H,
-            .fps = DEC_TEST_FPS,
+            .width = width,
+            .height = height,
+            .fps = fps,
         };
         if (vid->set_fixed_caps(vid, &caps) != ESP_CAPTURE_ERR_OK) {
             break;
@@ -2311,9 +2344,9 @@ static int decode_tests_make_ref_mjpeg(uint8_t **out_buf, uint32_t *out_len)
         esp_capture_sink_cfg_t sink_cfg = {
             .video_info = {
                 .format_id = ESP_CAPTURE_FMT_ID_MJPEG,
-                .width = DEC_TEST_W,
-                .height = DEC_TEST_H,
-                .fps = DEC_TEST_FPS,
+                .width = width,
+                .height = height,
+                .fps = fps,
             },
         };
         esp_capture_sink_handle_t sink = NULL;
@@ -2344,6 +2377,11 @@ static int decode_tests_make_ref_mjpeg(uint8_t **out_buf, uint32_t *out_len)
     }
     free(vid);
     return ret;
+}
+
+static int decode_tests_make_ref_mjpeg(uint8_t **out_buf, uint32_t *out_len)
+{
+    return decode_tests_make_ref_mjpeg_ex(out_buf, out_len, DEC_TEST_W, DEC_TEST_H, DEC_TEST_FPS);
 }
 
 static int decode_run_one_case(decode_cap_ctx_t *ctx, int case_idx, int frame_count)
@@ -2480,9 +2518,212 @@ int test_capture_with_decode_all(void)
     return ret;
 }
 
+static int perf_sink_drain(esp_capture_sink_handle_t sink, int duration_ms)
+{
+    int recv_count = 0;
+    int64_t end = esp_timer_get_time() + (int64_t)duration_ms * 1000;
+    esp_capture_stream_frame_t frame = {.stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO};
+    while (esp_timer_get_time() < end) {
+        if (esp_capture_sink_acquire_frame(sink, &frame, true) == ESP_CAPTURE_ERR_OK) {
+            if (frame.size >= 8) {
+                recv_count++;
+            }
+            esp_capture_sink_release_frame(sink, &frame);
+        } else {
+            /* Yield only — do not sleep; sleep backpressures the 3-slot sink queue */
+            taskYIELD();
+        }
+    }
+    return recv_count;
+}
+
+static int measure_decode_reencode_fps(decode_cap_ctx_t *ctx, bool full_speed, int duration_ms, float *out_fps)
+{
+    esp_capture_sink_cfg_t sink_cfg[2] = {0};
+    sink_cfg[0].video_info.format_id = ESP_CAPTURE_FMT_ID_H264;
+    sink_cfg[0].video_info.width = PERF_TEST_W;
+    sink_cfg[0].video_info.height = PERF_TEST_H;
+    sink_cfg[0].video_info.fps = PERF_TEST_FPS;
+
+    int ret = -1;
+    int recv_count = 0;
+    int64_t t0 = 0;
+    int64_t t1 = 0;
+    do {
+        if (decode_cap_create_ex(ctx, sink_cfg, full_speed) != 0) {
+            break;
+        }
+        esp_capture_sink_enable(ctx->net_sink, ESP_CAPTURE_RUN_MODE_ALWAYS);
+        if (esp_capture_start(ctx->capture) != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "full-speed decode start failed");
+            break;
+        }
+        /* Skip first frames (pool/header warmup) */
+        {
+            int warmup = 5;
+            esp_capture_stream_frame_t frame = {.stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO};
+            while (warmup-- > 0) {
+                if (esp_capture_sink_acquire_frame(ctx->net_sink, &frame, false) == ESP_CAPTURE_ERR_OK) {
+                    esp_capture_sink_release_frame(ctx->net_sink, &frame);
+                }
+            }
+        }
+        t0 = esp_timer_get_time();
+        recv_count = perf_sink_drain(ctx->net_sink, duration_ms);
+        t1 = esp_timer_get_time();
+        ret = (recv_count > 0) ? 0 : -1;
+        if (ret != 0) {
+            ESP_LOGE(TAG, "Decode->H264 full_speed=%d: no frames in %dms", (int)full_speed, duration_ms);
+        }
+    } while (0);
+    decode_cap_destroy(ctx);
+    if (ret == 0 && out_fps) {
+        float sec = (float)(t1 - t0) / 1000000.0f;
+        *out_fps = (sec > 0.0f) ? ((float)recv_count / sec) : 0.0f;
+        ESP_LOGI(TAG, "Decode->H264 full_speed=%d: %d frames in %.2fs => %.2f fps",
+                 (int)full_speed, recv_count, sec, *out_fps);
+    }
+    return ret;
+}
+
+static int measure_rgb565_h264_encode_fps(int duration_ms, float *out_fps)
+{
+    esp_capture_video_src_if_t *vid_src = esp_capture_new_video_fake_src(3);
+    esp_capture_handle_t capture = NULL;
+    esp_capture_sink_handle_t sink = NULL;
+    int ret = -1;
+    int recv_count = 0;
+    int64_t t0 = 0;
+    int64_t t1 = 0;
+
+    if (vid_src == NULL) {
+        return -1;
+    }
+    do {
+        esp_capture_video_info_t caps = {
+            .format_id = ESP_CAPTURE_FMT_ID_RGB565,
+            .width = PERF_TEST_W,
+            .height = PERF_TEST_H,
+            .fps = PERF_TEST_FPS,
+        };
+        if (vid_src->set_fixed_caps(vid_src, &caps) != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "RGB565 encode: set_fixed_caps failed");
+            break;
+        }
+        esp_capture_cfg_t capture_cfg = {
+            .video_src = vid_src,
+        };
+        if (esp_capture_open(&capture_cfg, &capture) != ESP_CAPTURE_ERR_OK || capture == NULL) {
+            ESP_LOGE(TAG, "RGB565 encode: open failed");
+            break;
+        }
+        esp_capture_sink_cfg_t sink_cfg = {
+            .video_info = {
+                .format_id = ESP_CAPTURE_FMT_ID_H264,
+                .width = PERF_TEST_W,
+                .height = PERF_TEST_H,
+                .fps = PERF_TEST_FPS,
+            },
+        };
+        if (esp_capture_sink_setup(capture, 0, &sink_cfg, &sink) != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "RGB565 encode: sink setup failed");
+            break;
+        }
+        esp_capture_sink_enable(sink, ESP_CAPTURE_RUN_MODE_ALWAYS);
+        if (esp_capture_start(capture) != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "RGB565 encode: start failed (often OOM after 1080p decode_all)");
+            break;
+        }
+        /* Warmup with timeout — avoid blocking forever if no frames */
+        {
+            int warmup = 5;
+            int64_t warm_end = esp_timer_get_time() + 2000000;
+            esp_capture_stream_frame_t frame = {.stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO};
+            while (warmup > 0 && esp_timer_get_time() < warm_end) {
+                if (esp_capture_sink_acquire_frame(sink, &frame, true) == ESP_CAPTURE_ERR_OK) {
+                    esp_capture_sink_release_frame(sink, &frame);
+                    warmup--;
+                } else {
+                    vTaskDelay(pdMS_TO_TICKS(5));
+                }
+            }
+        }
+        t0 = esp_timer_get_time();
+        recv_count = perf_sink_drain(sink, duration_ms);
+        t1 = esp_timer_get_time();
+        ret = (recv_count > 0) ? 0 : -1;
+        if (ret != 0) {
+            ESP_LOGE(TAG, "RGB565 encode: no frames in %dms (recv=%d)", duration_ms, recv_count);
+        } else if (out_fps) {
+            float sec = (float)(t1 - t0) / 1000000.0f;
+            *out_fps = (sec > 0.0f) ? ((float)recv_count / sec) : 0.0f;
+            ESP_LOGI(TAG, "RGB565->H264 encode: %dx%d@%dfps src, %d frames in %.2fs => max %.2f fps",
+                     PERF_TEST_W, PERF_TEST_H, PERF_TEST_FPS, recv_count, sec, *out_fps);
+        }
+    } while (0);
+
+    if (capture) {
+        esp_capture_close(capture);
+    }
+    free(vid_src);
+    return ret;
+}
+
+int test_full_speed_decode_perf(void)
+{
+    const int duration_ms = 3000;
+    float fps_encode = 0.0f;
+    if (measure_rgb565_h264_encode_fps(duration_ms, &fps_encode) != 0) {
+        ESP_LOGE(TAG, "full-speed encode: RGB565->H264 measure failed");
+        return -1;
+    }
+    ESP_LOGI(TAG, "Full-speed encode max FPS: %.2f (RGB565 %dx%d -> H264)",
+             fps_encode, PERF_TEST_W, PERF_TEST_H);
+
+    decode_cap_ctx_t ctx = {0};
+    uint8_t *mjpeg_ref = NULL;
+    uint32_t mjpeg_len = 0;
+    if (decode_tests_make_ref_mjpeg_ex(&mjpeg_ref, &mjpeg_len, PERF_TEST_W, PERF_TEST_H, PERF_TEST_FPS) != 0) {
+        ESP_LOGE(TAG, "full-speed decode: MJPEG ref generation failed");
+        return -1;
+    }
+    int ret = decode_cap_open_mjpeg_src_ex(&ctx, mjpeg_ref, mjpeg_len, PERF_TEST_W, PERF_TEST_H, PERF_TEST_FPS);
+    if (ret != 0) {
+        ESP_LOGE(TAG, "full-speed decode: open src failed");
+        free(mjpeg_ref);
+        return -1;
+    }
+
+    float fps_normal = 0.0f;
+    float fps_full = 0.0f;
+    if (measure_decode_reencode_fps(&ctx, false, duration_ms, &fps_normal) != 0) {
+        ESP_LOGE(TAG, "full-speed decode: normal mode failed");
+        ret = -1;
+    } else if (measure_decode_reencode_fps(&ctx, true, duration_ms, &fps_full) != 0) {
+        ESP_LOGE(TAG, "full-speed decode: full-speed mode failed");
+        ret = -1;
+    } else {
+        float speedup = (fps_normal > 0.0f) ? (fps_full / fps_normal) : 0.0f;
+        ESP_LOGI(TAG, "Full-speed decode perf: encode_max=%.2f fps, normal=%.2f fps, full_speed=%.2f fps (x%.2f)",
+                 fps_encode, fps_normal, fps_full, speedup);
+        ret = 0;
+    }
+
+    free(mjpeg_ref);
+    if (ctx.vid_src) {
+        free(ctx.vid_src);
+    }
+    return ret;
+}
+
 #else  /* !TEST_WITH_VIDEO */
 
 int test_capture_with_decode_all(void)
+{
+    return 0;
+}
+
+int test_full_speed_decode_perf(void)
 {
     return 0;
 }

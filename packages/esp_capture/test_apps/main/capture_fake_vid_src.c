@@ -236,7 +236,7 @@ static esp_capture_err_t fake_vid_src_acquire_frame(esp_capture_video_src_if_t *
         if (src->fb_used[src->cur_fb] == false) {
             break;
         }
-        vTaskDelay(20 / portTICK_PERIOD_MS);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
         retry--;
     }
     if (src->fb_used[src->cur_fb]) {
@@ -253,7 +253,9 @@ static esp_capture_err_t fake_vid_src_acquire_frame(esp_capture_video_src_if_t *
     if (src->cur_fb >= src->fb_count) {
         src->cur_fb = 0;
     }
-    vTaskDelay(25 / portTICK_PERIOD_MS);
+    if (src->fb_count != FAKE_VID_SRC_MAX_FB) {
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
     return ESP_CAPTURE_ERR_OK;
 }
 

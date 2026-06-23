@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -24,7 +24,7 @@
 #include "esp_board_manager_defs.h"
 #include "esp_log.h"
 
-#define TAG "CAPTURE_BUILDER"
+#define TAG  "CAPTURE_BUILDER"
 
 static bool use_fake_src = false;
 
@@ -273,6 +273,10 @@ void read_with_timeout(capture_sys_t *capture_sys, bool dual_sink, int timeout)
 {
     capture_run_result_t *res = &capture_sys->run_result;
     memset(res, 0, sizeof(capture_run_result_t));
+    for (int i = 0; i < (dual_sink ? 2 : 1); i++) {
+        res->last_audio_pts[i] = -1;
+        res->last_video_pts[i] = -1;
+    }
     uint32_t start_time = esp_timer_get_time() / 1000;
     uint32_t cur_time = start_time;
     int sink_num = dual_sink ? 2 : 1;
@@ -286,9 +290,13 @@ void read_with_timeout(capture_sys_t *capture_sys, bool dual_sink, int timeout)
                 res->audio_frame_count[i]++;
                 if (res->audio_frame_count[i] == 1) {
                     ESP_LOGI(TAG, "[%d] First audio frame received pts %d", i, (int)frame.pts);
+                } else if ((int)frame.pts < res->last_audio_pts[i]) {
+                    ESP_LOGE(TAG, "[%d] Audio frame pts %d is less than last pts %d", i, (int)frame.pts, res->last_audio_pts[i]);
+                    res->pts_error[i] = true;
                 }
                 res->audio_frame_size[i] += frame.size;
                 res->audio_pts[i] = frame.pts;
+                res->last_audio_pts[i] = frame.pts;
                 esp_capture_sink_release_frame(capture_sys->capture_sink[i], &frame);
             }
             frame.stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO;
@@ -296,9 +304,13 @@ void read_with_timeout(capture_sys_t *capture_sys, bool dual_sink, int timeout)
                 res->video_frame_count[i]++;
                 if (res->video_frame_count[i] == 1) {
                     ESP_LOGI(TAG, "[%d] First video frame received pts %d", i, (int)frame.pts);
+                } else if ((int)frame.pts < res->last_video_pts[i]) {
+                    ESP_LOGE(TAG, "[%d] Video frame pts %d is less than last pts %d", i, (int)frame.pts, res->last_video_pts[i]);
+                    res->pts_error[i] = true;
                 }
                 res->video_frame_size[i] += frame.size;
                 res->video_pts[i] = frame.pts;
+                res->last_video_pts[i] = frame.pts;
                 esp_capture_sink_release_frame(capture_sys->capture_sink[i], &frame);
             }
             frame.stream_type = ESP_CAPTURE_STREAM_TYPE_MUXER;

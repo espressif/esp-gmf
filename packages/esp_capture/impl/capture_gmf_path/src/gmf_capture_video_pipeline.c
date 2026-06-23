@@ -78,7 +78,14 @@ static esp_capture_err_t gmf_video_pipeline_create(esp_capture_pipeline_builder_
         capture_video_src_el_init(NULL, &el);
         CAPTURE_BREAK_ON_ERR(esp_gmf_pool_register_element(video_pipe->pool, el, NULL));
 
-        capture_share_copy_el_cfg_t copy_cfg = {};
+        capture_share_copy_el_cfg_t copy_cfg = {
+            .copies = 2,
+#if CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER
+            .q_number = CONFIG_ESP_CAPTURE_VIDEO_DEC_OUT_POOL_SIZE + 1,
+#else
+            .q_number = 3,
+#endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER */
+        };
         capture_share_copy_el_init(&copy_cfg, &el);
         CAPTURE_BREAK_ON_ERR(esp_gmf_pool_register_element(video_pipe->pool, el, NULL));
 

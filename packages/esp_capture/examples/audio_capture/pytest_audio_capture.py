@@ -11,6 +11,6 @@ from pytest_embedded import Dut
 @pytest.mark.temp_skip_ci(targets=['esp32', 'esp32s3', 'esp32p4'], reason='No running in CI')
 def test_audio_capture(dut: Dut) -> None:
     try:
-        dut.expect(r'All case finished', timeout=60)
+        dut.expect(r'All case finished', timeout=80)
     except StopIteration as e:
         raise RuntimeError('DUT serial stream ended unexpectedly') from e

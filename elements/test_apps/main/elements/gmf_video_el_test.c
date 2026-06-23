@@ -1627,19 +1627,18 @@ TEST_CASE("Overlay mixer HW", "[ESP_GMF_VIDEO][leaks=1400]")
 }
 #endif  /* CONFIG_SOC_PPA_SUPPORTED */
 
-TEST_CASE("Encoder to Decode", "[ESP_GMF_VIDEO][leaks=1400]")
+static void encoder_to_decode_run(bool use_out_pool)
 {
-    esp_log_level_set("*", ESP_LOG_INFO);
-    ESP_GMF_MEM_SHOW(TAG);
-#ifdef MEDIA_LIB_MEM_TEST
-    media_lib_add_default_adapter();
-#endif  /* MEDIA_LIB_MEM_TEST */
     convert_res_t res;
     memset(&video_el_inst, 0, sizeof(video_el_test_t));
     prepare_pool(&res);
     const char *name[] = {"vid_enc", "vid_dec", NULL};
     TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, name));
     TEST_ASSERT_NOT_NULL(res.dec_hd);
+
+    if (use_out_pool) {
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_video_param_set_out_pool(res.dec_hd, 2));
+    }
 
     vid_dec_open_report_probe_t dec_probe = {.dec_hd = res.dec_hd};
     esp_gmf_pipeline_set_event(res.pipe, vid_dec_open_report_probe_cb, &dec_probe);
@@ -1669,11 +1668,8 @@ TEST_CASE("Encoder to Decode", "[ESP_GMF_VIDEO][leaks=1400]")
             .height = TEST_PATTERN_HEIGHT,
             .fps = 10,
         };
-        // esp_gmf_video_enc_set_dst_codec(res.enc_hd, convert_pair[i][1]);
         esp_gmf_video_param_set_dst_codec(res.enc_hd, convert_pair[i][1]);
         esp_gmf_pipeline_report_info(res.pipe, ESP_GMF_INFO_VIDEO, &info, sizeof(info));
-        // Set decoder information
-        // esp_gmf_video_dec_set_dst_format(res.dec_hd, convert_pair[i][2]);
         esp_gmf_video_param_set_dst_format(res.dec_hd, convert_pair[i][2]);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res.pipe));
         vTaskDelay(1000 / portTICK_RATE_MS);
@@ -1685,9 +1681,31 @@ TEST_CASE("Encoder to Decode", "[ESP_GMF_VIDEO][leaks=1400]")
         esp_gmf_pipeline_reset(res.pipe);
         esp_gmf_pipeline_loading_jobs(res.pipe);
     }
-    // Clear up resources
     release_convert_pipeline(&res);
+}
 
+TEST_CASE("Encoder to Decode", "[ESP_GMF_VIDEO][leaks=1400]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+#ifdef MEDIA_LIB_MEM_TEST
+    media_lib_add_default_adapter();
+#endif  /* MEDIA_LIB_MEM_TEST */
+    encoder_to_decode_run(false);
+#ifdef MEDIA_LIB_MEM_TEST
+    media_lib_stop_mem_trace();
+#endif  /* MEDIA_LIB_MEM_TEST */
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Encoder to Decode with out pool", "[ESP_GMF_VIDEO][leaks=1400]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+#ifdef MEDIA_LIB_MEM_TEST
+    media_lib_add_default_adapter();
+#endif  /* MEDIA_LIB_MEM_TEST */
+    encoder_to_decode_run(true);
 #ifdef MEDIA_LIB_MEM_TEST
     media_lib_stop_mem_trace();
 #endif  /* MEDIA_LIB_MEM_TEST */

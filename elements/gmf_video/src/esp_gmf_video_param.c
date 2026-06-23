@@ -176,3 +176,13 @@ esp_gmf_err_t esp_gmf_video_param_get_dst_fmts_by_codec(esp_gmf_element_handle_t
 
     RELEASE_VMETHOD_SETTING();
 }
+
+esp_gmf_err_t esp_gmf_video_param_set_out_pool(esp_gmf_element_handle_t self, int frame_count)
+{
+    const char *method_name = VMETHOD(DECODER, SET_OUT_POOL);
+    PREPARE_VMETHOD_SETTING();
+
+    SET_METHOD_ARG(VMETHOD_ARG(DECODER, SET_OUT_POOL, FRAME_COUNT), frame_count);
+
+    RELEASE_VMETHOD_SETTING();
+}

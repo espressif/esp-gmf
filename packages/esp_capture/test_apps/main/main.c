@@ -44,11 +44,15 @@ static void capture_test_scheduler(const char *thread_name, esp_capture_thread_s
         schedule_cfg->stack_size = 6 * 1024;
         schedule_cfg->priority = 10;
         schedule_cfg->core_id = 0;
-    } else if (strcmp(thread_name, "venc_0") == 0) {
-        // For H264 may need huge stack if use hardware encoder can set it to small value
+    } else if (strcmp(thread_name, "vid_src") == 0) {
+        // Decode/source pipeline — keep off venc_0's core for full-speed overlap
         schedule_cfg->core_id = 0;
         schedule_cfg->stack_size = 40 * 1024;
-        schedule_cfg->priority = 1;
+        schedule_cfg->priority = 10;
+    } else if (strcmp(thread_name, "venc_0") == 0) {
+        // Encode/sink pipeline on the other core
+        schedule_cfg->stack_size = 40 * 1024;
+        schedule_cfg->priority = 11;
     } else if (strcmp(thread_name, "venc_1") == 0) {
         // For H264 may need huge stack if use hardware encoder can set it to small value
         schedule_cfg->core_id = 1;
@@ -194,6 +198,11 @@ TEST_CASE("Capture decode paths (MJPEG ref, all cases)", "[esp_capture]")
     TEST_ESP_OK(test_capture_with_decode_all());
 }
 
+TEST_CASE("Full-speed decode re-encode performance", "[esp_capture]")
+{
+    TEST_ESP_OK(test_full_speed_decode_perf());
+}
+
 TEST_CASE("Auto AV capture for one path", "[esp_capture]")
 {
     TEST_ESP_OK(auto_av_path_test(1000, false));
@@ -279,6 +288,8 @@ void app_main(void)
     esp_log_level_set(TAG, ESP_LOG_INFO);
     esp_log_level_set("CAPTURE_TEST", ESP_LOG_INFO);
     esp_log_level_set("CAPTURE_BUILDER", ESP_LOG_INFO);
+    esp_log_level_set("GMF_VID_PIPE", ESP_LOG_INFO);
+    esp_log_level_set("GMF_CAPTURE_VPATH", ESP_LOG_INFO);
 
     // Initialize board
      esp_err_t ret;

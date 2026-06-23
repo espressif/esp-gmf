@@ -216,6 +216,20 @@ esp_gmf_err_t esp_gmf_video_param_set_overlay_rgn(esp_gmf_element_handle_t self,
 esp_gmf_err_t esp_gmf_video_param_get_dst_fmts_by_codec(esp_gmf_element_handle_t handle, uint32_t src_codec,
                                                         const uint32_t **dst_fmts, uint8_t *dst_fmts_num);
 
+/**
+ * @brief  Set decode output frame pool size for video decoder
+ *
+ * @param[in]  handle       Video element handle
+ * @param[in]  frame_count  Number of decoded frames in pool (`0` disables pool)
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_NOT_FOUND    Not found the method
+ *       - ESP_GMF_ERR_MEMORY_LACK  Failed to allocate memory
+ *       - Others                   Failed to apply method
+ */
+esp_gmf_err_t esp_gmf_video_param_set_out_pool(esp_gmf_element_handle_t handle, int frame_count);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

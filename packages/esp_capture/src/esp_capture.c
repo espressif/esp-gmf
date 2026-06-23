@@ -8,6 +8,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 #include "esp_capture.h"
 #include "esp_log.h"
 #include "esp_muxer.h"
@@ -31,6 +32,33 @@
 #define CAPTURE_MAX_PATH_NUM  (3)  /*!< Maximum of capture path supported */
 #define CAPTURE_STREAM_Q_NUM  (5)
 
+/* Path status flags (atomic) to avoid bitfield RMW races across threads */
+#define STAT_FLAG_ENABLE                (1 << 0)
+#define STAT_FLAG_SINK_DISABLED         (1 << 1)
+#define STAT_FLAG_AUDIO_REACHED         (1 << 2)
+#define STAT_FLAG_VIDEO_REACHED         (1 << 3)
+#define STAT_FLAG_MUXER_REACHED         (1 << 4)
+/* Streaming disabled are controlled by user */
+#define STAT_FLAG_AUDIO_STREAM_DISABLED (1 << 5)
+#define STAT_FLAG_VIDEO_STREAM_DISABLED (1 << 6)
+/* Path disable is clear during start and set if meet error */
+#define STAT_FLAG_AUDIO_PATH_DISABLED   (1 << 7)
+#define STAT_FLAG_VIDEO_PATH_DISABLED   (1 << 8)
+
+#define SET_STAT(flags, f)  atomic_fetch_or(&(flags), (f))
+#define CLR_STAT(flags, f)  atomic_fetch_and(&(flags), ~(f))
+#define IN_STAT(flags, f)   (atomic_load(&(flags)) & (f))
+
+#define IS_ENABLED(flags)                IN_STAT(flags, STAT_FLAG_ENABLE)
+#define IS_SINK_DISABLED(flags)          IN_STAT(flags, STAT_FLAG_SINK_DISABLED)
+#define IS_AUDIO_REACHED(flags)          IN_STAT(flags, STAT_FLAG_AUDIO_REACHED)
+#define IS_VIDEO_REACHED(flags)          IN_STAT(flags, STAT_FLAG_VIDEO_REACHED)
+#define IS_MUXER_REACHED(flags)          IN_STAT(flags, STAT_FLAG_MUXER_REACHED)
+#define IS_AUDIO_STREAM_DISABLED(flags)  IN_STAT(flags, STAT_FLAG_AUDIO_STREAM_DISABLED)
+#define IS_VIDEO_STREAM_DISABLED(flags)  IN_STAT(flags, STAT_FLAG_VIDEO_STREAM_DISABLED)
+#define IS_AUDIO_PATH_DISABLED(flags)    IN_STAT(flags, STAT_FLAG_AUDIO_PATH_DISABLED)
+#define IS_VIDEO_PATH_DISABLED(flags)    IN_STAT(flags, STAT_FLAG_VIDEO_PATH_DISABLED)
+
 typedef enum {
     CAPTURE_SHARED_BY_USER  = 0,
     CAPTURE_SHARED_BY_MUXER = 1
@@ -42,17 +70,7 @@ struct capture_path_t {
     struct capture_t            *parent;
     uint8_t                      path_type;
     esp_capture_sink_cfg_t       sink_cfg;
-    uint8_t                      enable        : 1;
-    uint8_t                      sink_disabled : 1;
-    uint8_t                      audio_reached : 1;
-    uint8_t                      video_reached : 1;
-    uint8_t                      muxer_reached : 1;
-    // Streaming disabled are controlled by user
-    uint8_t                      audio_stream_disabled : 1;
-    uint8_t                      video_stream_disabled : 1;
-    // Path disable is clear during start and set if meet error
-    uint8_t                      audio_path_disabled : 1;
-    uint8_t                      video_path_disabled : 1;
+    atomic_ushort                stat;
     // For audio path
     share_q_handle_t             audio_share_q;
     msg_q_handle_t               audio_q;
@@ -100,7 +118,7 @@ static int capture_frame_avail(void *src, uint8_t sel, esp_capture_stream_frame_
         return ESP_CAPTURE_ERR_NOT_FOUND;
     }
     // When path disable drop input data directly
-    if (path->sink_disabled || path->parent->started == false) {
+    if (IS_SINK_DISABLED(path->stat) || path->parent->started == false) {
         // Can not release it here, callback to user to handle it
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
@@ -112,18 +130,18 @@ static int capture_frame_avail(void *src, uint8_t sel, esp_capture_stream_frame_
             if (path->video_share_q) {
                 ret = share_q_add(path->video_share_q, frame);
             }
-            if (path->video_reached == false) {
+            if (!IS_VIDEO_REACHED(path->stat)) {
                 CAPTURE_PERF_MON(path->path_type, "First Video Frame Reached", {});
-                path->video_reached = true;
+                SET_STAT(path->stat, STAT_FLAG_VIDEO_REACHED);
             }
             break;
         case ESP_CAPTURE_STREAM_TYPE_AUDIO:
             if (path->audio_share_q) {
                 ret = share_q_add(path->audio_share_q, frame);
             }
-            if (path->audio_reached == false) {
+            if (!IS_AUDIO_REACHED(path->stat)) {
                 CAPTURE_PERF_MON(path->path_type, "First Audio Frame Reached", {});
-                path->audio_reached = true;
+                SET_STAT(path->stat, STAT_FLAG_AUDIO_REACHED);
             }
             break;
     }
@@ -146,7 +164,7 @@ static int capture_path_event_reached(void *src, uint8_t sel, esp_capture_path_e
         case ESP_CAPTURE_PATH_EVENT_AUDIO_NOT_SUPPORT:
         case ESP_CAPTURE_PATH_EVENT_AUDIO_FINISHED:
         case ESP_CAPTURE_PATH_EVENT_AUDIO_ERROR: {
-            path->audio_path_disabled = true;
+            SET_STAT(path->stat, STAT_FLAG_AUDIO_PATH_DISABLED);
             // TODO send fake data into share queue can let user quit
             // But will cause wrong share queue release not existed data
             if (path->audio_share_q) {
@@ -159,7 +177,7 @@ static int capture_path_event_reached(void *src, uint8_t sel, esp_capture_path_e
         case ESP_CAPTURE_PATH_EVENT_VIDEO_NOT_SUPPORT:
         case ESP_CAPTURE_PATH_EVENT_VIDEO_FINISHED:
         case ESP_CAPTURE_PATH_EVENT_VIDEO_ERROR: {
-            path->video_path_disabled = true;
+            SET_STAT(path->stat, STAT_FLAG_VIDEO_PATH_DISABLED);
             if (path->video_share_q) {
                 esp_capture_stream_frame_t frame = {0};
                 frame.stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO;
@@ -270,7 +288,7 @@ static esp_capture_err_t prepare_audio_share_queue(capture_path_t *path)
     }
     if (path->audio_q) {
         share_q_set_external(path->audio_share_q, CAPTURE_SHARED_BY_USER, path->audio_q);
-        bool enable = !path->audio_stream_disabled && path->enable;
+        bool enable = !IS_AUDIO_STREAM_DISABLED(path->stat) && IS_ENABLED(path->stat);
         share_q_enable(path->audio_share_q, CAPTURE_SHARED_BY_USER, enable);
     }
     if (muxer_q) {
@@ -278,7 +296,7 @@ static esp_capture_err_t prepare_audio_share_queue(capture_path_t *path)
         share_q_set_external(path->audio_share_q, CAPTURE_SHARED_BY_MUXER, muxer_q);
         // Muxer queue is shared by audio and video have user release callback
         share_q_set_user_release(path->audio_share_q, CAPTURE_SHARED_BY_MUXER, muxer_sink_release_frame, path);
-        share_q_enable(path->audio_share_q, CAPTURE_SHARED_BY_MUXER, muxer_enable && path->enable);
+        share_q_enable(path->audio_share_q, CAPTURE_SHARED_BY_MUXER, muxer_enable && IS_ENABLED(path->stat));
     }
     return ESP_CAPTURE_ERR_OK;
 }
@@ -315,7 +333,7 @@ static esp_capture_err_t prepare_video_share_queue(capture_path_t *path)
     }
     if (path->video_q) {
         share_q_set_external(path->video_share_q, CAPTURE_SHARED_BY_USER, path->video_q);
-        bool enable = !path->video_stream_disabled && path->enable;
+        bool enable = !IS_VIDEO_STREAM_DISABLED(path->stat) && IS_ENABLED(path->stat);
         share_q_enable(path->video_share_q, CAPTURE_SHARED_BY_USER, enable);
     }
     if (muxer_q) {
@@ -323,14 +341,14 @@ static esp_capture_err_t prepare_video_share_queue(capture_path_t *path)
         share_q_set_external(path->video_share_q, CAPTURE_SHARED_BY_MUXER, muxer_q);
         // Muxer queue is shared by audio and video have user release callback
         share_q_set_user_release(path->video_share_q, CAPTURE_SHARED_BY_MUXER, muxer_sink_release_frame, path);
-        share_q_enable(path->video_share_q, CAPTURE_SHARED_BY_MUXER, muxer_enable && path->enable);
+        share_q_enable(path->video_share_q, CAPTURE_SHARED_BY_MUXER, muxer_enable && IS_ENABLED(path->stat));
     }
     return ESP_CAPTURE_ERR_OK;
 }
 
 static esp_capture_err_t prepare_audio_path(capture_path_t *path)
 {
-    if (path->audio_stream_disabled == false && path->audio_q == NULL) {
+    if (!IS_AUDIO_STREAM_DISABLED(path->stat) && path->audio_q == NULL) {
         path->audio_q = msg_q_create(CAPTURE_STREAM_Q_NUM, sizeof(esp_capture_stream_frame_t));
         if (path->audio_q == NULL) {
             ESP_LOGE(TAG, "Failed to create audio q");
@@ -342,7 +360,7 @@ static esp_capture_err_t prepare_audio_path(capture_path_t *path)
 
 static esp_capture_err_t prepare_video_path(capture_path_t *path)
 {
-    if (path->video_stream_disabled == false && path->video_q == NULL) {
+    if (!IS_VIDEO_STREAM_DISABLED(path->stat) && path->video_q == NULL) {
         path->video_q = msg_q_create(CAPTURE_STREAM_Q_NUM, sizeof(esp_capture_stream_frame_t));
         if (path->video_q == NULL) {
             ESP_LOGE(TAG, "Failed to create audio q");
@@ -405,8 +423,7 @@ static esp_capture_err_t start_path(capture_path_t *path)
         return ESP_CAPTURE_ERR_OK;
     }
     // Clear path error status
-    path->audio_path_disabled = false;
-    path->video_path_disabled = false;
+    CLR_STAT(path->stat, STAT_FLAG_AUDIO_PATH_DISABLED | STAT_FLAG_VIDEO_PATH_DISABLED);
 
     esp_capture_err_t ret = ESP_CAPTURE_ERR_OK;
     CAPTURE_PERF_MON(path->path_type, "Prepare Path", {
@@ -485,6 +502,7 @@ static esp_capture_err_t build_video_path(capture_t *capture, esp_capture_cfg_t 
     esp_capture_gmf_auto_video_pipeline_cfg_t builder_cfg = {
         .vid_src = cfg->video_src,
         .share_overlay = cfg->share_overlay,
+        .full_speed_decode = cfg->full_speed_decode,
     };
     capture->video_pipe_builder = esp_capture_create_auto_video_pipeline(&builder_cfg);
     CAPTURE_CHECK_MEM_RET(capture->video_pipe_builder, "video pipeline builder", ESP_CAPTURE_ERR_NO_MEM);
@@ -739,20 +757,12 @@ static esp_capture_err_t capture_add_path(capture_t *capture, capture_path_t *cu
 
 static void capture_reset_sink(capture_path_t *path)
 {
-    path->enable = false;
-    path->sink_disabled = false;
-    path->audio_reached = false;
-    path->video_reached = false;
-    path->muxer_reached = false;
-    path->audio_stream_disabled = false;
-    path->video_stream_disabled = false;
-    path->audio_path_disabled = false;
-    path->video_path_disabled = false;
+    atomic_store(&path->stat, 0);
 }
 
 static inline bool capture_path_is_running(capture_path_t *path)
 {
-    return path->enable && path->parent->started;
+    return IS_ENABLED(path->stat) && path->parent->started;
 }
 
 esp_capture_err_t esp_capture_sink_setup(esp_capture_handle_t h, uint8_t type, esp_capture_sink_cfg_t *sink_info,
@@ -1009,19 +1019,20 @@ esp_capture_err_t esp_capture_sink_enable(esp_capture_sink_handle_t h, esp_captu
         bool run_once = (run_type == ESP_CAPTURE_RUN_MODE_ONESHOT);
         ret = video_path->set(video_path, path->path_type, ESP_CAPTURE_PATH_SET_TYPE_RUN_ONCE, &run_once, sizeof(bool));
     }
-    if (path->enable == enable) {
+    bool cur_enable = IS_ENABLED(path->stat) != 0;
+    if (cur_enable == enable) {
         capture_mutex_unlock(capture->api_lock);
         return ret;
     }
 
     if (enable) {
-        path->enable = true;
-        path->sink_disabled = false;
+        SET_STAT(path->stat, STAT_FLAG_ENABLE);
+        CLR_STAT(path->stat, STAT_FLAG_SINK_DISABLED);
         // Prepare so that data pushed to path queue
         ret = start_path(path);
     } else {
         // Stop from last to first one src -> path -> muxer
-        path->sink_disabled = true;
+        SET_STAT(path->stat, STAT_FLAG_SINK_DISABLED);
         if (path->muxer) {
             enable_muxer_input(path, false);
             capture_muxer_stop(path->muxer);
@@ -1035,7 +1046,11 @@ esp_capture_err_t esp_capture_sink_enable(esp_capture_sink_handle_t h, esp_captu
     if (video_path) {
         ret = video_path->enable_path(video_path, path->path_type, enable);
     }
-    path->enable = enable;
+    if (enable) {
+        SET_STAT(path->stat, STAT_FLAG_ENABLE);
+    } else {
+        CLR_STAT(path->stat, STAT_FLAG_ENABLE);
+    }
     if (enable == false) {
         ret = stop_path(path);
     }
@@ -1064,9 +1079,9 @@ esp_capture_err_t esp_capture_sink_disable_stream(esp_capture_sink_handle_t h, e
                 ret = ESP_CAPTURE_ERR_NOT_SUPPORTED;
             }
         } else if (stream_type == ESP_CAPTURE_STREAM_TYPE_AUDIO) {
-            path->audio_stream_disabled = true;
+            SET_STAT(path->stat, STAT_FLAG_AUDIO_STREAM_DISABLED);
         } else if (stream_type == ESP_CAPTURE_STREAM_TYPE_VIDEO) {
-            path->video_stream_disabled = true;
+            SET_STAT(path->stat, STAT_FLAG_VIDEO_STREAM_DISABLED);
         }
     } while (0);
     capture_mutex_unlock(capture->api_lock);
@@ -1090,8 +1105,7 @@ esp_capture_err_t esp_capture_start(esp_capture_handle_t h)
         if (path == NULL) {
             continue;
         }
-        path->audio_reached = false;
-        path->video_reached = false;
+        CLR_STAT(path->stat, STAT_FLAG_AUDIO_REACHED | STAT_FLAG_VIDEO_REACHED);
         CAPTURE_PERF_MON(i, "Start Path", {
             // Prepare queues and related resource
             ret = start_path(path);
@@ -1162,13 +1176,13 @@ esp_capture_err_t esp_capture_sink_acquire_frame(esp_capture_sink_handle_t h, es
         return ESP_CAPTURE_ERR_INVALID_ARG;
     }
     // TODO not add lock user need care the timing
-    if (path->enable == false) {
+    if (!IS_ENABLED(path->stat)) {
         return ESP_CAPTURE_ERR_INVALID_STATE;
     }
     int ret = ESP_CAPTURE_ERR_NOT_SUPPORTED;
     switch (frame->stream_type) {
         case ESP_CAPTURE_STREAM_TYPE_VIDEO:
-            if (path->video_path_disabled) {
+            if (IS_VIDEO_PATH_DISABLED(path->stat)) {
                 // Only receive all of share q port data
                 while (msg_q_recv(path->video_q, frame, sizeof(esp_capture_stream_frame_t), true) == 0) {
                     share_q_release(path->video_share_q, frame);
@@ -1182,7 +1196,7 @@ esp_capture_err_t esp_capture_sink_acquire_frame(esp_capture_sink_handle_t h, es
             }
             break;
         case ESP_CAPTURE_STREAM_TYPE_AUDIO:
-            if (path->audio_path_disabled) {
+            if (IS_AUDIO_PATH_DISABLED(path->stat)) {
                 while (msg_q_recv(path->audio_q, frame, sizeof(esp_capture_stream_frame_t), true) == 0) {
                     share_q_release(path->audio_share_q, frame);
                 }
@@ -1211,7 +1225,7 @@ esp_capture_err_t esp_capture_sink_release_frame(esp_capture_sink_handle_t h, es
         return ESP_CAPTURE_ERR_INVALID_ARG;
     }
     // TODO not add lock user need care the timing
-    if (path->enable == false) {
+    if (!IS_ENABLED(path->stat)) {
         return ESP_CAPTURE_ERR_INVALID_STATE;
     }
     int ret = ESP_CAPTURE_ERR_OK;
@@ -1269,7 +1283,7 @@ esp_capture_err_t esp_capture_stop(esp_capture_handle_t h)
     for (int i = 0; i < capture->path_num; i++) {
         capture_path_t *path = capture->path[i];
         // Disable path
-        path->sink_disabled = true;
+        SET_STAT(path->stat, STAT_FLAG_SINK_DISABLED);
         CAPTURE_PERF_MON(i, "Flush output", {
             flush_path_stream_output(path);
         });
@@ -1307,7 +1321,7 @@ esp_capture_err_t esp_capture_stop(esp_capture_handle_t h)
         capture_path_t *path = capture->path[i];
         stop_path(path);
         release_path(path);
-        path->sink_disabled = false;
+        CLR_STAT(path->stat, STAT_FLAG_SINK_DISABLED);
     }
     if (capture->sync_handle) {
         esp_capture_sync_off(capture->sync_handle);

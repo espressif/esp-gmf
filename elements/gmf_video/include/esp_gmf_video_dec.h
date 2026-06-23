@@ -64,6 +64,18 @@ esp_gmf_err_t esp_gmf_video_dec_get_out_size(esp_gmf_element_handle_t handle, ui
 esp_gmf_err_t esp_gmf_video_dec_set_dst_format(esp_gmf_element_handle_t handle, uint32_t dst_fmt);
 
 /**
+ * @brief  Get currently configured decoder output pixel format
+ *
+ * @param[in]   handle   Video decoder element handle
+ * @param[out]  dst_fmt  Destination format (GMF FourCC)
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_video_dec_get_dst_format(esp_gmf_element_handle_t handle, uint32_t *dst_fmt);
+
+/**
  * @brief  Get supported output formats for a given video decoder type
  *         This function retrieves the list of output formats (e.g., YUV420P, RGB565LE) that the decoder can produce
  *         when decoding from the specified source codec
@@ -81,6 +93,25 @@ esp_gmf_err_t esp_gmf_video_dec_get_dst_formats(esp_gmf_element_handle_t handle,
                                                 uint32_t                 src_codec,
                                                 const uint32_t         **dst_fmts,
                                                 uint8_t                 *dst_fmts_num);
+
+/**
+ * @brief  Enable decode output frame pool for zero-copy sharing (e.g. with share_copier)
+ *
+ * @note  Call before element running. Creates the frame info queue immediately so acquire can block
+ *        from `pipeline_run`. Pixel storage is allocated after header parse when frame size is known.
+ *        `frame_count == 0` keeps the legacy path (decode into acquire_out buffer).
+ *        `frame_count >= 1` enables pool mode; recommended value is 2 or 3.
+ *
+ * @param[in]  handle       Video decoder element handle
+ * @param[in]  frame_count  Number of decoded frames kept in the pool
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK             Success
+ *       - ESP_GMF_ERR_INVALID_ARG    Invalid argument
+ *       - ESP_GMF_ERR_INVALID_STATE  Element already running / pool already in use
+ *       - ESP_GMF_ERR_MEMORY_LACK    Failed to allocate pool port
+ */
+esp_gmf_err_t esp_gmf_video_dec_set_out_pool(esp_gmf_element_handle_t handle, int frame_count);
 
 #ifdef __cplusplus
 }
