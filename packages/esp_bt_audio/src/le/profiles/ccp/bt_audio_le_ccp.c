@@ -30,15 +30,15 @@
  * @brief  Runtime context for the Call Control Profile client.
  */
 typedef struct {
-    uint16_t                    conn_handle;     /*!< Discovered TBS connection handle */
-    uint8_t                     tbs_count;       /*!< Number of discovered TBS instances */
-    uint8_t                     ccid;            /*!< TBS content control ID */
-    bool                        gtbs_found;      /*!< True when GTBS was discovered */
+    uint16_t                    conn_handle;                                     /*!< Discovered TBS connection handle */
+    uint8_t                     tbs_count;                                       /*!< Number of discovered TBS instances */
+    uint8_t                     ccid;                                            /*!< TBS content control ID */
+    bool                        gtbs_found;                                      /*!< True when GTBS was discovered */
     char                        uri_scheme[BT_AUDIO_LE_CCP_URI_SCHEME_MAX_LEN];  /*!< First supported URI scheme */
     uint8_t                     tracked_idx[ESP_BT_AUDIO_CALL_MAX_NUM];          /*!< Calls seen in last notification */
-    uint8_t                     tracked_count;   /*!< Number of entries in tracked_idx */
-    bt_audio_le_ccp_ready_cb_t  ready_cb;        /*!< Optional discovery-ready callback */
-    void                       *ready_user_ctx;  /*!< User context passed to ready_cb */
+    uint8_t                     tracked_count;                                   /*!< Number of entries in tracked_idx */
+    bt_audio_le_ccp_ready_cb_t  ready_cb;                                        /*!< Optional discovery-ready callback */
+    void                       *ready_user_ctx;                                  /*!< User context passed to ready_cb */
 } bt_audio_le_ccp_ctx_t;
 
 static const char *TAG = "BT_AUD_LE_CCP";
@@ -236,7 +236,7 @@ static void bt_audio_le_ccp_uri_list_cb(struct bt_conn *conn, int err, uint8_t i
         s_ccp->ready_cb(conn->handle, s_ccp->ready_user_ctx);
     }
     esp_err_t sync_ret = esp_ble_audio_tbs_client_read_call_state(conn->handle,
-                                                                   BT_AUDIO_LE_CCP_DEFAULT_TBS_INST);
+                                                                  BT_AUDIO_LE_CCP_DEFAULT_TBS_INST);
     if (sync_ret != ESP_OK) {
         ESP_LOGW(TAG, "Initial call state read failed: %s", esp_err_to_name(sync_ret));
     }
@@ -336,8 +336,7 @@ static void bt_audio_le_ccp_current_calls_cb(struct bt_conn *conn, int err, uint
         esp_bt_audio_event_call_state_t ev = {0};
         ev.tech = ESP_BT_AUDIO_TECH_LE;
         ev.idx = call->call_info.index;
-        ev.dir = (call->call_info.flags & BT_TBS_CALL_FLAG_OUTGOING) ?
-                 ESP_BT_AUDIO_CALL_DIR_OUTGOING : ESP_BT_AUDIO_CALL_DIR_INCOMING;
+        ev.dir = (call->call_info.flags & BT_TBS_CALL_FLAG_OUTGOING) ? ESP_BT_AUDIO_CALL_DIR_OUTGOING : ESP_BT_AUDIO_CALL_DIR_INCOMING;
         ev.state = bt_audio_le_ccp_tbs_to_call_state(call->call_info.state);
         if (call->remote_uri) {
             strncpy(ev.uri, call->remote_uri, sizeof(ev.uri) - 1);
@@ -382,15 +381,14 @@ static void bt_audio_le_ccp_read_call_states_cb(struct bt_conn *conn, int err, u
         esp_bt_audio_event_call_state_t ev = {0};
         ev.tech = ESP_BT_AUDIO_TECH_LE;
         ev.idx = call_states[i].index;
-        ev.dir = (call_states[i].flags & BT_TBS_CALL_FLAG_OUTGOING) ?
-                 ESP_BT_AUDIO_CALL_DIR_OUTGOING : ESP_BT_AUDIO_CALL_DIR_INCOMING;
+        ev.dir = (call_states[i].flags & BT_TBS_CALL_FLAG_OUTGOING) ? ESP_BT_AUDIO_CALL_DIR_OUTGOING : ESP_BT_AUDIO_CALL_DIR_INCOMING;
         ev.state = bt_audio_le_ccp_tbs_to_call_state(call_states[i].state);
         bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_CALL_STATE_CHG, &ev);
     }
 
     if (call_count > 0) {
         esp_err_t ret = esp_ble_audio_tbs_client_read_current_calls(s_ccp->conn_handle,
-                                                                     BT_AUDIO_LE_CCP_DEFAULT_TBS_INST);
+                                                                    BT_AUDIO_LE_CCP_DEFAULT_TBS_INST);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Failed to read current calls: %s", esp_err_to_name(ret));
         }
@@ -421,7 +419,7 @@ esp_err_t bt_audio_le_ccp_init(bt_audio_le_ccp_ready_cb_t ready_cb, void *user_c
     s_ccp->ready_cb = ready_cb;
     s_ccp->ready_user_ctx = user_ctx;
 
-    ccp_cbs = (esp_ble_audio_tbs_client_cb_t){
+    ccp_cbs = (esp_ble_audio_tbs_client_cb_t) {
         .discover = bt_audio_le_ccp_discover_cb,
         .ccid = bt_audio_le_ccp_ccid_cb,
         .uri_list = bt_audio_le_ccp_uri_list_cb,

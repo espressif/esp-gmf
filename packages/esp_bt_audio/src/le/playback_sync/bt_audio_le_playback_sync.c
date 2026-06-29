@@ -44,18 +44,18 @@ struct esp_bt_audio_le_playback_sync {
 };
 
 struct esp_bt_audio_le_clk_sync {
-    i2s_chan_handle_t         tx_handle;       /*!< I2S TX channel handle */
-    i2s_dev_t                *i2s_dev;         /*!< I2S hardware instance from tx_handle */
-    int                       i2s_port;        /*!< I2S port id from tx_handle */
-    intr_handle_t             i2s_intr;        /*!< I2S interrupt handle for sync diff notification */
-    QueueHandle_t             monitor_queue;   /*!< Queue for reporting count difference */
-    esp_etm_channel_handle_t  etm_ch;          /*!< ETM channel connecting modem event to I2S FIFO sync task */
-    esp_etm_task_handle_t     i2s_sync_task;   /*!< I2S FIFO sync ETM task */
-    esp_etm_event_handle_t    modem_event;     /*!< Modem ETM timing event */
-    bool                      enabled;         /*!< Whether the ETM channel is enabled */
+    i2s_chan_handle_t         tx_handle;      /*!< I2S TX channel handle */
+    i2s_dev_t                *i2s_dev;        /*!< I2S hardware instance from tx_handle */
+    int                       i2s_port;       /*!< I2S port id from tx_handle */
+    intr_handle_t             i2s_intr;       /*!< I2S interrupt handle for sync diff notification */
+    QueueHandle_t             monitor_queue;  /*!< Queue for reporting count difference */
+    esp_etm_channel_handle_t  etm_ch;         /*!< ETM channel connecting modem event to I2S FIFO sync task */
+    esp_etm_task_handle_t     i2s_sync_task;  /*!< I2S FIFO sync ETM task */
+    esp_etm_event_handle_t    modem_event;    /*!< Modem ETM timing event */
+    bool                      enabled;        /*!< Whether the ETM channel is enabled */
 #if BT_AUDIO_LE_CLK_SYNC_MONITOR
-    esp_etm_channel_handle_t  monitor_ch;      /*!< Extra ETM channel toggling a GPIO on G2 event */
-    esp_etm_task_handle_t     gpio_task;       /*!< GPIO toggle ETM task */
+    esp_etm_channel_handle_t  monitor_ch;     /*!< Extra ETM channel toggling a GPIO on G2 event */
+    esp_etm_task_handle_t     gpio_task;      /*!< GPIO toggle ETM task */
 #endif  /* BT_AUDIO_LE_CLK_SYNC_MONITOR */
 };
 

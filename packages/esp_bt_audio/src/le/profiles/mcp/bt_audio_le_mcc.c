@@ -32,13 +32,13 @@
 #define BT_AUDIO_LE_MCC_OP_TIMEOUT_MS                3000
 #define BT_AUDIO_LE_MCC_OP_TIMEOUT_US                (BT_AUDIO_LE_MCC_OP_TIMEOUT_MS * 1000)
 #if CONFIG_BT_MCC_OTS
-#define BT_AUDIO_LE_MCC_METADATA_SUPPORTED_MASK      \
-    (ESP_BT_AUDIO_PLAYBACK_METADATA_TITLE | \
-     ESP_BT_AUDIO_PLAYBACK_METADATA_PLAYING_TIME | \
+#define BT_AUDIO_LE_MCC_METADATA_SUPPORTED_MASK     \
+    (ESP_BT_AUDIO_PLAYBACK_METADATA_TITLE |         \
+     ESP_BT_AUDIO_PLAYBACK_METADATA_PLAYING_TIME |  \
      ESP_BT_AUDIO_PLAYBACK_METADATA_COVER_ART)
 #else
-#define BT_AUDIO_LE_MCC_METADATA_SUPPORTED_MASK      \
-    (ESP_BT_AUDIO_PLAYBACK_METADATA_TITLE | \
+#define BT_AUDIO_LE_MCC_METADATA_SUPPORTED_MASK     \
+    (ESP_BT_AUDIO_PLAYBACK_METADATA_TITLE |         \
      ESP_BT_AUDIO_PLAYBACK_METADATA_PLAYING_TIME)
 #endif  /* CONFIG_BT_MCC_OTS */
 
@@ -62,30 +62,30 @@ typedef enum {
 } bt_audio_le_mcc_op_type_t;
 
 typedef struct bt_audio_le_mcc_op_node {
-    bt_audio_le_mcc_op_type_t        type;
-    uint16_t                         conn_handle;
-    uint8_t                          opcode;
-    struct bt_audio_le_mcc_op_node  *next;
+    bt_audio_le_mcc_op_type_t       type;
+    uint16_t                        conn_handle;
+    uint8_t                         opcode;
+    struct bt_audio_le_mcc_op_node *next;
 } bt_audio_le_mcc_op_node_t;
 
 /**
  * @brief  Runtime context for the Media Control Client.
  */
 typedef struct {
-    uint16_t                    conn_handle;            /*!< Discovered MCS connection handle */
-    uint32_t                    opcodes;                /*!< Supported MCS opcodes bitmask */
-    uint32_t                    notify_mask;            /*!< Playback notification subscription mask */
-    uint8_t                     content_control_id;     /*!< MCS content control ID */
-    bool                        op_busy;                /*!< A MCC operation is waiting for completion */
-    bt_audio_le_mcc_op_type_t   active_op_type;         /*!< Current MCC operation type */
-    uint16_t                    active_op_conn_handle;  /*!< Current MCC operation connection handle */
-    uint8_t                     active_op_opcode;       /*!< Current MCC command opcode */
-    int64_t                     active_op_started_us;   /*!< Active MCC operation start time */
-    bt_audio_le_mcc_op_node_t  *op_head;                /*!< Pending MCC operation list head */
-    bt_audio_le_mcc_op_node_t  *op_tail;                /*!< Pending MCC operation list tail */
-    SemaphoreHandle_t           op_lock;                /*!< Protects the pending MCC operation list */
-    esp_timer_handle_t          op_timer;               /*!< Watchdog timer for active MCC operation */
-    char                        duration_str[BT_AUDIO_LE_MCC_DURATION_STR_LEN];  /*!< Cached duration string */
+    uint16_t                   conn_handle;                                     /*!< Discovered MCS connection handle */
+    uint32_t                   opcodes;                                         /*!< Supported MCS opcodes bitmask */
+    uint32_t                   notify_mask;                                     /*!< Playback notification subscription mask */
+    uint8_t                    content_control_id;                              /*!< MCS content control ID */
+    bool                       op_busy;                                         /*!< A MCC operation is waiting for completion */
+    bt_audio_le_mcc_op_type_t  active_op_type;                                  /*!< Current MCC operation type */
+    uint16_t                   active_op_conn_handle;                           /*!< Current MCC operation connection handle */
+    uint8_t                    active_op_opcode;                                /*!< Current MCC command opcode */
+    int64_t                    active_op_started_us;                            /*!< Active MCC operation start time */
+    bt_audio_le_mcc_op_node_t *op_head;                                         /*!< Pending MCC operation list head */
+    bt_audio_le_mcc_op_node_t *op_tail;                                         /*!< Pending MCC operation list tail */
+    SemaphoreHandle_t          op_lock;                                         /*!< Protects the pending MCC operation list */
+    esp_timer_handle_t         op_timer;                                        /*!< Watchdog timer for active MCC operation */
+    char                       duration_str[BT_AUDIO_LE_MCC_DURATION_STR_LEN];  /*!< Cached duration string */
 } bt_audio_le_mcc_ctx_t;
 
 static const char *TAG = "BT_AUD_LE_MCC";

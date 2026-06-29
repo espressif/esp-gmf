@@ -88,7 +88,21 @@ static float codec2bt_input_asrc_weight[STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
 static float codec2bt_output_asrc_weight[STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
 static float local2bt_asrc_weight[STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
 
-static bool stream_proc_post_cmd(const stream_proc_cmd_t *cmd)
+static inline esp_audio_type_t stream_proc_get_audio_type(esp_bt_audio_stream_codec_type_t codec_type)
+{
+    switch (codec_type) {
+        case ESP_BT_AUDIO_STREAM_CODEC_SBC:
+            return ESP_AUDIO_TYPE_SBC;
+        case ESP_BT_AUDIO_STREAM_CODEC_AAC:
+            return ESP_AUDIO_TYPE_AAC;
+        case ESP_BT_AUDIO_STREAM_CODEC_LC3:
+            return ESP_AUDIO_TYPE_LC3;
+        default:
+            return ESP_AUDIO_TYPE_UNSUPPORT;
+    }
+}
+
+static inline bool stream_proc_post_cmd(const stream_proc_cmd_t *cmd)
 {
     if (stream_proc_cmd_queue == NULL) {
         ESP_LOGE(TAG, "Stream processor task is not initialized");
@@ -101,7 +115,7 @@ static bool stream_proc_post_cmd(const stream_proc_cmd_t *cmd)
     return true;
 }
 
-static void stream_proc_post_pipeline_action(esp_gmf_pipeline_handle_t pipe, stream_proc_pipeline_action_t action)
+static inline void stream_proc_post_pipeline_action(esp_gmf_pipeline_handle_t pipe, stream_proc_pipeline_action_t action)
 {
     stream_proc_cmd_t cmd = {
         .action = action,
@@ -185,7 +199,7 @@ static QueueHandle_t clk_sync_monitor_queue = NULL;
 static TaskHandle_t clk_sync_monitor_task = NULL;
 static volatile bool clk_sync_monitor_task_running = false;
 
-static esp_err_t stream_proc_open_dac(dev_audio_codec_handles_t *dac_handle)
+static inline esp_err_t stream_proc_open_dac(dev_audio_codec_handles_t *dac_handle)
 {
     esp_codec_dev_sample_info_t fs = {
         .sample_rate = CODEC_DAC_SAMPLE_RATE,
@@ -530,9 +544,10 @@ static void stream_proc_prepare(esp_bt_audio_stream_handle_t stream, stream_user
         user_d->pipe = bt2codec_pipe;
         esp_gmf_io_bt_set_stream(ESP_GMF_PIPELINE_GET_IN_INSTANCE(user_d->pipe), stream);
         esp_audio_simple_dec_cfg_t simple_dec_cfg = {
-            .dec_type = codec_info.codec_type == ESP_BT_AUDIO_STREAM_CODEC_SBC ? ESP_AUDIO_TYPE_SBC : ESP_AUDIO_TYPE_LC3,
+            .dec_type = stream_proc_get_audio_type(codec_info.codec_type),
             .dec_cfg = codec_info.codec_cfg,
             .cfg_size = codec_info.cfg_size,
+            .use_frame_dec = true,
         };
         esp_gmf_audio_dec_reconfig(user_d->pipe->head_el, &simple_dec_cfg);
 
@@ -570,14 +585,13 @@ static void stream_proc_prepare(esp_bt_audio_stream_handle_t stream, stream_user
         }
         esp_gmf_io_bt_set_stream(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(user_d->pipe), stream);
         uint8_t output_src_ch = context == ESP_BT_AUDIO_STREAM_CONTEXT_MEDIA ? 2 : 1;
-        float *asrc_weight = context == ESP_BT_AUDIO_STREAM_CONTEXT_MEDIA ? local2bt_asrc_weight :
-                             codec2bt_output_asrc_weight;
+        float *asrc_weight = context == ESP_BT_AUDIO_STREAM_CONTEXT_MEDIA ? local2bt_asrc_weight : codec2bt_output_asrc_weight;
         stream_proc_set_asrc_dest(user_d->pipe, output_asrc_index, codec_info.sample_rate, output_src_ch,
                                   __builtin_popcount(codec_info.channels), asrc_weight,
                                   STREAM_PROC_ASRC_MAX_WEIGHT_LEN);
 
         esp_audio_enc_config_t enc_cfg = {
-            .type = codec_info.codec_type == ESP_BT_AUDIO_STREAM_CODEC_SBC ? ESP_AUDIO_TYPE_SBC : ESP_AUDIO_TYPE_LC3,
+            .type = stream_proc_get_audio_type(codec_info.codec_type),
             .cfg = codec_info.codec_cfg,
             .cfg_sz = codec_info.cfg_size,
         };

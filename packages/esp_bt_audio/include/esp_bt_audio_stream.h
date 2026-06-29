@@ -53,6 +53,7 @@ typedef enum {
 typedef enum {
     ESP_BT_AUDIO_STREAM_CODEC_UNKNOWN,                   /*!< Unknown audio codec */
     ESP_BT_AUDIO_STREAM_CODEC_SBC = ESP_AUDIO_TYPE_SBC,  /*!< SBC codec */
+    ESP_BT_AUDIO_STREAM_CODEC_AAC = ESP_AUDIO_TYPE_AAC,  /*!< AAC codec */
     ESP_BT_AUDIO_STREAM_CODEC_LC3 = ESP_AUDIO_TYPE_LC3,  /*!< LC3 codec */
 } esp_bt_audio_stream_codec_type_t;
 
@@ -128,6 +129,8 @@ typedef struct {
                                                        |-----------|-------------------------------|-------------------------|
                                                        | Source    | ESP_BT_AUDIO_STREAM_CODEC_SBC | esp_sbc_enc_config_t    |
                                                        | Sink      | ESP_BT_AUDIO_STREAM_CODEC_SBC | esp_sbc_dec_cfg_t       |
+                                                       | Source    | ESP_BT_AUDIO_STREAM_CODEC_AAC | esp_aac_enc_config_t    |
+                                                       | Sink      | ESP_BT_AUDIO_STREAM_CODEC_AAC | esp_aac_dec_cfg_t       |
                                                        | Source    | ESP_BT_AUDIO_STREAM_CODEC_LC3 | esp_lc3_enc_config_t    |
                                                        | Sink      | ESP_BT_AUDIO_STREAM_CODEC_LC3 | esp_lc3_dec_cfg_t       |
                                                       */

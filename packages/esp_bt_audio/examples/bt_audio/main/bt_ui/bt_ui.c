@@ -93,8 +93,8 @@ LV_IMAGE_DECLARE(bis_stream_icon);
  * @brief  Cover image payload queued to the UI task.
  */
 typedef struct {
-    uint8_t  *data;  /*!< Encoded image buffer owned by the UI task */
-    size_t    size;  /*!< Encoded image buffer size in bytes */
+    uint8_t *data;  /*!< Encoded image buffer owned by the UI task */
+    size_t   size;  /*!< Encoded image buffer size in bytes */
 } ui_cover_msg_t;
 
 /**
@@ -567,17 +567,17 @@ typedef struct {
     uint8_t  *cover_data;             /*!< Decoded cover-art buffer */
     size_t    cover_size;             /*!< Decoded cover-art buffer size */
 #if LVGL_VERSION_MAJOR >= 9
-    lv_image_dsc_t  cover_dsc;      /*!< Persistent descriptor for LVGL (src points here) */
+    lv_image_dsc_t  cover_dsc;        /*!< Persistent descriptor for LVGL (src points here) */
 #else
-    lv_img_dsc_t  cover_img_dsc;   /*!< Persistent descriptor for LVGL (src points here) */
-#endif  /* LVGL_VERSION_MAJOR >= 9 */
+    lv_img_dsc_t  cover_img_dsc;      /*!< Persistent descriptor for LVGL (src points here) */
+#endif                                                 /* LVGL_VERSION_MAJOR >= 9 */
     void (*play_pause_cb)(bool want_play, void *ctx);  /*!< Play/pause callback */
     void *play_pause_ctx;                              /*!< Context passed to play_pause_cb */
     void (*prev_cb)(void *ctx);                        /*!< Previous-track callback */
     void (*next_cb)(void *ctx);                        /*!< Next-track callback */
     void *prev_next_ctx;                               /*!< Context passed to prev_cb and next_cb */
 #if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-    lv_obj_t *speaker_img;          /*!< Speaker-location illustration */
+    lv_obj_t *speaker_img;             /*!< Speaker-location illustration */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 } bt_ui_media_refs_t;
 

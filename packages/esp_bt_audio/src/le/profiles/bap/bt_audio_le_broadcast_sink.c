@@ -412,9 +412,7 @@ esp_err_t bt_audio_le_broadcast_sink_accept_scan_delegator_req(const esp_ble_aud
     return ESP_OK;
 }
 
-esp_err_t bt_audio_le_broadcast_sink_sync_with_past(
-                                                    struct bt_conn *conn,
-                                                    const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state)
+esp_err_t bt_audio_le_broadcast_sink_sync_with_past(struct bt_conn *conn, const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state)
 {
     ESP_RETURN_ON_FALSE(s_bsnk, ESP_ERR_INVALID_STATE, TAG, "Broadcast sink not initialized");
     ESP_RETURN_ON_FALSE(s_bsnk->pa_state == BT_AUDIO_LE_BSNK_PA_SYNC_IDLE &&
@@ -475,9 +473,7 @@ esp_err_t bt_audio_le_broadcast_sink_set_broadcast_code(const esp_ble_audio_bap_
     return ESP_OK;
 }
 
-esp_err_t bt_audio_le_broadcast_sink_set_bis_sync_req(
-                                                      const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state,
-                                                      uint32_t bit_field)
+esp_err_t bt_audio_le_broadcast_sink_set_bis_sync_req(const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state, uint32_t bit_field)
 {
     ESP_RETURN_ON_FALSE(s_bsnk && recv_state, ESP_ERR_INVALID_ARG, TAG, "Invalid BIS sync request");
     s_bsnk->recv_state = recv_state;

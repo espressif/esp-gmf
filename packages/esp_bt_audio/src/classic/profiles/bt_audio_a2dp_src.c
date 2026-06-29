@@ -6,6 +6,7 @@
  */
 
 #include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <math.h>
 
@@ -24,6 +25,9 @@
 
 #include "esp_sbc_enc.h"
 #include "esp_sbc_def.h"
+#if CONFIG_BT_A2DP_CODEC_AAC_ENABLED
+#include "esp_aac_enc.h"
+#endif  /* CONFIG_BT_A2DP_CODEC_AAC_ENABLED */
 
 #include "esp_a2dp_api.h"
 #include "esp_gap_bt_api.h"
@@ -41,6 +45,12 @@
 #define A2DP_SRC_BITPOOL_STEREO_DEFAULT  (53)
 #define A2DP_SRC_MTU_OVERHEAD_BYTES      (50)
 #define A2DP_SRC_SEND_INTERVAL_MS        (20)
+#if CONFIG_BT_A2DP_CODEC_AAC_ENABLED
+#define A2DP_SRC_AAC_SAMPLES_PER_FRAME   (1024)
+#define A2DP_SRC_AAC_DEFAULT_BITRATE     (96000)
+#define A2DP_SRC_AAC_MTU_MARGIN_BYTES    (32)
+#define A2DP_SRC_AAC_MTU_SAFETY_PERCENT  (80)
+#endif  /* CONFIG_BT_A2DP_CODEC_AAC_ENABLED */
 
 typedef enum {
     A2DP_MEDIA_STATE_IDLE     = 0,
@@ -69,6 +79,9 @@ typedef struct {
     uint8_t                           core_id;            /*!< Send task core ID (0 or 1) */
     uint8_t                           prio;               /*!< Send task priority */
     uint32_t                          stack_size;         /*!< Send task stack size in bytes */
+#if CONFIG_BT_A2DP_CODEC_AAC_ENABLED
+    esp_a2d_cie_m24_t                 m24;                /*!< Negotiated AAC codec capabilities/config */
+#endif  /* CONFIG_BT_A2DP_CODEC_AAC_ENABLED */
 } a2dp_src_ctx_t;
 
 static const char *TAG = "BT_AUD_A2D_SRC";
@@ -302,6 +315,303 @@ static bool a2dp_sbc_info_to_sbc_enc_cfg(esp_a2d_cie_sbc_t *sbc_info, esp_sbc_en
     return true;
 }
 
+static void *a2dp_src_create_sbc_enc_cfg(size_t *encoded_frame_size, uint32_t *cfg_size)
+{
+    esp_sbc_enc_config_t *sbc_enc_cfg = heap_caps_calloc_prefer(1, sizeof(esp_sbc_enc_config_t), 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
+    if (sbc_enc_cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate sbc_enc_cfg");
+        return NULL;
+    }
+    if (!a2dp_sbc_info_to_sbc_enc_cfg(&a2dp_src->sbc, sbc_enc_cfg)) {
+        ESP_LOGE(TAG, "Failed to convert A2DP SBC config to SBC encoder config");
+        free(sbc_enc_cfg);
+        return NULL;
+    }
+
+    *encoded_frame_size = calc_sbc_frame_size(sbc_enc_cfg);
+    *cfg_size = sizeof(esp_sbc_enc_config_t);
+    return sbc_enc_cfg;
+}
+
+static esp_err_t a2dp_src_prepare_sbc_stream_cfg(void **codec_cfg, uint32_t *cfg_size, int *samples_per_frame)
+{
+    size_t sbc_frame_size = 0;
+    *codec_cfg = a2dp_src_create_sbc_enc_cfg(&sbc_frame_size, cfg_size);
+    if (*codec_cfg == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    a2dp_src->max_batch_size = calc_max_frames_per_batch(a2dp_src->audio_mtu, sbc_frame_size);
+    *samples_per_frame = a2dp_src->a2d_codec.frame_size / (__builtin_popcount(a2dp_src->a2d_codec.channels) * (a2dp_src->a2d_codec.bits / 8));
+    ESP_LOGI(TAG, "SBC frame size: %zu bytes", sbc_frame_size);
+    ESP_LOGI(TAG, "MTU %d: max %u packets per batch", a2dp_src->audio_mtu, a2dp_src->max_batch_size);
+    return ESP_OK;
+}
+
+static void a2dp_src_handle_sbc_cfg(esp_a2d_cie_sbc_t *sbc_info)
+{
+    ESP_LOGI(TAG, "Configure audio player:");
+    ESP_LOGI(TAG, "  sample rate : %d", sbc_info->samp_freq);
+    ESP_LOGI(TAG, "  chan mode   : %d", sbc_info->ch_mode);
+    ESP_LOGI(TAG, "  block len   : %d", sbc_info->block_len);
+    ESP_LOGI(TAG, "  subbands    : %d", sbc_info->num_subbands);
+    ESP_LOGI(TAG, "  alloc method: %d", sbc_info->alloc_mthd);
+    ESP_LOGI(TAG, "  min bitpool : %d", sbc_info->min_bitpool);
+    ESP_LOGI(TAG, "  max bitpool : %d", sbc_info->max_bitpool);
+
+    if (!a2dp_sbc_info_to_codec_info(sbc_info, &a2dp_src->a2d_codec)) {
+        ESP_LOGE(TAG, "Failed to convert A2DP SBC config to codec info");
+    }
+    memcpy(&a2dp_src->sbc, sbc_info, sizeof(esp_a2d_cie_sbc_t));
+}
+
+static esp_err_t a2dp_src_register_sbc_sep(uint8_t seid)
+{
+    esp_a2d_mcc_t mcc_sbc = {0};
+    mcc_sbc.type = ESP_A2D_MCT_SBC;
+    mcc_sbc.cie.sbc_info.samp_freq = ESP_A2D_SBC_CIE_SF_16K |
+                                     ESP_A2D_SBC_CIE_SF_32K |
+                                     ESP_A2D_SBC_CIE_SF_44K |
+                                     ESP_A2D_SBC_CIE_SF_48K;
+    mcc_sbc.cie.sbc_info.ch_mode = ESP_A2D_SBC_CIE_CH_MODE_STEREO;
+    mcc_sbc.cie.sbc_info.block_len = ESP_A2D_SBC_CIE_BLOCK_LEN_4 |
+                                     ESP_A2D_SBC_CIE_BLOCK_LEN_8 |
+                                     ESP_A2D_SBC_CIE_BLOCK_LEN_12 |
+                                     ESP_A2D_SBC_CIE_BLOCK_LEN_16;
+    mcc_sbc.cie.sbc_info.num_subbands = ESP_A2D_SBC_CIE_NUM_SUBBANDS_4 |
+                                        ESP_A2D_SBC_CIE_NUM_SUBBANDS_8;
+    mcc_sbc.cie.sbc_info.alloc_mthd = ESP_A2D_SBC_CIE_ALLOC_MTHD_SNR |
+                                      ESP_A2D_SBC_CIE_ALLOC_MTHD_LOUDNESS;
+    mcc_sbc.cie.sbc_info.max_bitpool = 250;
+    mcc_sbc.cie.sbc_info.min_bitpool = 2;
+    return esp_a2d_source_register_stream_endpoint(seid, &mcc_sbc);
+}
+
+#if CONFIG_BT_A2DP_CODEC_AAC_ENABLED
+static int get_sample_rate_from_m24_info(esp_a2d_cie_m24_t *m24_info)
+{
+    if (m24_info->samp_freq2 & ESP_A2D_M24_CIE_SF2_96K) {
+        return 96000;
+    } else if (m24_info->samp_freq2 & ESP_A2D_M24_CIE_SF2_88K) {
+        return 88200;
+    } else if (m24_info->samp_freq2 & ESP_A2D_M24_CIE_SF2_64K) {
+        return 64000;
+    } else if (m24_info->samp_freq2 & ESP_A2D_M24_CIE_SF2_48K) {
+        return 48000;
+    } else if (m24_info->samp_freq1 & ESP_A2D_M24_CIE_SF1_44K) {
+        return 44100;
+    } else if (m24_info->samp_freq1 & ESP_A2D_M24_CIE_SF1_32K) {
+        return 32000;
+    } else if (m24_info->samp_freq1 & ESP_A2D_M24_CIE_SF1_24K) {
+        return 24000;
+    } else if (m24_info->samp_freq1 & ESP_A2D_M24_CIE_SF1_22K) {
+        return 22050;
+    } else if (m24_info->samp_freq1 & ESP_A2D_M24_CIE_SF1_16K) {
+        return 16000;
+    } else if (m24_info->samp_freq1 & ESP_A2D_M24_CIE_SF1_12K) {
+        return 12000;
+    } else if (m24_info->samp_freq1 & ESP_A2D_M24_CIE_SF1_11K) {
+        return 11025;
+    } else if (m24_info->samp_freq1 & ESP_A2D_M24_CIE_SF1_8K) {
+        return 8000;
+    }
+    return 44100;
+}
+
+static int get_channel_count_from_m24_info(esp_a2d_cie_m24_t *m24_info)
+{
+    return (m24_info->ch & ESP_A2D_M24_CIE_CH_1) ? 1 : 2;
+}
+
+static uint32_t get_bitrate_from_m24_info(esp_a2d_cie_m24_t *m24_info)
+{
+    uint32_t bitrate = ((uint32_t)(m24_info->br1 & ESP_A2D_M24_CIE_BR1_MSK) << 16) | ((uint32_t)(m24_info->br2 & ESP_A2D_M24_CIE_BR2_MSK) << 8) | (uint32_t)(m24_info->br3 & ESP_A2D_M24_CIE_BR3_MSK);
+    bitrate = bitrate ? bitrate : A2DP_SRC_AAC_DEFAULT_BITRATE;
+    return bitrate > A2DP_SRC_AAC_DEFAULT_BITRATE ? A2DP_SRC_AAC_DEFAULT_BITRATE : bitrate;
+}
+
+static uint32_t get_mtu_limited_aac_bitrate(int sample_rate, uint16_t audio_mtu)
+{
+    if (sample_rate <= 0 || audio_mtu <= A2DP_SRC_AAC_MTU_MARGIN_BYTES) {
+        return A2DP_SRC_AAC_DEFAULT_BITRATE;
+    }
+
+    uint32_t payload_bytes = audio_mtu - A2DP_SRC_AAC_MTU_MARGIN_BYTES;
+    uint64_t bitrate = (uint64_t)payload_bytes * 8 * (uint64_t)sample_rate;
+    bitrate /= A2DP_SRC_AAC_SAMPLES_PER_FRAME;
+    bitrate = (bitrate * A2DP_SRC_AAC_MTU_SAFETY_PERCENT) / 100;
+    return (uint32_t)bitrate;
+}
+
+static uint32_t clamp_aac_bitrate_to_mtu(uint32_t bitrate, int sample_rate)
+{
+    if (!a2dp_src || a2dp_src->audio_mtu == 0) {
+        return bitrate;
+    }
+
+    uint32_t mtu_limited_bitrate = get_mtu_limited_aac_bitrate(sample_rate, a2dp_src->audio_mtu);
+    if (bitrate > mtu_limited_bitrate) {
+        ESP_LOGI(TAG, "Clamp AAC bitrate from %" PRIu32 " to %" PRIu32 " for MTU %d",
+                 bitrate, mtu_limited_bitrate, a2dp_src->audio_mtu);
+        return mtu_limited_bitrate;
+    }
+    return bitrate;
+}
+
+static bool a2dp_m24_info_to_codec_info(esp_a2d_cie_m24_t *m24_info, esp_bt_audio_stream_codec_info_t *codec_info)
+{
+    if (m24_info == NULL || codec_info == NULL) {
+        return false;
+    }
+
+    uint32_t channels = get_channel_count_from_m24_info(m24_info) == 1 ? ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT : (ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT | ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT);
+    codec_info->codec_type = ESP_BT_AUDIO_STREAM_CODEC_AAC;
+    codec_info->bits = 16;
+    codec_info->channels = channels;
+    codec_info->sample_rate = get_sample_rate_from_m24_info(m24_info);
+    codec_info->frame_size = A2DP_SRC_AAC_SAMPLES_PER_FRAME * __builtin_popcount(channels) * (codec_info->bits / 8);
+
+    ESP_LOGD(TAG, "AAC codec info parameters:");
+    ESP_LOGD(TAG, "  sample_rate: %d", codec_info->sample_rate);
+    ESP_LOGD(TAG, "  channels: 0x%x (%d ch)", codec_info->channels, __builtin_popcount(codec_info->channels));
+    ESP_LOGD(TAG, "  frame_size: %d", codec_info->frame_size);
+
+    return true;
+}
+
+static bool a2dp_m24_info_to_aac_enc_cfg(esp_a2d_cie_m24_t *m24_info, esp_aac_enc_config_t *aac_enc_cfg)
+{
+    if (m24_info == NULL || aac_enc_cfg == NULL) {
+        return false;
+    }
+
+    esp_aac_enc_config_t default_aac_enc_cfg = ESP_AAC_ENC_CONFIG_DEFAULT();
+    *aac_enc_cfg = default_aac_enc_cfg;
+    aac_enc_cfg->sample_rate = get_sample_rate_from_m24_info(m24_info);
+    aac_enc_cfg->channel = get_channel_count_from_m24_info(m24_info) == 1 ? ESP_AUDIO_MONO : ESP_AUDIO_DUAL;
+    aac_enc_cfg->bits_per_sample = ESP_AUDIO_BIT16;
+    aac_enc_cfg->bitrate = clamp_aac_bitrate_to_mtu(get_bitrate_from_m24_info(m24_info), aac_enc_cfg->sample_rate);
+    aac_enc_cfg->adts_used = false;
+
+    ESP_LOGD(TAG, "AAC encoder configuration:");
+    ESP_LOGD(TAG, "  sample_rate: %d", aac_enc_cfg->sample_rate);
+    ESP_LOGD(TAG, "  channel: %d", aac_enc_cfg->channel);
+    ESP_LOGD(TAG, "  bits_per_sample: %d", aac_enc_cfg->bits_per_sample);
+    ESP_LOGD(TAG, "  bitrate: %d", aac_enc_cfg->bitrate);
+    ESP_LOGD(TAG, "  adts_used: %d", aac_enc_cfg->adts_used);
+    return true;
+}
+
+static void *a2dp_src_create_aac_enc_cfg(uint32_t *cfg_size)
+{
+    esp_aac_enc_config_t *aac_enc_cfg = heap_caps_calloc_prefer(1, sizeof(esp_aac_enc_config_t), 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
+    if (aac_enc_cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate aac_enc_cfg");
+        return NULL;
+    }
+    if (!a2dp_m24_info_to_aac_enc_cfg(&a2dp_src->m24, aac_enc_cfg)) {
+        ESP_LOGE(TAG, "Failed to convert A2DP AAC config to AAC encoder config");
+        free(aac_enc_cfg);
+        return NULL;
+    }
+
+    *cfg_size = sizeof(esp_aac_enc_config_t);
+    return aac_enc_cfg;
+}
+
+static esp_err_t a2dp_src_prepare_aac_stream_cfg(void **codec_cfg, uint32_t *cfg_size, int *samples_per_frame)
+{
+    *codec_cfg = a2dp_src_create_aac_enc_cfg(cfg_size);
+    if (*codec_cfg == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    a2dp_src->max_batch_size = 1;
+    *samples_per_frame = A2DP_SRC_AAC_SAMPLES_PER_FRAME;
+    ESP_LOGI(TAG, "AAC MTU %d: send one frame per packet", a2dp_src->audio_mtu);
+    return ESP_OK;
+}
+
+static void a2dp_src_handle_aac_cfg(esp_a2d_cie_m24_t *m24_info)
+{
+    ESP_LOGD(TAG, "Configure AAC audio source:");
+    ESP_LOGD(TAG, "  drc        : 0x%x", m24_info->drc);
+    ESP_LOGD(TAG, "  obj_type   : 0x%x", m24_info->obj_type);
+    ESP_LOGD(TAG, "  samp_freq1 : 0x%x", m24_info->samp_freq1);
+    ESP_LOGD(TAG, "  samp_freq2 : 0x%x", m24_info->samp_freq2);
+    ESP_LOGD(TAG, "  channels   : 0x%x", m24_info->ch);
+    ESP_LOGD(TAG, "  vbr        : 0x%x", m24_info->vbr);
+    ESP_LOGD(TAG, "  bitrate    : 0x%02x%02x%02x", m24_info->br1, m24_info->br2, m24_info->br3);
+
+    if (!a2dp_m24_info_to_codec_info(m24_info, &a2dp_src->a2d_codec)) {
+        ESP_LOGE(TAG, "Failed to convert A2DP AAC config to codec info");
+    }
+    memcpy(&a2dp_src->m24, m24_info, sizeof(esp_a2d_cie_m24_t));
+}
+
+static esp_err_t a2dp_src_register_aac_sep(uint8_t seid)
+{
+    esp_a2d_mcc_t mcc_aac = {0};
+    mcc_aac.type = ESP_A2D_MCT_M24;
+    mcc_aac.cie.m24_info.drc = ESP_A2D_M24_CIE_DRC_NS;
+    mcc_aac.cie.m24_info.obj_type = ESP_A2D_M24_CIE_OBJ_TYPE_2_AAC_LC |
+                                    ESP_A2D_M24_CIE_OBJ_TYPE_4_AAC_LC;
+    mcc_aac.cie.m24_info.samp_freq1 = ESP_A2D_M24_CIE_SF1_8K |
+                                      ESP_A2D_M24_CIE_SF1_11K |
+                                      ESP_A2D_M24_CIE_SF1_12K |
+                                      ESP_A2D_M24_CIE_SF1_16K |
+                                      ESP_A2D_M24_CIE_SF1_22K |
+                                      ESP_A2D_M24_CIE_SF1_24K |
+                                      ESP_A2D_M24_CIE_SF1_32K |
+                                      ESP_A2D_M24_CIE_SF1_44K;
+    mcc_aac.cie.m24_info.samp_freq2 = ESP_A2D_M24_CIE_SF2_48K |
+                                      ESP_A2D_M24_CIE_SF2_64K |
+                                      ESP_A2D_M24_CIE_SF2_88K |
+                                      ESP_A2D_M24_CIE_SF2_96K;
+    mcc_aac.cie.m24_info.ch = ESP_A2D_M24_CIE_CH_1 |
+                              ESP_A2D_M24_CIE_CH_2;
+    mcc_aac.cie.m24_info.vbr = ESP_A2D_M24_CIE_VBR_SUPPORT;
+    /* AAC bitrate is encoded as a 23-bit value in br1/br2/br3: 0x017700 = 96000 bps. */
+    mcc_aac.cie.m24_info.br1 = 0x01 & ESP_A2D_M24_CIE_BR1_MSK;
+    mcc_aac.cie.m24_info.br2 = 0x77 & ESP_A2D_M24_CIE_BR2_MSK;
+    mcc_aac.cie.m24_info.br3 = 0x00 & ESP_A2D_M24_CIE_BR3_MSK;
+    return esp_a2d_source_register_stream_endpoint(seid, &mcc_aac);
+}
+#endif  /* CONFIG_BT_A2DP_CODEC_AAC_ENABLED */
+
+static esp_err_t a2dp_src_prepare_stream_codec_cfg(void **codec_cfg, uint32_t *cfg_size, int *samples_per_frame)
+{
+    switch (a2dp_src->a2d_codec.codec_type) {
+        case ESP_BT_AUDIO_STREAM_CODEC_SBC:
+            return a2dp_src_prepare_sbc_stream_cfg(codec_cfg, cfg_size, samples_per_frame);
+#if CONFIG_BT_A2DP_CODEC_AAC_ENABLED
+        case ESP_BT_AUDIO_STREAM_CODEC_AAC:
+            return a2dp_src_prepare_aac_stream_cfg(codec_cfg, cfg_size, samples_per_frame);
+#endif  /* CONFIG_BT_A2DP_CODEC_AAC_ENABLED */
+        default:
+            ESP_LOGE(TAG, "Unsupported A2DP source codec type: %d", a2dp_src->a2d_codec.codec_type);
+            return ESP_ERR_NOT_SUPPORTED;
+    }
+}
+
+static void a2dp_src_handle_audio_cfg(esp_a2d_mcc_t *mcc)
+{
+    ESP_LOGI(TAG, "A2DP audio stream configuration, codec type: %d", mcc->type);
+    switch (mcc->type) {
+        case ESP_A2D_MCT_SBC:
+            a2dp_src_handle_sbc_cfg(&mcc->cie.sbc_info);
+            break;
+#if CONFIG_BT_A2DP_CODEC_AAC_ENABLED
+        case ESP_A2D_MCT_M24:
+            a2dp_src_handle_aac_cfg(&mcc->cie.m24_info);
+            break;
+#endif  /* CONFIG_BT_A2DP_CODEC_AAC_ENABLED */
+        default:
+            ESP_LOGE(TAG, "Unsupported codec type: %d", mcc->type);
+            break;
+    }
+}
+
 static int a2dp_src_collect_frames(bt_audio_classic_stream_t *stream,
                                    uint32_t max_collect,
                                    esp_a2d_audio_buff_t **out_frames,
@@ -365,6 +675,11 @@ static esp_err_t a2dp_src_send_batch(esp_a2d_audio_buff_t **audio_buffers,
     return ESP_OK;
 }
 
+static bool a2dp_src_payload_fits_mtu(size_t data_size)
+{
+    return a2dp_src && a2dp_src->audio_mtu > 0 && data_size <= a2dp_src->audio_mtu;
+}
+
 static void a2dp_src_send_data(bt_audio_classic_stream_t *stream)
 {
     if (!a2dp_src || !stream || !stream->base.data_q ||
@@ -401,10 +716,26 @@ static void a2dp_src_send_data(bt_audio_classic_stream_t *stream)
             break;
         }
 
-        esp_err_t ret = a2dp_src_send_batch(frames, collected, data_size);
-        if (ret == ESP_OK) {
+        esp_err_t ret = ESP_OK;
+        bool dropped = false;
+        if (!a2dp_src_payload_fits_mtu(data_size)) {
+            cur_sent += collected;
+            a2dp_src->rtp_ts += a2dp_src->samples_per_frame * (uint32_t)collected;
+            dropped = true;
+        } else {
+            ret = a2dp_src_send_batch(frames, collected, data_size);
+        }
+
+        if (dropped) {
+            ESP_LOGW(TAG, "Drop oversized frame batch: %zu bytes exceeds MTU %d", data_size, a2dp_src->audio_mtu);
+        } else if (ret == ESP_OK) {
             cur_sent += collected;
             ESP_LOGD(TAG, "Sent batch: %d frames, %zu bytes (MTU: %d)", collected, data_size, a2dp_src->audio_mtu);
+        } else if (ret == ESP_ERR_INVALID_SIZE) {
+            ESP_LOGW(TAG, "Drop invalid-size frame batch: %zu bytes, MTU: %d", data_size, a2dp_src->audio_mtu);
+            cur_sent += collected;
+            a2dp_src->rtp_ts += a2dp_src->samples_per_frame * (uint32_t)collected;
+            ret = ESP_OK;
         } else {
             ESP_LOGW(TAG, "Failed to send frame batch: %s, data_len: %zu, MTU: %d", esp_err_to_name(ret), data_size, a2dp_src->audio_mtu);
             a2dp_src->media_state = A2DP_MEDIA_STATE_ERROR;
@@ -494,7 +825,7 @@ static void a2dp_src_stop_send()
     }
 }
 
-static esp_err_t a2dp_src_start_send(esp_a2d_cie_sbc_t *negotiated_params)
+static esp_err_t a2dp_src_start_send(void)
 {
     esp_err_t ret = ESP_OK;
     if (!a2dp_src) {
@@ -535,27 +866,19 @@ static esp_err_t a2dp_src_start_send(esp_a2d_cie_sbc_t *negotiated_params)
     }
     xEventGroupClearBits(a2dp_src->events, A2DP_SRC_EVT_TIMER_EXPIRED | A2DP_SRC_EVT_EXITING | A2DP_SRC_EVT_EXITED);
 
-    esp_sbc_enc_config_t *sbc_enc_cfg = heap_caps_calloc_prefer(1, sizeof(esp_sbc_enc_config_t), 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
-    if (!sbc_enc_cfg) {
-        ESP_LOGE(TAG, "Failed to allocate sbc_enc_cfg");
-        return ESP_ERR_NO_MEM;
-    }
-    if (!a2dp_sbc_info_to_sbc_enc_cfg(negotiated_params, sbc_enc_cfg)) {
-        ESP_LOGE(TAG, "Failed to convert A2DP SBC config to SBC encoder config");
-        free(sbc_enc_cfg);
-        return ESP_ERR_INVALID_ARG;
-    }
+    void *codec_cfg = NULL;
+    uint32_t cfg_size = 0;
+    int samples_per_frame = 0;
 
-    size_t sbc_frame_size = calc_sbc_frame_size(sbc_enc_cfg);
-    a2dp_src->max_batch_size = calc_max_frames_per_batch(a2dp_src->audio_mtu, sbc_frame_size);
-    ESP_LOGI(TAG, "SBC frame size: %zu bytes", sbc_frame_size);
-    ESP_LOGI(TAG, "MTU %d: max %u packets per batch", a2dp_src->audio_mtu, a2dp_src->max_batch_size);
+    ret = a2dp_src_prepare_stream_codec_cfg(&codec_cfg, &cfg_size, &samples_per_frame);
+    if (ret != ESP_OK) {
+        goto error;
+    }
 
     memcpy(&a2dp_src->stream->base.codec_info, &a2dp_src->a2d_codec, sizeof(esp_bt_audio_stream_codec_info_t));
-    a2dp_src->stream->base.codec_info.codec_cfg = sbc_enc_cfg;
-    a2dp_src->stream->base.codec_info.cfg_size = sizeof(esp_sbc_enc_config_t);
+    a2dp_src->stream->base.codec_info.codec_cfg = codec_cfg;
+    a2dp_src->stream->base.codec_info.cfg_size = cfg_size;
 
-    int samples_per_frame = a2dp_src->stream->base.codec_info.frame_size / (__builtin_popcount(a2dp_src->stream->base.codec_info.channels) * (a2dp_src->stream->base.codec_info.bits / 8));
     int samples_per_interval = (A2DP_SRC_SEND_INTERVAL_MS * a2dp_src->stream->base.codec_info.sample_rate) / 1000;
 
     a2dp_src->tick = 0;
@@ -566,6 +889,13 @@ static esp_err_t a2dp_src_start_send(esp_a2d_cie_sbc_t *negotiated_params)
 
     ESP_LOGI(TAG, "A2DP Source: %dHz, %.2f frames/%dms, max batch %u",
              a2dp_src->stream->base.codec_info.sample_rate, a2dp_src->frames_per_tick, A2DP_SRC_SEND_INTERVAL_MS, a2dp_src->max_batch_size);
+
+    if (a2dp_src->timer) {
+        ESP_LOGI(TAG, "A2DP source stop existing timer");
+        esp_timer_stop(a2dp_src->timer);
+        esp_timer_delete(a2dp_src->timer);
+        a2dp_src->timer = NULL;
+    }
 
     esp_timer_create_args_t timer_args = {
         .callback = a2dp_src_timer_cb,
@@ -585,10 +915,12 @@ static esp_err_t a2dp_src_start_send(esp_a2d_cie_sbc_t *negotiated_params)
 
 error:
     a2dp_src_stop_send();
-    if (a2dp_src->stream && a2dp_src->stream->base.codec_info.codec_cfg == sbc_enc_cfg) {
-        free(sbc_enc_cfg);
+    if (a2dp_src->stream && a2dp_src->stream->base.codec_info.codec_cfg == codec_cfg) {
+        free(codec_cfg);
         a2dp_src->stream->base.codec_info.codec_cfg = NULL;
         a2dp_src->stream->base.codec_info.cfg_size = 0;
+    } else {
+        free(codec_cfg);
     }
     return ret;
 }
@@ -649,6 +981,10 @@ static void bt_a2d_event_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *p_para
                     a2dp_src->audio_mtu = 0;
                     a2dp_src->media_state = A2DP_MEDIA_STATE_IDLE;
                     memset(&a2dp_src->a2d_codec, 0, sizeof(esp_bt_audio_stream_codec_info_t));
+                    memset(&a2dp_src->sbc, 0, sizeof(esp_a2d_cie_sbc_t));
+#if CONFIG_BT_A2DP_CODEC_AAC_ENABLED
+                    memset(&a2dp_src->m24, 0, sizeof(esp_a2d_cie_m24_t));
+#endif  /* CONFIG_BT_A2DP_CODEC_AAC_ENABLED */
                     ESP_LOGI(TAG, "A2DP connection handle cleared");
 
                     bt_audio_ops_set_media((esp_bt_audio_media_ops_t *)NULL);
@@ -683,7 +1019,7 @@ static void bt_a2d_event_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *p_para
                     ESP_LOGE(TAG, "No negotiated A2DP codec configuration available");
                     break;
                 }
-                esp_err_t ret = a2dp_src_start_send(&a2dp_src->sbc);
+                esp_err_t ret = a2dp_src_start_send();
                 if (ret != ESP_OK) {
                     ESP_LOGE(TAG, "Failed to start send: %s", esp_err_to_name(ret));
                     break;
@@ -708,25 +1044,7 @@ static void bt_a2d_event_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *p_para
         }
         case ESP_A2D_AUDIO_CFG_EVT: {
             a2d = (esp_a2d_cb_param_t *)(p_param);
-            ESP_LOGI(TAG, "A2DP audio stream configuration, codec type: %d", a2d->audio_cfg.mcc.type);
-            if (a2d->audio_cfg.mcc.type == ESP_A2D_MCT_SBC) {
-                esp_a2d_cie_sbc_t *sbc_info = &a2d->audio_cfg.mcc.cie.sbc_info;
-                ESP_LOGI(TAG, "Configure audio player:");
-                ESP_LOGI(TAG, "  sample rate : %d", sbc_info->samp_freq);
-                ESP_LOGI(TAG, "  chan mode   : %d", sbc_info->ch_mode);
-                ESP_LOGI(TAG, "  block len   : %d", sbc_info->block_len);
-                ESP_LOGI(TAG, "  subbands    : %d", sbc_info->num_subbands);
-                ESP_LOGI(TAG, "  alloc method: %d", sbc_info->alloc_mthd);
-                ESP_LOGI(TAG, "  min bitpool : %d", sbc_info->min_bitpool);
-                ESP_LOGI(TAG, "  max bitpool : %d", sbc_info->max_bitpool);
-
-                if (!a2dp_sbc_info_to_codec_info(sbc_info, &a2dp_src->a2d_codec)) {
-                    ESP_LOGE(TAG, "Failed to convert A2DP SBC config to codec info");
-                }
-                memcpy(&a2dp_src->sbc, sbc_info, sizeof(esp_a2d_cie_sbc_t));
-            } else {
-                ESP_LOGE(TAG, "Unsupported codec type: %d", a2d->audio_cfg.mcc.type);
-            }
+            a2dp_src_handle_audio_cfg(&a2d->audio_cfg.mcc);
             break;
         }
         case ESP_A2D_PROF_STATE_EVT: {
@@ -830,16 +1148,14 @@ esp_err_t bt_audio_a2dp_src_init(const esp_bt_audio_classic_cfg_t *classic_cfg)
 
     ESP_ERROR_CHECK(esp_a2d_source_init());
     ESP_ERROR_CHECK(esp_a2d_register_callback(&bt_a2d_event_cb));
-    esp_a2d_mcc_t mcc = {0};
-    mcc.type = ESP_A2D_MCT_SBC;
-    mcc.cie.sbc_info.samp_freq = 0xf;
-    mcc.cie.sbc_info.ch_mode = 0x02;
-    mcc.cie.sbc_info.block_len = 0xf;
-    mcc.cie.sbc_info.num_subbands = 0x3;
-    mcc.cie.sbc_info.alloc_mthd = 0x3;
-    mcc.cie.sbc_info.max_bitpool = 250;
-    mcc.cie.sbc_info.min_bitpool = 2;
-    ESP_ERROR_CHECK(esp_a2d_source_register_stream_endpoint(0, &mcc));
+    uint8_t seid = 0;
+#if CONFIG_BT_A2DP_CODEC_AAC_ENABLED
+    ESP_ERROR_CHECK(a2dp_src_register_aac_sep(seid++));
+#else
+    ESP_LOGW(TAG, "A2DP AAC codec is disabled. Enable CONFIG_BT_A2DP_CODEC_AAC_ENABLED to advertise AAC");
+#endif  /* CONFIG_BT_A2DP_CODEC_AAC_ENABLED */
+
+    ESP_ERROR_CHECK(a2dp_src_register_sbc_sep(seid));
 
     esp_bt_audio_classic_ops_t a2dp_src_ops = {0};
     bt_audio_ops_get_classic(&a2dp_src_ops);

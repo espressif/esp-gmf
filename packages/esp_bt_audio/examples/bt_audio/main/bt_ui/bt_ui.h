@@ -235,14 +235,14 @@ void bt_ui_media_set_cover_image(lv_obj_t *media_root, const uint8_t *data, size
 /**
  * @brief  Create the dialer page with numeric keypad and call buttons.
  *
- * @param[in]  parent                Parent LVGL object.
- * @param[in]  call_cb               Optional callback invoked when the call button starts a call.
- * @param[in]  call_cb_ctx           Context passed to call_cb.
- * @param[in]  end_call_cb           Optional callback invoked when the red × button is pressed (end/reject).
- * @param[in]  end_call_cb_ctx       Context passed to end_call_cb.
- * @param[in]  answer_call_cb        Optional callback invoked when the green answer button is pressed.
- *                                   The button is only shown during the incoming-call state.
- * @param[in]  answer_call_cb_ctx    Context passed to answer_call_cb.
+ * @param[in]  parent              Parent LVGL object.
+ * @param[in]  call_cb             Optional callback invoked when the call button starts a call.
+ * @param[in]  call_cb_ctx         Context passed to call_cb.
+ * @param[in]  end_call_cb         Optional callback invoked when the red × button is pressed (end/reject).
+ * @param[in]  end_call_cb_ctx     Context passed to end_call_cb.
+ * @param[in]  answer_call_cb      Optional callback invoked when the green answer button is pressed.
+ *                                 The button is only shown during the incoming-call state.
+ * @param[in]  answer_call_cb_ctx  Context passed to answer_call_cb.
  *
  * @return
  *       - Dialer  root object on success

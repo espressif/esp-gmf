@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added AAC codec support for A2DP
+
 ## v1.0.0~1
 
 ### Docs

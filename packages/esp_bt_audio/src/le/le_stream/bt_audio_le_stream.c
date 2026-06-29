@@ -99,7 +99,7 @@ static void bt_audio_le_stream_tx_sync_trigger(bt_audio_le_stream_t *stream, uin
     uint32_t prev_tx_sync = r_ble_ll_iso_i2s_last_tx_sync_get();
     if (prev_tx_sync != last_tx_sync) {
         ESP_LOGD(TAG, "[0] TX sync sync: %d, prev_tx_sync %" PRIu32 ", last_tx_sync %" PRIu32
-                 ", time_stamp %" PRIu32 ", pd %" PRIu32,
+                      ", time_stamp %" PRIu32 ", pd %" PRIu32,
                  rc, prev_tx_sync, last_tx_sync, time_stamp, pd);
         return;
     }
@@ -111,7 +111,7 @@ static void bt_audio_le_stream_tx_sync_trigger(bt_audio_le_stream_t *stream, uin
             break;
         }
         ESP_LOGD(TAG, "[1] TX sync sync: %d, prev_tx_sync %" PRIu32 ", last_tx_sync %" PRIu32
-                 ", time_stamp %" PRIu32 ", pd %" PRIu32,
+                      ", time_stamp %" PRIu32 ", pd %" PRIu32,
                  rc, prev_tx_sync, tx_sync, time_stamp, pd);
         last_tx_sync += pd;
     }
