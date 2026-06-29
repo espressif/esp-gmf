@@ -174,6 +174,7 @@ static void bt_hf_client_msbc_stream_start()
             return;
         }
         hfp_hf_ctx->snk_stream->conn_handle = hfp_hf_ctx->hf_conn;
+        hfp_hf_ctx->snk_stream->data_ops = &bt_audio_hfp_client_stream_data_ops;
         hfp_hf_ctx->snk_stream->base.context = ESP_BT_AUDIO_STREAM_CONTEXT_CONVERSATIONAL;
     }
     esp_sbc_dec_cfg_t *sbc_dec_cfg = heap_caps_calloc_prefer(1, sizeof(esp_sbc_dec_cfg_t), 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
@@ -208,6 +209,7 @@ static void bt_hf_client_msbc_stream_start()
             return;
         }
         hfp_hf_ctx->src_stream->conn_handle = hfp_hf_ctx->hf_conn;
+        hfp_hf_ctx->src_stream->data_ops = &bt_audio_hfp_client_stream_data_ops;
         hfp_hf_ctx->src_stream->base.context = ESP_BT_AUDIO_STREAM_CONTEXT_CONVERSATIONAL;
     }
 

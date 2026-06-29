@@ -513,18 +513,20 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
 #if CONFIG_EXAMPLE_BT_UI_ENABLE
                 bt_ui_set_connected(ui, true);
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
-#if CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK))
+#if CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK) || defined(CONFIG_GMF_EXAMPLE_HFP_AG))
                 esp_bt_audio_classic_set_scan_mode(false, false);
-#endif  /* CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)) */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK) || defined(CONFIG_GMF_EXAMPLE_HFP_AG)) */
 #if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_PBAP_PCE)
                 esp_bt_audio_classic_connect(ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE, conn_st->addr);
 #endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_PBAP_PCE) */
             } else {
-#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
+#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_HFP_AG)
+                esp_bt_audio_classic_set_scan_mode(true, true);
+#elif CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
                 esp_bt_audio_classic_set_scan_mode(true, false);
 #elif CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)
                 esp_bt_audio_classic_set_scan_mode(true, true);
-#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_HFP_AG) */
 #if CONFIG_EXAMPLE_BT_UI_ENABLE
                 bt_ui_set_connected(ui, false);
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
@@ -827,11 +829,13 @@ void app_main()
     ESP_LOGI(TAG, "  PACS sink locations: %s", LE_LOCATION == ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT ? "Front left" : "Front right");
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     ESP_ERROR_CHECK(esp_bt_audio_init(&bt_config));
-#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
+#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_HFP_AG)
+    ESP_ERROR_CHECK(esp_bt_audio_classic_set_scan_mode(true, true));
+#elif CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
     ESP_ERROR_CHECK(esp_bt_audio_classic_set_scan_mode(true, false));
 #elif CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)
     ESP_ERROR_CHECK(esp_bt_audio_classic_set_scan_mode(true, true));
-#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_HFP_AG) */
     ESP_ERROR_CHECK(esp_bt_audio_playback_reg_notifications(ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_STATUS_CHANGE |
                                                             ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_CHANGE |
                                                             ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_END |

@@ -73,6 +73,8 @@ typedef struct {
     esp_err_t (*a2d_sink_disconnect)(uint8_t *bda);                   /*!< Disconnect from A2DP sink */
     esp_err_t (*hfp_hf_connect)(uint8_t *bda);                        /*!< Connect to HFP HF */
     esp_err_t (*hfp_hf_disconnect)(uint8_t *bda);                     /*!< Disconnect from HFP HF */
+    esp_err_t (*hfp_ag_connect)(uint8_t *bda);                        /*!< Connect to HFP AG */
+    esp_err_t (*hfp_ag_disconnect)(uint8_t *bda);                     /*!< Disconnect from HFP AG */
     esp_err_t (*pbac_connect)(uint8_t *bda);                          /*!< Connect to PBAC */
     esp_err_t (*pbac_disconnect)(uint8_t *bda);                       /*!< Disconnect from PBAC */
 } esp_bt_audio_classic_ops_t;

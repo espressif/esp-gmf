@@ -49,11 +49,16 @@ esp_err_t bt_audio_classic_init(esp_bt_audio_classic_cfg_t *classic_config)
         ESP_RETURN_ON_ERROR(bt_audio_a2dp_sink_init(), TAG, "Failed to init A2DP SNK");
     }
 #endif  /* CONFIG_BT_A2DP_ENABLE */
-#ifdef CONFIG_BT_HFP_ENABLE
+#if CONFIG_BT_HFP_CLIENT_ENABLE
     if (classic_config->roles & ESP_BT_AUDIO_CLASSIC_ROLE_HFP_HF) {
         ESP_RETURN_ON_ERROR(bt_audio_hfp_hf_init(), TAG, "Failed to init HFP HF");
     }
-#endif  /* CONFIG_BT_HFP_ENABLE */
+#endif  /* CONFIG_BT_HFP_CLIENT_ENABLE */
+#if CONFIG_BT_HFP_AG_ENABLE
+    if (classic_config->roles & ESP_BT_AUDIO_CLASSIC_ROLE_HFP_AG) {
+        ESP_RETURN_ON_ERROR(bt_audio_hfp_ag_init(), TAG, "Failed to init HFP AG");
+    }
+#endif  /* CONFIG_BT_HFP_AG_ENABLE */
 #ifdef CONFIG_BT_PBAC_ENABLED
     if (classic_config->roles & ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE) {
         ESP_RETURN_ON_ERROR(bt_audio_pbac_init(), TAG, "Failed to init PBAC");
@@ -78,9 +83,12 @@ esp_err_t bt_audio_classic_deinit()
     bt_audio_avrcp_ct_deinit();
     bt_audio_avrcp_tg_deinit();
 #endif  /* CONFIG_BT_AVRCP_ENABLED */
-#ifdef CONFIG_BT_HFP_ENABLE
+#if CONFIG_BT_HFP_CLIENT_ENABLE
     bt_audio_hfp_hf_deinit();
-#endif  /* CONFIG_BT_HFP_ENABLE */
+#endif  /* CONFIG_BT_HFP_CLIENT_ENABLE */
+#if CONFIG_BT_HFP_AG_ENABLE
+    bt_audio_hfp_ag_deinit();
+#endif  /* CONFIG_BT_HFP_AG_ENABLE */
 #ifdef CONFIG_BT_PBAC_ENABLED
     bt_audio_pbac_deinit();
 #endif  /* CONFIG_BT_PBAC_ENABLED */

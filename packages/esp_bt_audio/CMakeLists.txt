@@ -23,8 +23,11 @@ if (CONFIG_BT_CLASSIC_ENABLED)
         list(APPEND srcs "src/classic/profiles/bt_audio_a2dp_src.c"
                          "src/classic/profiles/bt_audio_a2dp_sink.c")
     endif()
-    if (CONFIG_BT_HFP_ENABLE)
+    if (CONFIG_BT_HFP_CLIENT_ENABLE)
         list(APPEND srcs "src/classic/profiles/bt_audio_hfp_hf.c")
+    endif()
+    if (CONFIG_BT_HFP_AG_ENABLE)
+        list(APPEND srcs "src/classic/profiles/bt_audio_hfp_ag.c")
     endif()
     if (CONFIG_BT_AVRCP_ENABLED)
         list(APPEND srcs "src/classic/profiles/bt_audio_avrcp_ct.c"

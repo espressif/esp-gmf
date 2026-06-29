@@ -142,7 +142,8 @@ idf.py menuconfig
 
 在 menuconfig 中进行以下配置（示例）：
 
-- `BT Audio Basic Example (GMF)` → `Classic Audio Roles Configuration` → 选择 A2DP 角色（A2DP Sink / A2DP Source）或 HFP HF 等
+- `BT Audio Basic Example (GMF)` → `Classic Audio Roles Configuration` → 选择 A2DP 角色（None / A2DP Sink / A2DP Source）
+- `BT Audio Basic Example (GMF)` → `Classic Audio Roles Configuration` → 选择 HFP 角色（None / HFP Handsfree / HFP Audio Gateway）
 - `BT Audio Basic Example (GMF)` → `Enable LE Audio` → 在目标芯片支持时开启 LE Audio 例程流程
 - 可选：`BT UI Configuration` → `Enable LVGL UI` → 开启本地触屏界面（需要 LCD 与触摸面板）
 - 可选：`LE Audio Configuration` → 选择 LE Audio user case 和 TMAP roles，再配置 LE audio location、source capability 和 coordinated set size
@@ -170,14 +171,15 @@ idf.py -p PORT flash monitor
 
 ### 功能和用法
 
-- **角色与指令**：例程支持通过 menuconfig 选配经典蓝牙角色（A2DP Sink、A2DP Source、HFP HF、AVRCP Controller/Target）与 LE Audio TMAP 预设；编译烧录后，在串口输入 `help` 查看指令列表
+- **角色与指令**：例程支持通过 menuconfig 选配经典蓝牙角色（A2DP Sink、A2DP Source、HFP HF/AG、AVRCP Controller/Target）与 LE Audio TMAP 预设；编译烧录后，在串口输入 `help` 查看指令列表
 - **A2DP Sink**：设备等待手机等连接，连接后可通过串口指令控制播放：`play`、`pause`、`stop`、`next`、`prev`，以及 `vol_set <0-100>` 设置音量
 - **A2DP Source**：通过 `start_discovery`、`connect <mac>` 发现并连接蓝牙音响/耳机，使用 `start_media`、`stop_media` 控制推流启停
 - **HFP HF**：支持来电接听/拒接、拨号，以及通话状态与话务状态上报；通话场景下通过 GMF 管道中的 AEC 元件进行回声消除
+- **HFP AG**：通过 `start_discovery` 与 `ag_connect <mac>` 发现并连接蓝牙 HF 设备（如耳机）；使用 `call_dial`、`call_answer`、`call_reject` 模拟通话状态变化并打开/关闭 HFP 音频流；使用 `ag_disconnect` 断开连接
 - **PBAP Client**: 通过 `pb_fetch` 指令获取通讯录和通话记录
 - **LE Audio**：使用 `le_scan_start [timeout_ms]` 与 `le_scan_stop` 发现 LE Audio 设备，使用 `le_connect <addr_type> <mac_address> [timeout_ms]` 连接 peer，使用 `le_disconnect` 断开当前 LE ACL 链路。媒体、音量、通话与 stream 事件通过同一套 `esp_bt_audio` 事件路径上报
 - **LVGL 触屏 UI**（需 `CONFIG_EXAMPLE_BT_UI_ENABLE=y`）：本地触屏界面在蓝牙连接前显示启动画面，连接后切换到包含两个标签页的主界面——**媒体播放器**（封面显示、曲目标题/艺术家、播放/暂停/上一曲/下一曲控件、CIS/BIS 流类型指示）与**拨号盘**（数字键盘、拨打/挂断、来电/通话状态显示）。音量变化时弹出自动隐藏的**音量条**
-- **配合设备**：A2DP Sink 需手机或其它 A2DP Source；A2DP Source 需蓝牙耳机或音响；HFP 需支持 HFP AG 的手机；LE Audio 需兼容的 LE Audio peer 或广播设备
+- **配合设备**：A2DP Sink 需手机或其它 A2DP Source；A2DP Source 需蓝牙耳机或音响；HFP HF 需支持 HFP AG 的手机；HFP AG 需蓝牙耳机或其它 HFP HF 设备；LE Audio 需兼容的 LE Audio peer 或广播设备
 
 ### 日志输出
 

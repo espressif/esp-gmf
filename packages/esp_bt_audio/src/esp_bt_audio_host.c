@@ -5,6 +5,7 @@
  * See LICENSE file for details.
  */
 
+#include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -195,6 +196,15 @@ static void bluedroid_host_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_par
                 pin_code[3] = '4';
                 esp_bt_gap_pin_reply(param->pin_req.bda, true, 4, pin_code);
             }
+            break;
+        }
+        case ESP_BT_GAP_CFM_REQ_EVT: {
+            ESP_LOGI(TAG, "SSP confirm request, auto accept");
+            esp_bt_gap_ssp_confirm_reply(param->cfm_req.bda, true);
+            break;
+        }
+        case ESP_BT_GAP_KEY_NOTIF_EVT: {
+            ESP_LOGI(TAG, "Legacy pairing passkey: %06" PRIu32, param->key_notif.passkey);
             break;
         }
         case ESP_BT_GAP_MODE_CHG_EVT:

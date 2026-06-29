@@ -5,6 +5,7 @@
 ### Features
 
 - Added AAC codec support for A2DP
+- Added HFP Audio Gateway integration
 
 ## v1.0.0~1
 

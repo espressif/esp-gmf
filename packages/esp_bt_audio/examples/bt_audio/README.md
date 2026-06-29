@@ -142,7 +142,8 @@ idf.py menuconfig
 
 Configure the following in menuconfig (example):
 
-- `BT Audio Basic Example (GMF)` → `Classic Audio Roles Configuration` → Select A2DP role (A2DP Sink / A2DP Source) or HFP HF, etc
+- `BT Audio Basic Example (GMF)` → `Classic Audio Roles Configuration` → Select A2DP role (None / A2DP Sink / A2DP Source)
+- `BT Audio Basic Example (GMF)` → `Classic Audio Roles Configuration` → Select HFP role (None / HFP Handsfree / HFP Audio Gateway)
 - `BT Audio Basic Example (GMF)` → `Enable LE Audio` → enable the LE Audio example flow when the target supports it
 - Optional: `BT UI Configuration` → `Enable LVGL UI` → enable the on-device touch-screen UI (requires LCD and touch panel)
 - Optional: `LE Audio Configuration` → select the LE Audio user case and TMAP roles, then configure LE audio location, source capability, and coordinated set size
@@ -170,14 +171,15 @@ Exit the monitor with `Ctrl-]`.
 
 ### Functionality and Usage
 
-- **Roles and commands**: The example supports Classic Bluetooth roles (A2DP Sink, A2DP Source, HFP HF, AVRCP Controller/Target) and LE Audio TMAP presets selectable via menuconfig; after building and flashing, type `help` in the serial console to see the command list
+- **Roles and commands**: The example supports Classic Bluetooth roles (A2DP Sink, A2DP Source, HFP HF/AG, AVRCP Controller/Target) and LE Audio TMAP presets selectable via menuconfig; after building and flashing, type `help` in the serial console to see the command list
 - **A2DP Sink**: The device waits for a phone or other source to connect; after connection, use serial commands to control playback: `play`, `pause`, `stop`, `next`, `prev`, and `vol_set <0-100>` for volume
 - **A2DP Source**: Use `start_discovery` and `connect <mac>` to discover and connect to a Bluetooth speaker or headphones; use `start_media` and `stop_media` to control streaming
 - **HFP HF**: Supports answer/reject incoming call, dial, and call/telephony status reporting; the AEC element in the GMF pipeline is used for echo cancellation during calls
+- **HFP AG**: Use `start_discovery` and `ag_connect <mac>` to connect to a Bluetooth HF device such as a headset; use `call_dial [number]`, `call_answer`, and `call_reject` to simulate call state changes and open/close the HFP audio stream; use `ag_disconnect` to disconnect
 - **PBAP Client**: Use the `pb_fetch` command to retrieve the phonebook and call history
 - **LE Audio**: Use `le_scan_start [timeout_ms]` and `le_scan_stop` to discover LE Audio devices, `le_connect <addr_type> <mac_address> [timeout_ms]` to connect to a peer, and `le_disconnect` to disconnect the current LE ACL link. Media, volume, call, and stream events are reported through the same `esp_bt_audio` event path
 - **LVGL UI** (when `CONFIG_EXAMPLE_BT_UI_ENABLE=y`): The on-device touch-screen UI shows a splash screen before Bluetooth connection and switches to a tab-based main screen on connection with a **media player** (cover art display, track title/artist, play/pause/prev/next controls, stream-type indicator for CIS/BIS) and a **dialer** (numeric keypad, call start/end, incoming/active call display). An auto-hiding **volume bar** appears on volume-change events
-- **Companion devices**: A2DP Sink needs a phone or other A2DP Source; A2DP Source needs Bluetooth headphones or a speaker; HFP needs a phone that supports HFP AG; LE Audio needs a compatible LE Audio peer or broadcast device
+- **Companion devices**: A2DP Sink needs a phone or other A2DP Source; A2DP Source needs Bluetooth headphones or a speaker; HFP HF needs a phone that supports HFP AG; HFP AG needs a headset or other HFP HF device; LE Audio needs a compatible LE Audio peer or broadcast device
 
 ### Log Output
 
