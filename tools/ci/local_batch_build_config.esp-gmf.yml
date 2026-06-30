@@ -7,10 +7,13 @@
 #   .batch_build/out/    - CMake build trees (removed on success unless keep_build: true)
 #   .batch_build/locks/  - flock files for parallel safety
 
-project_path: /home/maojianxin/workspace/esp-gmf
+# Defaults to the repository root inferred from this config file.
+# Set PROJECT_PATH or uncomment this with a path relative to this file if needed.
+# project_path: ../..
 
 # ESP-IDF repository: checkout -> ./install.sh -> . ./export.sh
-idf_path: /home/maojianxin/workspace/esp-idf
+# Defaults to IDF_PATH. Uncomment and set this if IDF_PATH is not exported.
+# idf_path: ../../esp-idf
 
 # IDF versions to iterate (tag, branch, or release/vX.Y)
 idf_versions:

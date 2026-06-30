@@ -59,7 +59,7 @@ build_ut_gmf_core_esp32:
     - .matrix_template
   variables:
     IDF_TARGET: esp32
-    AUDIO_BOARD: lyrat_mini_v1_1
+    AUDIO_BOARD: esp32_lyrat_mini_1_1
 
 .build_ut_gmf_core_esp32c3:
   extends:
@@ -74,7 +74,7 @@ build_ut_gmf_core_esp32s3:
     - .matrix_template
   variables:
     IDF_TARGET: esp32s3
-    AUDIO_BOARD: esp32_s3_korvo2_v3
+    AUDIO_BOARD: esp32_s3_korvo_2_3
 
 build_ut_gmf_core_esp32p4:
   extends:
@@ -82,7 +82,7 @@ build_ut_gmf_core_esp32p4:
     - .matrix_template_v6_1
   variables:
     IDF_TARGET: esp32p4
-    AUDIO_BOARD: esp32_p4_function_ev
+    AUDIO_BOARD: esp32_p4_function_ev_board
 
 build_ut_gmf_core_esp32s31:
   extends:
@@ -90,7 +90,7 @@ build_ut_gmf_core_esp32s31:
     - .matrix_template_v6_1
   variables:
     IDF_TARGET: esp32s31
-    AUDIO_BOARD: esp32_s31_korvo1
+    AUDIO_BOARD: esp32_s31_korvo_1
 
 build_ut_gmf_elements_esp32:
   extends:
@@ -98,7 +98,7 @@ build_ut_gmf_elements_esp32:
     - .matrix_template
   variables:
     IDF_TARGET: esp32
-    AUDIO_BOARD: lyrat_mini_v1_1
+    AUDIO_BOARD: esp32_lyrat_mini_1_1
 
 build_ut_gmf_elements_esp32s3:
   extends:
@@ -106,7 +106,7 @@ build_ut_gmf_elements_esp32s3:
     - .matrix_template
   variables:
     IDF_TARGET: esp32s3
-    AUDIO_BOARD: esp32_s3_korvo2_v3
+    AUDIO_BOARD: esp32_s3_korvo_2_3
 
 build_ut_gmf_elements_esp32p4:
   extends:
@@ -114,7 +114,7 @@ build_ut_gmf_elements_esp32p4:
     - .matrix_template_v6_1
   variables:
     IDF_TARGET: esp32p4
-    AUDIO_BOARD: esp32_p4_function_ev
+    AUDIO_BOARD: esp32_p4_function_ev_board
 
 build_ut_gmf_elements_esp32s31:
   extends:
@@ -122,7 +122,7 @@ build_ut_gmf_elements_esp32s31:
     - .matrix_template_v6_1
   variables:
     IDF_TARGET: esp32s31
-    AUDIO_BOARD: esp32_s31_korvo1
+    AUDIO_BOARD: esp32_s31_korvo_1
 
 build_ut_gmf_packages_esp32:
   extends:
@@ -130,7 +130,7 @@ build_ut_gmf_packages_esp32:
     - .matrix_template
   variables:
     IDF_TARGET: esp32
-    AUDIO_BOARD: lyrat_mini_v1_1
+    AUDIO_BOARD: esp32_lyrat_mini_1_1
 
 build_ut_gmf_packages_esp32s3:
   extends:
@@ -138,7 +138,7 @@ build_ut_gmf_packages_esp32s3:
     - .matrix_template
   variables:
     IDF_TARGET: esp32s3
-    AUDIO_BOARD: esp32_s3_korvo2_v3
+    AUDIO_BOARD: esp32_s3_korvo_2_3
 
 build_ut_gmf_packages_esp32p4:
   extends:
@@ -146,7 +146,7 @@ build_ut_gmf_packages_esp32p4:
     - .matrix_template_v6_1
   variables:
     IDF_TARGET: esp32p4
-    AUDIO_BOARD: esp32_p4_function_ev
+    AUDIO_BOARD: esp32_p4_function_ev_board
 
 build_ut_gmf_packages_esp32s31:
   extends:
@@ -154,4 +154,4 @@ build_ut_gmf_packages_esp32s31:
     - .matrix_template_v6_1
   variables:
     IDF_TARGET: esp32s31
-    AUDIO_BOARD: esp32_s31_korvo1
+    AUDIO_BOARD: esp32_s31_korvo_1

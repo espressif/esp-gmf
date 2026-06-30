@@ -9,13 +9,9 @@ dependencies:
     override_path: ../../gmf_misc
   espressif/gmf_core:
     override_path: ../../../gmf_core
-  gmf_video:
+  espressif/gmf_video:
     override_path: ../../gmf_video
   espressif/esp_video_codec: "~0.5.2"
-  espressif/esp_h264:
-    version: "1.0.4"
-    rules:
-      - if: "target in [esp32s3, esp32p4]"
   espressif/esp_wifi_remote:
     rules:
       - if: "target in [esp32p4]"
@@ -23,4 +19,3 @@ dependencies:
     override_path: ../../../packages/gmf_loader
   espressif/gmf_app_utils:
     override_path: ../../../packages/gmf_app_utils
-

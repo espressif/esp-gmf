@@ -47,7 +47,7 @@ build_examples_esp32_lyrat_mini_v1_1:
     - .matrix_template_2shard
   variables:
     IDF_TARGET: esp32
-    AUDIO_BOARD: lyrat_mini_v1_1
+    AUDIO_BOARD: esp32_lyrat_mini_1_1
 
 .build_examples_esp32s2_kaluga_v1_2:
   extends:
@@ -68,7 +68,7 @@ build_examples_esp32s3_korvo_v2:
     - .matrix_template_2shard
   variables:
     IDF_TARGET: esp32s3
-    AUDIO_BOARD: esp32_s3_korvo2_v3
+    AUDIO_BOARD: esp32_s3_korvo_2_3
 
 build_examples_esp32p4_function_ev:
   extends:
@@ -79,7 +79,7 @@ build_examples_esp32p4_function_ev:
     - .matrix_template_v6_1_2shard
   variables:
     IDF_TARGET: esp32p4
-    AUDIO_BOARD: esp32_p4_function_ev
+    AUDIO_BOARD: esp32_p4_function_ev_board
 
 build_examples_esp32s31:
   extends:
@@ -90,4 +90,4 @@ build_examples_esp32s31:
     - .matrix_template_v6_1_2shard
   variables:
     IDF_TARGET: esp32s31
-    AUDIO_BOARD: esp32_s31_korvo1
+    AUDIO_BOARD: esp32_s31_korvo_1
