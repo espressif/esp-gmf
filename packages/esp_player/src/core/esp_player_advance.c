@@ -8,6 +8,7 @@
 #include <stdlib.h>
 
 #include "esp_player_advance.h"
+#include "esp_fourcc.h"
 #include "player_internal.h"
 #include "player_submit_frame.h"
 
@@ -114,12 +115,46 @@ esp_player_err_t esp_player_set_buffer_config(esp_player_handle_t handle, const 
     return player_set_buffer_config_impl(stream, config);
 }
 
-esp_player_err_t esp_player_get_id3_info(esp_player_handle_t handle, void *id3_info)
+esp_player_err_t esp_player_enable_id3_parse(esp_player_handle_t handle, bool enable)
 {
-    if (handle == NULL || id3_info == NULL) {
-        ESP_LOGE(ESP_PLAYER_TAG, "Invalid argument, handle: %p, id3_info: %p", handle, id3_info);
+    if (handle == NULL) {
+        ESP_LOGE(ESP_PLAYER_TAG, "Invalid argument, handle: %p", handle);
         return ESP_PLAYER_ERR_INVALID_ARG;
     }
-    /* TODO implement this function when extractor support id3 parser */
-    return ESP_PLAYER_ERR_NOT_SUPPORT;
+    esp_player_stream_t *stream = (esp_player_stream_t *)handle;
+    if (!is_state_allowed_for_operation(stream)) {
+        ESP_LOGE(ESP_PLAYER_TAG, "Failed to set ID3 parse enable. state: %d", stream->main_state);
+        return ESP_PLAYER_ERR_NOT_SUPPORT;
+    }
+    if (stream->id3.enable == enable) {
+        return ESP_PLAYER_ERR_OK;
+    }
+    stream->id3.enable = enable;
+    player_id3_reset(stream);
+    return ESP_PLAYER_ERR_OK;
+}
+
+esp_player_err_t esp_player_get_id3_info(esp_player_handle_t handle, const esp_extractor_id3_info_t **info)
+{
+    if (handle == NULL || info == NULL) {
+        ESP_LOGE(ESP_PLAYER_TAG, "Invalid argument, handle: %p, info: %p", handle, info);
+        return ESP_PLAYER_ERR_INVALID_ARG;
+    }
+    esp_player_stream_t *stream = (esp_player_stream_t *)handle;
+    if (player_current_format(stream) != ESP_FOURCC_MP3) {
+        return ESP_PLAYER_ERR_NOT_SUPPORT;
+    }
+    if (stream->id3.parser == NULL) {
+        return ESP_PLAYER_ERR_NOT_SUPPORT;
+    }
+    const esp_extractor_id3_info_t *parsed = NULL;
+    esp_extractor_err_t ret = esp_extractor_id3_parser_get_info(stream->id3.parser, &parsed);
+    if (ret == ESP_EXTRACTOR_ERR_OK && parsed != NULL) {
+        *info = parsed;
+        return ESP_PLAYER_ERR_OK;
+    }
+    if (!stream->id3.finalize_done) {
+        return ESP_PLAYER_ERR_NOT_SUPPORT;
+    }
+    return ESP_PLAYER_ERR_FAIL;
 }

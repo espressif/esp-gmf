@@ -15,6 +15,7 @@
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
 #include "freertos/semphr.h"
+#include "freertos/queue.h"
 
 #include "unity.h"
 #include "esp_log.h"
@@ -33,14 +34,15 @@
 #include "render_common.h"
 #include "test_data.h"
 
-#define SC_PLAYED_BIT     (1 << 0)
-#define SC_PAUSED_BIT     (1 << 1)
-#define SC_STOPPED_BIT    (1 << 2)
-#define SC_SEEK_DONE_BIT  (1 << 3)
-#define SC_FINISHED_BIT   (1 << 4)
-#define SC_ERROR_BIT      (1 << 5)
-#define SC_BUFFERING_BIT  (1 << 6)
-#define SC_BUFFERED_BIT   (1 << 7)
+#define SC_PLAYED_BIT      (1 << 0)
+#define SC_PAUSED_BIT      (1 << 1)
+#define SC_STOPPED_BIT     (1 << 2)
+#define SC_SEEK_DONE_BIT   (1 << 3)
+#define SC_FINISHED_BIT    (1 << 4)
+#define SC_ERROR_BIT       (1 << 5)
+#define SC_BUFFERING_BIT   (1 << 6)
+#define SC_BUFFERED_BIT    (1 << 7)
+#define SC_TRACK_INFO_BIT  (1 << 8)
 
 #define SC_TIMEOUT_PLAY_MS    10000
 #define SC_TIMEOUT_STOP_MS    8000
@@ -83,6 +85,15 @@ typedef struct {
     EventGroupHandle_t   done_group;
     EventBits_t          done_bit;
 } sc_priority_arg_t;
+
+typedef struct {
+    esp_player_handle_t  player;
+    int                  role;
+    int                  rounds;
+    EventGroupHandle_t   done_group;
+    EventBits_t          done_bit;
+    int                  task_priority;
+} sc_mt_stop_run_arg_t;
 
 static const char *TAG = "TEST_SCENARIO";
 
@@ -127,6 +138,10 @@ static esp_player_err_t sc_event_cb(esp_player_event_msg_t *event, void *user_ct
             xEventGroupSetBits(c->event_group, SC_BUFFERED_BIT);
             ESP_LOGW(TAG, "[stream%u] BUFFERED", c->stream_idx);
             break;
+        case ESP_PLAYER_EVENT_TRACK_INFO_PARSED:
+            xEventGroupSetBits(c->event_group, SC_TRACK_INFO_BIT);
+            ESP_LOGD(TAG, "[stream%u] TRACK_INFO_PARSED", c->stream_idx);
+            break;
         default:
             break;
     }
@@ -139,6 +154,25 @@ static bool sc_wait_bits(sc_ctx_t *c, EventBits_t bits, uint32_t timeout_ms)
                                           pdTRUE, pdFALSE,
                                           pdMS_TO_TICKS(timeout_ms));
     return (got & bits) != 0;
+}
+
+static bool sc_wait_queue_event(QueueHandle_t queue, esp_player_event_type_t want, uint32_t timeout_ms)
+{
+    esp_player_event_msg_t msg;
+    int64_t deadline_us = esp_timer_get_time() + (int64_t)timeout_ms * 1000;
+
+    while (esp_timer_get_time() < deadline_us) {
+        if (xQueueReceive(queue, &msg, pdMS_TO_TICKS(50)) == pdTRUE) {
+            ESP_LOGI(TAG, "event_queue recv: type=%d", (int)msg.event_type);
+            if (msg.event_type == want) {
+                return true;
+            }
+            if (msg.event_type == ESP_PLAYER_EVENT_ERROR) {
+                return false;
+            }
+        }
+    }
+    return false;
 }
 
 static void sc_clear_bits(sc_ctx_t *c, EventBits_t bits)
@@ -205,6 +239,56 @@ static void sc_destroy_player_and_render(sc_ctx_t *c)
     audio_render_destroy_handle();
 }
 
+static void sc_destroy_av_player_and_render(sc_ctx_t *c)
+{
+    sc_destroy_player_only(c);
+    if (c->video_stream_handle) {
+        video_render_destroy_handle();
+        c->video_stream_handle = NULL;
+    }
+    audio_render_destroy_handle();
+}
+
+static esp_player_err_t sc_create_av_player(sc_ctx_t *c, uint8_t stream_idx)
+{
+    memset(c, 0, sizeof(*c));
+    c->stream_idx = stream_idx;
+
+    c->event_group = xEventGroupCreate();
+    if (!c->event_group) {
+        ESP_LOGE(TAG, "xEventGroupCreate failed");
+        return ESP_PLAYER_ERR_NO_MEM;
+    }
+
+    esp_player_err_t ret = audio_render_create_handle(
+        (esp_audio_render_stream_handle_t *)&c->audio_stream_handle,
+        44100, 16, 2, ESP_AUDIO_RENDER_STREAM_ID(stream_idx));
+    if (ret != ESP_PLAYER_ERR_OK) {
+        ESP_LOGE(TAG, "audio_render_create_handle stream%u failed: %d", stream_idx, ret);
+        vEventGroupDelete(c->event_group);
+        c->event_group = NULL;
+        return ret;
+    }
+
+    void *vid_handle = NULL;
+    video_render_create_handle(&vid_handle, ESP_VIDEO_CODEC_PIXEL_FMT_RGB888, 30);
+    c->video_stream_handle = vid_handle;
+
+    esp_player_config_t cfg = ESP_PLAYER_CONFIG_DEFAULT();
+    cfg.audio_render_hd = c->audio_stream_handle;
+    cfg.video_render_hd = c->video_stream_handle;
+    ret = esp_player_init(&cfg, &c->player);
+    if (ret != ESP_PLAYER_ERR_OK) {
+        ESP_LOGE(TAG, "esp_player_init stream%u failed: %d", stream_idx, ret);
+        sc_destroy_av_player_and_render(c);
+        return ret;
+    }
+
+    esp_player_set_event_cb(c->player, sc_event_cb, c);
+    esp_player_set_av_mask(c->player, ESP_PLAYER_MASK_AV);
+    return ESP_PLAYER_ERR_OK;
+}
+
 static bool sc_get_first_file(const char *dir_path, const char *ext,
                               char *out, size_t out_sz)
 {
@@ -254,10 +338,220 @@ static bool sc_run_and_wait_played(sc_ctx_t *c)
     return (got & SC_PLAYED_BIT) != 0;
 }
 
+static bool sc_run_and_wait_prepared(sc_ctx_t *c)
+{
+    c->run_time_us = esp_timer_get_time();
+    esp_player_run(c->player);
+
+    EventBits_t wait_bits = SC_TRACK_INFO_BIT | SC_ERROR_BIT;
+    EventBits_t got = xEventGroupWaitBits(c->event_group, wait_bits,
+                                          pdTRUE, pdFALSE,
+                                          pdMS_TO_TICKS(SC_TIMEOUT_PLAY_MS));
+    return (got & SC_TRACK_INFO_BIT) != 0;
+}
+
 static bool sc_stop_and_wait(sc_ctx_t *c)
 {
     esp_player_stop(c->player);
     return sc_wait_bits(c, SC_STOPPED_BIT | SC_FINISHED_BIT, SC_TIMEOUT_STOP_MS);
+}
+
+static void sc_trigger_full_error(sc_ctx_t *ctx, const char *error_url)
+{
+    sc_clear_bits(ctx, SC_ERROR_BIT | SC_FINISHED_BIT | SC_PLAYED_BIT | SC_STOPPED_BIT | SC_PAUSED_BIT | SC_SEEK_DONE_BIT);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx->player, error_url));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_run(ctx->player));
+
+    EventBits_t bits = xEventGroupWaitBits(ctx->event_group,
+                                           SC_ERROR_BIT | SC_FINISHED_BIT | SC_PLAYED_BIT,
+                                           pdTRUE, pdFALSE,
+                                           pdMS_TO_TICKS(SC_TIMEOUT_PLAY_MS));
+    TEST_ASSERT_NOT_EQUAL_MESSAGE(0, bits & SC_ERROR_BIT,
+                                  "Expected ERROR from invalid media source");
+    TEST_ASSERT_EQUAL_MESSAGE(0, bits & SC_PLAYED_BIT,
+                              "Full error source unexpectedly reached PLAYING");
+}
+
+static void sc_recover_with_valid_audio_and_wait_playing(sc_ctx_t *ctx, const char *valid_audio_url)
+{
+    sc_clear_bits(ctx, SC_ERROR_BIT | SC_PLAYED_BIT | SC_FINISHED_BIT | SC_STOPPED_BIT);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx->player, valid_audio_url));
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(ctx),
+                             "Expected valid audio source to recover and reach PLAYING");
+}
+
+static void sc_concurrent_seek_task(void *arg)
+{
+    sc_mt_seek_arg_t *a = (sc_mt_seek_arg_t *)arg;
+    int local_ok = 0;
+
+    for (int i = 0; i < a->rounds; i++) {
+        uint64_t target_ms = (esp_random() % 10) * 1000;
+        esp_player_err_t ret = esp_player_seek(a->player, target_ms);
+        if (ret == ESP_PLAYER_ERR_OK) {
+            local_ok++;
+        }
+        vTaskDelay(pdMS_TO_TICKS(50 + esp_random() % 100));
+    }
+
+    xSemaphoreTake(a->counter_mutex, portMAX_DELAY);
+    *(a->ok_count) += local_ok;
+    xSemaphoreGive(a->counter_mutex);
+
+    xEventGroupSetBits(a->done_group, a->done_bit);
+    vTaskDelete(NULL);
+}
+
+static void sc_stop_run_race_task(void *arg)
+{
+    sc_mt_stop_run_arg_t *a = (sc_mt_stop_run_arg_t *)arg;
+
+    for (int i = 0; i < a->rounds; i++) {
+        if (a->role == 0) {
+            esp_player_run(a->player);
+            vTaskDelay(pdMS_TO_TICKS(80 + esp_random() % 120));
+            esp_player_stop(a->player);
+        } else {
+            esp_player_stop(a->player);
+            vTaskDelay(pdMS_TO_TICKS(20 + esp_random() % 60));
+            esp_player_run(a->player);
+        }
+        vTaskDelay(pdMS_TO_TICKS(40 + esp_random() % 80));
+    }
+
+    xEventGroupSetBits(a->done_group, a->done_bit);
+    vTaskDelete(NULL);
+}
+
+static void sc_mixer_player_task(void *arg)
+{
+    sc_mixer_task_arg_t *a = (sc_mixer_task_arg_t *)arg;
+    sc_ctx_t *c = a->ctx;
+
+    if (a->url) {
+        esp_player_set_url(c->player, a->url);
+    }
+
+    for (const char *p = a->play_seq; *p; p++) {
+        switch (*p) {
+            case 'r':
+                sc_run_and_wait_played(c);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                break;
+            case 'p':
+                if (esp_player_pause(c->player) == ESP_PLAYER_ERR_OK) {
+                    sc_wait_bits(c, SC_PAUSED_BIT, SC_TIMEOUT_PLAY_MS);
+                    vTaskDelay(pdMS_TO_TICKS(1000));
+                }
+                break;
+            case 'e':
+                if (esp_player_resume(c->player) == ESP_PLAYER_ERR_OK) {
+                    sc_wait_bits(c, SC_PLAYED_BIT, SC_TIMEOUT_PLAY_MS);
+                    vTaskDelay(pdMS_TO_TICKS(2000));
+                }
+                break;
+            case 's':
+                sc_stop_and_wait(c);
+                vTaskDelay(pdMS_TO_TICKS(500));
+                break;
+            case 'f':
+                sc_wait_bits(c, SC_FINISHED_BIT, SC_TIMEOUT_FINISH_MS);
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (a->done_group) {
+        xEventGroupSetBits(a->done_group, a->done_bit);
+    }
+    vTaskDelete(NULL);
+}
+
+static void sc_high_priority_disruptor(void *arg)
+{
+    sc_priority_arg_t *a = (sc_priority_arg_t *)arg;
+    int round = 0;
+    while (*(a->running_flag)) {
+        uint32_t r = esp_random() % 3;
+        switch (r) {
+            case 0:
+                esp_player_pause(a->player);
+                break;
+            case 1:
+                esp_player_resume(a->player);
+                break;
+            case 2:
+                esp_player_seek(a->player, (esp_random() % 8) * 1000);
+                break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(300 + esp_random() % 700));
+        round++;
+    }
+    ESP_LOGI(TAG, "[PriorityTest] Disruptor finished after %d rounds", round);
+    xEventGroupSetBits(a->done_group, a->done_bit);
+    vTaskDelete(NULL);
+}
+
+static void sc_log_id3_info(const char *url, const esp_extractor_id3_info_t *info)
+{
+    ESP_LOGI(TAG, "======== ID3 metadata: %s ========", url ? url : "(null)");
+    if (info == NULL) {
+        ESP_LOGI(TAG, "  (no info)");
+        return;
+    }
+    ESP_LOGI(TAG, "  title   : %s", info->title ? info->title : "(null)");
+    ESP_LOGI(TAG, "  author  : %s", info->author ? info->author : "(null)");
+    ESP_LOGI(TAG, "  album   : %s", info->album ? info->album : "(null)");
+    ESP_LOGI(TAG, "  date    : %s", info->date ? info->date : "(null)");
+    ESP_LOGI(TAG, "  genre   : %s", info->genre ? info->genre : "(null)");
+    ESP_LOGI(TAG, "  encoding: %u", (unsigned)info->encoding);
+    ESP_LOGI(TAG, "  cover   : mime=%s size=%" PRIu32,
+             info->cover_mime ? info->cover_mime : "(null)", info->cover_size);
+    for (uint16_t i = 0; i < info->extra_num; i++) {
+        ESP_LOGI(TAG, "  extra[%u]: %s = %s (encoding=%u)", (unsigned)i,
+                 info->extra[i].key ? info->extra[i].key : "(null)",
+                 info->extra[i].value ? info->extra[i].value : "(null)",
+                 (unsigned)info->extra[i].encoding);
+    }
+    ESP_LOGI(TAG, "========================================");
+}
+
+TEST_CASE("[metadata]:test_player_get_id3_info_mp3", "[player][scenario]")
+{
+    const char *mp3_file = "/sdcard/test.mp3";
+    struct stat st;
+    if (stat(mp3_file, &st) != 0) {
+        TEST_IGNORE_MESSAGE("Missing /sdcard/test.mp3 on SD card");
+    }
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_enable_id3_parse(ctx.player, true));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, mp3_file));
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_prepared(&ctx), "Expected TRACK_INFO_PARSED before reading ID3");
+
+    const esp_extractor_id3_info_t *id3 = NULL;
+    esp_player_err_t ret = esp_player_get_id3_info(ctx.player, &id3);
+    if (ret == ESP_PLAYER_ERR_FAIL) {
+        ESP_LOGW(TAG, "MP3 file has no ID3 tag: %s", mp3_file);
+        TEST_IGNORE_MESSAGE("MP3 test file has no ID3 tags; use an MP3 with ID3v2 metadata");
+    }
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_OK, ret, "esp_player_get_id3_info should succeed for tagged MP3");
+    TEST_ASSERT_NOT_NULL(id3);
+
+    sc_log_id3_info(mp3_file, id3);
+
+    bool has_text = (id3->title && id3->title[0] != '\0')
+                    || (id3->author && id3->author[0] != '\0')
+                    || (id3->album && id3->album[0] != '\0');
+    TEST_ASSERT_TRUE_MESSAGE(has_text,
+                             "ID3 parsed but title/author/album are all empty");
+
+    TEST_ASSERT_TRUE(sc_stop_and_wait(&ctx));
+    sc_destroy_player_and_render(&ctx);
 }
 
 TEST_CASE("[switch]:test_player_sequential_url_switch", "[player][scenario]")
@@ -393,25 +687,7 @@ TEST_CASE("[switch]:test_player_av_mask_dynamic_switch", "[player][scenario]")
     }
 
     sc_ctx_t ctx = {0};
-    ctx.stream_idx = 0;
-    ctx.event_group = xEventGroupCreate();
-    TEST_ASSERT_NOT_NULL(ctx.event_group);
-
-    esp_player_err_t ret = audio_render_create_handle(
-        (esp_audio_render_stream_handle_t *)&ctx.audio_stream_handle,
-        44100, 16, 2, ESP_AUDIO_RENDER_STREAM_ID(0));
-    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, ret);
-
-    void *vid_handle = NULL;
-    video_render_create_handle(&vid_handle, ESP_VIDEO_CODEC_PIXEL_FMT_RGB888, 30);
-    ctx.video_stream_handle = vid_handle;
-
-    esp_player_config_t cfg = ESP_PLAYER_CONFIG_DEFAULT();
-    cfg.audio_render_hd = ctx.audio_stream_handle;
-    cfg.video_render_hd = ctx.video_stream_handle;
-    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
-                      esp_player_init(&cfg, &ctx.player));
-    esp_player_set_event_cb(ctx.player, sc_event_cb, &ctx);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, sc_create_av_player(&ctx, 0));
 
     const struct {
         uint8_t  mask;
@@ -438,11 +714,7 @@ TEST_CASE("[switch]:test_player_av_mask_dynamic_switch", "[player][scenario]")
         vTaskDelay(pdMS_TO_TICKS(300));
     }
 
-    sc_destroy_player_only(&ctx);
-    if (ctx.video_stream_handle) {
-        video_render_destroy_handle();
-    }
-    audio_render_destroy_handle();
+    sc_destroy_av_player_and_render(&ctx);
 }
 
 TEST_CASE("[switch]:test_player_runtime_track_switch", "[player][scenario]")
@@ -453,26 +725,7 @@ TEST_CASE("[switch]:test_player_runtime_track_switch", "[player][scenario]")
     }
 
     sc_ctx_t ctx = {0};
-    ctx.stream_idx = 0;
-    ctx.event_group = xEventGroupCreate();
-    TEST_ASSERT_NOT_NULL(ctx.event_group);
-
-    esp_player_err_t ret = audio_render_create_handle(
-        (esp_audio_render_stream_handle_t *)&ctx.audio_stream_handle,
-        44100, 16, 2, ESP_AUDIO_RENDER_STREAM_ID(0));
-    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, ret);
-
-    void *vid_handle = NULL;
-    video_render_create_handle(&vid_handle, ESP_VIDEO_CODEC_PIXEL_FMT_RGB888, 30);
-    ctx.video_stream_handle = vid_handle;
-
-    esp_player_config_t cfg = ESP_PLAYER_CONFIG_DEFAULT();
-    cfg.audio_render_hd = ctx.audio_stream_handle;
-    cfg.video_render_hd = ctx.video_stream_handle;
-    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_init(&cfg, &ctx.player));
-    esp_player_set_event_cb(ctx.player, sc_event_cb, &ctx);
-
-    esp_player_set_av_mask(ctx.player, ESP_PLAYER_MASK_AV);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, sc_create_av_player(&ctx, 0));
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, mp4));
     TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx), "AV stream failed to start");
 
@@ -497,56 +750,46 @@ TEST_CASE("[switch]:test_player_runtime_track_switch", "[player][scenario]")
     TEST_ASSERT_EQUAL_MESSAGE(0, bits & SC_ERROR_BIT, "Unexpected ERROR during track switch");
 
     TEST_ASSERT_TRUE(sc_stop_and_wait(&ctx));
-    sc_destroy_player_only(&ctx);
-    if (ctx.video_stream_handle) {
-        video_render_destroy_handle();
-    }
-    audio_render_destroy_handle();
+    sc_destroy_av_player_and_render(&ctx);
 }
 
-static void sc_mixer_player_task(void *arg)
+TEST_CASE("[scenario]:test_player_av_sync_mode_play", "[player][scenario]")
 {
-    sc_mixer_task_arg_t *a = (sc_mixer_task_arg_t *)arg;
-    sc_ctx_t *c = a->ctx;
-
-    if (a->url) {
-        esp_player_set_url(c->player, a->url);
+    char mp4[TEST_PATH_MAX_LEN] = {0};
+    if (!sc_get_first_file(TEST_FILE_AV_PATH, ".mp4", mp4, sizeof(mp4))) {
+        TEST_IGNORE_MESSAGE("No .mp4 file found, skip");
     }
 
-    for (const char *p = a->play_seq; *p; p++) {
-        switch (*p) {
-            case 'r':
-                sc_run_and_wait_played(c);
-                vTaskDelay(pdMS_TO_TICKS(2000));
-                break;
-            case 'p':
-                if (esp_player_pause(c->player) == ESP_PLAYER_ERR_OK) {
-                    sc_wait_bits(c, SC_PAUSED_BIT, SC_TIMEOUT_PLAY_MS);
-                    vTaskDelay(pdMS_TO_TICKS(1000));
-                }
-                break;
-            case 'e':
-                if (esp_player_resume(c->player) == ESP_PLAYER_ERR_OK) {
-                    sc_wait_bits(c, SC_PLAYED_BIT, SC_TIMEOUT_PLAY_MS);
-                    vTaskDelay(pdMS_TO_TICKS(2000));
-                }
-                break;
-            case 's':
-                sc_stop_and_wait(c);
-                vTaskDelay(pdMS_TO_TICKS(500));
-                break;
-            case 'f':
-                sc_wait_bits(c, SC_FINISHED_BIT, SC_TIMEOUT_FINISH_MS);
-                break;
-            default:
-                break;
-        }
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, sc_create_av_player(&ctx, 0));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, mp4));
+
+    static const struct {
+        esp_player_sync_mode_t  mode;
+        const char *name;
+    } modes[] = {
+        {ESP_PLAYER_SYNC_MODE_SYSTEM, "SYSTEM"},
+        {ESP_PLAYER_SYNC_MODE_AUDIO, "AUDIO"},
+        {ESP_PLAYER_SYNC_MODE_VIDEO, "VIDEO"},
+        {ESP_PLAYER_SYNC_MODE_NONE, "NONE"},
+    };
+
+    for (size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+        ESP_LOGI(TAG, "AV sync mode round [%u]: %s", (unsigned)i, modes[i].name);
+
+        TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_sync_mode(ctx.player, modes[i].mode));
+
+        sc_clear_bits(&ctx, SC_ERROR_BIT | SC_PLAYED_BIT | SC_STOPPED_BIT);
+        TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx), "Expected PLAYED with sync mode");
+
+        vTaskDelay(pdMS_TO_TICKS(1500));
+        TEST_ASSERT_EQUAL_MESSAGE(0, xEventGroupGetBits(ctx.event_group) & SC_ERROR_BIT, "Unexpected ERROR during sync mode playback");
+
+        TEST_ASSERT_TRUE(sc_stop_and_wait(&ctx));
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 
-    if (a->done_group) {
-        xEventGroupSetBits(a->done_group, a->done_bit);
-    }
-    vTaskDelete(NULL);
+    sc_destroy_av_player_and_render(&ctx);
 }
 
 TEST_CASE("[mixer]:test_player_3stream_concurrent", "[player][scenario]")
@@ -979,28 +1222,6 @@ TEST_CASE("[perf]:test_player_high_freq_run_stop_stress", "[player][scenario]")
     sc_destroy_player_and_render(&ctx);
 }
 
-static void sc_concurrent_seek_task(void *arg)
-{
-    sc_mt_seek_arg_t *a = (sc_mt_seek_arg_t *)arg;
-    int local_ok = 0;
-
-    for (int i = 0; i < a->rounds; i++) {
-        uint64_t target_ms = (esp_random() % 10) * 1000;
-        esp_player_err_t ret = esp_player_seek(a->player, target_ms);
-        if (ret == ESP_PLAYER_ERR_OK) {
-            local_ok++;
-        }
-        vTaskDelay(pdMS_TO_TICKS(50 + esp_random() % 100));
-    }
-
-    xSemaphoreTake(a->counter_mutex, portMAX_DELAY);
-    *(a->ok_count) += local_ok;
-    xSemaphoreGive(a->counter_mutex);
-
-    xEventGroupSetBits(a->done_group, a->done_bit);
-    vTaskDelete(NULL);
-}
-
 TEST_CASE("[multithread]:test_player_concurrent_seek", "[player][scenario]")
 {
     char m4a[TEST_PATH_MAX_LEN] = {0};
@@ -1054,29 +1275,58 @@ TEST_CASE("[multithread]:test_player_concurrent_seek", "[player][scenario]")
     sc_destroy_player_and_render(&ctx);
 }
 
-static void sc_high_priority_disruptor(void *arg)
+TEST_CASE("[multithread]:test_player_stop_run_race", "[player][scenario]")
 {
-    sc_priority_arg_t *a = (sc_priority_arg_t *)arg;
-    int round = 0;
-    while (*(a->running_flag)) {
-        uint32_t r = esp_random() % 3;
-        switch (r) {
-            case 0:
-                esp_player_pause(a->player);
-                break;
-            case 1:
-                esp_player_resume(a->player);
-                break;
-            case 2:
-                esp_player_seek(a->player, (esp_random() % 8) * 1000);
-                break;
-        }
-        vTaskDelay(pdMS_TO_TICKS(300 + esp_random() % 700));
-        round++;
+    char m4a[TEST_PATH_MAX_LEN] = {0};
+    if (!sc_get_first_file(TEST_FILE_AUDIO_PATH, ".m4a", m4a, sizeof(m4a))) {
+        TEST_IGNORE_MESSAGE("No .m4a file found, skip");
     }
-    ESP_LOGI(TAG, "[PriorityTest] Disruptor finished after %d rounds", round);
-    xEventGroupSetBits(a->done_group, a->done_bit);
-    vTaskDelete(NULL);
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, m4a));
+
+    EventGroupHandle_t done_group = xEventGroupCreate();
+    TEST_ASSERT_NOT_NULL(done_group);
+
+    const int TASKS = 4;
+    const int ROUNDS_PER_TASK = 25;
+    sc_mt_stop_run_arg_t args[4];
+    EventBits_t all_done = 0;
+    int priorities[] = {5, 6, 7, 8};
+
+    for (int i = 0; i < TASKS; i++) {
+        args[i].player = ctx.player;
+        args[i].role = i % 2;
+        args[i].rounds = ROUNDS_PER_TASK;
+        args[i].done_group = done_group;
+        args[i].done_bit = (1 << i);
+        args[i].task_priority = priorities[i];
+        all_done |= (1 << i);
+
+        xTaskCreate(sc_stop_run_race_task, "sc_stop_run",
+                    4096, &args[i], priorities[i], NULL);
+    }
+
+    EventBits_t got = xEventGroupWaitBits(done_group, all_done, pdTRUE, pdTRUE,
+                                          pdMS_TO_TICKS(60000));
+    TEST_ASSERT_EQUAL_MESSAGE(all_done, got & all_done,
+                              "stop/run race tasks did not all finish");
+
+    vTaskDelay(pdMS_TO_TICKS(500));
+    esp_player_stop(ctx.player);
+    (void)sc_wait_bits(&ctx, SC_STOPPED_BIT | SC_FINISHED_BIT, SC_TIMEOUT_STOP_MS);
+    sc_clear_bits(&ctx, SC_ERROR_BIT | SC_PLAYED_BIT | SC_STOPPED_BIT);
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx),
+                             "Player should recover after stop/run race");
+    TEST_ASSERT_EQUAL_MESSAGE(0, xEventGroupGetBits(ctx.event_group) & SC_ERROR_BIT,
+                              "Unexpected ERROR after stop/run race recovery");
+
+    TEST_ASSERT_TRUE(sc_stop_and_wait(&ctx));
+
+    vEventGroupDelete(done_group);
+    sc_destroy_player_and_render(&ctx);
 }
 
 TEST_CASE("[multithread]:test_player_priority_high_low_contention", "[player][scenario]")
@@ -1167,6 +1417,149 @@ TEST_CASE("[recovery]:test_player_errors_then_valid_url", "[player][scenario]")
     sc_destroy_player_and_render(&ctx);
 }
 
+TEST_CASE("[recovery]:test_player_after_full_error_stop_then_run", "[player][scenario]")
+{
+    char error_file[TEST_PATH_MAX_LEN] = {0};
+    char valid_file[TEST_PATH_MAX_LEN] = {0};
+
+    if (!sc_get_first_file(TEST_FILE_ERROR_PATH, NULL, error_file, sizeof(error_file))) {
+        TEST_IGNORE_MESSAGE("No error file found, skip");
+    }
+    if (!sc_get_first_file(TEST_FILE_AUDIO_PATH, ".m4a", valid_file, sizeof(valid_file))) {
+        TEST_IGNORE_MESSAGE("No .m4a file found, skip");
+    }
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+
+    sc_trigger_full_error(&ctx, error_file);
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_OK, esp_player_stop(ctx.player),
+                              "stop() should be safe after full ERROR");
+
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, valid_file));
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx),
+                             "run() should recover with a valid URL after full ERROR");
+
+    sc_stop_and_wait(&ctx);
+    sc_destroy_player_and_render(&ctx);
+}
+
+TEST_CASE("[recovery]:test_player_after_full_error_api_matrix", "[player][scenario]")
+{
+    char error_file[TEST_PATH_MAX_LEN] = {0};
+    char valid_file[TEST_PATH_MAX_LEN] = {0};
+
+    if (!sc_get_first_file(TEST_FILE_ERROR_PATH, NULL, error_file, sizeof(error_file))) {
+        TEST_IGNORE_MESSAGE("No error file found, skip");
+    }
+    if (!sc_get_first_file(TEST_FILE_AUDIO_PATH, ".m4a", valid_file, sizeof(valid_file))) {
+        TEST_IGNORE_MESSAGE("No .m4a file found, skip");
+    }
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+
+    sc_trigger_full_error(&ctx, error_file);
+
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_OK, esp_player_stop(ctx.player),
+                              "stop() should be idempotent after full ERROR");
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_INVALID_STATE, esp_player_pause(ctx.player),
+                              "pause() should be rejected after full ERROR auto-recovers to IDLE");
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_INVALID_STATE, esp_player_resume(ctx.player),
+                              "resume() should be rejected after full ERROR auto-recovers to IDLE");
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_INVALID_STATE, esp_player_seek(ctx.player, 0),
+                              "seek() should be rejected after full ERROR auto-recovers to IDLE");
+
+    sc_clear_bits(&ctx, SC_ERROR_BIT | SC_PLAYED_BIT | SC_FINISHED_BIT);
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_OK, esp_player_run(ctx.player),
+                              "run() should be accepted after full ERROR");
+    EventBits_t bits = xEventGroupWaitBits(ctx.event_group,
+                                           SC_ERROR_BIT | SC_PLAYED_BIT,
+                                           pdTRUE, pdFALSE,
+                                           pdMS_TO_TICKS(SC_TIMEOUT_PLAY_MS));
+    TEST_ASSERT_NOT_EQUAL_MESSAGE(0, bits & SC_ERROR_BIT,
+                                  "Re-running the same bad URL should report ERROR again");
+
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, valid_file));
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx),
+                             "Player should still recover after repeated full ERROR");
+
+    sc_stop_and_wait(&ctx);
+    sc_destroy_player_and_render(&ctx);
+}
+
+TEST_CASE("[recovery]:test_player_after_error_stop_recover_audio", "[player][scenario]")
+{
+    char error_file[TEST_PATH_MAX_LEN] = {0};
+    char valid_file[TEST_PATH_MAX_LEN] = {0};
+
+    if (!sc_get_first_file(TEST_FILE_ERROR_PATH, NULL, error_file, sizeof(error_file))) {
+        TEST_IGNORE_MESSAGE("No error file found, skip");
+    }
+    if (!sc_get_first_file(TEST_FILE_AUDIO_PATH, ".m4a", valid_file, sizeof(valid_file))) {
+        TEST_IGNORE_MESSAGE("No .m4a file found, skip");
+    }
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+
+    sc_trigger_full_error(&ctx, error_file);
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_OK, esp_player_stop(ctx.player),
+                              "stop() should be safe after ERROR");
+
+    sc_recover_with_valid_audio_and_wait_playing(&ctx, valid_file);
+
+    sc_stop_and_wait(&ctx);
+    sc_destroy_player_and_render(&ctx);
+}
+
+TEST_CASE("[recovery]:test_player_after_error_recover_pause_seek_resume", "[player][scenario]")
+{
+    char error_file[TEST_PATH_MAX_LEN] = {0};
+    char valid_file[TEST_PATH_MAX_LEN] = {0};
+
+    if (!sc_get_first_file(TEST_FILE_ERROR_PATH, NULL, error_file, sizeof(error_file))) {
+        TEST_IGNORE_MESSAGE("No error file found, skip");
+    }
+    if (!sc_get_first_file(TEST_FILE_AUDIO_PATH, ".m4a", valid_file, sizeof(valid_file))) {
+        TEST_IGNORE_MESSAGE("No .m4a file found, skip");
+    }
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+
+    sc_trigger_full_error(&ctx, error_file);
+
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_INVALID_STATE, esp_player_pause(ctx.player),
+                              "pause() should be rejected before recovery from ERROR");
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_INVALID_STATE, esp_player_seek(ctx.player, 0),
+                              "seek() should be rejected before recovery from ERROR");
+
+    sc_recover_with_valid_audio_and_wait_playing(&ctx, valid_file);
+
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_OK, esp_player_pause(ctx.player),
+                              "pause() should work after recovery playback starts");
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_PAUSED_BIT, SC_TIMEOUT_PLAY_MS),
+                             "Expected PAUSED after recovery pause");
+
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_OK, esp_player_seek(ctx.player, 0),
+                              "seek() should work while paused after recovery");
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_SEEK_MS),
+                             "Expected SEEK_DONE after recovery paused seek");
+
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_OK, esp_player_resume(ctx.player),
+                              "resume() should work after recovery paused seek");
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_PLAYED_BIT, SC_TIMEOUT_PLAY_MS),
+                             "Expected PLAYED after recovery resume");
+
+    sc_stop_and_wait(&ctx);
+    sc_destroy_player_and_render(&ctx);
+}
+
 TEST_CASE("[edge]:test_player_seek_while_paused", "[player][scenario]")
 {
     char m4a[TEST_PATH_MAX_LEN] = {0};
@@ -1209,6 +1602,71 @@ TEST_CASE("[edge]:test_player_seek_while_paused", "[player][scenario]")
 
     vTaskDelay(pdMS_TO_TICKS(2000));
     sc_stop_and_wait(&ctx);
+    sc_destroy_player_and_render(&ctx);
+}
+
+TEST_CASE("[edge]:test_player_seek_boundaries", "[player][scenario]")
+{
+    char m4a[TEST_PATH_MAX_LEN] = {0};
+    if (!sc_get_first_file(TEST_FILE_AUDIO_PATH, ".m4a", m4a, sizeof(m4a))) {
+        TEST_IGNORE_MESSAGE("No .m4a file found, skip");
+    }
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, m4a));
+
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_INVALID_STATE, esp_player_seek(ctx.player, 0),
+                              "seek in IDLE should return INVALID_STATE");
+
+    TEST_ASSERT_TRUE(sc_run_and_wait_played(&ctx));
+
+    uint64_t dur = 0;
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_duration(ctx.player, &dur));
+    TEST_ASSERT_GREATER_THAN(0, dur);
+
+    uint64_t mid = dur / 2;
+    ESP_LOGI(TAG, "[SeekBoundary] duration=%" PRIu64 " ms", dur);
+
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_seek(ctx.player, 0));
+    TEST_ASSERT_TRUE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_SEEK_MS));
+
+    sc_clear_bits(&ctx, SC_SEEK_DONE_BIT);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_seek(ctx.player, mid));
+    TEST_ASSERT_TRUE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_SEEK_MS));
+
+    sc_clear_bits(&ctx, SC_SEEK_DONE_BIT);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_seek(ctx.player, dur));
+    TEST_ASSERT_TRUE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_SEEK_MS));
+
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_pause(ctx.player));
+    TEST_ASSERT_TRUE(sc_wait_bits(&ctx, SC_PAUSED_BIT, SC_TIMEOUT_PLAY_MS));
+
+    sc_clear_bits(&ctx, SC_SEEK_DONE_BIT);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_seek(ctx.player, mid));
+    TEST_ASSERT_TRUE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_SEEK_MS));
+
+    TEST_ASSERT_TRUE(sc_stop_and_wait(&ctx));
+
+    sc_clear_bits(&ctx, SC_SEEK_DONE_BIT | SC_PLAYED_BIT);
+    uint64_t bookmark = dur / 3;
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_seek(ctx.player, bookmark));
+    TEST_ASSERT_TRUE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_SEEK_MS));
+
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_run(ctx.player));
+    TEST_ASSERT_TRUE(sc_wait_bits(&ctx, SC_PLAYED_BIT, SC_TIMEOUT_PLAY_MS));
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    uint64_t play_time = 0;
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_play_time(ctx.player, &play_time));
+    uint64_t expected = bookmark + 500;
+    ESP_LOGI(TAG, "[SeekBoundary] STOPPED bookmark=%" PRIu64 " expected~%" PRIu64 " play_time=%" PRIu64,
+             bookmark, expected, play_time);
+    TEST_ASSERT_GREATER_OR_EQUAL(expected - 1000, play_time);
+    TEST_ASSERT_LESS_OR_EQUAL(expected + 1000, play_time);
+
+    TEST_ASSERT_TRUE(sc_stop_and_wait(&ctx));
     sc_destroy_player_and_render(&ctx);
 }
 
@@ -1289,6 +1747,7 @@ TEST_CASE("[frame_mode]:test_player_continuous_frame_push_stress", "[player][sce
     esp_player_run(ctx.player);
 
     const int FRAME_COUNT = 50;
+    const uint64_t FRAME_DURATION_MS = 23;  /* ~1024 samples @ 44.1 kHz AAC */
     int push_ok = 0;
     ESP_LOGI(TAG, "[FrameStress] Pushing %d AAC frames continuously...", FRAME_COUNT);
 
@@ -1302,7 +1761,7 @@ TEST_CASE("[frame_mode]:test_player_continuous_frame_push_stress", "[player][sce
         esp_player_frame_t frame = {
             .data = (uint8_t *)frame_data,
             .data_len = frame_len,
-            .pts = (uint64_t)i * 23220,
+            .pts = (uint64_t)i * FRAME_DURATION_MS,
             .frame_type = ESP_PLAYER_FRAME_TYPE_DEFAULT,
             .is_bad = false,
             .eos = false,
@@ -1316,7 +1775,7 @@ TEST_CASE("[frame_mode]:test_player_continuous_frame_push_stress", "[player][sce
     esp_player_frame_t eos_frame = {
         .data = (uint8_t *)test_data_aac_frame1,
         .data_len = TEST_DATA_AAC_FRAME1_COUNT,
-        .pts = (uint64_t)FRAME_COUNT * 23220,
+        .pts = (uint64_t)FRAME_COUNT * FRAME_DURATION_MS,
         .frame_type = ESP_PLAYER_FRAME_TYPE_DEFAULT,
         .is_bad = false,
         .eos = true,
@@ -1383,7 +1842,7 @@ TEST_CASE("[frame_mode]:test_player_frame_pts_tracking", "[player][scenario]")
     esp_player_set_url(ctx.player, TEST_FILL_URL_AAC);
     esp_player_run(ctx.player);
 
-    const uint64_t FRAME_DURATION_US = 46440ULL;
+    const uint64_t FRAME_DURATION_MS = 46;  /* ~2048 samples @ 44.1 kHz AAC */
     const int TOTAL_FRAMES = 20;
 
     for (int i = 0; i < TOTAL_FRAMES; i++) {
@@ -1396,13 +1855,13 @@ TEST_CASE("[frame_mode]:test_player_frame_pts_tracking", "[player][scenario]")
         esp_player_frame_t frame = {
             .data = (uint8_t *)frame_data,
             .data_len = frame_len,
-            .pts = (uint64_t)i * FRAME_DURATION_US,
+            .pts = (uint64_t)i * FRAME_DURATION_MS,
             .frame_type = ESP_PLAYER_FRAME_TYPE_DEFAULT,
             .is_bad = false,
             .eos = (i == TOTAL_FRAMES - 1),
         };
         esp_player_err_t ret = esp_player_submit_frame(ctx.player, &frame, 3000);
-        ESP_LOGD(TAG, "[PtsTracking] Frame %d PTS=%" PRIu64 "µs ret=%d",
+        ESP_LOGD(TAG, "[PtsTracking] Frame %d PTS=%" PRIu64 " ms ret=%d",
                  i, frame.pts, ret);
     }
 
@@ -1410,10 +1869,41 @@ TEST_CASE("[frame_mode]:test_player_frame_pts_tracking", "[player][scenario]")
     uint64_t final_time = 0;
     esp_player_get_play_time(ctx.player, &final_time);
 
-    uint64_t expected_ms = (uint64_t)TOTAL_FRAMES * FRAME_DURATION_US / 1000;
+    uint64_t expected_ms = (uint64_t)(TOTAL_FRAMES - 1) * FRAME_DURATION_MS;
     ESP_LOGI(TAG, "[PtsTracking] Expected: ~%" PRIu64 "ms  Actual: %" PRIu64 "ms  Done: %s",
              expected_ms, final_time, done ? "YES" : "TIMEOUT");
 
+    sc_destroy_player_and_render(&ctx);
+}
+
+TEST_CASE("[event]:test_player_event_queue_delivery", "[player][scenario]")
+{
+    char m4a[TEST_PATH_MAX_LEN] = {0};
+    if (!sc_get_first_file(TEST_FILE_AUDIO_PATH, ".m4a", m4a, sizeof(m4a))) {
+        TEST_IGNORE_MESSAGE("No .m4a file found, skip");
+    }
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_event_cb(ctx.player, NULL, NULL));
+
+    QueueHandle_t queue = xQueueCreate(10, sizeof(esp_player_event_msg_t));
+    TEST_ASSERT_NOT_NULL(queue);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_event_queue(ctx.player, queue));
+
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, m4a));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_run(ctx.player));
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_queue_event(queue, ESP_PLAYER_EVENT_PLAYED, SC_TIMEOUT_PLAY_MS),
+                             "Expected PLAYED via event queue");
+
+    vTaskDelay(pdMS_TO_TICKS(500));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_stop(ctx.player));
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_queue_event(queue, ESP_PLAYER_EVENT_STOPPED, SC_TIMEOUT_STOP_MS),
+                             "Expected STOPPED via event queue");
+
+    esp_player_set_event_queue(ctx.player, NULL);
+    vQueueDelete(queue);
     sc_destroy_player_and_render(&ctx);
 }
 

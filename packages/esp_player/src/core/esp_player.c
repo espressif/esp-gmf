@@ -192,6 +192,7 @@ esp_player_err_t esp_player_deinit(esp_player_handle_t handle)
     player_deinit_decoder_subcfg(stream);
     player_free_custom_elements(stream);
     player_free_runtime_config(stream);
+    player_id3_reset(stream);
     free(stream->frame_url);
     stream->frame_url = NULL;
 

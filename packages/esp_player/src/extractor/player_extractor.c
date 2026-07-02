@@ -12,9 +12,11 @@
 #include <limits.h>
 
 #include "esp_extractor_ctrl.h"
+#include "esp_extractor_id3_parser.h"
 #include "impl/esp_raw_extractor.h"
 
 #include "player_extractor.h"
+#include "player_stream.h"
 
 /* Chunk size the RAW extractor reads per frame for headerless inputs (e.g. PCM).
  * Must stay within the extractor output pool (DEFAULT_EXTRACTOR_AUDIO_POOL_SIZE). */
@@ -93,6 +95,39 @@ static esp_gmf_job_err_t extractor_send_eos(esp_gmf_port_handle_t out_port)
     return (io_ret == ESP_GMF_IO_OK) ? ESP_GMF_JOB_ERR_OK : ESP_GMF_JOB_ERR_FAIL;
 }
 
+static void player_extractor_reconcile_id3_parser(esp_player_extractor_t *extractor, esp_extractor_config_t *cfg)
+{
+    if (extractor == NULL || cfg == NULL || cfg->in_ctx == NULL) {
+        return;
+    }
+    esp_player_stream_t *stream = (esp_player_stream_t *)cfg->in_ctx;
+    bool want = (cfg->type == ESP_EXTRACTOR_TYPE_MP3) && stream->id3.enable && !stream->id3.finalize_done;
+    if (!want) {
+        return;
+    }
+    if (stream->id3.parser != NULL) {
+        esp_extractor_id3_parser_close(stream->id3.parser);
+        stream->id3.parser = NULL;
+    }
+    esp_extractor_err_t ret = esp_extractor_id3_parser_open(extractor->extractor_handle, &stream->id3.parser);
+    if (ret != ESP_EXTRACTOR_ERR_OK) {
+        ESP_LOGW(TAG, "Open ID3 parser failed, ret: %d (playback continues without ID3)", ret);
+        stream->id3.parser = NULL;
+    }
+}
+
+static void player_extractor_finalize_id3(esp_gmf_element_handle_t self)
+{
+    esp_extractor_config_t *cfg = (esp_extractor_config_t *)OBJ_GET_CFG(self);
+    if (cfg == NULL || cfg->in_ctx == NULL) {
+        return;
+    }
+    esp_player_stream_t *stream = (esp_player_stream_t *)cfg->in_ctx;
+    if (stream->id3.parser != NULL) {
+        stream->id3.finalize_done = true;
+    }
+}
+
 static esp_gmf_job_err_t player_extractor_open(esp_gmf_element_handle_t self, void *para)
 {
     esp_extractor_err_t extractor_ret = ESP_EXTRACTOR_ERR_OK;
@@ -164,6 +199,9 @@ static esp_gmf_job_err_t player_extractor_open(esp_gmf_element_handle_t self, vo
             }
         }
     }
+    if (extractor->extractor_handle != NULL) {
+        player_extractor_reconcile_id3_parser(extractor, cfg);
+    }
     extractor->is_notify_info = false;
     extractor->extract_mask = cfg->extract_mask;
     extractor->eos_mask = 0;
@@ -223,6 +261,7 @@ static esp_gmf_job_err_t player_extractor_process(esp_gmf_element_handle_t self,
             extractor->eos_mask |= ESP_EXTRACT_MASK_VIDEO;
         }
         extractor->is_parsed = true;
+        player_extractor_finalize_id3(self);
     }
     if (extractor->is_notify_info == false) {
         if (esp_gmf_element_notify_vid_info(self, NULL) != ESP_GMF_ERR_OK) {

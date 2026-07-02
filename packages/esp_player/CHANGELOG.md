@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.0.2
+
+### Features
+
+- Added `esp_player_enable_id3_parse()` to make ID3 parsing optional
+- Added `esp_player_get_id3_info()` for bare MP3 sources
+- Added tests for config/sync/ID3 APIs, seek and event paths, error recovery, and concurrency
+
+### Bug Fixes
+
+- Fixed `esp_player_frame_t.pts` unit documentation to milliseconds
+- Fixed redundant `esp_codec_dev` codec chip options restriction from audio/video player example `sdkconfig.defaults`
+
 ## v1.0.1~1
 
 ### Docs
