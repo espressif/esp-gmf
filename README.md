@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/_static/Banner_GMF.svg" alt="ESP-GMF Banner" width="100%" height="240">
+</p>
+
 # ESP-GMF
 
 - [中文版](./README_CN.md)

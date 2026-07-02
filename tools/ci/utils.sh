@@ -38,11 +38,29 @@ function add_doc_server_ssh_keys() {
 
 function push_to_github() {
   if [ -n "${CI_COMMIT_TAG}" ]; then
-      # for tags
+    # Try dereferenced ref first (annotated tags have a separate tag object).
+    # For lightweight tags ^{} returns nothing, so fall back to the plain ref.
+    # Both paths resolve to the underlying commit SHA for correct comparison.
+    local remote_commit
+    remote_commit=$(git ls-remote github "refs/tags/${CI_COMMIT_TAG}^{}" | awk '{print $1}')
+    if [ -z "${remote_commit}" ]; then
+      remote_commit=$(git ls-remote github "refs/tags/${CI_COMMIT_TAG}" | awk '{print $1}')
+    fi
+    local local_commit
+    local_commit=$(git rev-list -n 1 "${CI_COMMIT_TAG}")
+
+    if [ -z "${remote_commit}" ]; then
       git push github "${CI_COMMIT_TAG}"
+    elif [ "${remote_commit}" = "${local_commit}" ]; then
+      echo "Tag ${CI_COMMIT_TAG} already exists on GitHub at same commit ${local_commit}, skipping push."
+    else
+      echo "ERROR: Tag ${CI_COMMIT_TAG} already exists on GitHub pointing to ${remote_commit}," \
+           " but local tag points to ${local_commit}. Please resolve the conflicting tag on GitHub first."
+      exit 1
+    fi
   else
-      # for branches
-      git push github "${CI_COMMIT_SHA}:refs/heads/${CI_COMMIT_REF_NAME}"
+    # for branches
+    git push github "${CI_COMMIT_SHA}:refs/heads/${CI_COMMIT_REF_NAME}"
   fi
 }
 
