@@ -45,7 +45,8 @@ static bool is_lyrat_mini_v1_1(void)
     if (esp_board_manager_get_board_info(&board_info) != ESP_OK || board_info.name == NULL) {
         return false;
     }
-    return strcmp(board_info.name, "lyrat_mini_v1_1") == 0;
+    return strcmp(board_info.name, "lyrat_mini_v1_1") == 0 ||
+           strcmp(board_info.name, "esp32_lyrat_mini_1_1") == 0;
 }
 
 static esp_err_t pipeline_event_handler(esp_gmf_event_pkt_t *event, void *ctx)

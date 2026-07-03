@@ -208,6 +208,34 @@ def _yaml_str_list_field(raw: dict, key: str, default: Sequence[str]) -> List[st
     return list(value)
 
 
+def _resolve_config_path(
+    raw_value: object,
+    *,
+    config_path: Path,
+    name: str,
+    env_var: Optional[str] = None,
+    default: Optional[Path] = None,
+) -> Path:
+    if raw_value is None or str(raw_value).strip() == '':
+        env_value = os.environ.get(env_var) if env_var else None
+        if env_value:
+            raw_value = env_value
+        elif default is not None:
+            return default.expanduser().resolve()
+        else:
+            env_hint = f' or export {env_var}' if env_var else ''
+            raise ValueError(f'{name} is not set; configure {name}{env_hint}')
+
+    value = os.path.expandvars(str(raw_value)).strip()
+    if '$' in value:
+        raise ValueError(f'{name} references an unset environment variable: {raw_value}')
+
+    resolved = Path(value).expanduser()
+    if not resolved.is_absolute():
+        resolved = config_path.parent / resolved
+    return resolved.resolve()
+
+
 def _load_config(path: Path) -> BatchConfig:
     with path.open(encoding='utf-8') as fh:
         raw = yaml.safe_load(fh)
@@ -239,8 +267,19 @@ def _load_config(path: Path) -> BatchConfig:
         install_bmgr_assist=bool(idf_raw.get('install_bmgr_assist', True)),
     )
 
-    project_path = Path(raw['project_path']).expanduser().resolve()
-    idf_path = Path(raw['idf_path']).expanduser().resolve()
+    project_path = _resolve_config_path(
+        raw.get('project_path'),
+        config_path=path,
+        name='project_path',
+        env_var='PROJECT_PATH',
+        default=path.parent.parent.parent,
+    )
+    idf_path = _resolve_config_path(
+        raw.get('idf_path'),
+        config_path=path,
+        name='idf_path',
+        env_var='IDF_PATH',
+    )
 
     idf_extra_actions_path = raw.get('idf_extra_actions_path')
     if idf_extra_actions_path:
@@ -2227,7 +2266,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    cfg = _load_config(args.config.resolve())
+    try:
+        cfg = _load_config(args.config.resolve())
+    except ValueError as exc:
+        parser.error(str(exc))
     if args.batch_dir:
         _apply_batch_dir_override(cfg, args.batch_dir)
     try:

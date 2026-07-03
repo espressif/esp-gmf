@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.0~1
+
+- Updated the `esp-board-manager` dependency version.
+
 ## v1.0.0
 
 - Switched `esp_board_manager` integration from local `override_path` to the standalone component at [espressif/esp-board-manager](https://github.com/espressif/esp-board-manager); pinned to `^0.5.11`.

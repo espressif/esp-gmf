@@ -23,13 +23,13 @@
 
 ### 资源列表
 
-- 默认使用带 Audio DAC/ADC、I2S、microSD 的音频开发板（如 lyrat_mini_v1_1）；A2DP Source 需准备 microSD 及测试音频文件
+- 默认使用带 Audio DAC/ADC、I2S、microSD 的音频开发板（如 esp32_lyrat_mini_1_1）；A2DP Source 需准备 microSD 及测试音频文件
 
 ## 环境配置
 
 ### 硬件要求
 
-- **开发板**：默认经典蓝牙配置使用 `lyrat_mini_v1_1`；LE Audio 需使用支持 BLE ISO/Bluetooth Audio 的 ESP 芯片与 controller 配置，并准备具备 I2S Codec 资源的音频板
+- **开发板**：默认经典蓝牙配置使用 `esp32_lyrat_mini_1_1`；LE Audio 需使用支持 BLE ISO/Bluetooth Audio 的 ESP 芯片与 controller 配置，并准备具备 I2S Codec 资源的音频板
 - **外设**：Audio DAC、Audio ADC、I2S、microSD 卡（A2DP Source 角色需存放 `media0.mp3`、`media1.mp3`、`media2.mp3`）,LCD 与触摸面板（可选的 UI 需要）
 - **蓝牙**：经典蓝牙（BR/EDR）用于 A2DP、AVRCP、HFP；LE Audio 需 NimBLE、Bluetooth Audio 与 ISO 支持
 
@@ -80,7 +80,7 @@ cd $YOUR_GMF_PATH/packages/esp_bt_audio/examples/bt_audio
 
 ```bash
 pip install esp-bmgr-assist
-pip install --upgrade esp-bmgr-assist
+pip install --upgrade esp-bmgr-assist  # 当提示需要更新时执行此命令
 ```
 
 - 查看支持的板子：
@@ -92,17 +92,24 @@ idf.py bmgr -l
 输出示例：
 
 ```text
-ℹ️  Main Boards:
-  [1] dual_eyes_board_v1_0
-  [2] esp32_c3_lyra
-  [3] esp32_c5_spot
-  [4] esp32_p4_function_ev
-  [5] esp32_s3_korvo2_v3
-  [6] esp32_s3_korvo2l
-  [7] esp_box_3
-  [8] esp_box_lite
-  [9] esp_hi
+ℹ️  Board Components:
+  espressif/esp_boards:
+    [1] esp32_c3_lyra
+    [2] esp32_lyrat_4_3
+    [3] esp32_lyrat_mini_1_1
+    [4] esp32_p4_eye
+    [5] esp32_p4_function_ev_board
+    [6] esp32_s31_function_coreboard_1
+    [7] esp32_s31_korvo_1
+    [8] esp32_s3_box_3
+    [9] esp32_s3_box_lite
+    [10] esp32_s3_korvo_2_3
+    [11] esp32_s3_lcd_ev_board
+    [12] esp_vocat_1_0
+    [13] esp_vocat_1_2
 ```
+
+以上输出示例基于 `esp_boards` 0.5.2 的开发板列表和排序。不同 `esp_boards` 版本或自定义开发板依赖可能会使列表和序号变化，使用时以 `idf.py bmgr -l` 的实际输出为准。
 
 - 选择开发板：
 
@@ -110,19 +117,19 @@ idf.py bmgr -l
 idf.py bmgr -b <board_index|board_name>
 ```
 
-例如选择 `esp32_s3_korvo2_v3`：
+例如选择 `esp32_s3_korvo_2_3`：
 
 ```bash
-idf.py bmgr -b 5
+idf.py bmgr -b 10
 # 或
-idf.py bmgr -b esp32_s3_korvo2_v3
+idf.py bmgr -b esp32_s3_korvo_2_3
 ```
 
 首次执行 `idf.py bmgr` 时，组件会根据本工程 `main/idf_component.yml` 中声明的 `espressif/esp_board_manager` 依赖自动下载。
 
 > [!NOTE]
 > 如果切换为其他 `esp_board_manager` 支持的开发板，请按相同步骤执行并替换板型名称/索引。
-> 自定义开发板请参考 [自定义开发板指南](https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/docs/how_to_customize_board_cn.md)。
+> 自定义开发板请参考 [创建开发板指南](https://docs.espressif.com/projects/esp-board-manager/zh_CN/latest/create-board/index.html)。
 > `esp_board_manager` 更多信息请参考 [ESP_BOARD_MANAGER 入门指南](https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/README_CN.md)
 
 ### 项目配置
@@ -298,7 +305,7 @@ BTAudio >
 ### 编译或板级相关错误
 
 - 确认已安装 `esp-bmgr-assist`（`pip install esp-bmgr-assist`），并已执行 `idf.py set-target esp32`、`idf.py bmgr -b <board>`
-- 若使用自定义板，请参考 [自定义板子](https://github.com/espressif/esp-board-manager/blob/main/esp_board_manager/docs/how_to_customize_board_cn.md) 配置板型
+- 若使用自定义板，请参考 [创建开发板指南](https://docs.espressif.com/projects/esp-board-manager/zh_CN/latest/create-board/index.html) 配置板型
 
 ### 无法获取通讯录或通话记录
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.0~1
+
+### Docs
+
+- Updated example README files to use the latest ESP Board Manager board selection commands and board names
+
 ## v1.0.0
 
 - Switched the `esp_board_manager` dependency in examples from local `override_path` to the standalone component at [espressif/esp-board-manager](https://github.com/espressif/esp-board-manager); pinned to `^0.5.11`.

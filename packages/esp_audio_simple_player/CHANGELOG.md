@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.0~1
+
+### Bug Fixes
+
+- Fixed test app build failure caused by IRAM overflow by disabling LWIP IRAM optimization
+
 ## v1.0.0
 
 ### Breaking Changes
