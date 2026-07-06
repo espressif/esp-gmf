@@ -1692,4 +1692,83 @@ menu "GMF Audio Effects"
                 The transition time in milliseconds when the weight changes from 0 to 1 in fade-in mode
                 and from 1 to 0 in fade-out mode
     endif
+
+    config GMF_AUDIO_EFFECT_INIT_REVERB
+        bool "Initialize GMF Audio Effect REVERB"
+        default n
+        help
+            Register the GMF reverb element (esp_gmf_reverb) in the default pool.
+
+    if GMF_AUDIO_EFFECT_INIT_REVERB
+        config GMF_AUDIO_EFFECT_REVERB_ROOM_SIZE_X10
+            int "Reverb Room Size × 10"
+            range 0 10
+            default 5
+            help
+                Room size factor; valid range [0.0, 1.0]. Configured value is × 10 (e.g. 5 = 0.5).
+
+        config GMF_AUDIO_EFFECT_REVERB_DAMPING_X10
+            int "Reverb Damping × 10"
+            range 0 10
+            default 5
+            help
+                High-frequency damping factor; valid range [0.0, 1.0]. Configured value is × 10.
+
+        config GMF_AUDIO_EFFECT_REVERB_WET_LEVEL_X10
+            int "Reverb Wet Level (dB) × 10"
+            range -960 0
+            default -60
+            help
+                Wet signal level in dB; valid range [-96.0, 0.0]. Configured value is × 10 (e.g. -60 = -6.0 dB).
+
+        config GMF_AUDIO_EFFECT_REVERB_DRY_LEVEL_X10
+            int "Reverb Dry Level (dB) × 10"
+            range -960 0
+            default 0
+            help
+                Dry signal level in dB; valid range [-96.0, 0.0]. Configured value is × 10.
+
+        config GMF_AUDIO_EFFECT_REVERB_PRE_DELAY_MS
+            int "Reverb Pre-delay (ms)"
+            range 0 200
+            default 20
+            help
+                Pre-delay time before reverb onset in milliseconds.
+    endif
+
+    config GMF_AUDIO_EFFECT_INIT_DELAY
+        bool "Initialize GMF Audio Effect DELAY"
+        default n
+        help
+            Register the GMF delay element (esp_gmf_delay) in the default pool.
+
+    if GMF_AUDIO_EFFECT_INIT_DELAY
+        config GMF_AUDIO_EFFECT_DELAY_MAX_MS
+            int "Delay Maximum Time (ms)"
+            range 1 1000
+            default 500
+            help
+                Maximum delay buffer size in milliseconds.
+
+        config GMF_AUDIO_EFFECT_DELAY_TIME_MS
+            int "Delay Time (ms)"
+            range 0 1000
+            default 250
+            help
+                Delay time in milliseconds. Must not exceed maximum delay time.
+
+        config GMF_AUDIO_EFFECT_DELAY_FEEDBACK_X100
+            int "Delay Feedback × 100"
+            range 0 95
+            default 35
+            help
+                Feedback coefficient; valid range [0.0, 0.95]. Configured value is × 100 (e.g. 35 = 0.35).
+
+        config GMF_AUDIO_EFFECT_DELAY_MIX_X100
+            int "Delay Mix × 100"
+            range 0 100
+            default 35
+            help
+                Wet/dry mix ratio; valid range [0.0, 1.0]. Configured value is × 100 (e.g. 35 = 0.35).
+    endif
 endmenu

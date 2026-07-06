@@ -64,6 +64,8 @@
 #include "esp_gmf_audio_enc.h"
 #include "esp_gmf_audio_dec.h"
 #include "esp_gmf_howl.h"
+#include "esp_gmf_reverb.h"
+#include "esp_gmf_delay.h"
 #include "esp_gmf_audio_muxer.h"
 #include "esp_gmf_audio_methods_def.h"
 #include "gmf_audio_el_com.h"
@@ -1091,6 +1093,58 @@ TEST_CASE("Audio HOWL Element Test", "[ESP_GMF_AUDIO][leaks=1400]")
     // Test for run with multi task
     test_element_run_with_multi_task(&cfg, NULL);
     // Test for config task with different priorities
+    test_element_cfg_task_priority(&cfg, NULL);
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Audio REVERB Element Test", "[ESP_GMF_AUDIO][leaks=1400]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+    audio_el_res_cfg_t cfg = DEFAULT_SINGLE_IN_SINGLE_OUT_CONFIG();
+    cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_REVERB};
+    audio_el_res_t *res = NULL;
+    audio_el_res_init(&cfg, &res);
+    res->config_func = NULL;
+    audio_el_set_audio_info(res);
+    test_element_run_stop(res);
+    audio_el_set_audio_info(res);
+    test_element_run_finish(res);
+    audio_el_set_audio_info(res);
+    test_element_reopen_parameter_persistence(res);
+    audio_el_set_audio_info(res);
+    res->in_inst[0].src_info.sample_rates = 0;
+    test_element_run_error_open(res);
+    audio_el_set_audio_info(res);
+    test_element_run_error_process(res);
+    audio_el_res_deinit(res);
+    test_element_run_with_multi_task(&cfg, NULL);
+    test_element_cfg_task_priority(&cfg, NULL);
+    ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Audio DELAY Element Test", "[ESP_GMF_AUDIO][leaks=1400]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    ESP_GMF_MEM_SHOW(TAG);
+    audio_el_res_cfg_t cfg = DEFAULT_SINGLE_IN_SINGLE_OUT_CONFIG();
+    cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_DELAY};
+    audio_el_res_t *res = NULL;
+    audio_el_res_init(&cfg, &res);
+    res->config_func = NULL;
+    audio_el_set_audio_info(res);
+    test_element_run_stop(res);
+    audio_el_set_audio_info(res);
+    test_element_run_finish(res);
+    audio_el_set_audio_info(res);
+    test_element_reopen_parameter_persistence(res);
+    audio_el_set_audio_info(res);
+    res->in_inst[0].src_info.sample_rates = 0;
+    test_element_run_error_open(res);
+    audio_el_set_audio_info(res);
+    test_element_run_error_process(res);
+    audio_el_res_deinit(res);
+    test_element_run_with_multi_task(&cfg, NULL);
     test_element_cfg_task_priority(&cfg, NULL);
     ESP_GMF_MEM_SHOW(TAG);
 }

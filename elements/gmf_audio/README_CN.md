@@ -15,16 +15,23 @@ ESP GMF Audio 是 GMF 音频处理相关元素的集合，包括音频编码，�
 |  BIT_CVT | aud_bit_cvt | 音频比特位转换  | `set_dest_bits`| 单个 |  单个  |最大延迟 |最大延迟| 是 |
 |  CH_CVT  | aud_ch_cvt | 音频声道数转换   | `set_dest_ch`|  单个 |  单个  |最大延迟 |最大延迟| 是 |
 |  AUD_ASRC | aud_asrc | 自适应音频信息转换模块，结合硬件 ASRC 与软件采样率、位深度、声道转换能力 | `set_dest_rate`<br>`set_dest_ch`<br>`set_dest_bits` | 单个 | 单个 |最大延迟 |最大延迟| 是 |
-|  ALC     | aud_alc | 音频音量调节    | `set_gain`<br>`get_gain`| 单个 |  单个  |最大延迟 |最大延迟| 是 |
+|  ALC     | aud_alc | 音频音量调节    | `set_gain`<br>`get_gain`<br>`set_transit_time`<br>`get_transit_time`| 单个 |  单个  |最大延迟 |最大延迟| 是 |
 |  EQ      | aud_eq | 音频均衡器调节  |`set_para`<br>`get_para`<br>`enable_filter`  |单个 |单个|最大延迟 |最大延迟|是 |
 |  FADE    | aud_fade | 音频淡入淡出效果    |`set_mode`<br>`get_mode`<br>`reset` | 单个 |  单个  |最大延迟 |最大延迟 |是 |
 |  SONIC   | aud_sonic | 音频变速变调效果    |`set_speed`<br>`get_speed`<br>`set_pitch`<br>`get_pitch`| 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  DRC     | aud_drc | 音频动态范围控制    |`set_attack`<br>`get_attack`<br>`set_release`<br>`get_release`<br>`set_hold`<br>`get_hold`<br>`set_makeup`<br>`get_makeup`<br>`set_knee`<br>`get_knee`<br>`set_points`<br>`get_point_num`<br>`get_points`| 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  MBC     | aud_mbc | 音频多频段压缩    |`set_para`<br>`get_para`<br>`set_fc`<br>`get_fc`<br>`set_solo`<br>`get_solo`<br>`set_bypass`<br>`get_bypass`| 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  HOWL    | aud_howl | 啸叫抑制（声学反馈抑制） | 无 | 单个 | 单个 |最大延迟 |最大延迟| 是 |
+|  REVERB  | aud_reverb | 混响效果（Freeverb 算法） | `set_room_size`<br>`get_room_size`<br>`set_damping`<br>`get_damping`<br>`set_wet_level`<br>`get_wet_level`<br>`set_dry_level`<br>`get_dry_level`<br>`reset` | 单个 | 单个 |最大延迟 |最大延迟| 是 |
+|  DELAY   | aud_delay | 延时/回声效果 | `set_delay_time`<br>`get_delay_time`<br>`set_feedback`<br>`get_feedback`<br>`set_mix_ratio`<br>`get_mix_ratio`<br>`reset` | 单个 | 单个 |最大延迟 |最大延迟| 是 |
 |  MIXER   | aud_mixer | 音频混音效果  |`set_mode`<br>`set_info`|  多个 |  单个  | 第一路阻塞时间为0，其他路阻塞时间为最大延迟 |最大延迟| 否 |
 |INTERLEAVE| aud_intlv | 数据交织    | 无 | 多个 |  单个  | 可用户配置，默认是最大延迟 |最大延迟| 是 |
 |DEINTERLEAVE| aud_deintlv | 数据解交织 | 无| 单个 |  多个  |最大延迟|可用户配置，默认是最大延迟 |是 |
+
+## 自 v1.1.0 起的不兼容变更
+
+- **ESP32-P4 芯片版本**：当前依赖的 `esp_audio_codec` 和 `esp_audio_effects` 仅支持 **芯片版本 ≥ 3.0**。若芯片版本 **< 3.0**，请使用 **gmf_audio 版本 < 1.1.0**。
+- **ESP32-S31 核亲和性**：开启 `ESP_AUDIO_CODEC_S31_USE_ASM` / `ESP_AUDIO_EFFECTS_S31_USE_ASM`（PIE 汇编优化）时，相关 `*_process()` API 须在 **核 1** 上调用；若需自定义绑核，请在 `menuconfig` 中将二者设为 `n`（性能会下降）。
 
 ## 示例
 ESP GMF Audio 常常组合成管道使用，示例代码请参考 [test_app](../test_apps/main/elements/gmf_audio_play_el_test.c)。

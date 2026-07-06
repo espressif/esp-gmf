@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
  * See LICENSE file for details.
@@ -18,19 +18,21 @@
 #include "esp_gmf_caps_def.h"
 #include "esp_gmf_audio_element.h"
 
-#define GMF_ALC_DEFAULT_MAX_CHANNEL 2
+#define GMF_ALC_DEFAULT_MAX_CHANNEL  2
 /**
  * @brief  Audio ALC context in GMF
  */
 typedef struct {
-    esp_gmf_audio_element_t parent;            /*!< The GMF alc handle */
-    esp_ae_alc_handle_t     alc_hd;            /*!< The audio effects alc handle */
-    uint8_t                 bytes_per_sample;  /*!< Bytes number of per sampling point */
-    int8_t                 *gain;              /*!< The modified gain value of a certain channel number */
-    int8_t                  max_ch;            /*!< The maximum channel number */
-    bool                    need_reopen : 1;   /*!< Whether need to reopen.
-                                                    True: Execute the close function first, then execute the open function
-                                                    False: Do nothing */
+    esp_gmf_audio_element_t  parent;                /*!< The GMF alc handle */
+    esp_ae_alc_handle_t      alc_hd;                /*!< The audio effects alc handle */
+    uint8_t                  bytes_per_sample;      /*!< Bytes number of per sampling point */
+    int8_t                  *gain;                  /*!< The modified gain value of a certain channel number */
+    int8_t                   max_ch;                /*!< The maximum channel number */
+    uint16_t                 transit_time_ms;       /*!< Cached transit time (ms per 1 dB). Valid when transit_time_set */
+    bool                     need_reopen : 1;       /*!< Whether need to reopen.
+                                                         True: Execute the close function first, then execute the open function
+                                                         False: Do nothing */
+    bool                     transit_time_set : 1;  /*!< Whether transit_time_ms was set by user */
 } esp_gmf_alc_t;
 
 static const char *TAG = "ESP_GMF_ALC";
@@ -38,8 +40,8 @@ static const char *TAG = "ESP_GMF_ALC";
 static esp_gmf_err_t __alc_set_gain(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
                                     uint8_t *buf, int buf_len)
 {
-    ESP_GMF_NULL_CHECK(TAG, arg_desc, { return ESP_GMF_ERR_INVALID_ARG;});
-    ESP_GMF_NULL_CHECK(TAG, buf, { return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_args_desc_t *alc_desc = arg_desc;
     uint8_t idx = (uint8_t)(*buf);
     alc_desc = alc_desc->next;
@@ -71,6 +73,23 @@ static esp_gmf_err_t __alc_get_gain(esp_gmf_element_handle_t handle, esp_gmf_arg
     return esp_gmf_alc_get_gain(handle, idx, gain);
 }
 
+static esp_gmf_err_t __alc_set_transit_time(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                            uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    uint16_t transit_time_ms = *(uint16_t *)buf;
+    return esp_gmf_alc_set_transit_time(handle, transit_time_ms);
+}
+
+static esp_gmf_err_t __alc_get_transit_time(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                            uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_alc_get_transit_time(handle, (uint16_t *)buf);
+}
+
 static esp_gmf_err_t esp_gmf_alc_new(void *cfg, esp_gmf_obj_handle_t *handle)
 {
     return esp_gmf_alc_init(cfg, (esp_gmf_element_handle_t *)handle);
@@ -80,7 +99,7 @@ static esp_gmf_job_err_t esp_gmf_alc_open(esp_gmf_element_handle_t self, void *p
 {
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)self;
     esp_ae_alc_cfg_t *config = (esp_ae_alc_cfg_t *)OBJ_GET_CFG(self);
-    ESP_GMF_NULL_CHECK(TAG, config, { return ESP_GMF_JOB_ERR_FAIL;});
+    ESP_GMF_NULL_CHECK(TAG, config, {return ESP_GMF_JOB_ERR_FAIL;});
     esp_gmf_job_err_t ret = ESP_GMF_JOB_ERR_OK;
     alc->bytes_per_sample = (config->bits_per_sample >> 3) * config->channel;
     esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
@@ -88,6 +107,13 @@ static esp_gmf_job_err_t esp_gmf_alc_open(esp_gmf_element_handle_t self, void *p
     ESP_GMF_CHECK(TAG, alc->alc_hd, { ret = ESP_GMF_JOB_ERR_FAIL; goto __alc_open_exit;}, "Failed to create alc handle");
     for (size_t i = 0; i < config->channel; i++) {
         esp_ae_err_t ae_ret = esp_ae_alc_set_gain(alc->alc_hd, i, alc->gain[i]);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_JOB_ERR_FAIL;
+            goto __alc_open_exit;
+        }
+    }
+    if (alc->transit_time_set) {
+        esp_ae_err_t ae_ret = esp_ae_alc_set_transit_time(alc->alc_hd, alc->transit_time_ms);
         if (ae_ret != ESP_AE_ERR_OK) {
             ret = ESP_GMF_JOB_ERR_FAIL;
             goto __alc_open_exit;
@@ -151,7 +177,7 @@ static esp_gmf_job_err_t esp_gmf_alc_process(esp_gmf_element_handle_t self, void
         out_load = in_load;
     }
     load_ret = esp_gmf_port_acquire_out(out_port, &out_load, samples_num ? bytes : in_load->buf_length, ESP_GMF_MAX_DELAY);
-    ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, load_ret, out_len, { goto __alc_release;});
+    ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, load_ret, out_len, {goto __alc_release;});
     if (samples_num) {
         esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
         esp_ae_err_t ret = esp_ae_alc_process(alc->alc_hd, samples_num, in_load->buf, out_load->buf);
@@ -279,6 +305,20 @@ static esp_gmf_err_t _load_alc_methods_func(esp_gmf_element_handle_t handle)
     ret = esp_gmf_method_append(&method, AMETHOD(ALC, GET_GAIN), __alc_get_gain, get_args);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(ALC, GET_GAIN));
 
+    set_args = NULL;
+    ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(ALC, SET_TRANSIT_TIME, TIME),
+                                   ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append transit time argument");
+    ret = esp_gmf_method_append(&method, AMETHOD(ALC, SET_TRANSIT_TIME), __alc_set_transit_time, set_args);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(ALC, SET_TRANSIT_TIME));
+
+    get_args = NULL;
+    ret = esp_gmf_args_desc_append(&get_args, AMETHOD_ARG(ALC, GET_TRANSIT_TIME, TIME),
+                                   ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append transit time argument");
+    ret = esp_gmf_method_append(&method, AMETHOD(ALC, GET_TRANSIT_TIME), __alc_get_transit_time, get_args);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(ALC, GET_TRANSIT_TIME));
+
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
     el->method = method;
     return ESP_GMF_ERR_OK;
@@ -331,6 +371,52 @@ __alc_get_gain_exit:
     return ret;
 }
 
+esp_gmf_err_t esp_gmf_alc_set_transit_time(esp_gmf_element_handle_t handle, uint16_t transit_time_ms)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    if (transit_time_ms == 0 || transit_time_ms > 500) {
+        ESP_LOGE(TAG, "Invalid transit time: %u (valid range: [1, 500])", transit_time_ms);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    esp_gmf_alc_t *alc = (esp_gmf_alc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    if (alc->alc_hd) {
+        esp_ae_err_t ae_ret = esp_ae_alc_set_transit_time(alc->alc_hd, transit_time_ms);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __alc_set_transit_time_exit;
+        }
+    }
+    alc->transit_time_ms = transit_time_ms;
+    alc->transit_time_set = true;
+__alc_set_transit_time_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_alc_get_transit_time(esp_gmf_element_handle_t handle, uint16_t *transit_time_ms)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, transit_time_ms, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_gmf_alc_t *alc = (esp_gmf_alc_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    if (alc->alc_hd) {
+        esp_ae_err_t ae_ret = esp_ae_alc_get_transit_time(alc->alc_hd, transit_time_ms);
+        ret = (ae_ret == ESP_AE_ERR_OK) ? ESP_GMF_ERR_OK : ESP_GMF_ERR_FAIL;
+        goto __alc_get_transit_time_exit;
+    }
+    if (alc->transit_time_set) {
+        *transit_time_ms = alc->transit_time_ms;
+    } else {
+        *transit_time_ms = ESP_GMF_ALC_DEFAULT_TRANSIT_TIME_MS;
+    }
+__alc_get_transit_time_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    return ret;
+}
+
 static esp_gmf_job_err_t esp_gmf_alc_reset(esp_gmf_element_handle_t handle, void *para)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
@@ -374,9 +460,9 @@ esp_gmf_err_t esp_gmf_alc_init(esp_ae_alc_cfg_t *config, esp_gmf_element_handle_
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto ALC_INIT_FAIL, "Failed to set obj tag");
     esp_gmf_element_cfg_t el_cfg = {0};
     ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.in_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
-                                    ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
+                                     ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
     ESP_GMF_ELEMENT_OUT_PORT_ATTR_SET(el_cfg.out_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
-                                    ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
+                                      ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
     el_cfg.dependency = true;
     ret = esp_gmf_audio_el_init(alc, &el_cfg);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto ALC_INIT_FAIL, "Failed to initialize alc element");

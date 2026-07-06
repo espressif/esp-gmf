@@ -19,7 +19,7 @@ dependencies:
   idf : ">=5.5"
   espressif/esp_audio_codec:
     require: "public"
-    version: "~2.5"
+    version: "~2.6"
   espressif/gmf_core:
     require: "public"
     version: "~1.0"

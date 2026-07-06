@@ -24,6 +24,8 @@
 #include "esp_gmf_audio_dec.h"
 #include "esp_gmf_audio_muxer.h"
 #include "esp_gmf_howl.h"
+#include "esp_gmf_reverb.h"
+#include "esp_gmf_delay.h"
 #include "esp_gmf_io_embed_flash.h"
 #include "esp_gmf_io_http.h"
 #include "esp_gmf_io_file.h"
@@ -497,6 +499,56 @@ void test_esp_gmf_howl_if()
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
 }
 
+void test_esp_gmf_reverb_if()
+{
+    esp_ae_reverb_cfg_t config = DEFAULT_ESP_GMF_REVERB_CONFIG();
+    esp_gmf_obj_handle_t handle;
+    float room_size = 0.0f;
+    float wet_level = 0.0f;
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_init(&config, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_open((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_set_room_size(NULL, 0.5f), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_get_room_size(NULL, &room_size), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_get_room_size(handle, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_set_room_size(handle, 0.6f), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_get_room_size(handle, &room_size), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_set_wet_level(handle, -12.0f), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_get_wet_level(handle, &wet_level), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_reset(NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_reset(handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_reverb_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+}
+
+void test_esp_gmf_delay_if()
+{
+    esp_ae_delay_cfg_t config = DEFAULT_ESP_GMF_DELAY_CONFIG();
+    esp_gmf_obj_handle_t handle;
+    uint16_t delay_time_ms = 0;
+    float mix_ratio = 0.0f;
+    TEST_ASSERT_EQUAL(esp_gmf_delay_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_init(&config, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_open((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_set_delay_time(NULL, 100), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_get_delay_time(NULL, &delay_time_ms), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_get_delay_time(handle, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_set_delay_time(handle, 150), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_get_delay_time(handle, &delay_time_ms), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_set_mix_ratio(handle, 0.5f), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_get_mix_ratio(handle, &mix_ratio), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_reset(NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_reset(handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_init(NULL, &handle), ESP_GMF_ERR_OK);
+    TEST_ASSERT_NOT_EQUAL(NULL, OBJ_GET_CFG(handle));
+    TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
+}
+
 void test_esp_gmf_io_embed_flash_if()
 {
     embed_flash_io_cfg_t config = EMBED_FLASH_CFG_DEFAULT();
@@ -619,6 +671,8 @@ TEST_CASE("Test element if check", "[ESP_GMF_IF_CHECK][leaks=1400]")
     test_esp_gmf_dec_if();
     test_esp_gmf_enc_if();
     test_esp_gmf_howl_if();
+    test_esp_gmf_reverb_if();
+    test_esp_gmf_delay_if();
     test_esp_gmf_io_embed_flash_if();
     test_esp_gmf_io_file_if();
     test_esp_gmf_io_http_if();

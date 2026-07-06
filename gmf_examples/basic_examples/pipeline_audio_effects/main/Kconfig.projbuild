@@ -41,4 +41,16 @@ config GMF_AUDIO_EFFECT_INIT_MBC
     default y
     help
         Enable MBC (Multi-Band Compressor) effect demo
+
+config GMF_AUDIO_EFFECT_INIT_REVERB
+    bool "Reverb"
+    default y
+    help
+        Enable Reverb effect demo
+
+config GMF_AUDIO_EFFECT_INIT_DELAY
+    bool "Delay"
+    default y
+    help
+        Enable Delay (echo) effect demo
 endmenu

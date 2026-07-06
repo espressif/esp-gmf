@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Updated `pipeline_audio_effects` example to demonstrate Reverb and Delay effects
+
 ## v1.0.1~1
 
 ### Changes

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added configurable audio reverb support in `gmf_loader_setup_audio_reverb`
+- Added configurable audio delay support in `gmf_loader_setup_audio_delay`
+
 ## v1.0.0~2
 
 ### Changes

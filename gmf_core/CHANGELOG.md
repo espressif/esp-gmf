@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added capability `ESP_GMF_CAPS_AUDIO_REVERB` for audio reverb effects
+- Added capability `ESP_GMF_CAPS_AUDIO_DELAY` for audio delay effects
+
 ## v1.0.2
 
 ### Bug Fixes

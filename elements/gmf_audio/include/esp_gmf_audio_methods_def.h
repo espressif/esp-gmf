@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO., LTD
  * SPDX-License-Identifier: LicenseRef-Espressif-Modified-MIT
  *
  * See LICENSE file for details.
@@ -11,36 +11,42 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
+#endif  /* __cplusplus */
 
 /**
  * @brief  Audio general method argument definition
  */
-#define ESP_GMF_AUDIO_INDEX_ARG       "index"
-#define ESP_GMF_AUDIO_GAIN_ARG        "gain"
-#define ESP_GMF_AUDIO_BITS_ARG        "bits"
-#define ESP_GMF_AUDIO_CHANNEL_ARG     "channel"
-#define ESP_GMF_AUDIO_SAMPLE_RATE_ARG "sample_rate"
-#define ESP_GMF_AUDIO_BITRATE_ARG     "bitrate"
-#define ESP_GMF_AUDIO_ENABLE_ARG      "enable"
-#define ESP_GMF_AUDIO_TYPE_ARG        "type"
-#define ESP_GMF_AUDIO_PARA_ARG        "para"
-#define ESP_GMF_AUDIO_MODE_ARG        "mode"
-#define ESP_GMF_AUDIO_SPEED_ARG       "speed"
-#define ESP_GMF_AUDIO_PITCH_ARG       "pitch"
-#define ESP_GMF_AUDIO_INSIZE_ARG      "in_size"
-#define ESP_GMF_AUDIO_OUTSIZE_ARG     "out_size"
-#define ESP_GMF_AUDIO_CFG_ARG         "cfg"
-#define ESP_GMF_AUDIO_INFO_ARG        "info"
+#define ESP_GMF_AUDIO_INDEX_ARG         "index"
+#define ESP_GMF_AUDIO_GAIN_ARG          "gain"
+#define ESP_GMF_AUDIO_BITS_ARG          "bits"
+#define ESP_GMF_AUDIO_CHANNEL_ARG       "channel"
+#define ESP_GMF_AUDIO_SAMPLE_RATE_ARG   "sample_rate"
+#define ESP_GMF_AUDIO_BITRATE_ARG       "bitrate"
+#define ESP_GMF_AUDIO_ENABLE_ARG        "enable"
+#define ESP_GMF_AUDIO_TYPE_ARG          "type"
+#define ESP_GMF_AUDIO_PARA_ARG          "para"
+#define ESP_GMF_AUDIO_MODE_ARG          "mode"
+#define ESP_GMF_AUDIO_SPEED_ARG         "speed"
+#define ESP_GMF_AUDIO_PITCH_ARG         "pitch"
+#define ESP_GMF_AUDIO_ROOM_SIZE_ARG     "room_size"
+#define ESP_GMF_AUDIO_WET_LEVEL_ARG     "wet_level"
+#define ESP_GMF_AUDIO_DELAY_TIME_ARG    "delay_time"
+#define ESP_GMF_AUDIO_FEEDBACK_ARG      "feedback"
+#define ESP_GMF_AUDIO_TRANSIT_TIME_ARG  "transit_time"
+#define ESP_GMF_AUDIO_MIX_RATIO_ARG     "mix_ratio"
+#define ESP_GMF_AUDIO_INSIZE_ARG        "in_size"
+#define ESP_GMF_AUDIO_OUTSIZE_ARG       "out_size"
+#define ESP_GMF_AUDIO_CFG_ARG           "cfg"
+#define ESP_GMF_AUDIO_INFO_ARG          "info"
 
 /**
  * @brief  Audio EQ parameter argument definition
  */
-#define ESP_GMF_AUDIO_EQ_PARA_ARG      ESP_GMF_AUDIO_PARA_ARG
-#define ESP_GMF_AUDIO_EQ_PARA_FT_ARG   ESP_GMF_AUDIO_TYPE_ARG
-#define ESP_GMF_AUDIO_EQ_PARA_GAIN_ARG ESP_GMF_AUDIO_GAIN_ARG
-#define ESP_GMF_AUDIO_EQ_PARA_FC_ARG   "fc"
-#define ESP_GMF_AUDIO_EQ_PARA_Q_ARG    "q"
+#define ESP_GMF_AUDIO_EQ_PARA_ARG       ESP_GMF_AUDIO_PARA_ARG
+#define ESP_GMF_AUDIO_EQ_PARA_FT_ARG    ESP_GMF_AUDIO_TYPE_ARG
+#define ESP_GMF_AUDIO_EQ_PARA_GAIN_ARG  ESP_GMF_AUDIO_GAIN_ARG
+#define ESP_GMF_AUDIO_EQ_PARA_FC_ARG    "fc"
+#define ESP_GMF_AUDIO_EQ_PARA_Q_ARG     "q"
 
 /**
  * @brief  Audio DRC parameter argument definition
@@ -56,52 +62,52 @@ extern "C" {
 /**
  * @brief  Audio MBC parameter argument definition
  */
-#define ESP_GMF_AUDIO_MBC_FC_ARG             "fc"
-#define ESP_GMF_AUDIO_MBC_PARA_ARG           ESP_GMF_AUDIO_PARA_ARG
-#define ESP_GMF_AUDIO_MBC_PARA_MAKEUP_ARG    ESP_GMF_AUDIO_GAIN_ARG
-#define ESP_GMF_AUDIO_MBC_PARA_THRESHOLD_ARG "threshold"
-#define ESP_GMF_AUDIO_MBC_PARA_RATIO_ARG     "ratio"
-#define ESP_GMF_AUDIO_MBC_PARA_ATTACK_ARG    "attack"
-#define ESP_GMF_AUDIO_MBC_PARA_RELEASE_ARG   "release"
-#define ESP_GMF_AUDIO_MBC_PARA_HOLD_ARG      "hold"
-#define ESP_GMF_AUDIO_MBC_PARA_KNEE_ARG      "knee"
+#define ESP_GMF_AUDIO_MBC_FC_ARG              "fc"
+#define ESP_GMF_AUDIO_MBC_PARA_ARG            ESP_GMF_AUDIO_PARA_ARG
+#define ESP_GMF_AUDIO_MBC_PARA_MAKEUP_ARG     ESP_GMF_AUDIO_GAIN_ARG
+#define ESP_GMF_AUDIO_MBC_PARA_THRESHOLD_ARG  "threshold"
+#define ESP_GMF_AUDIO_MBC_PARA_RATIO_ARG      "ratio"
+#define ESP_GMF_AUDIO_MBC_PARA_ATTACK_ARG     "attack"
+#define ESP_GMF_AUDIO_MBC_PARA_RELEASE_ARG    "release"
+#define ESP_GMF_AUDIO_MBC_PARA_HOLD_ARG       "hold"
+#define ESP_GMF_AUDIO_MBC_PARA_KNEE_ARG       "knee"
 
 /**
  * @brief  Audio general config parameter argument definition
  */
-#define ESP_GMF_AUDIO_CFG_TYPE_ARG      ESP_GMF_AUDIO_TYPE_ARG
-#define ESP_GMF_AUDIO_CFG_SUBCFGPTR_ARG "sub_cfg"
-#define ESP_GMF_AUDIO_CFG_SUBCFGSZ_ARG  "sub_cfg_sz"
+#define ESP_GMF_AUDIO_CFG_TYPE_ARG       ESP_GMF_AUDIO_TYPE_ARG
+#define ESP_GMF_AUDIO_CFG_SUBCFGPTR_ARG  "sub_cfg"
+#define ESP_GMF_AUDIO_CFG_SUBCFGSZ_ARG   "sub_cfg_sz"
 
 /**
  * @brief  Audio sound information parameter argument definition
  */
-#define ESP_GMF_AUDIO_SND_INFO_ARG            ESP_GMF_AUDIO_INFO_ARG
-#define ESP_GMF_AUDIO_SND_INFO_TYPE_ARG       ESP_GMF_AUDIO_TYPE_ARG
-#define ESP_GMF_AUDIO_SND_INFO_SAMPLERATE_ARG ESP_GMF_AUDIO_SAMPLE_RATE_ARG
-#define ESP_GMF_AUDIO_SND_INFO_BITRATE_ARG    ESP_GMF_AUDIO_BITRATE_ARG
-#define ESP_GMF_AUDIO_SND_INFO_CHANNEL_ARG    ESP_GMF_AUDIO_CHANNEL_ARG
-#define ESP_GMF_AUDIO_SND_INFO_BITS_ARG       ESP_GMF_AUDIO_BITS_ARG
+#define ESP_GMF_AUDIO_SND_INFO_ARG             ESP_GMF_AUDIO_INFO_ARG
+#define ESP_GMF_AUDIO_SND_INFO_TYPE_ARG        ESP_GMF_AUDIO_TYPE_ARG
+#define ESP_GMF_AUDIO_SND_INFO_SAMPLERATE_ARG  ESP_GMF_AUDIO_SAMPLE_RATE_ARG
+#define ESP_GMF_AUDIO_SND_INFO_BITRATE_ARG     ESP_GMF_AUDIO_BITRATE_ARG
+#define ESP_GMF_AUDIO_SND_INFO_CHANNEL_ARG     ESP_GMF_AUDIO_CHANNEL_ARG
+#define ESP_GMF_AUDIO_SND_INFO_BITS_ARG        ESP_GMF_AUDIO_BITS_ARG
 
 /**
  * @brief  GMF audio method definition
  */
-#define AMETHOD_DEF(module, method, str) ESP_GMF_METHOD_DEF(AUDIO, module, method, str)
+#define AMETHOD_DEF(module, method, str)  ESP_GMF_METHOD_DEF(AUDIO, module, method, str)
 
 /**
  * @brief  Get GMF audio method string
  */
-#define AMETHOD(module, method) ESP_GMF_METHOD_STR(AUDIO, module, method)
+#define AMETHOD(module, method)  ESP_GMF_METHOD_STR(AUDIO, module, method)
 
 /**
  * @brief  GMF audio method argument definition
  */
-#define AMETHOD_ARG_DEF(module, method, arg, str) ESP_GMF_METHOD_ARG_DEF(AUDIO, module, method, arg, str)
+#define AMETHOD_ARG_DEF(module, method, arg, str)  ESP_GMF_METHOD_ARG_DEF(AUDIO, module, method, arg, str)
 
 /**
  * @brief  Get GMF audio method argument string
  */
-#define AMETHOD_ARG(module, method, arg) ESP_GMF_METHOD_ARG_STR(AUDIO, module, method, arg)
+#define AMETHOD_ARG(module, method, arg)  ESP_GMF_METHOD_ARG_STR(AUDIO, module, method, arg)
 
 /**
  * @brief  ALC method
@@ -113,6 +119,12 @@ AMETHOD_ARG_DEF(ALC, SET_GAIN, GAIN, ESP_GMF_AUDIO_GAIN_ARG);
 AMETHOD_DEF(ALC, GET_GAIN, "get_gain");
 AMETHOD_ARG_DEF(ALC, GET_GAIN, IDX, ESP_GMF_AUDIO_INDEX_ARG);
 AMETHOD_ARG_DEF(ALC, GET_GAIN, GAIN, ESP_GMF_AUDIO_GAIN_ARG);
+
+AMETHOD_DEF(ALC, SET_TRANSIT_TIME, "set_transit_time");
+AMETHOD_ARG_DEF(ALC, SET_TRANSIT_TIME, TIME, ESP_GMF_AUDIO_TRANSIT_TIME_ARG);
+
+AMETHOD_DEF(ALC, GET_TRANSIT_TIME, "get_transit_time");
+AMETHOD_ARG_DEF(ALC, GET_TRANSIT_TIME, TIME, ESP_GMF_AUDIO_TRANSIT_TIME_ARG);
 
 /**
  * @brief  BIT CVT method
@@ -258,6 +270,47 @@ AMETHOD_DEF(FADE, GET_MODE, "get_mode");
 AMETHOD_ARG_DEF(FADE, GET_MODE, MODE, ESP_GMF_AUDIO_MODE_ARG);
 
 AMETHOD_DEF(FADE, RESET, "reset");
+
+/**
+ * @brief  REVERB method
+ */
+AMETHOD_DEF(REVERB, SET_ROOM_SIZE, "set_room_size");
+AMETHOD_ARG_DEF(REVERB, SET_ROOM_SIZE, ROOM_SIZE, ESP_GMF_AUDIO_ROOM_SIZE_ARG);
+
+AMETHOD_DEF(REVERB, GET_ROOM_SIZE, "get_room_size");
+AMETHOD_ARG_DEF(REVERB, GET_ROOM_SIZE, ROOM_SIZE, ESP_GMF_AUDIO_ROOM_SIZE_ARG);
+
+AMETHOD_DEF(REVERB, SET_WET_LEVEL, "set_wet_level");
+AMETHOD_ARG_DEF(REVERB, SET_WET_LEVEL, WET_LEVEL, ESP_GMF_AUDIO_WET_LEVEL_ARG);
+
+AMETHOD_DEF(REVERB, GET_WET_LEVEL, "get_wet_level");
+AMETHOD_ARG_DEF(REVERB, GET_WET_LEVEL, WET_LEVEL, ESP_GMF_AUDIO_WET_LEVEL_ARG);
+
+AMETHOD_DEF(REVERB, RESET, "reset");
+
+/**
+ * @brief  DELAY method
+ */
+AMETHOD_DEF(DELAY, SET_DELAY_TIME, "set_delay_time");
+AMETHOD_ARG_DEF(DELAY, SET_DELAY_TIME, DELAY_TIME, ESP_GMF_AUDIO_DELAY_TIME_ARG);
+
+AMETHOD_DEF(DELAY, GET_DELAY_TIME, "get_delay_time");
+AMETHOD_ARG_DEF(DELAY, GET_DELAY_TIME, DELAY_TIME, ESP_GMF_AUDIO_DELAY_TIME_ARG);
+
+AMETHOD_DEF(DELAY, SET_FEEDBACK, "set_feedback");
+AMETHOD_ARG_DEF(DELAY, SET_FEEDBACK, FEEDBACK, ESP_GMF_AUDIO_FEEDBACK_ARG);
+
+AMETHOD_DEF(DELAY, GET_FEEDBACK, "get_feedback");
+AMETHOD_ARG_DEF(DELAY, GET_FEEDBACK, FEEDBACK, ESP_GMF_AUDIO_FEEDBACK_ARG);
+
+AMETHOD_DEF(DELAY, SET_MIX_RATIO, "set_mix_ratio");
+AMETHOD_ARG_DEF(DELAY, SET_MIX_RATIO, MIX_RATIO, ESP_GMF_AUDIO_MIX_RATIO_ARG);
+
+AMETHOD_DEF(DELAY, GET_MIX_RATIO, "get_mix_ratio");
+AMETHOD_ARG_DEF(DELAY, GET_MIX_RATIO, MIX_RATIO, ESP_GMF_AUDIO_MIX_RATIO_ARG);
+
+AMETHOD_DEF(DELAY, RESET, "reset");
+
 /**
  * @brief  MIXER method
  */
@@ -330,4 +383,4 @@ AMETHOD_ARG_DEF(DECODER, RECONFIG_BY_SND_INFO, INFO_BITS, ESP_GMF_AUDIO_SND_INFO
 
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif  /* __cplusplus */

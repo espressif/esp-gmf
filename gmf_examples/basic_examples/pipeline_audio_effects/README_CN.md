@@ -12,13 +12,13 @@
 
 ### 典型场景
 
-- 播放时实时调节音效参数，体验 ALC、Sonic、EQ、Fade、DRC、MBC 等特效。
+- 播放时实时调节音效参数，体验 ALC、Sonic、EQ、Fade、DRC、MBC、Reverb、Delay 等特效。
 - 多路音频混合播放，如背景音乐与提示音叠加及淡入淡出控制。
 
 ### 运行机制
 
 - 混音模式：多条 pipeline（背景音乐、提示音）经 ringbuffer 送入 mixer 元素混合后输出；提示音 pipeline 含解码、采样率/声道/位深转换，与 mixer 协同实现淡入淡出。
-- 单特效模式：单条 pipeline 为 `io_embed_flash` → `aud_dec` → `effect`（ALC/Sonic/EQ/Fade/DRC/MBC 之一）→ `io_codec_dev`；播放约 4 秒后通过 API 动态更新特效参数。
+- 单特效模式：单条 pipeline 为 `io_embed_flash` → `aud_dec` → `effect`（ALC/Sonic/EQ/Fade/DRC/MBC/Reverb/Delay 之一）→ `io_codec_dev`；播放约 4 秒后通过 API 动态更新特效参数。
 
 ## 环境配置
 
@@ -120,7 +120,7 @@ idf.py bmgr -b esp32_s3_korvo_2_3
 
 ### 项目配置
 
-- **效果演示**：默认启用所有音频特效演示（ALC、Sonic、EQ、Fade、DRC、MBC 和混音器），可在 menuconfig 的 `Pipeline Audio Effects Example` 中选择要演示的特效。
+- **效果演示**：默认启用所有音频特效演示（ALC、Sonic、EQ、Fade、DRC、MBC、Reverb、Delay 和混音器），可在 menuconfig 的 `Pipeline Audio Effects Example` 中选择要演示的特效。
 - **音频类型**：示例使用 WAV 和 MP3 格式，已注册对应解码器。其他格式可通过下述配置选择。
 
 ```bash
@@ -168,7 +168,7 @@ idf.py -p PORT flash monitor
 
 ### 日志输出
 
-正常流程依次为混音演示、单特效演示（ALC、Sonic、EQ、Fade、DRC、MBC）及资源释放，关键步骤以 `[ 1 ]`～`[ 4 ]` 及 "Applying aud_xxx parameters"、"Mixer demo finished"、"Effect demo finished" 等标出。以下为关键 log（以 ESP32-S3 为例）：
+正常流程依次为混音演示、单特效演示（ALC、Sonic、EQ、Fade、DRC、MBC、Reverb、Delay）及资源释放，关键步骤以 `[ 1 ]`～`[ 4 ]` 及 "Applying aud_xxx parameters"、"Mixer demo finished"、"Effect demo finished" 等标出。以下为关键 log（以 ESP32-S3 为例）：
 
 ```c
 I (1360) PIPELINE_AUDIO_EFFECTS: [ 1 ] Prepare GMF pool

@@ -12,13 +12,13 @@ This example is based on the Espressif Generic Media Framework (GMF) and demonst
 
 ### Typical Scenarios
 
-- Real-time adjustment of effect parameters during playback (ALC, Sonic, EQ, Fade, DRC, MBC).
+- Real-time adjustment of effect parameters during playback (ALC, Sonic, EQ, Fade, DRC, MBC, Reverb, Delay).
 - Multi-source mixing, e.g. background music plus prompt tone with fade control.
 
 ### Run Flow
 
 - **Mixer mode**: Multiple pipelines (background music, prompt tone) feed the mixer element via ring buffers; the tone pipeline includes decode and sample-rate/channel/bit-depth conversion, working with the mixer for fade-in/fade-out.
-- **Single-effect mode**: One pipeline `io_embed_flash` → `aud_dec` → `effect` (one of ALC, Sonic, EQ, Fade, DRC, MBC) → `io_codec_dev`; effect parameters are updated via API after about 4 seconds of playback.
+- **Single-effect mode**: One pipeline `io_embed_flash` → `aud_dec` → `effect` (one of ALC, Sonic, EQ, Fade, DRC, MBC, Reverb, Delay) → `io_codec_dev`; effect parameters are updated via API after about 4 seconds of playback.
 
 ## Environment Setup
 
@@ -120,7 +120,7 @@ idf.py bmgr -b esp32_s3_korvo_2_3
 
 ### Project Configuration
 
-- **Effect demo**: All audio effect demos (ALC, Sonic, EQ, Fade, DRC, MBC, and Mixer) are enabled by default. You can select which effects to demonstrate in menuconfig under `Pipeline Audio Effects Example`.
+- **Effect demo**: All audio effect demos (ALC, Sonic, EQ, Fade, DRC, MBC, Reverb, Delay, and Mixer) are enabled by default. You can select which effects to demonstrate in menuconfig under `Pipeline Audio Effects Example`.
 - **Audio type**: The example uses WAV and MP3; corresponding decoders are registered. For other formats, configure the decoder in menuconfig.
 
 ```bash
@@ -168,7 +168,7 @@ idf.py -p PORT flash monitor
 
 ### Log Output
 
-Normal run order: mixer demo, then single-effect demos (ALC, Sonic, EQ, Fade, DRC, MBC) and teardown. Key steps are marked with `[ 1 ]`–`[ 4 ]` and messages like "Applying aud_xxx parameters", "Mixer demo finished", "Effect demo finished". Example (ESP32-S3):
+Normal run order: mixer demo, then single-effect demos (ALC, Sonic, EQ, Fade, DRC, MBC, Reverb, Delay) and teardown. Key steps are marked with `[ 1 ]`–`[ 4 ]` and messages like "Applying aud_xxx parameters", "Mixer demo finished", "Effect demo finished". Example (ESP32-S3):
 
 ```c
 I (1360) PIPELINE_AUDIO_EFFECTS: [ 1 ] Prepare GMF pool

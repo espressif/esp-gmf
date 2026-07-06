@@ -15,19 +15,26 @@ ESP GMF Audio is a collection of GMF elements related to audio processing, inclu
 |  BIT_CVT |aud_bit_cvt |Audio bit-depth conversion|`set_dest_bits`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  CH_CVT  |aud_ch_cvt |Audio channel conversion|`set_dest_ch`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  AUD_ASRC |aud_asrc |Adaptive audio conversion module combining hardware ASRC with software sample-rate, bit-depth, and channel converters|`set_dest_rate`<br>`set_dest_ch`<br>`set_dest_bits`|Single|Single|Maximum delay|Maximum delay|Yes|
-|  ALC     |aud_alc |Audio volume adjustment|`set_gain`<br>`get_gain`|Single|Single|Maximum delay|Maximum delay|Yes|
+|  ALC     |aud_alc |Audio volume adjustment|`set_gain`<br>`get_gain`<br>`set_transit_time`<br>`get_transit_time`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  EQ      |aud_eq |Audio equalizer adjustment|`set_para`<br>`get_para`<br>`enable_filter`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  FADE    |aud_fade |Audio fade-in and fade-out effects|`set_mode`<br>`get_mode`<br>`reset`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  SONIC   |aud_sonic |Audio pitch and speed shifting effects|`set_speed`<br>`get_speed`<br>`set_pitch`<br>`get_pitch`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  DRC     |aud_drc |Audio dynamic range control|`set_attack`<br>`get_attack`<br>`set_release`<br>`get_release`<br>`set_hold`<br>`get_hold`<br>`set_makeup`<br>`get_makeup`<br>`set_knee`<br>`get_knee`<br>`set_points`<br>`get_point_num`<br>`get_points`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  MBC     |aud_mbc |Audio multi-band compression|`set_para`<br>`get_para`<br>`set_fc`<br>`get_fc`<br>`set_solo`<br>`get_solo`<br>`set_bypass`<br>`get_bypass`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  HOWL    |aud_howl |Howling suppression (acoustic feedback suppression)|Nil|Single|Single|Maximum delay|Maximum delay|Yes|
+|  REVERB  |aud_reverb |Audio reverb effect (Freeverb algorithm)|`set_room_size`<br>`get_room_size`<br>`set_damping`<br>`get_damping`<br>`set_wet_level`<br>`get_wet_level`<br>`set_dry_level`<br>`get_dry_level`<br>`reset`|Single|Single|Maximum delay|Maximum delay|Yes|
+|  DELAY   |aud_delay |Audio delay/echo effect|`set_delay_time`<br>`get_delay_time`<br>`set_feedback`<br>`get_feedback`<br>`set_mix_ratio`<br>`get_mix_ratio`<br>`reset`|Single|Single|Maximum delay|Maximum delay|Yes|
 |  MIXER   |aud_mixer |Audio mixing effects|`set_mode`<br>`set_info`|Multiple|Single|The blocking time for the first channel is 0, while the blocking time for other channels is maximum delay|Maximum delay|No|
 |INTERLEAVE|aud_intlv|Data interleaving|Nil|Multiple|Single|User configurable, default value is maximum delay|Maximum delay|Yes|
 |DEINTERLEAVE|aud_deintlv|Data de-interleaving|Nil|Single|Multiple|Maximum delay|User configurable, default value is maximum delay|Yes|
 
+## Breaking changes since v1.1.0
+
+- **ESP32-P4 chip revision**: The current `esp_audio_codec` and `esp_audio_effects` dependencies only support **chip version ≥ 3.0**. On chips with version **< 3.0**, use **gmf_audio version < 1.1.0**.
+- **ESP32-S31 core affinity**: With `ESP_AUDIO_CODEC_S31_USE_ASM` / `ESP_AUDIO_EFFECTS_S31_USE_ASM` (PIE ASM) enabled, related `*_process()` APIs must run on **Core 1**; set both to `n` in `menuconfig` for custom core affinity (at reduced performance).
+
 ## Usage
-The ESP GMF Audio is often used in combination to form a pipeline. For example code, please refer to [test_app](../test_apps/main/elements/gmf_audio_play_el_test.c)。
+The ESP GMF Audio is often used in combination to form a pipeline. For example code, please refer to [test_app](../test_apps/main/elements/gmf_audio_play_el_test.c).
 
 You can also create and compile a project using the following commands, taking the `pipeline_play_embed_music` project as an example. Before starting, make sure you have a working [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/index.html) environment.
 

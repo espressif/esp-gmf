@@ -22,6 +22,12 @@ extern "C" {
 }
 
 /**
+ * Default transit time (ms per 1 dB) before AE open / when user has not set it.
+ * Matches AE open default: ALC_ATK(128) samples @ 48 kHz base → (128 * 1000 / 48000).
+ */
+#define ESP_GMF_ALC_DEFAULT_TRANSIT_TIME_MS  ((128U * 1000U) / 48000U)
+
+/**
  * @brief  Initializes the GMF ALC with the provided configuration
  *
  * @param[in]   config  Pointer to the ALC configuration
@@ -66,6 +72,36 @@ esp_gmf_err_t esp_gmf_alc_set_gain(esp_gmf_element_handle_t handle, uint8_t idx,
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
  */
 esp_gmf_err_t esp_gmf_alc_get_gain(esp_gmf_element_handle_t handle, uint8_t idx, int8_t *gain);
+
+/**
+ * @brief  Set the transit time for gain changes in the ALC handle.
+ *         Transit time is the interval (in milliseconds) per 1 dB gain step,
+ *         applied to both attack (gain decrease) and release (gain increase).
+ *         Can be set before or after open; takes effect on the next process.
+ *
+ * @param[in]  handle           The ALC handle
+ * @param[in]  transit_time_ms  Transit time in milliseconds per 1 dB gain step.
+ *                              Range: [1, 500]. Smaller = faster transition
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_FAIL         Underlying ALC set failed
+ */
+esp_gmf_err_t esp_gmf_alc_set_transit_time(esp_gmf_element_handle_t handle, uint16_t transit_time_ms);
+
+/**
+ * @brief  Get the transit time for gain changes from the ALC handle
+ *
+ * @param[in]   handle           The ALC handle
+ * @param[out]  transit_time_ms  Pointer to store the transit time in milliseconds
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_FAIL         Underlying ALC get failed
+ */
+esp_gmf_err_t esp_gmf_alc_get_transit_time(esp_gmf_element_handle_t handle, uint16_t *transit_time_ms);
 
 #ifdef __cplusplus
 }

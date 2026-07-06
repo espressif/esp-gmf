@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Break Change
+
+- For ESP32-P4, only chip revision `v3.0.0` or later is supported
+- For ESP32-S31, due to PIE assembly optimization limitations, all `*_process()` APIs must be called from Core 1, if want to  remove this restriction, set `ESP_AUDIO_EFFECTS_S31_USE_ASM=n` and `ESP_AUDIO_CODEC_S31_USE_ASM=n` in menuconfig, at the cost of reduced performance
+
+### Features
+
+- Added `aud_reverb` element based on `esp_ae_reverb`
+- Added `aud_delay` element based on `esp_ae_delay`
+- Added `set_transit_time` / `get_transit_time` methods for `aud_alc`
+- Updated `esp_audio_codec` dependency to `~2.6`
+- Updated `esp_audio_effects` dependency to `~1.4`
+
 ## v1.0.1~1
 
 ### Changes

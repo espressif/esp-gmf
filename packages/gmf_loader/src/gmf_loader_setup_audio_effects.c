@@ -23,6 +23,8 @@
 #include "esp_gmf_drc.h"
 #include "esp_gmf_mbc.h"
 #include "esp_gmf_howl.h"
+#include "esp_gmf_reverb.h"
+#include "esp_gmf_delay.h"
 
 static const char *TAG = "GMF_SETUP_AUD_EFFECTS";
 
@@ -409,6 +411,45 @@ static esp_gmf_err_t gmf_loader_setup_default_howl(esp_gmf_pool_handle_t pool)
 }
 #endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_HOWL */
 
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_REVERB
+static esp_gmf_err_t gmf_loader_setup_default_reverb(esp_gmf_pool_handle_t pool)
+{
+    ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_element_handle_t hd = NULL;
+    esp_ae_reverb_cfg_t reverb_cfg = DEFAULT_ESP_GMF_REVERB_CONFIG();
+    reverb_cfg.reverb_para.room_size = (float)CONFIG_GMF_AUDIO_EFFECT_REVERB_ROOM_SIZE_X10 / 10.0f;
+    reverb_cfg.reverb_para.damping = (float)CONFIG_GMF_AUDIO_EFFECT_REVERB_DAMPING_X10 / 10.0f;
+    reverb_cfg.reverb_para.wet_level = (float)CONFIG_GMF_AUDIO_EFFECT_REVERB_WET_LEVEL_X10 / 10.0f;
+    reverb_cfg.reverb_para.dry_level = (float)CONFIG_GMF_AUDIO_EFFECT_REVERB_DRY_LEVEL_X10 / 10.0f;
+    reverb_cfg.reverb_para.pre_delay_ms = CONFIG_GMF_AUDIO_EFFECT_REVERB_PRE_DELAY_MS;
+    ret = esp_gmf_reverb_init(&reverb_cfg, &hd);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init audio reverb");
+    ret = esp_gmf_pool_register_element(pool, hd, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_element_deinit(hd); return ret;}, "Failed to register element in pool");
+    return ret;
+}
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_REVERB */
+
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_DELAY
+static esp_gmf_err_t gmf_loader_setup_default_delay(esp_gmf_pool_handle_t pool)
+{
+    ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_element_handle_t hd = NULL;
+    esp_ae_delay_cfg_t delay_cfg = DEFAULT_ESP_GMF_DELAY_CONFIG();
+    delay_cfg.max_delay_ms = CONFIG_GMF_AUDIO_EFFECT_DELAY_MAX_MS;
+    delay_cfg.delay_para.delay_time_ms = CONFIG_GMF_AUDIO_EFFECT_DELAY_TIME_MS;
+    delay_cfg.delay_para.feedback = (float)CONFIG_GMF_AUDIO_EFFECT_DELAY_FEEDBACK_X100 / 100.0f;
+    delay_cfg.delay_para.mix = (float)CONFIG_GMF_AUDIO_EFFECT_DELAY_MIX_X100 / 100.0f;
+    ret = esp_gmf_delay_init(&delay_cfg, &hd);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init audio delay");
+    ret = esp_gmf_pool_register_element(pool, hd, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {esp_gmf_element_deinit(hd); return ret;}, "Failed to register element in pool");
+    return ret;
+}
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_DELAY */
+
 esp_gmf_err_t gmf_loader_setup_audio_effects_default(esp_gmf_pool_handle_t pool)
 {
     ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
@@ -483,6 +524,16 @@ esp_gmf_err_t gmf_loader_setup_audio_effects_default(esp_gmf_pool_handle_t pool)
     ret = gmf_loader_setup_default_howl(pool);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register howl");
 #endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_HOWL */
+
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_REVERB
+    ret = gmf_loader_setup_default_reverb(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register reverb");
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_REVERB */
+
+#ifdef CONFIG_GMF_AUDIO_EFFECT_INIT_DELAY
+    ret = gmf_loader_setup_default_delay(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register delay");
+#endif  /* CONFIG_GMF_AUDIO_EFFECT_INIT_DELAY */
 
     return ret;
 }
