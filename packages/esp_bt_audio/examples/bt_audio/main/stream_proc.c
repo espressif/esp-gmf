@@ -323,25 +323,12 @@ static void stream_proc_deinit_clk_sync(void)
     stream_proc_deinit_clk_sync_monitor();
 }
 
-static void stream_proc_prepare_clk_sync(esp_bt_audio_stream_handle_t stream)
+static void stream_proc_prepare_clk_sync()
 {
     if (clk_sync) {
         return;
     }
-
-    uint16_t iso_interval = 0;
-    esp_err_t ret = esp_bt_audio_stream_get_iso_interval(stream, &iso_interval);
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "Get ISO interval failed: %s", esp_err_to_name(ret));
-        return;
-    }
-
-    uint64_t ideal_count = ((uint64_t)CODEC_DAC_SAMPLE_RATE * CODEC_DAC_CHANNELS * iso_interval + 500000U) / 1000000U;
-    if (ideal_count == 0 || ideal_count > UINT32_MAX) {
-        ESP_LOGW(TAG, "Invalid clock sync ideal count: %" PRIu64, ideal_count);
-        return;
-    }
-
+    esp_err_t ret = ESP_OK;
     i2s_chan_handle_t tx_handle = get_i2s_chan_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC);
     if (!tx_handle) {
         ESP_LOGE(TAG, "Get I2S TX handle failed");
@@ -354,22 +341,41 @@ static void stream_proc_prepare_clk_sync(esp_bt_audio_stream_handle_t stream)
         return;
     }
 
-    ret = esp_bt_audio_le_clk_sync_init(tx_handle, (uint32_t)ideal_count, STREAM_PROC_CLK_SYNC_DIFF_THRESHOLD,
-                                        true, clk_sync_monitor_queue, &clk_sync);
+    ret = esp_bt_audio_le_clk_sync_init(tx_handle, clk_sync_monitor_queue, &clk_sync);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Clock sync init failed: %s", esp_err_to_name(ret));
         return;
     }
-    ret = esp_bt_audio_le_clk_sync_enable(clk_sync);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Clock sync enable failed: %s", esp_err_to_name(ret));
-        esp_bt_audio_le_clk_sync_deinit(clk_sync);
-        clk_sync = NULL;
+
+    ESP_LOGI(TAG, "Clock sync initialized, clk_sync=%p", clk_sync);
+}
+
+static void stream_proc_enable_clk_sync(esp_bt_audio_stream_handle_t stream)
+{
+    if (!clk_sync) {
+        ESP_LOGW(TAG, "Clock sync is not initialized, continue without clock sync");
         return;
     }
 
-    ESP_LOGI(TAG, "Clock sync enabled, iso_interval=%u(us), ideal_count=%lu",
-             iso_interval, (uint32_t)ideal_count);
+    uint16_t iso_interval = 0;
+    esp_err_t ret = esp_bt_audio_stream_get_iso_interval(stream, &iso_interval);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Get ISO interval failed: %s", esp_err_to_name(ret));
+        return;
+    }
+
+    uint64_t ideal_count = ((uint64_t)CODEC_DAC_SAMPLE_RATE * CODEC_DAC_CHANNELS * iso_interval + 500000U) /
+                           1000000U;
+    if (ideal_count == 0 || ideal_count > UINT32_MAX) {
+        ESP_LOGW(TAG, "Invalid clock sync ideal count: %" PRIu64, ideal_count);
+        return;
+    }
+
+    ret = esp_bt_audio_le_clk_sync_enable(clk_sync, (uint32_t)ideal_count,
+                                          STREAM_PROC_CLK_SYNC_DIFF_THRESHOLD);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Clock sync enable failed: %s", esp_err_to_name(ret));
+    }
 }
 
 static void stream_proc_prepare_playback_sync(void)
@@ -424,7 +430,11 @@ static void stream_proc_prepare_playback_sync(void)
 {
 }
 
-static void stream_proc_prepare_clk_sync(esp_bt_audio_stream_handle_t stream)
+static void stream_proc_prepare_clk_sync()
+{
+}
+
+static void stream_proc_enable_clk_sync(esp_bt_audio_stream_handle_t stream)
 {
     (void)stream;
 }
@@ -631,7 +641,8 @@ void stream_proc_state_chg(esp_bt_audio_stream_handle_t stream, esp_bt_audio_str
             esp_bt_audio_stream_get_local_data(stream, (void **)&user_d);
             if (user_d && user_d->pipe) {
                 if (dir == ESP_BT_AUDIO_STREAM_DIR_SINK) {
-                    stream_proc_prepare_clk_sync(stream);
+                    stream_proc_prepare_clk_sync();
+                    stream_proc_enable_clk_sync(stream);
                 }
                 stream_proc_post_pipeline_action(user_d->pipe, STREAM_PROC_PIPELINE_RUN);
             } else {
