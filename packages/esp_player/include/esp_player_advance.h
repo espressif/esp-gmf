@@ -20,6 +20,7 @@
 #include "esp_gmf_pool.h"
 #include "esp_gmf_task.h"
 
+#include "esp_extractor_id3_parser.h"
 #include "esp_player.h"
 
 #ifdef __cplusplus
@@ -46,7 +47,7 @@ typedef enum {
 typedef struct {
     void                    *data;        /*!< Frame data pointer */
     uint32_t                 data_len;    /*!< Frame data length in bytes */
-    uint64_t                 pts;         /*!< Presentation timestamp in microseconds */
+    uint64_t                 pts;         /*!< Presentation timestamp in milliseconds */
     esp_player_frame_type_t  frame_type;  /*!< Frame type; reserved, ignored by the player today */
     bool                     is_bad;      /*!< Bad frame flag; maps to packet-loss concealment when true */
     bool                     eos;         /*!< End-of-stream flag; set true on the last frame */
@@ -298,19 +299,42 @@ esp_player_err_t esp_player_set_task_config(esp_player_handle_t handle, const es
 esp_player_err_t esp_player_set_buffer_config(esp_player_handle_t handle, const esp_player_buffer_config_t *config);
 
 /**
- * @brief  Get ID3 tag metadata from the current MP3 source
+ * @brief  Enable or disable ID3 tag parsing for MP3 sources
  *
- * @note  Advanced API; not implemented yet. Always returns ESP_PLAYER_ERR_NOT_SUPPORT
- *        until extractor ID3 parsing is added. id3_info type will be defined when implemented.
+ * @note  Disabled by default (saves memory). Only affects bare `.mp3` sources and
+ *        must be called in IDLE / STOPPED / FINISHED. When enabled, the player opens
+ *        an ID3 parser on the next run; parsed tags stay in that parser handle until
+ *        the source changes, ID3 parsing is disabled, or the player is deinited.
+ *        Toggling this setting clears any previously parsed tags for the current source.
  *
- * @param[in]   handle    Player handle
- * @param[out]  id3_info  Output ID3 structure (reserved; unused until implemented)
+ * @param[in]  handle  Player handle
+ * @param[in]  enable  true to parse ID3 tags, false to skip parsing
  *
  * @return
- *       - ESP_PLAYER_ERR_NOT_SUPPORT  Not implemented
- *       - ESP_PLAYER_ERR_INVALID_ARG  Invalid handle or NULL id3_info
+ *       - ESP_PLAYER_ERR_OK           Success
+ *       - ESP_PLAYER_ERR_INVALID_ARG  Invalid handle
+ *       - ESP_PLAYER_ERR_NOT_SUPPORT  Not allowed in current player state
  */
-esp_player_err_t esp_player_get_id3_info(esp_player_handle_t handle, void *id3_info);
+esp_player_err_t esp_player_enable_id3_parse(esp_player_handle_t handle, bool enable);
+
+/**
+ * @brief  Get ID3 tag metadata from the current MP3 source
+ *
+ * @note  Requires `esp_player_enable_id3_parse(handle, true)` first. Metadata is
+ *        available once stream probe completes and stays valid until the source
+ *        changes, ID3 parsing is disabled, or the player is deinited. Returned
+ *        pointers refer to memory owned by the internal ID3 parser; do not free them.
+ *
+ * @param[in]   handle  Player handle
+ * @param[out]  info    Parsed ID3 information (`esp_extractor_id3_info_t`)
+ *
+ * @return
+ *       - ESP_PLAYER_ERR_OK           ID3 metadata available
+ *       - ESP_PLAYER_ERR_INVALID_ARG  Invalid handle or NULL info
+ *       - ESP_PLAYER_ERR_NOT_SUPPORT  Not MP3, ID3 parsing disabled, or probe not done yet
+ *       - ESP_PLAYER_ERR_FAIL         MP3 source has no ID3 tag
+ */
+esp_player_err_t esp_player_get_id3_info(esp_player_handle_t handle, const esp_extractor_id3_info_t **info);
 
 #ifdef __cplusplus
 }

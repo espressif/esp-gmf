@@ -13,6 +13,7 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "esp_log.h"
+#include "esp_extractor_id3_parser.h"
 #include "sdkconfig.h"
 
 #include "esp_gmf_io.h"
@@ -126,6 +127,12 @@ typedef struct {
     uint32_t                  avg_video_frame_ms;  /*!< EWMA video frame duration for queue→ms estimate. */
 } player_buffer_ctrl_t;
 
+typedef struct {
+    bool                           enable;         /*!< ID3 tag parsing requested; default false */
+    bool                           finalize_done;  /*!< Extractor probe passed the ID3 region for this session */
+    esp_extractor_id3_parser_hd_t  parser;         /*!< Player-owned ID3 parser handle; doubles as the tag cache */
+} player_id3_ctx_t;
+
 typedef enum {
     ESP_PLAYER_INPUT_CLOSED = 0,   /*!< Input IO not opened yet (reopen allowed) */
     ESP_PLAYER_INPUT_OPENED,       /*!< Input IO opened successfully */
@@ -164,6 +171,7 @@ typedef struct esp_player_stream {
     player_video_side_t         *video_side;      /*!< Video track side (lazy alloc) */
     player_sync_handle_t         sync_handle;     /*!< PTS / sync logic (reused across runs) */
     player_buffer_ctrl_t        *buffer_ctrl;     /*!< Optional network rebuffer ctrl */
+    player_id3_ctx_t             id3;             /*!< ID3 parsing state and cached tags (MP3 only) */
 
     /* Private (masks & flags) */
     uint8_t                   av_mask;         /*!< Audio/Video mask */
@@ -281,6 +289,23 @@ esp_player_err_t player_run_pipeline_with_timeout(esp_player_stream_t *stream,
 esp_player_err_t player_create_pipeline_if_expected(esp_player_stream_t *stream,
                                                     player_pipeline_factory_t func,
                                                     uint8_t bit, bool is_audio);
+
+/**
+ * @brief  Release the player-owned ID3 parser and reset probe state for a new source/session
+ *
+ * @note  Safe to call when no parser is open. Closing the parser also frees its cached tags.
+ */
+static inline void player_id3_reset(esp_player_stream_t *stream)
+{
+    if (stream == NULL) {
+        return;
+    }
+    if (stream->id3.parser != NULL) {
+        esp_extractor_id3_parser_close(stream->id3.parser);
+        stream->id3.parser = NULL;
+    }
+    stream->id3.finalize_done = false;
+}
 
 #ifdef __cplusplus
 }

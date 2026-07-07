@@ -146,6 +146,31 @@ TEST_CASE("[interface]:test_player_set_data_src", "[player][interface]")
     DESTROY_TEST_PLAYER(player);
 }
 
+TEST_CASE("[interface]:test_player_set_sync_mode", "[player][interface]")
+{
+    esp_player_handle_t player = NULL;
+    CREATE_TEST_PLAYER(player);
+
+    esp_player_err_t ret = esp_player_set_sync_mode(NULL, ESP_PLAYER_SYNC_MODE_AUDIO);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_INVALID_ARG, ret);
+
+    ret = esp_player_set_sync_mode(player, ESP_PLAYER_SYNC_MODE_MAX);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_INVALID_ARG, ret);
+
+    static const esp_player_sync_mode_t valid_modes[] = {
+        ESP_PLAYER_SYNC_MODE_SYSTEM,
+        ESP_PLAYER_SYNC_MODE_AUDIO,
+        ESP_PLAYER_SYNC_MODE_VIDEO,
+        ESP_PLAYER_SYNC_MODE_NONE,
+    };
+    for (size_t i = 0; i < sizeof(valid_modes) / sizeof(valid_modes[0]); i++) {
+        ret = esp_player_set_sync_mode(player, valid_modes[i]);
+        TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, ret);
+    }
+
+    DESTROY_TEST_PLAYER(player);
+}
+
 TEST_CASE("[interface]:test_player_set_dec_cfg", "[player][interface]")
 {
     esp_player_handle_t player = NULL;
@@ -158,6 +183,57 @@ TEST_CASE("[interface]:test_player_set_dec_cfg", "[player][interface]")
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_FAIL, ret);
 
     ret = esp_player_set_dec_cfg(NULL, test_format, test_cfg, sizeof(test_cfg));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_INVALID_ARG, ret);
+
+    DESTROY_TEST_PLAYER(player);
+}
+
+TEST_CASE("[interface]:test_player_set_task_config", "[player][interface]")
+{
+    esp_player_handle_t player = NULL;
+    CREATE_TEST_PLAYER(player);
+
+    esp_player_task_config_t task_config = {0};
+
+    esp_player_err_t ret = esp_player_set_task_config(player, &task_config);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, ret);
+
+    ret = esp_player_set_task_config(player, &task_config);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, ret);
+
+    ret = esp_player_set_task_config(player, NULL);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, ret);
+
+    ret = esp_player_set_task_config(NULL, &task_config);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_INVALID_ARG, ret);
+
+    DESTROY_TEST_PLAYER(player);
+}
+
+TEST_CASE("[interface]:test_player_set_buffer_config", "[player][interface]")
+{
+    esp_player_handle_t player = NULL;
+    CREATE_TEST_PLAYER(player);
+
+    esp_player_buffer_config_t buffer_config = {
+        .extractor_pool_size = 4096,
+        .http_read_buf_size = 8192,
+        .prebuffer_resume_ms = 1000,
+        .rebuffer_enter_ms = 200,
+        .rebuffer_resume_ms = 800,
+        .rebuffer_grace_ms = 500,
+    };
+
+    esp_player_err_t ret = esp_player_set_buffer_config(player, &buffer_config);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, ret);
+
+    ret = esp_player_set_buffer_config(player, &buffer_config);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, ret);
+
+    ret = esp_player_set_buffer_config(player, NULL);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, ret);
+
+    ret = esp_player_set_buffer_config(NULL, &buffer_config);
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_INVALID_ARG, ret);
 
     DESTROY_TEST_PLAYER(player);
@@ -408,11 +484,11 @@ TEST_CASE("[interface]:test_player_get_id3_info", "[player][interface]")
     esp_player_handle_t player = NULL;
     CREATE_TEST_PLAYER(player);
 
-    uint8_t id3_buffer[256] = {0};
+    const esp_extractor_id3_info_t *id3_info = NULL;
 
-    esp_player_err_t ret = esp_player_get_id3_info(player, id3_buffer);
+    esp_player_err_t ret = esp_player_get_id3_info(player, &id3_info);
 
-    ret = esp_player_get_id3_info(NULL, id3_buffer);
+    ret = esp_player_get_id3_info(NULL, &id3_info);
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_INVALID_ARG, ret);
 
     DESTROY_TEST_PLAYER(player);

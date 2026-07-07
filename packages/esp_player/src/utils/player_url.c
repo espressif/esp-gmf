@@ -1002,6 +1002,7 @@ esp_player_err_t _player_update_url(esp_player_stream_t *stream, const char *new
     if (player_is_same_url(stream, new_url)) {
         return ESP_PLAYER_ERR_OK;
     }
+    player_id3_reset(stream);
     if (!old_set) {
         player_drop_all_queues(stream);
         player_reset_all_db(stream);
