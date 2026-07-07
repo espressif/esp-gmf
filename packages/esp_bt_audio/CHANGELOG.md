@@ -7,6 +7,10 @@
 - Added AAC codec support for A2DP
 - Added HFP Audio Gateway integration
 
+### Bug Fixes
+
+- Fixed a bug where zero-length packets were dropped
+
 ## v1.0.0~1
 
 ### Docs

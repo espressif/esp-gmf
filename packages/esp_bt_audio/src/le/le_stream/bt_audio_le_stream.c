@@ -383,8 +383,8 @@ static void bt_audio_le_stream_recv(esp_ble_audio_bap_stream_t *bap_stream,
 {
     bt_audio_le_stream_t *stream = NULL;
     bt_audio_le_stream_find_by_bap_stream(bap_stream, &stream);
-    if (!stream || len == 0) {
-        ESP_LOGD(TAG, "Invalid LE stream or length is 0, stream %p, len %u", stream, len);
+    if (!stream) {
+        ESP_LOGD(TAG, "Invalid LE stream, stream %p", stream);
         return;
     }
 
@@ -395,18 +395,20 @@ static void bt_audio_le_stream_recv(esp_ble_audio_bap_stream_t *bap_stream,
 #endif  /* CONFIG_SOC_MODEM_SUPPORT_ETM */
 
     esp_bt_audio_stream_packet_t packet = {0};
-    packet.data = heap_caps_malloc_prefer(len, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
-    if (!packet.data) {
-        ESP_LOGW(TAG, "No memory for received ISO packet");
-        return;
+    if (len != 0) {
+        packet.data = heap_caps_malloc_prefer(len, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
+        if (!packet.data) {
+            ESP_LOGW(TAG, "No memory for received ISO packet");
+            return;
+        }
+        memcpy(packet.data, data, len);
     }
-    memcpy(packet.data, data, len);
     packet.size = len;
-    packet.bad_frame = (info && !(info->flags & BT_ISO_FLAGS_VALID));
+    packet.bad_frame = (info && !(info->flags & BT_ISO_FLAGS_VALID)) || len == 0;
     packet.is_done = false;
     packet.data_owner = packet.data;
     if (packet.bad_frame) {
-        ESP_LOGW(TAG, "RX bad frame");
+        ESP_LOGD(TAG, "RX bad frame, len %u", len);
     }
     if (!bt_audio_le_stream_send_packet(stream->base.data_q, &packet)) {
         ESP_LOGW(TAG, "LE stream queue full");
