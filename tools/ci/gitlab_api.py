@@ -61,15 +61,21 @@ class Gitlab(object):
 
     def __init__(self, project_id: Optional[int] = None):
         config_data_from_env = os.getenv('PYTHON_GITLAB_CONFIG')
+        temp_file_path = None
         if config_data_from_env:
             # prefer to load config from env variable
             with tempfile.NamedTemporaryFile('w', delete=False) as temp_file:
                 temp_file.write(config_data_from_env)
-            config_files = [temp_file.name]  # type: Optional[List[str]]
+                temp_file_path = temp_file.name
+            config_files = [temp_file_path]  # type: Optional[List[str]]
         else:
             # otherwise try to use config file at local filesystem
             config_files = None
-        self._init_gitlab_inst(project_id, config_files)
+        try:
+            self._init_gitlab_inst(project_id, config_files)
+        finally:
+            if temp_file_path:
+                os.remove(temp_file_path)
 
     @retry
     def _init_gitlab_inst(self, project_id: Optional[int], config_files: Optional[List[str]]) -> None:
@@ -210,7 +216,9 @@ class Gitlab(object):
 
         with tarfile.open(temp_file.name, 'r') as archive_file:
             root_name = archive_file.getnames()[0]
-            archive_file.extractall(destination)
+            safe_members = [m for m in archive_file.getmembers()
+                            if not (os.path.isabs(m.name) or '..' in m.name.split('/'))]
+            archive_file.extractall(destination, members=safe_members)
 
         return os.path.join(os.path.realpath(destination), root_name)
 
