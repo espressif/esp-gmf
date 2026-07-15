@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.1
+
+### Bug Fixes
+
+- Fixed `play_multi_source_music` example cache crash during the initialization stage
+
 ## v1.0.0~1
 
 ### Docs
