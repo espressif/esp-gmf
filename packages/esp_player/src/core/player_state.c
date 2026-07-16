@@ -127,6 +127,30 @@ static bool handle_cmd_quit(esp_player_stream_t *stream)
     return true;
 }
 
+static bool handle_cmd_stop(esp_player_stream_t *stream)
+{
+    switch (stream->main_state) {
+        case PLAYER_STATE_IDLE:
+        case PLAYER_STATE_FINISHED:
+            player_set_events(stream, _CTRL_RUN_TO_END);
+            return true;
+        case PLAYER_STATE_STOPPED:
+            player_set_events(stream, _CTRL_PLAYER_STOPPED);
+            return true;
+        default:
+            return false;
+    }
+}
+
+static bool handle_cmd_pause(esp_player_stream_t *stream)
+{
+    if (stream->main_state != PLAYER_STATE_FINISHED) {
+        return false;
+    }
+    player_set_events(stream, _CTRL_RUN_TO_END);
+    return true;
+}
+
 static bool handle_cmd_seek(esp_player_stream_t *stream, const esp_player_cmd_msg_t *cmd)
 {
     esp_player_state_t current_state = stream->main_state;
@@ -139,9 +163,9 @@ static bool handle_cmd_seek(esp_player_stream_t *stream, const esp_player_cmd_ms
     free(cmd->data);
 
     player_sync_set_seek_target(stream->sync_handle, seek_target);
+    stream->is_seeking = true;
     /* Unblock the esp_player_seek() caller (it is waiting on _CTRL_PLAYER_SEEKING). */
     player_set_events(stream, _CTRL_PLAYER_SEEKING);
-    stream->is_seeking = true;
 
     player_sync_set_seek_in_progress(stream->sync_handle, true);
     prepare_pipelines_for_seek(stream);
@@ -151,9 +175,7 @@ static bool handle_cmd_seek(esp_player_stream_t *stream, const esp_player_cmd_ms
 
     player_sync_set_seek_in_progress(stream->sync_handle, false);
     if (stream->error_source == ESP_PLAYER_ERROR_SOURCE_NONE) {
-        if (current_state == PLAYER_STATE_PAUSED) {
-            player_sync_set_render_pts(stream->sync_handle, seek_target);
-        }
+        player_sync_set_render_pts(stream->sync_handle, seek_target);
         esp_player_event_msg_t event_msg = {.event_type = ESP_PLAYER_EVENT_SEEK_DONE, .data = NULL, .data_len = 0};
         player_send_event(stream, &event_msg);
     }
@@ -221,19 +243,23 @@ static bool handle_cmd_report_info(esp_player_stream_t *stream, const esp_player
             int8_t aud_idx = -1;
             int8_t vid_idx = -1;
             if (player_extractor_track_active(extractor_el, ESP_EXTRACTOR_STREAM_TYPE_AUDIO, &aud_idx) == ESP_GMF_ERR_OK && aud_idx >= 0) {
-                start_decoder_by_mode(stream, ESP_PLAYER_MASK_AUDIO);
-                if (stream->error_source != ESP_PLAYER_ERROR_SOURCE_NONE) {
-                    player_transition_to_state(stream, PLAYER_STATE_ERROR);
-                    return true;
+                if (!(stream->expected_tasks & TASK_STATUS_AUDIO_DECODER_RUNNING)) {
+                    start_decoder_by_mode(stream, ESP_PLAYER_MASK_AUDIO);
+                    if (stream->error_source != ESP_PLAYER_ERROR_SOURCE_NONE) {
+                        player_transition_to_state(stream, PLAYER_STATE_ERROR);
+                        return true;
+                    }
                 }
             } else if (stream->audio_side) {
                 player_drop_single_queue(stream, stream->audio_side->extractor_queue);
             }
             if (player_extractor_track_active(extractor_el, ESP_EXTRACTOR_STREAM_TYPE_VIDEO, &vid_idx) == ESP_GMF_ERR_OK && vid_idx >= 0) {
-                start_decoder_by_mode(stream, ESP_PLAYER_MASK_VIDEO);
-                if (stream->error_source != ESP_PLAYER_ERROR_SOURCE_NONE) {
-                    player_transition_to_state(stream, PLAYER_STATE_ERROR);
-                    return true;
+                if (!(stream->expected_tasks & TASK_STATUS_VIDEO_DECODER_RUNNING)) {
+                    start_decoder_by_mode(stream, ESP_PLAYER_MASK_VIDEO);
+                    if (stream->error_source != ESP_PLAYER_ERROR_SOURCE_NONE) {
+                        player_transition_to_state(stream, PLAYER_STATE_ERROR);
+                        return true;
+                    }
                 }
                 if (aud_idx < 0) {
                     player_sync_set_video_fps(stream->sync_handle, stream->video_side->track_info.video_info.fps);
@@ -256,6 +282,10 @@ static bool try_handle_complex_cmd(esp_player_stream_t *stream, const esp_player
     switch (cmd->cmd_type) {
         case ESP_PLAYER_CMD_QUIT:
             return handle_cmd_quit(stream);
+        case ESP_PLAYER_CMD_PAUSE:
+            return handle_cmd_pause(stream);
+        case ESP_PLAYER_CMD_STOP:
+            return handle_cmd_stop(stream);
         case ESP_PLAYER_CMD_FINISHED:
             return handle_cmd_finished(stream);
         case ESP_PLAYER_CMD_PLAYING:
@@ -466,6 +496,10 @@ static void start_playback(esp_player_stream_t *stream)
     }
     // Sync handle lives for the entire player lifetime; reset runtime pts/flags before each run.
     player_sync_reset(stream->sync_handle);
+    uint64_t pending_seek = player_sync_get_seek_target(stream->sync_handle);
+    if (pending_seek > 0) {
+        player_sync_set_render_pts(stream->sync_handle, pending_seek);
+    }
     if (stream->dec_frame_mode == ESP_PLAYER_DEC_FRAME_MODE_EXTRACTOR) {
         start_decoder_by_mode(stream, ESP_PLAYER_MASK_AV);
     } else {

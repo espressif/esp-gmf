@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.0.3
+
+### Changes
+
+- Moved default player task stacks to external memory
+- Updated audio and video performance data
+
+### Bug Fixes
+
+- Fixed playback time after seeking when no frame is output
+- Fixed fill-mode frame submission timeout handling
+- Fixed extractor busy loops while waiting for output
+
 ## v1.0.2
 
 ### Features

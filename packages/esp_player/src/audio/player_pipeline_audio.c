@@ -377,7 +377,6 @@ esp_player_err_t player_pl_create_audio_render(esp_player_stream_t *stream)
         }
     } else {
         esp_gmf_pipeline_reset(stream->audio_side->render);
-        player_reset_audio_db(stream);
     }
     return player_run_pipeline_with_timeout(stream, player_pipeline_task(stream->audio_side->render), TASK_TIMEOUT_MS,
                                             stream->audio_side->render, ESP_PLAYER_ERROR_SOURCE_AUDIO_RENDER);

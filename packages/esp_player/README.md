@@ -241,21 +241,63 @@ esp_player_deinit(player);
 
 ## Performance
 
-Test environment:
+### Test Environment
 
 | Chip | CPU | SPI RAM | Flash |
 |------|-----|---------|-------|
-| ESP32-P4 | 360 MHz | 200 MHz | QIO |
+| ESP32-S3 | 240 MHz | 80 MHz | QIO |
+| ESP32-S31 | 320 MHz | 200 MHz | QIO |
+| ESP32-P4 | 400 MHz | 250 MHz | QIO |
 
-Local SD card playback, MP3 vs AAC:
+### Audio Performance
 
-| Format | Memory (KB) | CPU (%) | Startup latency (ms) | Replay latency (ms) |
-|--------|-------------|---------|----------------------|---------------------|
-| MP3 | 95 | 3.1 | 188 | 124 |
-| AAC | 105 | 3.6 | 185 | 126 |
+Play MP3 and AAC files from a local SD card.
 
+| Chip | Format | Internal (KB) | PSRAM (KB) | Total (KB) | CPU (%) | Startup (ms) | Replay (ms) |
+|------|--------|---------------|------------|------------|---------|--------------|-------------|
+| ESP32-S3 | MP3 | 8.8 | 91.8 | 100.6 | 5 | 32 | 27 |
+| ESP32-S3 | AAC | 10.1 | 106.4 | 116.5 | 3 | 19 | 6 |
+| ESP32-S31 | MP3 | 7.2 | 91.8 | 99.0 | 4 | 16 | 6 |
+| ESP32-S31 | AAC | 8.6 | 106.4 | 115.0 | 5 | 16 | 6 |
+| ESP32-P4 | MP3 | 7.2 | 91.8 | 99.0 | 3 | 15 | 3 |
+| ESP32-P4 | AAC | 10.1 | 106.4 | 116.5 | 3 | 11 | 2 |
+
+Notes:
 - **Startup latency**: time from `esp_player_run()` to first audio frame output
 - **Replay latency**: time from `esp_player_stop()` + `esp_player_run()` (same URL) to first audio frame output
+
+### ESP Player vs ESP-Audio Playback Performance Comparison
+
+`esp_audio` is the audio playback component in v2.x version ESP-ADF. The following table compares `esp_audio` and `esp_player` on ESP32-S3 using the same formats and test conditions, covering resource overhead, startup latency, and replay latency. Parentheses in each `esp_player` row show the reduction relative to `esp_audio`.
+
+| Format | Component | Internal (KB) | PSRAM (KB) | Total (KB) | CPU (%) | Startup (ms) | Replay (ms) |
+|--------|-----------|---------------|------------|------------|---------|--------------|-------------|
+| MP3 | esp_audio | 19.0 | 109.1 | 128.1 | 8 | 74 | 74 |
+| MP3 | esp_player | 8.8 (53.7% lower) | 91.8 (15.9% lower) | 100.6 (21.5% lower) | 5 (37.5% lower) | 32 (56.8% lower) | 27 (63.5% lower) |
+| AAC | esp_audio | 35.7 | 182.9 | 218.6 | 5 | 80 | 80 |
+| AAC | esp_player | 10.1 (71.7% lower) | 106.4 (41.8% lower) | 116.5 (46.7% lower) | 3 (40.0% lower) | 19 (76.3% lower) | 6 (92.5% lower) |
+
+### Video Performance
+
+| Chip | Format | Maximum Performance |
+|------|--------|---------------------|
+| ESP32-S3 | H264 | 320x240@18fps |
+| ESP32-S31 | H264 | 320x240@55fps |
+| ESP32-S31 | H264 | 640x480@13fps |
+| ESP32-P4 | H264 | 320x240@68fps |
+| ESP32-P4 | H264 | 640x480@18fps |
+| ESP32-S3 | MJPEG | 320x240@21fps |
+| ESP32-S31 | MJPEG | 320x240@>120fps |
+| ESP32-S31 | MJPEG | 640x480@42fps |
+| ESP32-S31 | MJPEG | 1280x720@19fps |
+| ESP32-P4 | MJPEG | 320x240@>120fps |
+| ESP32-P4 | MJPEG | 640x480@67fps |
+| ESP32-P4 | MJPEG | 1280x720@25fps |
+
+Notes:
+- H264 uses software decoding on all chips listed above.
+- MJPEG uses software decoding on ESP32-S3 and hardware decoding on ESP32-S31 and ESP32-P4.
+- Video playback requires substantial memory and processing resources. ESP32-S31 and ESP32-P4 with PSRAM are recommended. For higher-resolution MJPEG playback, use ESP32-S31 or ESP32-P4 with hardware MJPEG decoding.
 
 ### Memory optimization
 

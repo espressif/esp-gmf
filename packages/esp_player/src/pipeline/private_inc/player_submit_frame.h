@@ -30,7 +30,7 @@ typedef struct frame_pool_slot_s {
 
 esp_player_err_t frame_pool_create(frame_pool_t **out_pool);
 void frame_pool_destroy(frame_pool_t *pool);
-frame_pool_slot_t *frame_pool_acquire(frame_pool_t *pool, size_t need);
+frame_pool_slot_t *frame_pool_acquire(frame_pool_t *pool, size_t need, uint32_t timeout_ms);
 void frame_pool_release(frame_pool_t *pool, frame_pool_slot_t *slot);
 frame_pool_slot_t *frame_pool_find_by_buf(frame_pool_t *pool, const uint8_t *buf);
 

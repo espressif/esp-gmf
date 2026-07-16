@@ -307,6 +307,7 @@ static esp_gmf_job_err_t player_extractor_process(esp_gmf_element_handle_t self,
     /* Decoder/render error may disable all output tracks; do not treat that as demux failure. */
     if (!player_extractor_has_output_stream(extractor)) {
         ESP_LOGD(TAG, "No enabled output stream, yield until stop or re-enable");
+        vTaskDelay(pdMS_TO_TICKS(10));
         return ESP_GMF_JOB_ERR_CONTINUE;
     }
 
@@ -319,6 +320,7 @@ static esp_gmf_job_err_t player_extractor_process(esp_gmf_element_handle_t self,
     }
     if (extractor_ret == ESP_EXTRACTOR_ERR_WAITING_OUTPUT) {
         ESP_LOGD(TAG, "Extractor is waiting output, line: %d", __LINE__);
+        vTaskDelay(pdMS_TO_TICKS(10));
         return ESP_GMF_JOB_ERR_CONTINUE;
     }
     if (extractor_ret != ESP_EXTRACTOR_ERR_OK && extractor_ret != ESP_EXTRACTOR_ERR_EOS) {

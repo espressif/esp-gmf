@@ -333,7 +333,6 @@ esp_player_err_t player_pl_create_video_render(esp_player_stream_t *stream)
         }
     } else {
         esp_gmf_pipeline_reset(stream->video_side->render);
-        player_reset_video_db(stream);
     }
     return player_run_pipeline_with_timeout(stream, player_pipeline_task(stream->video_side->render), TASK_TIMEOUT_MS,
                                             stream->video_side->render, ESP_PLAYER_ERROR_SOURCE_VIDEO_RENDER);
