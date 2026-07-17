@@ -463,6 +463,7 @@ static esp_gmf_job_err_t esp_gmf_audio_dec_process(esp_gmf_element_handle_t self
         }
     }
     while (1) {
+        audio_dec->out_data.decoded_size = 0;
         ret = esp_audio_simple_dec_process(audio_dec->dec_hd, &audio_dec->in_data, &audio_dec->out_data);
         if (ret != ESP_AUDIO_ERR_OK && ret != ESP_AUDIO_ERR_BUFF_NOT_ENOUGH) {
             ESP_LOGE(TAG, "Failed to decode data, ret: %d", ret);
@@ -491,6 +492,20 @@ static esp_gmf_job_err_t esp_gmf_audio_dec_process(esp_gmf_element_handle_t self
         ESP_LOGV(TAG, "buf: %p, sz: %d, dec: %ld", out_load->buf, out_load->valid_size, audio_dec->out_data.decoded_size);
         if (audio_dec->out_data.decoded_size > 0) {
             esp_audio_simple_dec_get_info(audio_dec->dec_hd, &dec_info);
+            if (dec_info.sample_rate == 0 || dec_info.channel == 0 || dec_info.bits_per_sample == 0) {
+                ESP_LOGW(TAG, "Invalid audio info after decode, drop frame: rate:%ld, ch:%d, bits:%d",
+                         dec_info.sample_rate, dec_info.channel, dec_info.bits_per_sample);
+                if (audio_dec->in_data.len > 0) {
+                    continue;
+                }
+                if (audio_dec->in_load && audio_dec->in_load->is_done) {
+                    out_load->is_done = audio_dec->in_load->is_done;
+                    out_len = ESP_GMF_JOB_ERR_DONE;
+                } else {
+                    out_len = ESP_GMF_JOB_ERR_CONTINUE;
+                }
+                break;
+            }
             esp_gmf_audio_el_get_snd_info(self, &snd_info);
             if (snd_info.sample_rates != dec_info.sample_rate
                 || snd_info.channels != dec_info.channel
