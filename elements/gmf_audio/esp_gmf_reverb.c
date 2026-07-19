@@ -11,6 +11,7 @@
 #include "esp_gmf_oal_mutex.h"
 #include "esp_gmf_node.h"
 #include "esp_gmf_reverb.h"
+#include "esp_gmf_args_desc.h"
 #include "gmf_audio_common.h"
 #include "esp_gmf_audio_methods_def.h"
 #include "esp_gmf_cap.h"
@@ -25,6 +26,36 @@ typedef struct {
 } esp_gmf_reverb_t;
 
 static const char *TAG = "ESP_GMF_REVERB";
+
+static const esp_gmf_arg_constraint_t s_reverb_room_size_constraint = {
+    .minimum.f64 = 0.0,
+    .maximum.f64 = 1.0,
+    .step.f64 = 0.01,
+};
+
+static const esp_gmf_arg_constraint_t s_reverb_wet_level_constraint = {
+    .minimum.f64 = -96.0,
+    .maximum.f64 = 0.0,
+    .step.f64 = 0.1,
+};
+
+static const esp_gmf_arg_constraint_t s_reverb_damping_constraint = {
+    .minimum.f64 = 0.0,
+    .maximum.f64 = 1.0,
+    .step.f64 = 0.01,
+};
+
+static const esp_gmf_arg_constraint_t s_reverb_dry_level_constraint = {
+    .minimum.f64 = -96.0,
+    .maximum.f64 = 0.0,
+    .step.f64 = 0.1,
+};
+
+static const esp_gmf_arg_constraint_t s_reverb_pre_delay_constraint = {
+    .minimum.u64 = 0,
+    .maximum.u64 = 200,
+    .step.u64 = 1,
+};
 
 static esp_gmf_err_t __reverb_set_room_size(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
                                             uint8_t *buf, int buf_len)
@@ -56,6 +87,51 @@ static esp_gmf_err_t __reverb_get_wet_level(esp_gmf_element_handle_t handle, esp
     return esp_gmf_reverb_get_wet_level(handle, (float *)buf);
 }
 
+static esp_gmf_err_t __reverb_set_damping(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                          uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_reverb_set_damping(handle, *((float *)buf));
+}
+
+static esp_gmf_err_t __reverb_get_damping(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                          uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_reverb_get_damping(handle, (float *)buf);
+}
+
+static esp_gmf_err_t __reverb_set_dry_level(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                            uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_reverb_set_dry_level(handle, *((float *)buf));
+}
+
+static esp_gmf_err_t __reverb_get_dry_level(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                            uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_reverb_get_dry_level(handle, (float *)buf);
+}
+
+static esp_gmf_err_t __reverb_set_pre_delay_ms(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                               uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_reverb_set_pre_delay_ms(handle, *((uint16_t *)buf));
+}
+
+static esp_gmf_err_t __reverb_get_pre_delay_ms(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                               uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_reverb_get_pre_delay_ms(handle, (uint16_t *)buf);
+}
+
 static esp_gmf_err_t __reverb_reset(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
                                     uint8_t *buf, int buf_len)
 {
@@ -74,12 +150,12 @@ static esp_gmf_job_err_t esp_gmf_reverb_open(esp_gmf_element_handle_t self, void
     ESP_GMF_NULL_CHECK(TAG, reverb_info, {return ESP_GMF_JOB_ERR_FAIL;});
     esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
     reverb->bytes_per_sample = (reverb_info->bits_per_sample >> 3) * reverb_info->channel;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     esp_ae_reverb_open(reverb_info, &reverb->reverb_hd);
     ESP_GMF_CHECK(TAG, reverb->reverb_hd, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __reverb_open_exit;}, "Failed to create reverb handle");
     reverb->need_reopen = false;
 __reverb_open_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (job_ret != ESP_GMF_JOB_ERR_OK) {
         return job_ret;
     }
@@ -97,12 +173,12 @@ static esp_gmf_job_err_t esp_gmf_reverb_close(esp_gmf_element_handle_t self, voi
 {
     esp_gmf_reverb_t *reverb = (esp_gmf_reverb_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (reverb->reverb_hd != NULL) {
         esp_ae_reverb_close(reverb->reverb_hd);
         reverb->reverb_hd = NULL;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     return ESP_GMF_ERR_OK;
 }
 
@@ -142,9 +218,9 @@ static esp_gmf_job_err_t esp_gmf_reverb_process(esp_gmf_element_handle_t self, v
     load_ret = esp_gmf_port_acquire_out(out_port, &out_load, samples_num ? bytes : in_load->buf_length, ESP_GMF_MAX_DELAY);
     ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, load_ret, out_len, {goto __reverb_release;});
     if (samples_num > 0) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+        esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
         esp_ae_err_t ret = esp_ae_reverb_process(reverb->reverb_hd, samples_num, in_load->buf, out_load->buf);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+        esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
         ESP_GMF_RET_ON_ERROR(TAG, ret, {out_len = ESP_GMF_JOB_ERR_FAIL; goto __reverb_release;}, "Reverb process error %d", ret);
     }
     ESP_LOGV(TAG, "Samples: %d, IN-PLD: %p-%p-%d-%d-%d, OUT-PLD: %p-%p-%d-%d-%d",
@@ -195,7 +271,9 @@ static esp_gmf_err_t reverb_received_event_handler(esp_gmf_event_pkt_t *evt, voi
     esp_ae_reverb_cfg_t *config = (esp_ae_reverb_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_reverb_t *reverb = (esp_gmf_reverb_t *)self;
-    reverb->need_reopen = (config->sample_rate != info->sample_rates) || (info->channels != config->channel)
+    reverb->need_reopen = reverb->need_reopen
+                          || (config->sample_rate != info->sample_rates)
+                          || (info->channels != config->channel)
                           || (config->bits_per_sample != info->bits);
     config->sample_rate = info->sample_rates;
     config->channel = info->channels;
@@ -241,33 +319,87 @@ static esp_gmf_err_t _load_reverb_methods_func(esp_gmf_element_handle_t handle)
     esp_gmf_method_t *method = NULL;
     esp_gmf_args_desc_t *set_args = NULL;
     esp_gmf_args_desc_t *get_args = NULL;
-    esp_gmf_err_t ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(REVERB, SET_ROOM_SIZE, ROOM_SIZE),
-                                                 ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0);
+    esp_gmf_err_t ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(REVERB, SET_ROOM_SIZE, ROOM_SIZE),
+                                                                ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                                &s_reverb_room_size_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to append ROOM_SIZE argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(REVERB, SET_ROOM_SIZE), __reverb_set_room_size, set_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(REVERB, SET_ROOM_SIZE), __reverb_set_room_size,
+                                          set_args, AMETHOD(REVERB, GET_ROOM_SIZE), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(REVERB, SET_ROOM_SIZE));
 
     ret = esp_gmf_args_desc_copy(set_args, &get_args);
     set_args = NULL;
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to copy argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(REVERB, GET_ROOM_SIZE), __reverb_get_room_size, get_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(REVERB, GET_ROOM_SIZE), __reverb_get_room_size,
+                                          get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(REVERB, GET_ROOM_SIZE));
     get_args = NULL;
 
-    ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(REVERB, SET_WET_LEVEL, WET_LEVEL),
-                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0);
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(REVERB, SET_WET_LEVEL, WET_LEVEL),
+                                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                   &s_reverb_wet_level_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to append WET_LEVEL argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(REVERB, SET_WET_LEVEL), __reverb_set_wet_level, set_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(REVERB, SET_WET_LEVEL), __reverb_set_wet_level,
+                                          set_args, AMETHOD(REVERB, GET_WET_LEVEL), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(REVERB, SET_WET_LEVEL));
 
     ret = esp_gmf_args_desc_copy(set_args, &get_args);
     set_args = NULL;
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to copy argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(REVERB, GET_WET_LEVEL), __reverb_get_wet_level, get_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(REVERB, GET_WET_LEVEL), __reverb_get_wet_level,
+                                          get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(REVERB, GET_WET_LEVEL));
     get_args = NULL;
 
-    ret = esp_gmf_method_append(&method, AMETHOD(REVERB, RESET), __reverb_reset, NULL);
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(REVERB, SET_DAMPING, DAMPING),
+                                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                   &s_reverb_damping_constraint);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to append DAMPING argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(REVERB, SET_DAMPING), __reverb_set_damping,
+                                          set_args, AMETHOD(REVERB, GET_DAMPING), true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(REVERB, SET_DAMPING));
+
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    set_args = NULL;
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to copy argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(REVERB, GET_DAMPING), __reverb_get_damping,
+                                          get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(REVERB, GET_DAMPING));
+    get_args = NULL;
+
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(REVERB, SET_DRY_LEVEL, DRY_LEVEL),
+                                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                   &s_reverb_dry_level_constraint);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to append DRY_LEVEL argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(REVERB, SET_DRY_LEVEL), __reverb_set_dry_level,
+                                          set_args, AMETHOD(REVERB, GET_DRY_LEVEL), true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(REVERB, SET_DRY_LEVEL));
+
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    set_args = NULL;
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to copy argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(REVERB, GET_DRY_LEVEL), __reverb_get_dry_level,
+                                          get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(REVERB, GET_DRY_LEVEL));
+    get_args = NULL;
+
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(REVERB, SET_PRE_DELAY, PRE_DELAY),
+                                                   ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0,
+                                                   &s_reverb_pre_delay_constraint);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to append PRE_DELAY argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(REVERB, SET_PRE_DELAY), __reverb_set_pre_delay_ms,
+                                          set_args, AMETHOD(REVERB, GET_PRE_DELAY), true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(REVERB, SET_PRE_DELAY));
+
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    set_args = NULL;
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to copy argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(REVERB, GET_PRE_DELAY), __reverb_get_pre_delay_ms,
+                                          get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(REVERB, GET_PRE_DELAY));
+    get_args = NULL;
+
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(REVERB, RESET), __reverb_reset, NULL, NULL, false);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(REVERB, RESET));
 
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
@@ -289,7 +421,7 @@ static esp_gmf_err_t reverb_set_float_param(esp_gmf_element_handle_t handle, esp
                                             float value, float *cfg_field)
 {
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (reverb_hd) {
         esp_ae_err_t ae_ret = set_fn(reverb_hd, value);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -299,7 +431,7 @@ static esp_gmf_err_t reverb_set_float_param(esp_gmf_element_handle_t handle, esp
     }
     *cfg_field = value;
 __exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -308,7 +440,7 @@ static esp_gmf_err_t reverb_get_float_param(esp_gmf_element_handle_t handle, esp
                                             float cfg_value, float *out)
 {
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (reverb_hd) {
         esp_ae_err_t ae_ret = get_fn(reverb_hd, out);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -317,7 +449,7 @@ static esp_gmf_err_t reverb_get_float_param(esp_gmf_element_handle_t handle, esp
     } else {
         *out = cfg_value;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -332,6 +464,7 @@ esp_gmf_err_t esp_gmf_reverb_set_room_size(esp_gmf_element_handle_t handle, floa
 
 esp_gmf_err_t esp_gmf_reverb_get_room_size(esp_gmf_element_handle_t handle, float *room_size)
 {
+    ESP_LOGI(TAG, "handle:%p esp_gmf_reverb_get_room_size", handle);
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     ESP_GMF_NULL_CHECK(TAG, room_size, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_ae_reverb_cfg_t *cfg = (esp_ae_reverb_cfg_t *)OBJ_GET_CFG(handle);
@@ -351,6 +484,7 @@ esp_gmf_err_t esp_gmf_reverb_set_damping(esp_gmf_element_handle_t handle, float 
 
 esp_gmf_err_t esp_gmf_reverb_get_damping(esp_gmf_element_handle_t handle, float *damping)
 {
+    ESP_LOGI(TAG, "handle:%p esp_gmf_reverb_get_damping", handle);
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     ESP_GMF_NULL_CHECK(TAG, damping, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_ae_reverb_cfg_t *cfg = (esp_ae_reverb_cfg_t *)OBJ_GET_CFG(handle);
@@ -370,6 +504,7 @@ esp_gmf_err_t esp_gmf_reverb_set_wet_level(esp_gmf_element_handle_t handle, floa
 
 esp_gmf_err_t esp_gmf_reverb_get_wet_level(esp_gmf_element_handle_t handle, float *wet_level)
 {
+    ESP_LOGI(TAG, "handle:%p esp_gmf_reverb_get_wet_level", handle);
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     ESP_GMF_NULL_CHECK(TAG, wet_level, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_ae_reverb_cfg_t *cfg = (esp_ae_reverb_cfg_t *)OBJ_GET_CFG(handle);
@@ -389,6 +524,7 @@ esp_gmf_err_t esp_gmf_reverb_set_dry_level(esp_gmf_element_handle_t handle, floa
 
 esp_gmf_err_t esp_gmf_reverb_get_dry_level(esp_gmf_element_handle_t handle, float *dry_level)
 {
+    ESP_LOGI(TAG, "handle:%p esp_gmf_reverb_get_dry_level", handle);
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     ESP_GMF_NULL_CHECK(TAG, dry_level, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_ae_reverb_cfg_t *cfg = (esp_ae_reverb_cfg_t *)OBJ_GET_CFG(handle);
@@ -397,19 +533,58 @@ esp_gmf_err_t esp_gmf_reverb_get_dry_level(esp_gmf_element_handle_t handle, floa
                                   esp_ae_reverb_get_dry_level, cfg->reverb_para.dry_level, dry_level);
 }
 
+esp_gmf_err_t esp_gmf_reverb_set_pre_delay_ms(esp_gmf_element_handle_t handle, uint16_t pre_delay_ms)
+{
+    ESP_LOGI(TAG, "handle:%p esp_gmf_reverb_set_pre_delay_ms: pre_delay_ms=%u", handle, pre_delay_ms);
+    ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
+    if (pre_delay_ms > 200) {
+        ESP_LOGE(TAG, "Invalid pre_delay_ms(%u), range: [0, 200]", pre_delay_ms);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    esp_ae_reverb_cfg_t *cfg = (esp_ae_reverb_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    esp_gmf_reverb_t *reverb = (esp_gmf_reverb_t *)handle;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    if (cfg->reverb_para.pre_delay_ms == pre_delay_ms) {
+        goto __reverb_set_pre_delay_exit;
+    }
+    cfg->reverb_para.pre_delay_ms = pre_delay_ms;
+    /* AE allocates the pre-delay line in open(); changing it while running needs reopen. */
+    if (reverb->reverb_hd != NULL) {
+        reverb->need_reopen = true;
+    }
+__reverb_set_pre_delay_exit:
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_reverb_get_pre_delay_ms(esp_gmf_element_handle_t handle, uint16_t *pre_delay_ms)
+{
+    ESP_LOGI(TAG, "handle:%p esp_gmf_reverb_get_pre_delay_ms", handle);
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, pre_delay_ms, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_ae_reverb_cfg_t *cfg = (esp_ae_reverb_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    *pre_delay_ms = cfg->reverb_para.pre_delay_ms;
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t esp_gmf_reverb_reset(esp_gmf_element_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_reverb_t *reverb = (esp_gmf_reverb_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (reverb->reverb_hd) {
         esp_ae_err_t ae_ret = esp_ae_reverb_reset(reverb->reverb_hd);
         if (ae_ret != ESP_AE_ERR_OK) {
             ret = ESP_GMF_ERR_FAIL;
         }
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     ESP_LOGD(TAG, "Reverb reset");
     return ret;
 }

@@ -10,4 +10,12 @@ menu "Espressif Audio Render Configuration"
     config ESP_AUDIO_RENDER_MIXER_THREAD_PRIORITY
         int "Audio render mixer thread priority"
         default 20
+
+    config ESP_AUDIO_RENDER_PIPELINE_VIEW
+        bool "Publish GMF pipeline view"
+        default n
+        help
+            Publish Audio Render stream and mixed pipeline topology through
+            GMF pipeline view connectors for hosts such as ESP Audio Studio.
+            Keep disabled for normal playback.
 endmenu

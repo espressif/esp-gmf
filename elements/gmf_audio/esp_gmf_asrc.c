@@ -32,6 +32,48 @@ typedef struct {
 
 static const char *TAG = "ESP_GMF_ASRC";
 
+static const esp_gmf_arg_constraint_t s_asrc_channel_constraint = {
+    .minimum.u64 = 1,
+    .maximum.u64 = UINT8_MAX,
+    .step.u64 = 1,
+};
+
+static const esp_gmf_arg_constraint_t s_asrc_bits_constraint = {
+    .minimum.u64 = 16,
+    .maximum.u64 = 32,
+    .step.u64 = 8,
+};
+
+static inline esp_gmf_err_t dupl_esp_asrc_cfg(esp_asrc_cfg_t *config, esp_asrc_cfg_t **new_config)
+{
+    *new_config = esp_gmf_oal_calloc(1, sizeof(*config));
+    ESP_GMF_MEM_VERIFY(TAG, *new_config, {return ESP_GMF_ERR_MEMORY_LACK;},
+                       "ASRC configuration", sizeof(*config));
+    memcpy(*new_config, config, sizeof(*config));
+    if (config->weight != NULL && config->weight_len > 0) {
+        size_t weight_size = config->weight_len * sizeof(float);
+        float *weight = esp_gmf_oal_calloc(1, weight_size);
+        ESP_GMF_MEM_VERIFY(TAG, weight, {esp_gmf_oal_free(*new_config); return ESP_GMF_ERR_MEMORY_LACK;},
+                           "ASRC weight", (int)weight_size);
+        memcpy(weight, config->weight, weight_size);
+        (*new_config)->weight = weight;
+    } else {
+        (*new_config)->weight = NULL;
+        (*new_config)->weight_len = 0;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
+static inline void free_esp_asrc_cfg(esp_asrc_cfg_t *config)
+{
+    if (config != NULL) {
+        if (config->weight != NULL) {
+            esp_gmf_oal_free(config->weight);
+        }
+        esp_gmf_oal_free(config);
+    }
+}
+
 static inline bool esp_gmf_asrc_is_bypass(const esp_asrc_cfg_t *cfg)
 {
     return (cfg->src_info.sample_rate == cfg->dest_info.sample_rate)
@@ -68,6 +110,27 @@ static esp_gmf_err_t __asrc_set_dest_ch(esp_gmf_element_handle_t handle, esp_gmf
     return esp_gmf_asrc_set_dest_ch(handle, dest_ch);
 }
 
+static esp_gmf_err_t __asrc_get_dest_rate(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                          uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_asrc_get_dest_rate(handle, (uint32_t *)buf);
+}
+
+static esp_gmf_err_t __asrc_get_dest_bits(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                          uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_asrc_get_dest_bits(handle, buf);
+}
+
+static esp_gmf_err_t __asrc_get_dest_ch(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                        uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_asrc_get_dest_ch(handle, buf);
+}
+
 static esp_gmf_err_t esp_gmf_asrc_new(void *cfg, esp_gmf_obj_handle_t *handle)
 {
     return esp_gmf_asrc_init(cfg, (esp_gmf_element_handle_t *)handle);
@@ -79,7 +142,7 @@ static esp_gmf_job_err_t esp_gmf_asrc_open(esp_gmf_element_handle_t self, void *
     esp_asrc_cfg_t *asrc_info = (esp_asrc_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, asrc_info, {return ESP_GMF_JOB_ERR_FAIL;});
     esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     esp_asrc_err_t ret = esp_asrc_open(asrc_info, &asrc->asrc_hd);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __asrc_open_exit;}, "Failed to create ASRC handle %d", ret);
     ret = esp_asrc_get_bytes_per_sample(asrc->asrc_hd, &asrc->in_sample_bytes, &asrc->out_sample_bytes);
@@ -91,7 +154,7 @@ static esp_gmf_job_err_t esp_gmf_asrc_open(esp_gmf_element_handle_t self, void *
     asrc->need_reopen = false;
     esp_gmf_asrc_update_bypass(asrc, asrc_info);
 __asrc_open_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (job_ret != ESP_GMF_JOB_ERR_OK) {
         return job_ret;
     }
@@ -104,12 +167,12 @@ static esp_gmf_job_err_t esp_gmf_asrc_close(esp_gmf_element_handle_t self, void 
 {
     esp_gmf_asrc_t *asrc = (esp_gmf_asrc_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (asrc->asrc_hd != NULL) {
         esp_asrc_close(asrc->asrc_hd);
         asrc->asrc_hd = NULL;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     return ESP_GMF_JOB_ERR_OK;
 }
 
@@ -206,12 +269,14 @@ static esp_gmf_err_t asrc_received_event_handler(esp_gmf_event_pkt_t *evt, void 
     esp_asrc_cfg_t *config = (esp_asrc_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_asrc_t *asrc = (esp_gmf_asrc_t *)self;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     asrc->need_reopen = (config->src_info.sample_rate != info->sample_rates)
-        || (config->src_info.channel != info->channels)
-        || (config->src_info.bits_per_sample != info->bits);
+                        || (config->src_info.channel != info->channels)
+                        || (config->src_info.bits_per_sample != info->bits);
     config->src_info.sample_rate = info->sample_rates;
     config->src_info.channel = info->channels;
     config->src_info.bits_per_sample = info->bits;
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     ESP_LOGD(TAG, "RECV element info, from: %s-%p, next: %p, self: %s-%p, type: %x, state: %s, rate: %d, ch: %d, bits: %d",
              OBJ_GET_TAG(el), el, esp_gmf_node_for_next((esp_gmf_node_t *)el), OBJ_GET_TAG(self), self, evt->type,
              esp_gmf_event_get_state_str(state), info->sample_rates, info->channels, info->bits);
@@ -225,10 +290,7 @@ static esp_gmf_err_t esp_gmf_asrc_destroy(esp_gmf_element_handle_t self)
 {
     esp_gmf_asrc_t *asrc = (esp_gmf_asrc_t *)self;
     ESP_LOGD(TAG, "Destroyed, %p", self);
-    void *cfg = OBJ_GET_CFG(self);
-    if (cfg) {
-        esp_gmf_oal_free(cfg);
-    }
+    free_esp_asrc_cfg(OBJ_GET_CFG(self));
     esp_gmf_audio_el_deinit(self);
     esp_gmf_oal_free(asrc);
     return ESP_GMF_ERR_OK;
@@ -267,29 +329,55 @@ static esp_gmf_err_t _load_asrc_methods_func(esp_gmf_element_handle_t handle)
 {
     esp_gmf_method_t *method = NULL;
     esp_gmf_args_desc_t *set_args = NULL;
+    esp_gmf_args_desc_t *get_args = NULL;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     // Set destination rate method
     ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(RATE_CVT, SET_DEST_RATE, RATE),
                                    ESP_GMF_ARGS_TYPE_UINT32, sizeof(uint32_t), 0);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to append RATE argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(RATE_CVT, SET_DEST_RATE), __asrc_set_dest_rate, set_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(RATE_CVT, SET_DEST_RATE),
+                                          __asrc_set_dest_rate, set_args,
+                                          AMETHOD(RATE_CVT, GET_DEST_RATE), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register %s method", AMETHOD(RATE_CVT, SET_DEST_RATE));
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to copy RATE argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(RATE_CVT, GET_DEST_RATE),
+                                          __asrc_get_dest_rate, get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register %s method", AMETHOD(RATE_CVT, GET_DEST_RATE));
 
     // Set destination channel method
     set_args = NULL;
-    ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(CH_CVT, SET_DEST_CH, CH),
-                                   ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), 0);
+    get_args = NULL;
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(CH_CVT, SET_DEST_CH, CH),
+                                                   ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), 0,
+                                                   &s_asrc_channel_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to append CHANNEL argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(CH_CVT, SET_DEST_CH), __asrc_set_dest_ch, set_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(CH_CVT, SET_DEST_CH),
+                                          __asrc_set_dest_ch, set_args,
+                                          AMETHOD(CH_CVT, GET_DEST_CH), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register %s method", AMETHOD(CH_CVT, SET_DEST_CH));
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to copy CHANNEL argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(CH_CVT, GET_DEST_CH),
+                                          __asrc_get_dest_ch, get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register %s method", AMETHOD(CH_CVT, GET_DEST_CH));
 
     // Set destination bits method
     set_args = NULL;
-    ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(BIT_CVT, SET_DEST_BITS, BITS),
-                                   ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), 0);
+    get_args = NULL;
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(BIT_CVT, SET_DEST_BITS, BITS),
+                                                   ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), 0,
+                                                   &s_asrc_bits_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to append BITS argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(BIT_CVT, SET_DEST_BITS), __asrc_set_dest_bits, set_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(BIT_CVT, SET_DEST_BITS),
+                                          __asrc_set_dest_bits, set_args,
+                                          AMETHOD(BIT_CVT, GET_DEST_BITS), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register %s method", AMETHOD(BIT_CVT, SET_DEST_BITS));
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, return ret, "Failed to copy BITS argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(BIT_CVT, GET_DEST_BITS),
+                                          __asrc_get_dest_bits, get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register %s method", AMETHOD(BIT_CVT, GET_DEST_BITS));
 
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
     el->method = method;
@@ -304,7 +392,7 @@ static esp_gmf_err_t esp_gmf_asrc_set_dest_field(esp_gmf_element_handle_t handle
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     esp_gmf_asrc_t *asrc = (esp_gmf_asrc_t *)handle;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (update_rate && (cfg->dest_info.sample_rate != dest_rate)) {
         cfg->dest_info.sample_rate = dest_rate;
         asrc->need_reopen = true;
@@ -317,7 +405,7 @@ static esp_gmf_err_t esp_gmf_asrc_set_dest_field(esp_gmf_element_handle_t handle
         cfg->dest_info.bits_per_sample = dest_bits;
         asrc->need_reopen = true;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -336,6 +424,44 @@ esp_gmf_err_t esp_gmf_asrc_set_dest_bits(esp_gmf_element_handle_t handle, uint8_
     return esp_gmf_asrc_set_dest_field(handle, false, 0, false, 0, true, dest_bits);
 }
 
+static esp_gmf_err_t esp_gmf_asrc_get_dest_field(esp_gmf_element_handle_t handle, uint32_t *dest_rate,
+                                                 uint8_t *dest_ch, uint8_t *dest_bits)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    esp_asrc_cfg_t *cfg = (esp_asrc_cfg_t *)OBJ_GET_CFG(handle);
+    if (cfg == NULL) {
+        ret = ESP_GMF_ERR_FAIL;
+    } else if (dest_rate != NULL) {
+        *dest_rate = cfg->dest_info.sample_rate;
+    } else if (dest_ch != NULL) {
+        *dest_ch = cfg->dest_info.channel;
+    } else if (dest_bits != NULL) {
+        *dest_bits = cfg->dest_info.bits_per_sample;
+    }
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_asrc_get_dest_rate(esp_gmf_element_handle_t handle, uint32_t *dest_rate)
+{
+    ESP_GMF_NULL_CHECK(TAG, dest_rate, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_asrc_get_dest_field(handle, dest_rate, NULL, NULL);
+}
+
+esp_gmf_err_t esp_gmf_asrc_get_dest_ch(esp_gmf_element_handle_t handle, uint8_t *dest_ch)
+{
+    ESP_GMF_NULL_CHECK(TAG, dest_ch, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_asrc_get_dest_field(handle, NULL, dest_ch, NULL);
+}
+
+esp_gmf_err_t esp_gmf_asrc_get_dest_bits(esp_gmf_element_handle_t handle, uint8_t *dest_bits)
+{
+    ESP_GMF_NULL_CHECK(TAG, dest_bits, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_asrc_get_dest_field(handle, NULL, NULL, dest_bits);
+}
+
 esp_gmf_err_t esp_gmf_asrc_init(esp_asrc_cfg_t *config, esp_gmf_element_handle_t *handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
@@ -346,15 +472,15 @@ esp_gmf_err_t esp_gmf_asrc_init(esp_asrc_cfg_t *config, esp_gmf_element_handle_t
     esp_gmf_obj_t *obj = (esp_gmf_obj_t *)asrc;
     obj->new_obj = esp_gmf_asrc_new;
     obj->del_obj = esp_gmf_asrc_destroy;
-    esp_asrc_cfg_t *cfg = esp_gmf_oal_calloc(1, sizeof(esp_asrc_cfg_t));
-    ESP_GMF_MEM_VERIFY(TAG, cfg, {ret = ESP_GMF_ERR_MEMORY_LACK; goto ASRC_INIT_FAIL;}, "ASRC configuration", sizeof(esp_asrc_cfg_t));
-    esp_gmf_obj_set_config(obj, cfg, sizeof(esp_asrc_cfg_t));
+    esp_asrc_cfg_t *cfg = NULL;
     if (config) {
-        memcpy(cfg, config, sizeof(esp_asrc_cfg_t));
+        ret = dupl_esp_asrc_cfg(config, &cfg);
     } else {
         esp_asrc_cfg_t dcfg = DEFAULT_ESP_GMF_ASRC_CONFIG();
-        memcpy(cfg, &dcfg, sizeof(esp_asrc_cfg_t));
+        ret = dupl_esp_asrc_cfg(&dcfg, &cfg);
     }
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto ASRC_INIT_FAIL, "Failed to duplicate ASRC configuration");
+    esp_gmf_obj_set_config(obj, cfg, sizeof(esp_asrc_cfg_t));
     ret = esp_gmf_obj_set_tag(obj, "aud_asrc");
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto ASRC_INIT_FAIL, "Failed to set obj tag");
     esp_asrc_buffer_alignment_t buffer_alignment = {0};

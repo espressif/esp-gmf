@@ -50,6 +50,19 @@ esp_gmf_err_t esp_gmf_rate_cvt_init(esp_ae_rate_cvt_cfg_t *config, esp_gmf_eleme
  */
 esp_gmf_err_t esp_gmf_rate_cvt_set_dest_rate(esp_gmf_element_handle_t handle, uint32_t dest_rate);
 
+/**
+ * @brief  Get destination sample rate from the rate conversion element
+ *
+ * @param[in]   handle     Rate conversion element handle
+ * @param[out]  dest_rate  Destination sample rate
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_FAIL         Configuration is unavailable
+ */
+esp_gmf_err_t esp_gmf_rate_cvt_get_dest_rate(esp_gmf_element_handle_t handle, uint32_t *dest_rate);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

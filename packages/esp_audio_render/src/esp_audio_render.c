@@ -6,11 +6,15 @@
  */
 
 #include <sdkconfig.h>
-#include <stdatomic.h>
 #include <math.h>
+#include <stdatomic.h>
+#include <string.h>
 #include "esp_audio_render.h"
 #include "audio_render_proc.h"
 #include "audio_render_mem.h"
+#if CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW
+#include "audio_render_pipeline_view.h"
+#endif  /* CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW */
 #include "esp_gmf_ringbuffer.h"
 #include "esp_gmf_mixer.h"
 #include "esp_gmf_oal_thread.h"
@@ -107,6 +111,22 @@ static inline audio_render_stream_t* get_stream(audio_render_t* render, esp_audi
     }
     return NULL;
 }
+
+#if CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW
+static esp_gmf_err_t sync_pipeline_view(audio_render_t *render)
+{
+    if (render == NULL || render->stream_num == 0) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    esp_gmf_pipeline_handle_t pipelines[render->stream_num];
+    for (int i = 0; i < render->stream_num; i++) {
+        pipelines[i] = render->streams[i].proc_handle == NULL
+                           ? NULL
+                           : audio_render_proc_get_pipeline(render->streams[i].proc_handle);
+    }
+    return audio_render_pipeline_view_update(pipelines, render->stream_num);
+}
+#endif  /* CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW */
 
 static inline int write_rb(esp_gmf_rb_handle_t rb, uint8_t *data, uint32_t size)
 {
@@ -518,6 +538,7 @@ esp_audio_render_err_t esp_audio_render_create(esp_audio_render_cfg_t *cfg, esp_
     }
     // Input streams + one post stream
     uint8_t stream_num = cfg->max_stream_num == 1 ? 1 : (cfg->max_stream_num + 1);
+    uint8_t buf_align = cfg->process_buf_align ? cfg->process_buf_align : AUDIO_RENDER_DEFAULT_BUF_ALIGN;
     audio_render_stream_t *streams = NULL;
     do {
         streams = (audio_render_stream_t *)audio_render_calloc(1, sizeof(audio_render_stream_t) * stream_num);
@@ -546,7 +567,7 @@ esp_audio_render_err_t esp_audio_render_create(esp_audio_render_cfg_t *cfg, esp_
                     ESP_LOGE(TAG, "Failed to create processor");
                     break;
                 }
-                audio_render_proc_set_buf_align(streams[i].proc_handle, cfg->process_buf_align);
+                audio_render_proc_set_buf_align(streams[i].proc_handle, buf_align);
             }
             streams[i].parent = audio_render;
         }
@@ -556,9 +577,7 @@ esp_audio_render_err_t esp_audio_render_create(esp_audio_render_cfg_t *cfg, esp_
         audio_render->streams = streams;
         audio_render->stream_num = stream_num;
         audio_render->cfg = *cfg;
-        if (audio_render->cfg.process_buf_align == 0) {
-            audio_render->cfg.process_buf_align = AUDIO_RENDER_DEFAULT_BUF_ALIGN;
-        }
+        audio_render->cfg.process_buf_align = buf_align;
         // Set default post output sample information
         if (cfg->out_sample_info.sample_rate == 0) {
             audio_render->cfg.out_sample_info.sample_rate = AUDIO_RENDER_DEFAULT_SAMPLE_RATE;
@@ -578,6 +597,12 @@ esp_audio_render_err_t esp_audio_render_create(esp_audio_render_cfg_t *cfg, esp_
         audio_render->task_cfg.core = CONFIG_ESP_AUDIO_RENDER_MIXER_THREAD_CORE_ID;
         audio_render->task_cfg.stack_in_ext = true;
         audio_render->solo_stream = ESP_AUDIO_RENDER_ALL_STREAM;
+#if CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW
+        if (audio_render_pipeline_view_init(audio_render->stream_num) != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to create pipeline view");
+            break;
+        }
+#endif  /* CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW */
         *render = audio_render;
         return ESP_AUDIO_RENDER_ERR_OK;
     } while (0);
@@ -589,6 +614,9 @@ esp_audio_render_err_t esp_audio_render_create(esp_audio_render_cfg_t *cfg, esp_
             }
         }
         audio_render_free(streams);
+    }
+    if (audio_render->mutex != NULL) {
+        esp_gmf_oal_mutex_destroy(audio_render->mutex);
     }
     audio_render_free(audio_render);
     return ESP_AUDIO_RENDER_ERR_NO_MEM;
@@ -707,6 +735,18 @@ esp_audio_render_err_t esp_audio_render_stream_set_mixer_gain(esp_audio_render_s
     return ESP_AUDIO_RENDER_ERR_OK;
 }
 
+esp_audio_render_err_t esp_audio_render_stream_get_mixer_gain(esp_audio_render_stream_handle_t stream_handle,
+                                                              esp_audio_render_mixer_gain_t *mixer_gain)
+{
+    if (stream_handle == NULL || mixer_gain == NULL) {
+        ESP_LOGE(TAG, "Invalid argument for stream:%p mixer_gain:%p", stream_handle, mixer_gain);
+        return ESP_AUDIO_RENDER_ERR_INVALID_ARG;
+    }
+    audio_render_stream_t *stream = (audio_render_stream_t *)stream_handle;
+    *mixer_gain = stream->mixer_gain;
+    return ESP_AUDIO_RENDER_ERR_OK;
+}
+
 esp_audio_render_err_t esp_audio_render_set_solo_stream(esp_audio_render_handle_t render,
                                                         esp_audio_render_stream_id_t stream_id)
 {
@@ -736,6 +776,11 @@ esp_audio_render_err_t esp_audio_render_stream_open(esp_audio_render_stream_hand
         esp_gmf_oal_mutex_lock(audio_render->mutex);
     }
     esp_audio_render_err_t ret = open_stream(audio_render, stream, sample_info);
+#if CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW
+    if (ret == ESP_AUDIO_RENDER_ERR_OK && sync_pipeline_view(audio_render) != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to synchronize pipeline view after open");
+    }
+#endif  /* CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW */
     if (audio_render->mutex) {
         esp_gmf_oal_mutex_unlock(audio_render->mutex);
     }
@@ -941,6 +986,11 @@ esp_audio_render_err_t esp_audio_render_stream_close(esp_audio_render_stream_han
         esp_gmf_oal_mutex_lock(audio_render->mutex);
     }
     esp_audio_render_err_t ret = close_stream(audio_render, stream);
+#if CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW
+    if (ret == ESP_AUDIO_RENDER_ERR_OK && sync_pipeline_view(audio_render) != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to synchronize pipeline view after close");
+    }
+#endif  /* CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW */
     if (audio_render->mutex) {
         esp_gmf_oal_mutex_unlock(audio_render->mutex);
     }
@@ -963,6 +1013,9 @@ esp_audio_render_err_t esp_audio_render_destroy(esp_audio_render_handle_t render
         audio_render_stream_t* stream = &audio_render->streams[i];
         close_stream(audio_render, stream);
     }
+#if CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW
+    audio_render_pipeline_view_deinit();
+#endif  /* CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW */
     for (int i = 0; i < audio_render->stream_num; i++) {
         audio_render_stream_t* stream = &audio_render->streams[i];
         if (stream->proc_handle) {

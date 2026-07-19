@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added optional GMF pipeline view publication for Audio Render stream and mixed pipelines, gated by `CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW` (disabled by default)
+- Added live pipeline handle updates when Audio Render streams are opened or closed
+
+### Bug Fixes
+
+- Fixed mutex cleanup when Audio Render creation fails
+
 ## v1.0.0~2
 
 ### Changes

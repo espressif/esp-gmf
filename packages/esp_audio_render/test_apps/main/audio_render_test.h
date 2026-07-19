@@ -16,6 +16,8 @@ int audio_render_proc_basic_test(int write_count);
 
 int audio_render_proc_typical_test(int write_count);
 
+int audio_render_pipeline_view_test(void);
+
 int audio_render_one_stream_no_proc(int write_count);
 
 int audio_render_one_stream_with_proc(int write_count);

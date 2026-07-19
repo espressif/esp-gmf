@@ -37,6 +37,22 @@ typedef struct {
 
 static const char *TAG = "ESP_GMF_ALC";
 
+static const esp_gmf_arg_constraint_t s_alc_index_constraint = {
+    .index_count_config_path = "channel",
+};
+
+static const esp_gmf_arg_constraint_t s_alc_gain_constraint = {
+    .minimum.i64 = -64,
+    .maximum.i64 = 63,
+    .step.i64 = 1,
+};
+
+static const esp_gmf_arg_constraint_t s_alc_transit_time_constraint = {
+    .minimum.i64 = 1,
+    .maximum.i64 = 500,
+    .step.i64 = 1,
+};
+
 static esp_gmf_err_t __alc_set_gain(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
                                     uint8_t *buf, int buf_len)
 {
@@ -102,7 +118,7 @@ static esp_gmf_job_err_t esp_gmf_alc_open(esp_gmf_element_handle_t self, void *p
     ESP_GMF_NULL_CHECK(TAG, config, {return ESP_GMF_JOB_ERR_FAIL;});
     esp_gmf_job_err_t ret = ESP_GMF_JOB_ERR_OK;
     alc->bytes_per_sample = (config->bits_per_sample >> 3) * config->channel;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     esp_ae_alc_open(config, &alc->alc_hd);
     ESP_GMF_CHECK(TAG, alc->alc_hd, { ret = ESP_GMF_JOB_ERR_FAIL; goto __alc_open_exit;}, "Failed to create alc handle");
     for (size_t i = 0; i < config->channel; i++) {
@@ -121,7 +137,7 @@ static esp_gmf_job_err_t esp_gmf_alc_open(esp_gmf_element_handle_t self, void *p
     }
 __alc_open_exit:
     alc->need_reopen = false;
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (ret != ESP_GMF_JOB_ERR_OK) {
         return ret;
     }
@@ -134,12 +150,12 @@ static esp_gmf_job_err_t esp_gmf_alc_close(esp_gmf_element_handle_t self, void *
 {
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (alc->alc_hd != NULL) {
         esp_ae_alc_close(alc->alc_hd);
         alc->alc_hd = NULL;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     return ESP_GMF_ERR_OK;
 }
 
@@ -179,9 +195,9 @@ static esp_gmf_job_err_t esp_gmf_alc_process(esp_gmf_element_handle_t self, void
     load_ret = esp_gmf_port_acquire_out(out_port, &out_load, samples_num ? bytes : in_load->buf_length, ESP_GMF_MAX_DELAY);
     ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, load_ret, out_len, {goto __alc_release;});
     if (samples_num) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+        esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
         esp_ae_err_t ret = esp_ae_alc_process(alc->alc_hd, samples_num, in_load->buf, out_load->buf);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+        esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
         ESP_GMF_RET_ON_ERROR(TAG, ret, {out_len = ESP_GMF_JOB_ERR_FAIL; goto __alc_release;}, "ALC process error %d", ret);
     }
     ESP_LOGV(TAG, "Samples: %d, IN-PLD: %p-%p-%d-%d-%d, OUT-PLD: %p-%p-%d-%d-%d",
@@ -231,10 +247,14 @@ static esp_gmf_err_t alc_received_event_handler(esp_gmf_event_pkt_t *evt, void *
     esp_ae_alc_cfg_t *config = (esp_ae_alc_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)self;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (info->channels > alc->max_ch) {
         int8_t *new_gain = esp_gmf_oal_realloc(alc->gain, info->channels * sizeof(*alc->gain));
-        ESP_GMF_MEM_VERIFY(TAG, new_gain, return ESP_GMF_ERR_MEMORY_LACK,
-                           "alc gain", info->channels * sizeof(*alc->gain));
+        if (new_gain == NULL) {
+            esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
+            ESP_LOGE(TAG, "Failed to reallocate alc gain, size:%d", info->channels);
+            return ESP_GMF_ERR_MEMORY_LACK;
+        }
         alc->gain = new_gain;
         // Most case the gain will be same for each channel, here set the new gain to the first channel
         for (int i = alc->max_ch; i < info->channels; ++i) {
@@ -242,10 +262,13 @@ static esp_gmf_err_t alc_received_event_handler(esp_gmf_event_pkt_t *evt, void *
         }
         alc->max_ch = info->channels;
     }
-    alc->need_reopen = (config->sample_rate != info->sample_rates) || (info->channels != config->channel) || (config->bits_per_sample != info->bits);
+    alc->need_reopen = (config->sample_rate != info->sample_rates)
+                       || (info->channels != config->channel)
+                       || (config->bits_per_sample != info->bits);
     config->sample_rate = info->sample_rates;
     config->channel = info->channels;
     config->bits_per_sample = info->bits;
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     ESP_LOGD(TAG, "RECV element info, from: %s-%p, next: %p, self: %s-%p, type: %x, state: %s, rate: %d, ch: %d, bits: %d",
              OBJ_GET_TAG(el), el, esp_gmf_node_for_next((esp_gmf_node_t *)el), OBJ_GET_TAG(self), self, evt->type,
              esp_gmf_event_get_state_str(state), info->sample_rates, info->channels, info->bits);
@@ -291,32 +314,37 @@ static esp_gmf_err_t _load_alc_methods_func(esp_gmf_element_handle_t handle)
     esp_gmf_method_t *method = NULL;
     esp_gmf_args_desc_t *set_args = NULL;
     esp_gmf_args_desc_t *get_args = NULL;
-    esp_gmf_err_t ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(ALC, SET_GAIN, IDX),
-                                                 ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), 0);
+    esp_gmf_err_t ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(ALC, SET_GAIN, IDX),
+                                                                 ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), 0,
+                                                                 &s_alc_index_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append index argument");
-    ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(ALC, SET_GAIN, GAIN), ESP_GMF_ARGS_TYPE_INT8,
-                                   sizeof(int8_t), sizeof(uint8_t));
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(ALC, SET_GAIN, GAIN),
+                                                   ESP_GMF_ARGS_TYPE_INT8, sizeof(int8_t), sizeof(uint8_t),
+                                                   &s_alc_gain_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append gain argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(ALC, SET_GAIN), __alc_set_gain, set_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(ALC, SET_GAIN), __alc_set_gain,
+                                          set_args, AMETHOD(ALC, GET_GAIN), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(ALC, SET_GAIN));
 
     ret = esp_gmf_args_desc_copy(set_args, &get_args);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(ALC, GET_GAIN), __alc_get_gain, get_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(ALC, GET_GAIN), __alc_get_gain,
+                                          get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(ALC, GET_GAIN));
 
     set_args = NULL;
-    ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(ALC, SET_TRANSIT_TIME, TIME),
-                                   ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append transit time argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(ALC, SET_TRANSIT_TIME), __alc_set_transit_time, set_args);
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(ALC, SET_TRANSIT_TIME, TRANSIT_TIME),
+                                                   ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0,
+                                                   &s_alc_transit_time_constraint);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append transit_time argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(ALC, SET_TRANSIT_TIME), __alc_set_transit_time,
+                                          set_args, AMETHOD(ALC, GET_TRANSIT_TIME), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(ALC, SET_TRANSIT_TIME));
 
-    get_args = NULL;
-    ret = esp_gmf_args_desc_append(&get_args, AMETHOD_ARG(ALC, GET_TRANSIT_TIME, TIME),
-                                   ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append transit time argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(ALC, GET_TRANSIT_TIME), __alc_get_transit_time, get_args);
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy transit_time argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(ALC, GET_TRANSIT_TIME), __alc_get_transit_time,
+                                          get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(ALC, GET_TRANSIT_TIME));
 
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
@@ -326,10 +354,11 @@ static esp_gmf_err_t _load_alc_methods_func(esp_gmf_element_handle_t handle)
 
 esp_gmf_err_t esp_gmf_alc_set_gain(esp_gmf_element_handle_t handle, uint8_t idx, int8_t gain)
 {
+    ESP_LOGI(TAG, "handle:%p esp_gmf_alc_set_gain: idx=%u, gain=%d", handle, idx, gain);
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_JOB_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (idx >= alc->max_ch) {
         ESP_LOGE(TAG, "Gain index %d is out of range", idx);
         ret = ESP_GMF_ERR_INVALID_ARG;
@@ -344,17 +373,18 @@ esp_gmf_err_t esp_gmf_alc_set_gain(esp_gmf_element_handle_t handle, uint8_t idx,
     }
     alc->gain[idx] = gain;
 __alc_set_gain_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
 esp_gmf_err_t esp_gmf_alc_get_gain(esp_gmf_element_handle_t handle, uint8_t idx, int8_t *gain)
 {
+    ESP_LOGI(TAG, "handle:%p esp_gmf_alc_get_gain: idx=%u", handle, idx);
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     ESP_GMF_NULL_CHECK(TAG, gain, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_JOB_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (idx >= alc->max_ch) {
         ESP_LOGE(TAG, "Gain index %d is out of range", idx);
         ret = ESP_GMF_ERR_INVALID_ARG;
@@ -367,7 +397,7 @@ esp_gmf_err_t esp_gmf_alc_get_gain(esp_gmf_element_handle_t handle, uint8_t idx,
     }
     *gain = alc->gain[idx];
 __alc_get_gain_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -380,7 +410,7 @@ esp_gmf_err_t esp_gmf_alc_set_transit_time(esp_gmf_element_handle_t handle, uint
     }
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (alc->alc_hd) {
         esp_ae_err_t ae_ret = esp_ae_alc_set_transit_time(alc->alc_hd, transit_time_ms);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -391,7 +421,7 @@ esp_gmf_err_t esp_gmf_alc_set_transit_time(esp_gmf_element_handle_t handle, uint
     alc->transit_time_ms = transit_time_ms;
     alc->transit_time_set = true;
 __alc_set_transit_time_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -401,7 +431,7 @@ esp_gmf_err_t esp_gmf_alc_get_transit_time(esp_gmf_element_handle_t handle, uint
     ESP_GMF_NULL_CHECK(TAG, transit_time_ms, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (alc->alc_hd) {
         esp_ae_err_t ae_ret = esp_ae_alc_get_transit_time(alc->alc_hd, transit_time_ms);
         ret = (ae_ret == ESP_AE_ERR_OK) ? ESP_GMF_ERR_OK : ESP_GMF_ERR_FAIL;
@@ -413,7 +443,7 @@ esp_gmf_err_t esp_gmf_alc_get_transit_time(esp_gmf_element_handle_t handle, uint
         *transit_time_ms = ESP_GMF_ALC_DEFAULT_TRANSIT_TIME_MS;
     }
 __alc_get_transit_time_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -422,12 +452,12 @@ static esp_gmf_job_err_t esp_gmf_alc_reset(esp_gmf_element_handle_t handle, void
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_alc_t *alc = (esp_gmf_alc_t *)handle;
     esp_gmf_job_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (alc->alc_hd) {
         esp_ae_err_t ae_ret = esp_ae_alc_reset(alc->alc_hd);
         ret = (ae_ret == ESP_AE_ERR_OK) ? ESP_GMF_ERR_OK : ESP_GMF_ERR_FAIL;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     ESP_LOGD(TAG, "ALC reset");
     return ret;
 }

@@ -79,24 +79,24 @@ static esp_gmf_err_io_t sink_acquire(void *handle, esp_gmf_payload_t *load, uint
     }
     if (proc->out_pcm_size < wanted_size) {
         if (proc->buf_align) {
-            if (proc->out_pcm) {
-                audio_render_free(proc->out_pcm);
-                proc->out_pcm_size = 0;
-            }
-            proc->out_pcm = audio_render_malloc_align(wanted_size, proc->buf_align);
-            if (proc->out_pcm == NULL) {
+            uint32_t aligned_size = ESP_GMF_OAL_ALIGN_UP(wanted_size, proc->buf_align);
+            uint8_t *out_pcm = audio_render_malloc_align(aligned_size, proc->buf_align);
+            if (out_pcm == NULL) {
                 // Not enough memory
                 return ESP_GMF_IO_FAIL;
             }
+            audio_render_free(proc->out_pcm);
+            proc->out_pcm = out_pcm;
+            proc->out_pcm_size = aligned_size;
+        } else {
+            uint8_t *out_pcm = audio_render_realloc(proc->out_pcm, wanted_size);
+            if (out_pcm == NULL) {
+                // Not enough memory
+                return ESP_GMF_IO_FAIL;
+            }
+            proc->out_pcm = out_pcm;
             proc->out_pcm_size = wanted_size;
         }
-        uint8_t *out_pcm = audio_render_realloc(proc->out_pcm, wanted_size);
-        if (out_pcm == NULL) {
-            // Not enough memory
-            return ESP_GMF_IO_FAIL;
-        }
-        proc->out_pcm = out_pcm;
-        proc->out_pcm_size = wanted_size;
     }
     load->buf = proc->out_pcm;
     load->buf_length = proc->out_pcm_size;
@@ -308,6 +308,16 @@ esp_gmf_element_handle_t audio_render_proc_get_element(audio_render_proc_handle_
     }
     // Get element from pipeline
     return audio_render_pipeline_get_element(proc->pipeline, type);
+}
+
+esp_gmf_pipeline_handle_t audio_render_proc_get_pipeline(audio_render_proc_handle_t handle)
+{
+    audio_proc_t *proc = (audio_proc_t*)handle;
+    if (proc == NULL) {
+        ESP_LOGE(TAG, "Invalid arg for handle:%p", handle);
+        return NULL;
+    }
+    return proc->pipeline;
 }
 
 esp_audio_render_err_t audio_render_proc_set_writer(audio_render_proc_handle_t handle, esp_audio_render_write_cb_t writer, void *ctx)

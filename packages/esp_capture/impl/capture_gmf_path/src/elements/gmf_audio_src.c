@@ -17,7 +17,6 @@
 #include "capture_utils.h"
 #include "esp_gmf_audio_element.h"
 #include "esp_gmf_data_queue.h"
-#include "esp_gmf_oal_mutex.h"
 #include "esp_capture_sync.h"
 #include "capture_perf_mon.h"
 #include "msg_q.h"
@@ -302,7 +301,7 @@ static esp_gmf_job_err_t audio_src_el_close(esp_gmf_audio_element_handle_t self,
 {
     audio_src_t *audio_src = (audio_src_t *)self;
     ESP_LOGI(TAG, "Closed, %p", self);
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_element_lock(self);
     if (audio_src->audio_info_q) {
         msg_q_wakeup(audio_src->audio_info_q);
     }
@@ -332,7 +331,7 @@ static esp_gmf_job_err_t audio_src_el_close(esp_gmf_audio_element_handle_t self,
         audio_src->audio_src_if->close(audio_src->audio_src_if);
         audio_src->is_open = false;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_element_unlock(self);
     return ESP_GMF_JOB_ERR_OK;
 }
 
@@ -465,8 +464,9 @@ esp_gmf_err_t capture_audio_src_el_abort(esp_gmf_element_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     audio_src_t *audio_src = (audio_src_t *)handle;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_element_lock(handle);
     if (audio_src->audio_src_if == NULL) {
+        esp_gmf_element_unlock(handle);
         return ESP_GMF_ERR_INVALID_STATE;
     }
     audio_src->aborted = true;
@@ -476,7 +476,7 @@ esp_gmf_err_t capture_audio_src_el_abort(esp_gmf_element_handle_t handle)
     if (audio_src->audio_src_if->abort) {
         audio_src->audio_src_if->abort(audio_src->audio_src_if);
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_element_unlock(handle);
     return ESP_GMF_ERR_OK;
 }
 

@@ -56,6 +56,20 @@ esp_gmf_err_t esp_gmf_mixer_init(esp_ae_mixer_cfg_t *config, esp_gmf_element_han
 esp_gmf_err_t esp_gmf_mixer_set_mode(esp_gmf_element_handle_t handle, uint8_t src_idx, esp_ae_mixer_mode_t mode);
 
 /**
+ * @brief  Get the transit mode of a mixer source stream
+ *
+ * @param[in]   handle   The mixer handle
+ * @param[in]   src_idx  The index of the source stream
+ * @param[out]  mode     The transit mode of the source stream
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_FAIL         Failed to get the mode
+ */
+esp_gmf_err_t esp_gmf_mixer_get_mode(esp_gmf_element_handle_t handle, uint8_t src_idx, esp_ae_mixer_mode_t *mode);
+
+/**
  * @brief  Set audio information to the mixer handle
  *
  * @param[in]  handle       The mixer handle
@@ -70,6 +84,22 @@ esp_gmf_err_t esp_gmf_mixer_set_mode(esp_gmf_element_handle_t handle, uint8_t sr
  */
 esp_gmf_err_t esp_gmf_mixer_set_audio_info(esp_gmf_element_handle_t handle, uint32_t sample_rate,
                                            uint8_t bits, uint8_t channel);
+
+/**
+ * @brief  Get audio information from the mixer handle
+ *
+ * @param[in]   handle       The mixer handle
+ * @param[out]  sample_rate  The audio sample rate
+ * @param[out]  bits         The audio bits per sample
+ * @param[out]  channel      The audio channel
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_FAIL         Failed to get configuration
+ */
+esp_gmf_err_t esp_gmf_mixer_get_audio_info(esp_gmf_element_handle_t handle, uint32_t *sample_rate,
+                                           uint8_t *bits, uint8_t *channel);
 
 #ifdef __cplusplus
 }

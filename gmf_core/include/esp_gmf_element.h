@@ -81,43 +81,45 @@ typedef esp_gmf_err_t (*esp_gmf_load_caps_func)(esp_gmf_element_handle_t handle)
  * @brief  Function pointer type for load element method
  */
 typedef esp_gmf_err_t (*esp_gmf_load_method_func)(esp_gmf_element_handle_t handle);
+
 /**
  * @brief  Structure defining the operations of an element
  */
 typedef struct {
-    esp_gmf_job_func          open;            /*!< Function to open the element */
-    esp_gmf_job_func          process;         /*!< Function to process the element */
-    esp_gmf_job_func          close;           /*!< Function to close the element */
-    esp_gmf_job_func          reset;           /*!< Function to reset the element */
-    esp_gmf_load_caps_func    load_caps;       /*!< Function to load element capability description */
-    esp_gmf_load_method_func  load_methods;    /*!< Function to load element methods */
-    esp_gmf_event_cb          event_receiver;  /*!< Event receiver function */
+    esp_gmf_job_func             open;            /*!< Function to open the element */
+    esp_gmf_job_func             process;         /*!< Function to process the element */
+    esp_gmf_job_func             close;           /*!< Function to close the element */
+    esp_gmf_job_func             reset;           /*!< Function to reset the element */
+    esp_gmf_load_caps_func       load_caps;       /*!< Function to load element capability description */
+    esp_gmf_load_method_func     load_methods;    /*!< Function to load element methods */
+    esp_gmf_event_cb             event_receiver;  /*!< Event receiver function */
 } esp_gmf_element_ops_t;
 
 /**
  * @brief  Structure representing a GMF element
  */
 typedef struct esp_gmf_element {
-    esp_gmf_obj_t                base;           /*!< Base object */
-    esp_gmf_element_ops_t        ops;            /*!< Operations */
-    uint8_t                      job_mask;       /*!< Job mask */
+    esp_gmf_obj_t                base;            /*!< Base object */
+    esp_gmf_element_ops_t        ops;             /*!< Operations */
+    uint8_t                      job_mask;        /*!< Job mask */
 
-    esp_gmf_port_t              *in;             /*!< Input port */
-    esp_gmf_element_port_attr_t  in_attr;        /*!< Input port attributes */
+    esp_gmf_port_t              *in;              /*!< Input port */
+    esp_gmf_element_port_attr_t  in_attr;         /*!< Input port attributes */
 
-    esp_gmf_port_t              *out;            /*!< Output port */
-    esp_gmf_element_port_attr_t  out_attr;       /*!< Output port attributes */
+    esp_gmf_port_t              *out;             /*!< Output port */
+    esp_gmf_element_port_attr_t  out_attr;        /*!< Output port attributes */
 
     /* Properties */
-    esp_gmf_event_state_t        init_state;     /*!< Initial state */
-    esp_gmf_event_state_t        cur_state;      /*!< Current state */
-    esp_gmf_event_cb             event_func;     /*!< Event function */
-    esp_gmf_method_t            *method;         /*!< It can access the data members and member functions of the objects */
-    esp_gmf_cap_t               *caps;           /*!< Element capabilities */
+    esp_gmf_event_state_t        init_state;      /*!< Initial state */
+    esp_gmf_event_state_t        cur_state;       /*!< Current state */
+    esp_gmf_event_cb             event_func;      /*!< Event function */
+    esp_gmf_method_t            *method;          /*!< It can access the data members and member functions of the objects */
+    esp_gmf_cap_t               *caps;            /*!< Element capabilities */
 
     /* Protect */
-    void                        *ctx;            /*!< User Context */
-    uint8_t                      dependency : 1; /*!< Indicates if the element depends on other information to open */
+    void                        *ctx;             /*!< User Context */
+    void                        *lock;            /*!< Optional mutex handle stored by the owner; not created by `esp_gmf_element_init` */
+    uint8_t                      dependency : 1;  /*!< Indicates if the element depends on other information to open */
 } esp_gmf_element_t;
 
 /**
@@ -489,6 +491,34 @@ esp_gmf_err_t esp_gmf_element_exe_method(esp_gmf_element_handle_t handle, const 
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument, such as a NULL handle or output pointer
  */
 esp_gmf_err_t esp_gmf_element_get_method(esp_gmf_element_handle_t handle, const esp_gmf_method_t **methods);
+
+/**
+ * @brief  Lock an element
+ *
+ *         Uses the mutex handle stored on the element. Intended for brief
+ *         access to element-owned data. Do not hold this lock while executing
+ *         an element method.
+ *
+ * @param[in]  handle  GMF element handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK             On success
+ *       - ESP_GMF_ERR_INVALID_ARG    Invalid element handle
+ *       - ESP_GMF_ERR_INVALID_STATE  Mutex handle is unavailable
+ */
+esp_gmf_err_t esp_gmf_element_lock(esp_gmf_element_handle_t handle);
+
+/**
+ * @brief  Unlock an element
+ *
+ * @param[in]  handle  GMF element handle
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK             On success
+ *       - ESP_GMF_ERR_INVALID_ARG    Invalid element handle
+ *       - ESP_GMF_ERR_INVALID_STATE  Mutex handle is unavailable
+ */
+esp_gmf_err_t esp_gmf_element_unlock(esp_gmf_element_handle_t handle);
 
 /**
  * @brief  Retrieve the capability structure associated with a given ESP-GMF element

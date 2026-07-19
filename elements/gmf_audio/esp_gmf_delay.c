@@ -11,6 +11,7 @@
 #include "esp_gmf_oal_mutex.h"
 #include "esp_gmf_node.h"
 #include "esp_gmf_delay.h"
+#include "esp_gmf_args_desc.h"
 #include "gmf_audio_common.h"
 #include "esp_gmf_audio_methods_def.h"
 #include "esp_gmf_cap.h"
@@ -18,13 +19,39 @@
 #include "esp_gmf_audio_element.h"
 
 typedef struct {
-    esp_gmf_audio_element_t  parent;
-    esp_ae_delay_handle_t    delay_hd;
-    uint8_t                  bytes_per_sample;
-    bool                     need_reopen : 1;
+    esp_gmf_audio_element_t   parent;
+    esp_ae_delay_handle_t     delay_hd;
+    uint8_t                   bytes_per_sample;
+    bool                      need_reopen : 1;
+    esp_gmf_arg_constraint_t  delay_time_constraint;
 } esp_gmf_delay_t;
 
 static const char *TAG = "ESP_GMF_DELAY";
+
+/** AE treats max_delay_ms == 0 as the library default (1000 ms). */
+static uint16_t delay_effective_max_ms(uint16_t max_delay_ms)
+{
+    return max_delay_ms == 0 ? 1000 : max_delay_ms;
+}
+
+static void delay_update_time_constraint(esp_gmf_delay_t *delay, uint16_t max_delay_ms)
+{
+    delay->delay_time_constraint.minimum.u64 = 0;
+    delay->delay_time_constraint.maximum.u64 = delay_effective_max_ms(max_delay_ms);
+    delay->delay_time_constraint.step.u64    = 1;
+}
+
+static const esp_gmf_arg_constraint_t s_delay_mix_constraint = {
+    .minimum.f64 = 0.0,
+    .maximum.f64 = 1.0,
+    .step.f64    = 0.01,
+};
+
+static const esp_gmf_arg_constraint_t s_delay_feedback_constraint = {
+    .minimum.f64 = 0.0,
+    .maximum.f64 = 0.95,
+    .step.f64    = 0.01,
+};
 
 static esp_gmf_err_t __delay_set_delay_time(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
                                             uint8_t *buf, int buf_len)
@@ -92,12 +119,12 @@ static esp_gmf_job_err_t esp_gmf_delay_open(esp_gmf_element_handle_t self, void 
     ESP_GMF_NULL_CHECK(TAG, delay_info, {return ESP_GMF_JOB_ERR_FAIL;});
     esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
     delay->bytes_per_sample = (delay_info->bits_per_sample >> 3) * delay_info->channel;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     esp_ae_delay_open(delay_info, &delay->delay_hd);
     ESP_GMF_CHECK(TAG, delay->delay_hd, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __delay_open_exit;}, "Failed to create delay handle");
     delay->need_reopen = false;
 __delay_open_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (job_ret != ESP_GMF_JOB_ERR_OK) {
         return job_ret;
     }
@@ -110,12 +137,12 @@ static esp_gmf_job_err_t esp_gmf_delay_close(esp_gmf_element_handle_t self, void
 {
     esp_gmf_delay_t *delay = (esp_gmf_delay_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (delay->delay_hd != NULL) {
         esp_ae_delay_close(delay->delay_hd);
         delay->delay_hd = NULL;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     return ESP_GMF_ERR_OK;
 }
 
@@ -155,9 +182,9 @@ static esp_gmf_job_err_t esp_gmf_delay_process(esp_gmf_element_handle_t self, vo
     load_ret = esp_gmf_port_acquire_out(out_port, &out_load, samples_num ? bytes : in_load->buf_length, ESP_GMF_MAX_DELAY);
     ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, load_ret, out_len, {goto __delay_release;});
     if (samples_num > 0) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+        esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
         esp_ae_err_t ret = esp_ae_delay_process(delay->delay_hd, samples_num, in_load->buf, out_load->buf);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+        esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
         ESP_GMF_RET_ON_ERROR(TAG, ret, {out_len = ESP_GMF_JOB_ERR_FAIL; goto __delay_release;}, "Delay process error %d", ret);
     }
     ESP_LOGV(TAG, "Samples: %d, IN-PLD: %p-%p-%d-%d-%d, OUT-PLD: %p-%p-%d-%d-%d",
@@ -256,49 +283,64 @@ static esp_gmf_err_t _load_delay_caps_func(esp_gmf_element_handle_t handle)
 
 static esp_gmf_err_t _load_delay_methods_func(esp_gmf_element_handle_t handle)
 {
+    esp_gmf_delay_t *delay = (esp_gmf_delay_t *)handle;
+    esp_ae_delay_cfg_t *cfg = (esp_ae_delay_cfg_t *)OBJ_GET_CFG(handle);
+    if (cfg) {
+        delay_update_time_constraint(delay, cfg->max_delay_ms);
+    }
+
     esp_gmf_method_t *method = NULL;
     esp_gmf_args_desc_t *set_args = NULL;
     esp_gmf_args_desc_t *get_args = NULL;
-    esp_gmf_err_t ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(DELAY, SET_DELAY_TIME, DELAY_TIME),
-                                                 ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
+    esp_gmf_err_t ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(DELAY, SET_DELAY_TIME, DELAY_TIME),
+                                                                 ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0,
+                                                                 &delay->delay_time_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to append DELAY_TIME argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(DELAY, SET_DELAY_TIME), __delay_set_delay_time, set_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DELAY, SET_DELAY_TIME), __delay_set_delay_time,
+                                          set_args, AMETHOD(DELAY, GET_DELAY_TIME), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(DELAY, SET_DELAY_TIME));
 
     ret = esp_gmf_args_desc_copy(set_args, &get_args);
     set_args = NULL;
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to copy argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(DELAY, GET_DELAY_TIME), __delay_get_delay_time, get_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DELAY, GET_DELAY_TIME), __delay_get_delay_time,
+                                          get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(DELAY, GET_DELAY_TIME));
     get_args = NULL;
 
-    ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(DELAY, SET_FEEDBACK, FEEDBACK),
-                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to append FEEDBACK argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(DELAY, SET_FEEDBACK), __delay_set_feedback, set_args);
-    ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(DELAY, SET_FEEDBACK));
-
-    ret = esp_gmf_args_desc_copy(set_args, &get_args);
-    set_args = NULL;
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to copy argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(DELAY, GET_FEEDBACK), __delay_get_feedback, get_args);
-    ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(DELAY, GET_FEEDBACK));
-    get_args = NULL;
-
-    ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(DELAY, SET_MIX_RATIO, MIX_RATIO),
-                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0);
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(DELAY, SET_MIX_RATIO, MIX_RATIO),
+                                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                   &s_delay_mix_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to append MIX_RATIO argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(DELAY, SET_MIX_RATIO), __delay_set_mix_ratio, set_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DELAY, SET_MIX_RATIO), __delay_set_mix_ratio,
+                                          set_args, AMETHOD(DELAY, GET_MIX_RATIO), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(DELAY, SET_MIX_RATIO));
 
     ret = esp_gmf_args_desc_copy(set_args, &get_args);
     set_args = NULL;
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to copy argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(DELAY, GET_MIX_RATIO), __delay_get_mix_ratio, get_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DELAY, GET_MIX_RATIO), __delay_get_mix_ratio,
+                                          get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(DELAY, GET_MIX_RATIO));
     get_args = NULL;
 
-    ret = esp_gmf_method_append(&method, AMETHOD(DELAY, RESET), __delay_reset, NULL);
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(DELAY, SET_FEEDBACK, FEEDBACK),
+                                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                   &s_delay_feedback_constraint);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to append FEEDBACK argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DELAY, SET_FEEDBACK), __delay_set_feedback,
+                                          set_args, AMETHOD(DELAY, GET_FEEDBACK), true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(DELAY, SET_FEEDBACK));
+
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    set_args = NULL;
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to copy argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DELAY, GET_FEEDBACK), __delay_get_feedback,
+                                          get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(DELAY, GET_FEEDBACK));
+    get_args = NULL;
+
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DELAY, RESET), __delay_reset, NULL, NULL, false);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(DELAY, RESET));
 
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
@@ -322,7 +364,7 @@ esp_gmf_err_t esp_gmf_delay_set_delay_time(esp_gmf_element_handle_t handle, uint
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_delay_t *delay = (esp_gmf_delay_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (delay->delay_hd) {
         esp_ae_err_t ae_ret = esp_ae_delay_set_delay_time(delay->delay_hd, delay_time_ms);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -332,7 +374,7 @@ esp_gmf_err_t esp_gmf_delay_set_delay_time(esp_gmf_element_handle_t handle, uint
     }
     cfg->delay_para.delay_time_ms = delay_time_ms;
 __exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -344,7 +386,7 @@ esp_gmf_err_t esp_gmf_delay_get_delay_time(esp_gmf_element_handle_t handle, uint
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_delay_t *delay = (esp_gmf_delay_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (delay->delay_hd) {
         esp_ae_err_t ae_ret = esp_ae_delay_get_delay_time(delay->delay_hd, delay_time_ms);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -353,7 +395,7 @@ esp_gmf_err_t esp_gmf_delay_get_delay_time(esp_gmf_element_handle_t handle, uint
     } else {
         *delay_time_ms = cfg->delay_para.delay_time_ms;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -364,7 +406,7 @@ esp_gmf_err_t esp_gmf_delay_set_feedback(esp_gmf_element_handle_t handle, float 
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_delay_t *delay = (esp_gmf_delay_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (delay->delay_hd) {
         esp_ae_err_t ae_ret = esp_ae_delay_set_feedback(delay->delay_hd, feedback);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -374,7 +416,7 @@ esp_gmf_err_t esp_gmf_delay_set_feedback(esp_gmf_element_handle_t handle, float 
     }
     cfg->delay_para.feedback = feedback;
 __exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -386,7 +428,7 @@ esp_gmf_err_t esp_gmf_delay_get_feedback(esp_gmf_element_handle_t handle, float 
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_delay_t *delay = (esp_gmf_delay_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (delay->delay_hd) {
         esp_ae_err_t ae_ret = esp_ae_delay_get_feedback(delay->delay_hd, feedback);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -395,7 +437,7 @@ esp_gmf_err_t esp_gmf_delay_get_feedback(esp_gmf_element_handle_t handle, float 
     } else {
         *feedback = cfg->delay_para.feedback;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -406,7 +448,7 @@ esp_gmf_err_t esp_gmf_delay_set_mix_ratio(esp_gmf_element_handle_t handle, float
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_delay_t *delay = (esp_gmf_delay_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (delay->delay_hd) {
         esp_ae_err_t ae_ret = esp_ae_delay_set_mix(delay->delay_hd, mix_ratio);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -416,7 +458,7 @@ esp_gmf_err_t esp_gmf_delay_set_mix_ratio(esp_gmf_element_handle_t handle, float
     }
     cfg->delay_para.mix = mix_ratio;
 __exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -428,7 +470,7 @@ esp_gmf_err_t esp_gmf_delay_get_mix_ratio(esp_gmf_element_handle_t handle, float
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_delay_t *delay = (esp_gmf_delay_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (delay->delay_hd) {
         esp_ae_err_t ae_ret = esp_ae_delay_get_mix(delay->delay_hd, mix_ratio);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -437,7 +479,7 @@ esp_gmf_err_t esp_gmf_delay_get_mix_ratio(esp_gmf_element_handle_t handle, float
     } else {
         *mix_ratio = cfg->delay_para.mix;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -446,14 +488,14 @@ esp_gmf_err_t esp_gmf_delay_reset(esp_gmf_element_handle_t handle)
     ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_delay_t *delay = (esp_gmf_delay_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (delay->delay_hd) {
         esp_ae_err_t ae_ret = esp_ae_delay_reset(delay->delay_hd);
         if (ae_ret != ESP_AE_ERR_OK) {
             ret = ESP_GMF_ERR_FAIL;
         }
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     ESP_LOGD(TAG, "Delay reset");
     return ret;
 }

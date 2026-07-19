@@ -241,6 +241,19 @@ esp_audio_render_err_t esp_audio_render_stream_set_mixer_gain(esp_audio_render_s
                                                               esp_audio_render_mixer_gain_t *mixer_gain);
 
 /**
+ * @brief  Get mixer gain for audio render stream
+ *
+ * @param[in]   stream      Stream handle
+ * @param[out]  mixer_gain  Mixer gain to store
+ *
+ * @return
+ *       - ESP_AUDIO_RENDER_ERR_OK           On success
+ *       - ESP_AUDIO_RENDER_ERR_INVALID_ARG  Invalid input argument
+ */
+esp_audio_render_err_t esp_audio_render_stream_get_mixer_gain(esp_audio_render_stream_handle_t stream,
+                                                              esp_audio_render_mixer_gain_t *mixer_gain);
+
+/**
  * @brief  Open audio render stream
  *
  * @param[in]   stream       Stream handle

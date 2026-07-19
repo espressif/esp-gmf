@@ -123,6 +123,10 @@ esp_gmf_err_t esp_gmf_element_deinit(esp_gmf_element_handle_t handle)
         esp_gmf_port_deinit(port);
         port = tmp;
     }
+    if (el->lock) {
+        esp_gmf_oal_mutex_destroy(el->lock);
+        el->lock = NULL;
+    }
     return ESP_GMF_ERR_OK;
 }
 
@@ -472,7 +476,7 @@ esp_gmf_err_t esp_gmf_element_exe_method(esp_gmf_element_handle_t handle, const 
         ESP_LOGE(TAG, "There are no executable methods, [%p-%s]", el, OBJ_GET_TAG(el));
         return ESP_GMF_ERR_NOT_SUPPORT;
     }
-    int ret = 0;
+    int ret = ESP_GMF_ERR_NOT_SUPPORT;
     while (mthd) {
         if (strcasecmp(mthd->name, name) == 0) {
             ret = mthd->func(handle, mthd->args_desc, buf, buf_len);
@@ -481,6 +485,7 @@ esp_gmf_err_t esp_gmf_element_exe_method(esp_gmf_element_handle_t handle, const 
         ESP_LOGD(TAG, "Method[%p-%s], ret:%x, [%p-%s]\r\n", mthd, mthd->name, ret, el, OBJ_GET_TAG(el));
         mthd = mthd->next;
     }
+    ESP_LOGE(TAG, "Method %s is not found, [%p-%s]", name, el, OBJ_GET_TAG(el));
     return ret;
 }
 
@@ -510,6 +515,24 @@ esp_gmf_err_t esp_gmf_element_get_method(esp_gmf_element_handle_t handle, const 
         esp_gmf_oal_mutex_unlock(s_load_mutex);
     }
     *mthd = el->method;
+    return ESP_GMF_ERR_OK;
+}
+
+esp_gmf_err_t esp_gmf_element_lock(esp_gmf_element_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
+    ESP_GMF_NULL_CHECK(TAG, el->lock, return ESP_GMF_ERR_INVALID_STATE);
+    esp_gmf_oal_mutex_lock(el->lock);
+    return ESP_GMF_ERR_OK;
+}
+
+esp_gmf_err_t esp_gmf_element_unlock(esp_gmf_element_handle_t handle)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
+    ESP_GMF_NULL_CHECK(TAG, el->lock, return ESP_GMF_ERR_INVALID_STATE);
+    esp_gmf_oal_mutex_unlock(el->lock);
     return ESP_GMF_ERR_OK;
 }
 

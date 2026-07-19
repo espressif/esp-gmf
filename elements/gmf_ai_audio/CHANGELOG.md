@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- Increased the `aec_rec` example factory partition size from 2500k to 3M
+
 ## v1.0.2
 
 ### Features

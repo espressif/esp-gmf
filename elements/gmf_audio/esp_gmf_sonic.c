@@ -43,6 +43,12 @@ typedef struct {
 
 static const char *TAG = "ESP_GMF_SONIC";
 
+static const esp_gmf_arg_constraint_t s_sonic_scale_constraint = {
+    .minimum.f64 = 0.5,
+    .maximum.f64 = 2.0,
+    .step.f64 = 0.01,
+};
+
 static esp_gmf_err_t __sonic_set_speed(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
                                        uint8_t *buf, int buf_len)
 {
@@ -93,14 +99,14 @@ static esp_gmf_job_err_t esp_gmf_sonic_open(esp_gmf_element_handle_t self, void 
     sonic->bits_per_sample = sonic_info->bits_per_sample;
     sonic->bytes_per_sample = (sonic_info->bits_per_sample >> 3) * sonic_info->channel;
     sonic->out_size = SONIC_DEFAULT_OUTPUT_TIME_MS * sonic->sample_rate * sonic->bytes_per_sample / 1000;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     esp_ae_sonic_open(sonic_info, &sonic->sonic_hd);
     ESP_GMF_CHECK(TAG, sonic->sonic_hd, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __sonic_open_exit;}, "Failed to create sonic handle");
     esp_ae_sonic_set_speed(sonic->sonic_hd, sonic->speed);
     esp_ae_sonic_set_pitch(sonic->sonic_hd, sonic->pitch);
     sonic->need_reopen = false;
 __sonic_open_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (job_ret != ESP_GMF_JOB_ERR_OK) {
         return job_ret;
     }
@@ -113,12 +119,12 @@ static esp_gmf_job_err_t esp_gmf_sonic_close(esp_gmf_element_handle_t self, void
 {
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (sonic->sonic_hd != NULL) {
         esp_ae_sonic_close(sonic->sonic_hd);
         sonic->sonic_hd = NULL;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     sonic->cur_pts = 0;
     return ESP_GMF_ERR_OK;
 }
@@ -206,9 +212,9 @@ static esp_gmf_job_err_t esp_gmf_sonic_process(esp_gmf_element_handle_t self, vo
         out_load->valid_size = 0;
         out_load->pts = sonic->cur_pts;
         if (!is_done) {
-            esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+            esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
             esp_ae_err_t ret = esp_ae_sonic_process(sonic->sonic_hd, &sonic->in_data_hd, &sonic->out_data_hd);
-            esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+            esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
             ESP_GMF_RET_ON_ERROR(TAG, ret, {out_len = ESP_GMF_JOB_ERR_FAIL; goto __sonic_release;}, "Sonic process error %d", ret);
             sonic->in_data_hd.samples = ((uint8_t *)sonic->in_data_hd.samples) + sonic->in_data_hd.consume_num * sonic->bytes_per_sample;
             sonic->in_data_hd.num -= sonic->in_data_hd.consume_num;
@@ -269,10 +275,14 @@ static esp_gmf_err_t sonic_received_event_handler(esp_gmf_event_pkt_t *evt, void
     esp_ae_sonic_cfg_t *config = (esp_ae_sonic_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)self;
-    sonic->need_reopen = (config->sample_rate != info->sample_rates) || (info->channels != config->channel) || (config->bits_per_sample != info->bits);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
+    sonic->need_reopen = (config->sample_rate != info->sample_rates)
+                         || (info->channels != config->channel)
+                         || (config->bits_per_sample != info->bits);
     config->sample_rate = info->sample_rates;
     config->channel = info->channels;
     config->bits_per_sample = info->bits;
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     ESP_LOGD(TAG, "RECV element info, from: %s-%p, next: %p, self: %s-%p, type: %x, state: %s, rate: %d, ch: %d, bits: %d",
              OBJ_GET_TAG(el), el, esp_gmf_node_for_next((esp_gmf_node_t *)el), OBJ_GET_TAG(self), self, evt->type,
              esp_gmf_event_get_state_str(state), info->sample_rates, info->channels, info->bits);
@@ -314,27 +324,36 @@ static esp_gmf_err_t _load_sonic_methods_func(esp_gmf_element_handle_t handle)
     esp_gmf_method_t *method = NULL;
     esp_gmf_args_desc_t *set_args = NULL;
     esp_gmf_args_desc_t *get_args = NULL;
-    esp_gmf_err_t ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(SONIC, SET_SPEED, SPEED),
-                                                 ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0);
+    esp_gmf_err_t ret = esp_gmf_args_desc_append_with_constraint(
+        &set_args, AMETHOD_ARG(SONIC, SET_SPEED, SPEED), ESP_GMF_ARGS_TYPE_FLOAT,
+        sizeof(float), 0, &s_sonic_scale_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(SONIC, SET_SPEED), __sonic_set_speed, set_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(SONIC, SET_SPEED),
+                                          __sonic_set_speed, set_args,
+                                          AMETHOD(SONIC, GET_SPEED), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(SONIC, SET_SPEED));
 
     ret = esp_gmf_args_desc_copy(set_args, &get_args);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(SONIC, GET_SPEED), __sonic_get_speed, get_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(SONIC, GET_SPEED),
+                                          __sonic_get_speed, get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(SONIC, GET_SPEED));
 
     set_args = NULL;
     get_args = NULL;
-    ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(SONIC, SET_PITCH, PITCH), ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0);
+    ret = esp_gmf_args_desc_append_with_constraint(
+        &set_args, AMETHOD_ARG(SONIC, SET_PITCH, PITCH), ESP_GMF_ARGS_TYPE_FLOAT,
+        sizeof(float), 0, &s_sonic_scale_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(SONIC, SET_PITCH), __sonic_set_pitch, set_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(SONIC, SET_PITCH),
+                                          __sonic_set_pitch, set_args,
+                                          AMETHOD(SONIC, GET_PITCH), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(SONIC, SET_PITCH));
 
     ret = esp_gmf_args_desc_copy(set_args, &get_args);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(SONIC, GET_PITCH), __sonic_get_pitch, get_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(SONIC, GET_PITCH),
+                                          __sonic_get_pitch, get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(SONIC, GET_PITCH));
 
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
@@ -344,27 +363,29 @@ static esp_gmf_err_t _load_sonic_methods_func(esp_gmf_element_handle_t handle)
 
 esp_gmf_err_t esp_gmf_sonic_set_speed(esp_gmf_element_handle_t handle, float speed)
 {
+    ESP_LOGI(TAG, "handle:%p esp_gmf_sonic_set_speed: speed=%f", handle, speed);
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (sonic->sonic_hd) {
         esp_ae_err_t ae_ret = esp_ae_sonic_set_speed(sonic->sonic_hd, speed);
         ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_JOB_ERR_FAIL; goto __sonic_set_speed_exit;}, "sonicualize set error %d", ae_ret);
     }
     sonic->speed = speed;
 __sonic_set_speed_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
 esp_gmf_err_t esp_gmf_sonic_get_speed(esp_gmf_element_handle_t handle, float *speed)
 {
+    ESP_LOGI(TAG, "handle:%p esp_gmf_sonic_get_speed", handle);
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     ESP_GMF_NULL_CHECK(TAG, speed, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (sonic->sonic_hd) {
         esp_ae_err_t ae_ret = esp_ae_sonic_get_speed(sonic->sonic_hd, speed);
         ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_JOB_ERR_FAIL; goto __sonic_get_speed_exit;}, "sonicualize set error %d", ae_ret);
@@ -372,33 +393,35 @@ esp_gmf_err_t esp_gmf_sonic_get_speed(esp_gmf_element_handle_t handle, float *sp
         *speed = sonic->speed;
     }
 __sonic_get_speed_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
 esp_gmf_err_t esp_gmf_sonic_set_pitch(esp_gmf_element_handle_t handle, float pitch)
 {
+    ESP_LOGI(TAG, "handle:%p esp_gmf_sonic_set_pitch: pitch=%f", handle, pitch);
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (sonic->sonic_hd) {
         esp_ae_err_t ae_ret = esp_ae_sonic_set_pitch(sonic->sonic_hd, pitch);
         ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_JOB_ERR_FAIL; goto __sonic_set_pitch_exit;}, "sonicualize set error %d", ae_ret);
     }
     sonic->pitch = pitch;
 __sonic_set_pitch_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
 esp_gmf_err_t esp_gmf_sonic_get_pitch(esp_gmf_element_handle_t handle, float *pitch)
 {
+    ESP_LOGI(TAG, "handle:%p esp_gmf_sonic_get_pitch", handle);
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     ESP_GMF_NULL_CHECK(TAG, pitch, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (sonic->sonic_hd) {
         esp_ae_err_t ae_ret = esp_ae_sonic_get_pitch(sonic->sonic_hd, pitch);
         ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_JOB_ERR_FAIL; goto __sonic_get_pitch_exit;}, "sonicualize set error %d", ae_ret);
@@ -406,7 +429,7 @@ esp_gmf_err_t esp_gmf_sonic_get_pitch(esp_gmf_element_handle_t handle, float *pi
         *pitch = sonic->pitch;
     }
 __sonic_get_pitch_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -415,7 +438,7 @@ static esp_gmf_job_err_t esp_gmf_sonic_reset(esp_gmf_element_handle_t handle, vo
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_sonic_t *sonic = (esp_gmf_sonic_t *)handle;
     esp_gmf_job_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (sonic->sonic_hd) {
         esp_ae_err_t ae_ret = esp_ae_sonic_reset(sonic->sonic_hd);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -428,7 +451,7 @@ static esp_gmf_job_err_t esp_gmf_sonic_reset(esp_gmf_element_handle_t handle, vo
         sonic->cur_pts = 0;
     }
 __sonic_reset_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     ESP_LOGD(TAG, "Sonic reset");
     return ret;
 }

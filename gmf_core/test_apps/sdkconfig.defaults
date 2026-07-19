@@ -28,6 +28,9 @@ CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240
 # disable task watchdog since this app uses an interactive menu
 CONFIG_ESP_TASK_WDT_INIT=n
 
+# Needed for TEST_ASSERT_EQUAL_UINT64 in argument-constraint tests
+CONFIG_UNITY_ENABLE_64BIT=y
+
 # FAT Filesystem support
 CONFIG_FATFS_API_ENCODING_UTF_8=y
 CONFIG_FATFS_SECTOR_4096=y

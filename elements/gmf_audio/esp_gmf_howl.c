@@ -11,7 +11,9 @@
 #include "esp_gmf_oal_mutex.h"
 #include "esp_gmf_node.h"
 #include "esp_gmf_cache.h"
+#include "esp_gmf_args_desc.h"
 #include "gmf_audio_common.h"
+#include "esp_gmf_audio_methods_def.h"
 #include "esp_gmf_cap.h"
 #include "esp_gmf_caps_def.h"
 #include "esp_gmf_audio_element.h"
@@ -32,6 +34,111 @@ typedef struct {
 } esp_gmf_howl_t;
 
 static const char *TAG = "ESP_GMF_HOWL";
+
+static const esp_gmf_arg_constraint_t s_howl_papr_th_constraint = {
+    .minimum.f64 = -10.0,
+    .maximum.f64 = 20.0,
+    .step.f64 = 0.1,
+};
+
+static const esp_gmf_arg_constraint_t s_howl_phpr_th_constraint = {
+    .minimum.f64 = 0.0,
+    .maximum.f64 = 100.0,
+    .step.f64 = 0.1,
+};
+
+static const esp_gmf_arg_constraint_t s_howl_pnpr_th_constraint = {
+    .minimum.f64 = 0.0,
+    .maximum.f64 = 100.0,
+    .step.f64 = 0.1,
+};
+
+static const esp_gmf_arg_constraint_t s_howl_imsd_th_constraint = {
+    .minimum.f64 = 0.0,
+    .maximum.f64 = 20.0,
+    .step.f64 = 0.1,
+};
+
+static esp_gmf_err_t __howl_set_papr_th(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                        uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_howl_set_papr_th(handle, *((float *)buf));
+}
+
+static esp_gmf_err_t __howl_get_papr_th(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                        uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_howl_get_papr_th(handle, (float *)buf);
+}
+
+static esp_gmf_err_t __howl_set_phpr_th(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                        uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_howl_set_phpr_th(handle, *((float *)buf));
+}
+
+static esp_gmf_err_t __howl_get_phpr_th(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                        uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_howl_get_phpr_th(handle, (float *)buf);
+}
+
+static esp_gmf_err_t __howl_set_pnpr_th(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                        uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_howl_set_pnpr_th(handle, *((float *)buf));
+}
+
+static esp_gmf_err_t __howl_get_pnpr_th(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                        uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_howl_get_pnpr_th(handle, (float *)buf);
+}
+
+static esp_gmf_err_t __howl_set_imsd_th(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                        uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_howl_set_imsd_th(handle, *((float *)buf));
+}
+
+static esp_gmf_err_t __howl_get_imsd_th(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                        uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_howl_get_imsd_th(handle, (float *)buf);
+}
+
+static esp_gmf_err_t __howl_set_enable_imsd(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                            uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_howl_set_enable_imsd(handle, (bool)(*((uint8_t *)buf)));
+}
+
+static esp_gmf_err_t __howl_get_enable_imsd(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                            uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    bool enable_imsd = false;
+    esp_gmf_err_t ret = esp_gmf_howl_get_enable_imsd(handle, &enable_imsd);
+    if (ret == ESP_GMF_ERR_OK) {
+        *((uint8_t *)buf) = (uint8_t)enable_imsd;
+    }
+    return ret;
+}
 
 static esp_gmf_err_t esp_gmf_howl_new(void *cfg, esp_gmf_obj_handle_t *handle)
 {
@@ -204,11 +311,13 @@ static esp_gmf_err_t howl_received_event_handler(esp_gmf_event_pkt_t *evt, void 
     esp_ae_howl_cfg_t *config = (esp_ae_howl_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_howl_t *howl = (esp_gmf_howl_t *)self;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     howl->need_reopen = (config->sample_rate != info->sample_rates) || (info->channels != config->channel)
-        || (config->bits_per_sample != info->bits);
+                        || (config->bits_per_sample != info->bits);
     config->sample_rate = info->sample_rates;
     config->channel = info->channels;
     config->bits_per_sample = info->bits;
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     ESP_LOGD(TAG, "RECV element info, from: %s-%p, next: %p, self: %s-%p, type: %x, state: %s, rate: %d, ch: %d, bits: %d",
              OBJ_GET_TAG(el), el, esp_gmf_node_for_next((esp_gmf_node_t *)el), OBJ_GET_TAG(self), self, evt->type,
              esp_gmf_event_get_state_str(state), info->sample_rates, info->channels, info->bits);
@@ -246,9 +355,233 @@ static esp_gmf_err_t _load_howl_caps_func(esp_gmf_element_handle_t handle)
 
 static esp_gmf_err_t _load_howl_methods_func(esp_gmf_element_handle_t handle)
 {
+    esp_gmf_method_t *method = NULL;
+    esp_gmf_args_desc_t *set_args = NULL;
+    esp_gmf_args_desc_t *get_args = NULL;
+    esp_gmf_err_t ret;
+
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(HOWL, SET_PAPR_TH, PAPR_TH),
+                                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                   &s_howl_papr_th_constraint);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append PAPR_TH argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(HOWL, SET_PAPR_TH), __howl_set_papr_th,
+                                          set_args, AMETHOD(HOWL, GET_PAPR_TH), true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(HOWL, SET_PAPR_TH));
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy PAPR_TH argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(HOWL, GET_PAPR_TH), __howl_get_papr_th,
+                                          get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(HOWL, GET_PAPR_TH));
+
+    set_args = NULL;
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(HOWL, SET_PHPR_TH, PHPR_TH),
+                                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                   &s_howl_phpr_th_constraint);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append PHPR_TH argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(HOWL, SET_PHPR_TH), __howl_set_phpr_th,
+                                          set_args, AMETHOD(HOWL, GET_PHPR_TH), true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(HOWL, SET_PHPR_TH));
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy PHPR_TH argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(HOWL, GET_PHPR_TH), __howl_get_phpr_th,
+                                          get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(HOWL, GET_PHPR_TH));
+
+    set_args = NULL;
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(HOWL, SET_PNPR_TH, PNPR_TH),
+                                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                   &s_howl_pnpr_th_constraint);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append PNPR_TH argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(HOWL, SET_PNPR_TH), __howl_set_pnpr_th,
+                                          set_args, AMETHOD(HOWL, GET_PNPR_TH), true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(HOWL, SET_PNPR_TH));
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy PNPR_TH argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(HOWL, GET_PNPR_TH), __howl_get_pnpr_th,
+                                          get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(HOWL, GET_PNPR_TH));
+
+    set_args = NULL;
+    ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(HOWL, SET_IMSD_TH, IMSD_TH),
+                                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                   &s_howl_imsd_th_constraint);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append IMSD_TH argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(HOWL, SET_IMSD_TH), __howl_set_imsd_th,
+                                          set_args, AMETHOD(HOWL, GET_IMSD_TH), true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(HOWL, SET_IMSD_TH));
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy IMSD_TH argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(HOWL, GET_IMSD_TH), __howl_get_imsd_th,
+                                          get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(HOWL, GET_IMSD_TH));
+
+    set_args = NULL;
+    ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(HOWL, SET_ENABLE_IMSD, ENABLE_IMSD),
+                                   ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), 0);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append ENABLE_IMSD argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(HOWL, SET_ENABLE_IMSD), __howl_set_enable_imsd,
+                                          set_args, AMETHOD(HOWL, GET_ENABLE_IMSD), true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(HOWL, SET_ENABLE_IMSD));
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy ENABLE_IMSD argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(HOWL, GET_ENABLE_IMSD), __howl_get_enable_imsd,
+                                          get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(HOWL, GET_ENABLE_IMSD));
+
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
-    el->method = NULL;
+    el->method = method;
     return ESP_GMF_ERR_OK;
+}
+
+static esp_gmf_err_t howl_set_float_param(esp_gmf_element_handle_t handle, esp_ae_howl_handle_t howl_hd,
+                                          esp_ae_err_t (*set_fn)(esp_ae_howl_handle_t, float),
+                                          float value, float *cfg_field)
+{
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    if (howl_hd) {
+        esp_ae_err_t ae_ret = set_fn(howl_hd, value);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+            goto __exit;
+        }
+    }
+    *cfg_field = value;
+__exit:
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    return ret;
+}
+
+static esp_gmf_err_t howl_get_float_param(esp_gmf_element_handle_t handle, esp_ae_howl_handle_t howl_hd,
+                                          esp_ae_err_t (*get_fn)(esp_ae_howl_handle_t, float *),
+                                          float cfg_value, float *out)
+{
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    if (howl_hd) {
+        esp_ae_err_t ae_ret = get_fn(howl_hd, out);
+        if (ae_ret != ESP_AE_ERR_OK) {
+            ret = ESP_GMF_ERR_FAIL;
+        }
+    } else {
+        *out = cfg_value;
+    }
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_howl_set_papr_th(esp_gmf_element_handle_t handle, float papr_th)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_ae_howl_cfg_t *cfg = (esp_ae_howl_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    return howl_set_float_param(handle, ((esp_gmf_howl_t *)handle)->howl_hd,
+                                esp_ae_howl_set_papr_th, papr_th, &cfg->papr_th);
+}
+
+esp_gmf_err_t esp_gmf_howl_get_papr_th(esp_gmf_element_handle_t handle, float *papr_th)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, papr_th, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_ae_howl_cfg_t *cfg = (esp_ae_howl_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    return howl_get_float_param(handle, ((esp_gmf_howl_t *)handle)->howl_hd,
+                                esp_ae_howl_get_papr_th, cfg->papr_th, papr_th);
+}
+
+esp_gmf_err_t esp_gmf_howl_set_phpr_th(esp_gmf_element_handle_t handle, float phpr_th)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_ae_howl_cfg_t *cfg = (esp_ae_howl_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    return howl_set_float_param(handle, ((esp_gmf_howl_t *)handle)->howl_hd,
+                                esp_ae_howl_set_phpr_th, phpr_th, &cfg->phpr_th);
+}
+
+esp_gmf_err_t esp_gmf_howl_get_phpr_th(esp_gmf_element_handle_t handle, float *phpr_th)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, phpr_th, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_ae_howl_cfg_t *cfg = (esp_ae_howl_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    return howl_get_float_param(handle, ((esp_gmf_howl_t *)handle)->howl_hd,
+                                esp_ae_howl_get_phpr_th, cfg->phpr_th, phpr_th);
+}
+
+esp_gmf_err_t esp_gmf_howl_set_pnpr_th(esp_gmf_element_handle_t handle, float pnpr_th)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_ae_howl_cfg_t *cfg = (esp_ae_howl_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    return howl_set_float_param(handle, ((esp_gmf_howl_t *)handle)->howl_hd,
+                                esp_ae_howl_set_pnpr_th, pnpr_th, &cfg->pnpr_th);
+}
+
+esp_gmf_err_t esp_gmf_howl_get_pnpr_th(esp_gmf_element_handle_t handle, float *pnpr_th)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, pnpr_th, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_ae_howl_cfg_t *cfg = (esp_ae_howl_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    return howl_get_float_param(handle, ((esp_gmf_howl_t *)handle)->howl_hd,
+                                esp_ae_howl_get_pnpr_th, cfg->pnpr_th, pnpr_th);
+}
+
+esp_gmf_err_t esp_gmf_howl_set_imsd_th(esp_gmf_element_handle_t handle, float imsd_th)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_ae_howl_cfg_t *cfg = (esp_ae_howl_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    return howl_set_float_param(handle, ((esp_gmf_howl_t *)handle)->howl_hd,
+                                esp_ae_howl_set_imsd_th, imsd_th, &cfg->imsd_th);
+}
+
+esp_gmf_err_t esp_gmf_howl_get_imsd_th(esp_gmf_element_handle_t handle, float *imsd_th)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, imsd_th, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_ae_howl_cfg_t *cfg = (esp_ae_howl_cfg_t *)OBJ_GET_CFG(handle);
+    ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
+    return howl_get_float_param(handle, ((esp_gmf_howl_t *)handle)->howl_hd,
+                                esp_ae_howl_get_imsd_th, cfg->imsd_th, imsd_th);
+}
+
+esp_gmf_err_t esp_gmf_howl_set_enable_imsd(esp_gmf_element_handle_t handle, bool enable_imsd)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    esp_ae_howl_cfg_t *cfg = (esp_ae_howl_cfg_t *)OBJ_GET_CFG(handle);
+    if (cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to set enable_imsd, cfg is NULL");
+        ret = ESP_GMF_ERR_FAIL;
+        goto __howl_set_enable_imsd_exit;
+    }
+    if (cfg->enable_imsd == enable_imsd) {
+        goto __howl_set_enable_imsd_exit;
+    }
+    cfg->enable_imsd = enable_imsd;
+    esp_gmf_howl_t *howl = (esp_gmf_howl_t *)handle;
+    howl->need_reopen = true;
+__howl_set_enable_imsd_exit:
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_howl_get_enable_imsd(esp_gmf_element_handle_t handle, bool *enable_imsd)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, enable_imsd, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    esp_ae_howl_cfg_t *cfg = (esp_ae_howl_cfg_t *)OBJ_GET_CFG(handle);
+    if (cfg == NULL) {
+        ret = ESP_GMF_ERR_FAIL;
+    } else {
+        *enable_imsd = cfg->enable_imsd;
+    }
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    return ret;
 }
 
 static esp_gmf_job_err_t esp_gmf_howl_reset(esp_gmf_element_handle_t handle, void *para)

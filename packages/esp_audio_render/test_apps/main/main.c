@@ -5,6 +5,7 @@
  */
 
 #include <string.h>
+#include "sdkconfig.h"
 #include "esp_heap_trace.h"
 #include "esp_heap_caps.h"
 #include "audio_render_test.h"
@@ -70,6 +71,13 @@ TEST_CASE("Audio Render Process typical", "[esp_audio_render]")
     TEST_ESP_OK(audio_render_proc_typical_test(20));
 }
 
+#if CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW
+TEST_CASE("Audio Render pipeline view", "[esp_audio_render][pipeline_view]")
+{
+    TEST_ESP_OK(audio_render_pipeline_view_test());
+}
+#endif  /* CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW */
+
 TEST_CASE("Audio Render One Stream No Proc", "[esp_audio_render]")
 {
     TEST_ESP_OK(audio_render_one_stream_no_proc(20));
@@ -123,6 +131,16 @@ void app_main(void)
     AUDIO_RENDER_TEST(audio_render_proc_bypass_test, 20);
     AUDIO_RENDER_TEST(audio_render_proc_basic_test, 20);
     AUDIO_RENDER_TEST(audio_render_proc_typical_test, 20);
+#if CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW
+    ESP_LOGI(TAG, "Starting audio_render_pipeline_view_test");
+    int pipeline_view_ret = audio_render_pipeline_view_test();
+    if (pipeline_view_ret == 0) {
+        ESP_LOGI(TAG, "Success to run audio_render_pipeline_view_test");
+    } else {
+        ESP_LOGE(TAG, "Fail to run audio_render_pipeline_view_test");
+    }
+    ESP_LOGW(TAG, "--------------------------------------------------------\n\n");
+#endif  /* CONFIG_ESP_AUDIO_RENDER_PIPELINE_VIEW */
     AUDIO_RENDER_TEST(audio_render_one_stream_no_proc, 20);
     AUDIO_RENDER_TEST(audio_render_one_stream_with_proc, 20);
     AUDIO_RENDER_TEST(audio_render_one_stream_with_enc_post, 64);

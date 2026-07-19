@@ -20,14 +20,18 @@ esp_gmf_err_t esp_gmf_audio_el_init(esp_gmf_audio_element_handle_t handle, esp_g
     ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_audio_element_t *aud = (esp_gmf_audio_element_t *)handle;
     config->ctx = (void *)aud;
-    esp_gmf_element_init(&aud->base, config);
-    esp_gmf_info_file_init(&aud->file_info);
-    aud->lock = esp_gmf_oal_mutex_create();
-    ESP_GMF_MEM_CHECK(TAG, aud->lock, {
+    esp_gmf_err_t ret = esp_gmf_element_init(&aud->base, config);
+    if (ret != ESP_GMF_ERR_OK) {
+        return ret;
+    }
+    if (aud->base.lock == NULL) {
+        aud->base.lock = esp_gmf_oal_mutex_create();
+    }
+    ESP_GMF_MEM_CHECK(TAG, aud->base.lock, {
         esp_gmf_element_deinit(&aud->base);
-        esp_gmf_oal_free(aud);
         return ESP_GMF_ERR_MEMORY_LACK;
     });
+    esp_gmf_info_file_init(&aud->file_info);
     return ESP_GMF_ERR_OK;
 }
 
@@ -36,9 +40,9 @@ esp_gmf_err_t esp_gmf_audio_el_get_snd_info(esp_gmf_audio_element_handle_t handl
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, info, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_audio_element_t *aud = (esp_gmf_audio_element_t *)handle;
-    esp_gmf_oal_mutex_lock(aud->lock);
+    esp_gmf_element_lock(handle);
     memcpy(info, &aud->snd_info, sizeof(aud->snd_info));
-    esp_gmf_oal_mutex_unlock(aud->lock);
+    esp_gmf_element_unlock(handle);
     return ESP_GMF_ERR_OK;
 }
 
@@ -47,9 +51,9 @@ esp_gmf_err_t esp_gmf_audio_el_set_snd_info(esp_gmf_audio_element_handle_t handl
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, info, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_audio_element_t *aud = (esp_gmf_audio_element_t *)handle;
-    esp_gmf_oal_mutex_lock(aud->lock);
+    esp_gmf_element_lock(handle);
     memcpy(&aud->snd_info, info, sizeof(aud->snd_info));
-    esp_gmf_oal_mutex_unlock(aud->lock);
+    esp_gmf_element_unlock(handle);
     return ESP_GMF_ERR_OK;
 }
 
@@ -58,9 +62,9 @@ esp_gmf_err_t esp_gmf_audio_el_get_file_info(esp_gmf_audio_element_handle_t hand
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, info, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_audio_element_t *aud = (esp_gmf_audio_element_t *)handle;
-    esp_gmf_oal_mutex_lock(aud->lock);
+    esp_gmf_element_lock(handle);
     memcpy(info, &aud->file_info, sizeof(aud->file_info));
-    esp_gmf_oal_mutex_unlock(aud->lock);
+    esp_gmf_element_unlock(handle);
     return ESP_GMF_ERR_OK;
 }
 
@@ -69,18 +73,19 @@ esp_gmf_err_t esp_gmf_audio_el_set_file_info(esp_gmf_audio_element_handle_t hand
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     ESP_GMF_NULL_CHECK(TAG, info, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_audio_element_t *aud = (esp_gmf_audio_element_t *)handle;
-    esp_gmf_oal_mutex_lock(aud->lock);
+    esp_gmf_element_lock(handle);
     memcpy(&aud->file_info, info, sizeof(aud->file_info));
-    esp_gmf_oal_mutex_unlock(aud->lock);
+    esp_gmf_element_unlock(handle);
     return ESP_GMF_ERR_OK;
 }
+
 esp_gmf_err_t esp_gmf_audio_el_set_file_size(esp_gmf_audio_element_handle_t handle, uint64_t size)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_audio_element_t *aud = (esp_gmf_audio_element_t *)handle;
-    esp_gmf_oal_mutex_lock(aud->lock);
+    esp_gmf_element_lock(handle);
     int ret = esp_gmf_info_file_set_size(&aud->file_info, size);
-    esp_gmf_oal_mutex_unlock(aud->lock);
+    esp_gmf_element_unlock(handle);
     return ret;
 }
 
@@ -88,9 +93,9 @@ esp_gmf_err_t esp_gmf_audio_el_update_file_pos(esp_gmf_audio_element_handle_t ha
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_audio_element_t *aud = (esp_gmf_audio_element_t *)handle;
-    esp_gmf_oal_mutex_lock(aud->lock);
+    esp_gmf_element_lock(handle);
     int ret = esp_gmf_info_file_update_pos(&aud->file_info, pos);
-    esp_gmf_oal_mutex_unlock(aud->lock);
+    esp_gmf_element_unlock(handle);
     return ret;
 }
 
@@ -98,10 +103,8 @@ esp_gmf_err_t esp_gmf_audio_el_deinit(esp_gmf_audio_element_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_audio_element_t *aud = (esp_gmf_audio_element_t *)handle;
-    esp_gmf_oal_mutex_lock(aud->lock);
-    esp_gmf_element_deinit(&aud->base);
+    esp_gmf_element_lock(handle);
     esp_gmf_info_file_deinit(&aud->file_info);
-    esp_gmf_oal_mutex_unlock(aud->lock);
-    esp_gmf_oal_mutex_destroy(aud->lock);
-    return ESP_GMF_ERR_OK;
+    esp_gmf_element_unlock(handle);
+    return esp_gmf_element_deinit(&aud->base);
 }

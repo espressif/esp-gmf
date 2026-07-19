@@ -20,7 +20,6 @@ typedef struct _esp_gmf_audio_element {
     struct esp_gmf_element  base;       /*!< Base element structure */
     esp_gmf_info_sound_t    snd_info;   /*!< Sound information */
     esp_gmf_info_file_t     file_info;  /*!< File information */
-    void                   *lock;       /*!< Lock for thread safety */
 } esp_gmf_audio_element_t;
 
 /** GMF audio element handle */

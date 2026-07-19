@@ -8,6 +8,8 @@
 #include "esp_gmf_method_helper.h"
 #include "esp_gmf_audio_param.h"
 #include "esp_gmf_audio_methods_def.h"
+#include "esp_gmf_args_desc.h"
+
 #define PREPARE_AMETHOD_SETTING()                                                             \
     esp_gmf_method_exec_ctx_t exec_ctx = {};                                                  \
     const esp_gmf_method_t*   method_head = NULL;                                             \
@@ -20,10 +22,19 @@
 #define SET_AMETHOD_ARG(arg_name, value) \
     esp_gmf_args_set_value(exec_ctx.method->args_desc, arg_name, exec_ctx.exec_buf, (uint8_t*) &value, sizeof(value));
 
+#define EXEC_AMETHOD() \
+    ret = exec_ctx.method->func(self, exec_ctx.method->args_desc, exec_ctx.exec_buf, exec_ctx.buf_size);
+
+#define GET_AMETHOD_ARG(arg_name, value) \
+    esp_gmf_args_extract_value(exec_ctx.method->args_desc, arg_name, exec_ctx.exec_buf, exec_ctx.buf_size, (uint32_t *)(value));
+
 #define RELEASE_AMETHOD_SETTING()                                                                        \
     ret = exec_ctx.method->func(self, exec_ctx.method->args_desc, exec_ctx.exec_buf, exec_ctx.buf_size); \
     esp_gmf_method_release_exec_ctx(&exec_ctx);                                                          \
     return ret;
+
+#define RELEASE_AMETHOD() \
+    esp_gmf_method_release_exec_ctx(&exec_ctx);
 
 esp_gmf_err_t esp_gmf_audio_param_set_dest_rate(esp_gmf_element_handle_t self, uint32_t dest_rate)
 {
@@ -99,4 +110,125 @@ esp_gmf_err_t esp_gmf_audio_param_set_fade(esp_gmf_element_handle_t self, bool i
     SET_AMETHOD_ARG(AMETHOD_ARG(FADE, SET_MODE, MODE), mode);
 
     RELEASE_AMETHOD_SETTING();
+}
+
+esp_gmf_err_t esp_gmf_audio_param_get_dest_rate(esp_gmf_element_handle_t self, uint32_t *dest_rate)
+{
+    if (dest_rate == NULL) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    const char *method_name = AMETHOD(RATE_CVT, GET_DEST_RATE);
+    PREPARE_AMETHOD_SETTING();
+
+    EXEC_AMETHOD();
+    if (ret == ESP_GMF_ERR_OK) {
+        ret = GET_AMETHOD_ARG(AMETHOD_ARG(RATE_CVT, GET_DEST_RATE, RATE), dest_rate);
+    }
+    RELEASE_AMETHOD();
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_audio_param_get_dest_bits(esp_gmf_element_handle_t self, uint8_t *dest_bits)
+{
+    if (dest_bits == NULL) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    const char *method_name = AMETHOD(BIT_CVT, GET_DEST_BITS);
+    PREPARE_AMETHOD_SETTING();
+
+    EXEC_AMETHOD();
+    if (ret == ESP_GMF_ERR_OK) {
+        ret = GET_AMETHOD_ARG(AMETHOD_ARG(BIT_CVT, GET_DEST_BITS, BITS), dest_bits);
+    }
+    RELEASE_AMETHOD();
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_audio_param_get_dest_ch(esp_gmf_element_handle_t self, uint8_t *dest_ch)
+{
+    if (dest_ch == NULL) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    const char *method_name = AMETHOD(CH_CVT, GET_DEST_CH);
+    PREPARE_AMETHOD_SETTING();
+
+    EXEC_AMETHOD();
+    if (ret == ESP_GMF_ERR_OK) {
+        ret = GET_AMETHOD_ARG(AMETHOD_ARG(CH_CVT, GET_DEST_CH, CH), dest_ch);
+    }
+    RELEASE_AMETHOD();
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_audio_param_get_speed(esp_gmf_element_handle_t self, float *speed)
+{
+    if (speed == NULL) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    const char *method_name = AMETHOD(SONIC, GET_SPEED);
+    PREPARE_AMETHOD_SETTING();
+
+    EXEC_AMETHOD();
+    if (ret == ESP_GMF_ERR_OK) {
+        ret = GET_AMETHOD_ARG(AMETHOD_ARG(SONIC, GET_SPEED, SPEED), speed);
+    }
+    RELEASE_AMETHOD();
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_audio_param_get_pitch(esp_gmf_element_handle_t self, float *pitch)
+{
+    if (pitch == NULL) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    const char *method_name = AMETHOD(SONIC, GET_PITCH);
+    PREPARE_AMETHOD_SETTING();
+
+    EXEC_AMETHOD();
+    if (ret == ESP_GMF_ERR_OK) {
+        ret = GET_AMETHOD_ARG(AMETHOD_ARG(SONIC, GET_PITCH, PITCH), pitch);
+    }
+    RELEASE_AMETHOD();
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_audio_param_get_alc_channel_gain(esp_gmf_element_handle_t self, uint8_t ch_idx, float *gain_db)
+{
+    if (gain_db == NULL) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    const char *method_name = AMETHOD(ALC, GET_GAIN);
+    int8_t gain = 0;
+    PREPARE_AMETHOD_SETTING();
+
+    SET_AMETHOD_ARG(AMETHOD_ARG(ALC, GET_GAIN, IDX), ch_idx);
+    EXEC_AMETHOD();
+    if (ret == ESP_GMF_ERR_OK) {
+        ret = GET_AMETHOD_ARG(AMETHOD_ARG(ALC, GET_GAIN, GAIN), &gain);
+        if (ret == ESP_GMF_ERR_OK) {
+            *gain_db = (float)gain;
+        }
+    }
+    RELEASE_AMETHOD();
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_audio_param_get_fade(esp_gmf_element_handle_t self, bool *is_fade_in)
+{
+    if (is_fade_in == NULL) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    const char *method_name = AMETHOD(FADE, GET_MODE);
+    int32_t mode = 0;
+    PREPARE_AMETHOD_SETTING();
+
+    EXEC_AMETHOD();
+    if (ret == ESP_GMF_ERR_OK) {
+        ret = GET_AMETHOD_ARG(AMETHOD_ARG(FADE, GET_MODE, MODE), &mode);
+        if (ret == ESP_GMF_ERR_OK) {
+            *is_fade_in = (mode == 1);
+        }
+    }
+    RELEASE_AMETHOD();
+    return ret;
 }

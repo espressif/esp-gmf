@@ -138,6 +138,34 @@ esp_gmf_err_t esp_gmf_reverb_set_dry_level(esp_gmf_element_handle_t handle, floa
 esp_gmf_err_t esp_gmf_reverb_get_dry_level(esp_gmf_element_handle_t handle, float *dry_level);
 
 /**
+ * @brief  Set the pre-delay time
+ *
+ *         Pre-delay allocates its delay line at open time. Changing this value while the
+ *         element is already open marks `need_reopen`; the next process cycle closes and
+ *         reopens the AE handle with the new buffer size.
+ *
+ * @param[in]  handle        The reverb element handle
+ * @param[in]  pre_delay_ms  Pre-delay in milliseconds, range: [0, 200]
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ */
+esp_gmf_err_t esp_gmf_reverb_set_pre_delay_ms(esp_gmf_element_handle_t handle, uint16_t pre_delay_ms);
+
+/**
+ * @brief  Get the pre-delay time
+ *
+ * @param[in]   handle        The reverb element handle
+ * @param[out]  pre_delay_ms  Pre-delay in milliseconds
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ */
+esp_gmf_err_t esp_gmf_reverb_get_pre_delay_ms(esp_gmf_element_handle_t handle, uint16_t *pre_delay_ms);
+
+/**
  * @brief  Reset the internal processing state of the reverb element
  *
  * @param[in]  handle  The reverb element handle

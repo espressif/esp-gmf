@@ -46,6 +46,7 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "esp_gmf_caps_def.h"
+#include "esp_gmf_audio_element.h"
 #include "esp_gmf_method_helper.h"
 #include "gmf_loader_setup_defaults.h"
 #include "esp_gmf_bit_cvt.h"
@@ -887,6 +888,182 @@ static void test_element_cfg_task_priority(audio_el_res_cfg_t *cfg, void (*confi
         audio_el_res_deinit(res);
         ESP_LOGI(TAG, "Priority %d test completed successfully", cfg_priority);
     }
+}
+
+static void runtime_parameter_start_and_pause(audio_el_res_t *res)
+{
+    audio_el_set_audio_info(res);
+    audio_el_inst_init(res);
+    for (uint32_t i = 0; i < res->in_port_num; i++) {
+        res->in_inst[i].change_info = false;
+    }
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_reset(res->pipe));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_loading_jobs(res->pipe));
+    for (uint32_t i = 0; i < res->in_port_num; i++) {
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                          esp_gmf_pipeline_report_info(res->pipe, ESP_GMF_INFO_SOUND,
+                                                       &res->in_inst[i].src_info,
+                                                       sizeof(res->in_inst[i].src_info)));
+    }
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res->pipe));
+
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    uint32_t waited = 0;
+    while (waited < 1000) {
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                          esp_gmf_element_get_state(res->current_hd[0], &state));
+        if (state == ESP_GMF_EVENT_STATE_RUNNING) {
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+        waited += 10;
+    }
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_RUNNING, state);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_pause(res->pipe));
+    uint32_t output_count = res->out_inst[0].out_frame_count;
+    vTaskDelay(pdMS_TO_TICKS(20));
+    TEST_ASSERT_EQUAL_UINT32(output_count, res->out_inst[0].out_frame_count);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_element_get_state(res->current_hd[0], &state));
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_RUNNING, state);
+}
+
+static void runtime_parameter_resume_and_wait_output(audio_el_res_t *res)
+{
+    uint32_t output_count = res->out_inst[0].out_frame_count;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_resume(res->pipe));
+    uint32_t waited = 0;
+    while (res->out_inst[0].out_frame_count == output_count && waited < 1000) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+        waited += 10;
+    }
+    TEST_ASSERT_GREATER_THAN(output_count, res->out_inst[0].out_frame_count);
+}
+
+static void runtime_parameter_wait_sound_info(esp_gmf_element_handle_t element,
+                                              uint32_t sample_rate, uint8_t bits,
+                                              uint8_t channels)
+{
+    esp_gmf_info_sound_t info = {0};
+    uint32_t waited = 0;
+    while (waited < 1000) {
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_audio_el_get_snd_info(element, &info));
+        if ((sample_rate == 0 || info.sample_rates == sample_rate) &&
+            (bits == 0 || info.bits == bits) &&
+            (channels == 0 || info.channels == channels)) {
+            return;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+        waited += 10;
+    }
+    TEST_FAIL_MESSAGE("Timed out waiting for updated audio element sound information");
+}
+
+static void runtime_parameter_stop(audio_el_res_t *res)
+{
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_element_get_state(res->current_hd[0], &state));
+    if (state == ESP_GMF_EVENT_STATE_PAUSED) {
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_resume(res->pipe));
+    }
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
+    audio_el_inst_deinit(res);
+    audio_el_res_deinit(res);
+}
+
+TEST_CASE("Audio direct runtime parameter apply", "[ESP_GMF_AUDIO][ESP_GMF_RUNTIME_PARAM][leaks=1400]")
+{
+    audio_el_res_cfg_t cfg = DEFAULT_SINGLE_IN_SINGLE_OUT_CONFIG();
+    cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_ALC};
+    audio_el_res_t *res = NULL;
+    audio_el_res_init(&cfg, &res);
+    runtime_parameter_start_and_pause(res);
+
+    int8_t gain = -12;
+    int8_t actual_gain = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_alc_set_gain(res->current_hd[0], 0, gain));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_alc_get_gain(res->current_hd[0], 0, &actual_gain));
+    TEST_ASSERT_EQUAL_INT8(gain, actual_gain);
+
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_element_get_state(res->current_hd[0], &state));
+    TEST_ASSERT_EQUAL(ESP_GMF_EVENT_STATE_RUNNING, state);
+    runtime_parameter_resume_and_wait_output(res);
+    runtime_parameter_stop(res);
+}
+
+TEST_CASE("Audio deferred runtime parameter apply", "[ESP_GMF_AUDIO][ESP_GMF_RUNTIME_PARAM][leaks=1400]")
+{
+    audio_el_res_cfg_t cfg = DEFAULT_SINGLE_IN_SINGLE_OUT_CONFIG();
+    audio_el_res_t *res = NULL;
+    esp_gmf_info_sound_t info = {0};
+
+    cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_RATE_CONVERT};
+    audio_el_res_init(&cfg, &res);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_rate_cvt_set_dest_rate(res->current_hd[0], 48000));
+    runtime_parameter_start_and_pause(res);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_audio_el_get_snd_info(res->current_hd[0], &info));
+    TEST_ASSERT_EQUAL_UINT32(48000, info.sample_rates);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_rate_cvt_set_dest_rate(res->current_hd[0], 44100));
+    uint32_t dest_rate = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_rate_cvt_get_dest_rate(res->current_hd[0], &dest_rate));
+    TEST_ASSERT_EQUAL_UINT32(44100, dest_rate);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_audio_el_get_snd_info(res->current_hd[0], &info));
+    TEST_ASSERT_EQUAL_UINT32(48000, info.sample_rates);
+    runtime_parameter_resume_and_wait_output(res);
+    runtime_parameter_wait_sound_info(res->current_hd[0], 44100, 0, 0);
+    runtime_parameter_stop(res);
+
+    cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_BIT_CONVERT};
+    audio_el_res_init(&cfg, &res);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_bit_cvt_set_dest_bits(res->current_hd[0], 16));
+    runtime_parameter_start_and_pause(res);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_audio_el_get_snd_info(res->current_hd[0], &info));
+    TEST_ASSERT_EQUAL_UINT8(16, info.bits);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_bit_cvt_set_dest_bits(res->current_hd[0], 32));
+    uint8_t dest_bits = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_bit_cvt_get_dest_bits(res->current_hd[0], &dest_bits));
+    TEST_ASSERT_EQUAL_UINT8(32, dest_bits);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_audio_el_get_snd_info(res->current_hd[0], &info));
+    TEST_ASSERT_EQUAL_UINT8(16, info.bits);
+    runtime_parameter_resume_and_wait_output(res);
+    runtime_parameter_wait_sound_info(res->current_hd[0], 0, 32, 0);
+    runtime_parameter_stop(res);
+
+    cfg.caps_cc = (uint64_t[]) {ESP_GMF_CAPS_AUDIO_CHANNEL_CONVERT};
+    audio_el_res_init(&cfg, &res);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_ch_cvt_set_dest_channel(res->current_hd[0], 2));
+    runtime_parameter_start_and_pause(res);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_audio_el_get_snd_info(res->current_hd[0], &info));
+    TEST_ASSERT_EQUAL_UINT8(2, info.channels);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_ch_cvt_set_dest_channel(res->current_hd[0], 1));
+    uint8_t dest_ch = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_ch_cvt_get_dest_channel(res->current_hd[0], &dest_ch));
+    TEST_ASSERT_EQUAL_UINT8(1, dest_ch);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_audio_el_get_snd_info(res->current_hd[0], &info));
+    TEST_ASSERT_EQUAL_UINT8(2, info.channels);
+    runtime_parameter_resume_and_wait_output(res);
+    runtime_parameter_wait_sound_info(res->current_hd[0], 0, 0, 1);
+    runtime_parameter_stop(res);
 }
 
 TEST_CASE("Audio ENCODER Element Test", "[ESP_GMF_AUDIO][leaks=1400]")

@@ -50,6 +50,19 @@ esp_gmf_err_t esp_gmf_ch_cvt_init(esp_ae_ch_cvt_cfg_t *config, esp_gmf_element_h
  */
 esp_gmf_err_t esp_gmf_ch_cvt_set_dest_channel(esp_gmf_element_handle_t handle, uint8_t dest_ch);
 
+/**
+ * @brief  Get destination channel count from the channel conversion element
+ *
+ * @param[in]   handle   Channel conversion element handle
+ * @param[out]  dest_ch  Destination channel count
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_FAIL         Configuration is unavailable
+ */
+esp_gmf_err_t esp_gmf_ch_cvt_get_dest_channel(esp_gmf_element_handle_t handle, uint8_t *dest_ch);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

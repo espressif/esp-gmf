@@ -35,15 +35,53 @@ typedef enum {
 } esp_gmf_args_type_t;
 
 /**
+ * @brief  Type-aware value used by argument constraints
+ *
+ *         The owning argument's `type` selects the matching union member:
+ *         unsigned integers use `u64`, signed integers use `i64`, and
+ *         floating-point arguments use `f64`.
+ */
+typedef union {
+    uint64_t u64;  /*!< Unsigned integer value */
+    int64_t  i64;  /*!< Signed integer value */
+    double   f64;  /*!< Floating-point value */
+} esp_gmf_arg_value_t;
+
+/**
+ * @brief  Optional advertised limits for a method argument
+ *
+ *         GMF does not enforce these fields when a method runs. They are
+ *         published with the method table so a host (for example ESP Audio
+ *         Studio) can draw a valid UI range and expand indexed getters.
+ *
+ *         Range: a positive `step` means `minimum`, `maximum`, and `step`
+ *         form a slider or enum range. `step` of 0 means no range is
+ *         advertised. Example: ALC gain `[-64, 63]` dB with step 1.
+ *
+ *         Indexed argument: a non-NULL `index_count_config_path` names a
+ *         field in the element's published configuration that holds the
+ *         current index count. The host then calls the getter once per
+ *         index instead of once for the whole element. Examples:
+ *         ALC `"channel"`, EQ `"filter_num"`, mixer `"src_num"`.
+ */
+typedef struct {
+    esp_gmf_arg_value_t  minimum;                  /*!< Inclusive lower bound when `step` is positive */
+    esp_gmf_arg_value_t  maximum;                  /*!< Inclusive upper bound when `step` is positive */
+    esp_gmf_arg_value_t  step;                     /*!< Range step; 0 means do not advertise a range */
+    const char          *index_count_config_path;  /*!< Config field name for index count, e.g. `"channel"`. NULL if not indexed */
+} esp_gmf_arg_constraint_t;
+
+/**
  * @brief  GMF argument description structure
  */
 typedef struct esp_gmf_args_desc {
-    struct esp_gmf_args_desc *next;    /*!< Pointer to the next argument in the list */
-    esp_gmf_args_type_t       type;    /*!< Data type of the argument */
-    uint16_t                  offset;  /*!< Byte offset from the previous argument */
-    const char               *name;    /*!< Name of the argument */
-    struct esp_gmf_args_desc *val;     /*!< Pointer to nested value (used for arrays) */
-    uint32_t                  size;    /*!< Size of the argument in bytes */
+    struct esp_gmf_args_desc       *next;        /*!< Pointer to the next argument in the list */
+    esp_gmf_args_type_t             type;        /*!< Data type of the argument */
+    uint16_t                        offset;      /*!< Byte offset from the root argument buffer */
+    const char                     *name;        /*!< Name of the argument */
+    struct esp_gmf_args_desc       *val;         /*!< Pointer to nested value (used for arrays) */
+    uint32_t                        size;        /*!< Size of the argument in bytes */
+    const esp_gmf_arg_constraint_t *constraint;  /*!< Optional advertised range / index metadata. Not enforced by GMF */
 } esp_gmf_args_desc_t;
 
 /**
@@ -111,12 +149,12 @@ static inline void esp_gmf_args_desc_destroy(esp_gmf_args_desc_t *head)
  *       - ESP_GMF_ERR_OK           Success, the total size is stored in `total_value_size`
  *       - ESP_GMF_ERR_INVALID_ARG  If either the `head` or `total_value_size` pointer is `NULL`
  */
-static inline esp_gmf_err_t esp_gmf_args_desc_get_total_size(esp_gmf_args_desc_t *head, size_t *total_value_size)
+static inline esp_gmf_err_t esp_gmf_args_desc_get_total_size(const esp_gmf_args_desc_t *head, size_t *total_value_size)
 {
     if (head == NULL || total_value_size == NULL) {
         return ESP_GMF_ERR_INVALID_ARG;
     }
-    esp_gmf_args_desc_t *current = head;
+    const esp_gmf_args_desc_t *current = head;
     while (current != NULL) {
         *total_value_size += current->size;
         ESP_LOGD("GMF_ARG", "Get total size %d, name:%s", *total_value_size, current->name);
@@ -139,20 +177,24 @@ static inline esp_gmf_err_t esp_gmf_args_desc_get_total_size(esp_gmf_args_desc_t
  * @param[in]      type    The type of the argument (e.g., integer, array, etc.)
  * @param[in]      size    The size of the argument value
  * @param[in]      offset  The offset of the argument in the structure or buffer
- * @param[in]      val     Pointer to a structure containing additional data related to the argument
+ * @param[in]      val          Pointer to a structure containing additional data related to the argument
+ * @param[in]      constraint   Advertised constraint for the new node, or NULL
  *
  * @return
  *       - ESP_GMF_ERR_OK           Success, the new argument description is appended to the list
  *       - ESP_GMF_ERR_INVALID_ARG  If `head` or `name` is `NULL`
  */
 static inline esp_gmf_err_t esp_gmf_args_desc_append_base(esp_gmf_args_desc_t **head, const char *name, esp_gmf_args_type_t type,
-                                                          uint32_t size, uint32_t offset, esp_gmf_args_desc_t *val)
+                                                          uint32_t size, uint32_t offset, esp_gmf_args_desc_t *val,
+                                                          const esp_gmf_arg_constraint_t *constraint)
 {
     esp_gmf_args_desc_t *new_args = NULL;
     esp_gmf_args_desc_create(name, type, val, size, &new_args);
     if (new_args == NULL) {
         return ESP_GMF_ERR_MEMORY_LACK;
     }
+    new_args->offset = offset;
+    new_args->constraint = constraint;
     if (*head == NULL) {
         *head = new_args;
         return ESP_GMF_ERR_OK;
@@ -176,8 +218,8 @@ static inline esp_gmf_err_t esp_gmf_args_desc_append_base(esp_gmf_args_desc_t **
             }
             tmp = tmp->next;
         }
+        new_args->offset = offset;
     }
-    new_args->offset = offset;
     current->next = new_args;
     return ESP_GMF_ERR_OK;
 }
@@ -201,7 +243,37 @@ static inline esp_gmf_err_t esp_gmf_args_desc_append_base(esp_gmf_args_desc_t **
 static inline esp_gmf_err_t esp_gmf_args_desc_append(esp_gmf_args_desc_t **head, const char *name, esp_gmf_args_type_t type,
                                                      uint32_t size, uint32_t offset)
 {
-    return esp_gmf_args_desc_append_base(head, name, type, size, offset, NULL);
+    return esp_gmf_args_desc_append_base(head, name, type, size, offset, NULL, NULL);
+}
+
+/**
+ * @brief  Append a non-array argument and attach advertised constraints
+ *
+ *         Same as `esp_gmf_args_desc_append`, plus optional range or index
+ *         metadata for hosts. GMF does not clamp or reject values from
+ *         `constraint` during method execution.
+ *
+ * @note  The constraint is not copied or freed and must remain valid for the
+ *        lifetime of the argument description.
+ *
+ * @param[in,out]  head        Pointer to the head of the argument description list
+ * @param[in]      name        Argument name
+ * @param[in]      type        Argument type
+ * @param[in]      size        Argument value size
+ * @param[in]      offset      Argument offset in the packed buffer
+ * @param[in]      constraint  Advertised constraint, or NULL when unconstrained
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input argument
+ *       - ESP_GMF_ERR_MEMORY_LACK  Not enough memory
+ */
+static inline esp_gmf_err_t esp_gmf_args_desc_append_with_constraint(esp_gmf_args_desc_t **head, const char *name,
+                                                                     esp_gmf_args_type_t type, uint32_t size,
+                                                                     uint32_t offset,
+                                                                     const esp_gmf_arg_constraint_t *constraint)
+{
+    return esp_gmf_args_desc_append_base(head, name, type, size, offset, NULL, constraint);
 }
 
 /**
@@ -226,7 +298,7 @@ static inline esp_gmf_err_t esp_gmf_args_desc_append(esp_gmf_args_desc_t **head,
 static inline esp_gmf_err_t esp_gmf_args_desc_append_array(esp_gmf_args_desc_t **head, const char *name, esp_gmf_args_desc_t *val,
                                                            uint32_t size, uint32_t offset)
 {
-    return esp_gmf_args_desc_append_base(head, name, ESP_GMF_ARGS_TYPE_ARRAY, size, offset, val);
+    return esp_gmf_args_desc_append_base(head, name, ESP_GMF_ARGS_TYPE_ARRAY, size, offset, val, NULL);
 }
 
 /**
@@ -251,6 +323,7 @@ static inline esp_gmf_err_t esp_gmf_args_desc_copy(const esp_gmf_args_desc_t *he
         return ESP_GMF_ERR_MEMORY_LACK;
     }
     new_head->offset = head->offset;
+    new_head->constraint = head->constraint;
     // Recursively copy the value (for array or nested structures)
     if (head->val) {
         esp_gmf_args_desc_copy(head->val, &new_head->val);

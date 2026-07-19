@@ -62,6 +62,60 @@ esp_gmf_err_t esp_gmf_fade_set_mode(esp_gmf_element_handle_t handle, esp_ae_fade
 esp_gmf_err_t esp_gmf_fade_get_mode(esp_gmf_element_handle_t handle, esp_ae_fade_mode_t *mode);
 
 /**
+ * @brief  Set the fade curve type
+ *
+ *         Changing the curve while the element is open updates cfg and marks
+ *         `need_reopen`; the next process cycle recreates the AE handle.
+ *
+ * @param[in]  handle  The fade handle
+ * @param[in]  curve   The curve type of fade
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ */
+esp_gmf_err_t esp_gmf_fade_set_curve(esp_gmf_element_handle_t handle, esp_ae_fade_curve_t curve);
+
+/**
+ * @brief  Get the fade curve type
+ *
+ * @param[in]   handle  The fade handle
+ * @param[out]  curve   The curve type of fade
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ */
+esp_gmf_err_t esp_gmf_fade_get_curve(esp_gmf_element_handle_t handle, esp_ae_fade_curve_t *curve);
+
+/**
+ * @brief  Set the fade transition time
+ *
+ *         Changing transit time while the element is open updates cfg and marks
+ *         `need_reopen`; the next process cycle recreates the AE handle.
+ *
+ * @param[in]  handle        The fade handle
+ * @param[in]  transit_time  The transition time in milliseconds
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ */
+esp_gmf_err_t esp_gmf_fade_set_transit_time(esp_gmf_element_handle_t handle, uint32_t transit_time);
+
+/**
+ * @brief  Get the fade transition time
+ *
+ * @param[in]   handle        The fade handle
+ * @param[out]  transit_time  The transition time in milliseconds
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ */
+esp_gmf_err_t esp_gmf_fade_get_transit_time(esp_gmf_element_handle_t handle, uint32_t *transit_time);
+
+/**
  * @brief  Reset the internal processing state of the fade element while preserving configuration
  *
  * @param[in]  handle  The fade element handle

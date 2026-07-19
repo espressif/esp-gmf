@@ -2,10 +2,20 @@
 
 ## Unreleased
 
+### Break Change
+
+- Removed element-owned effective configuration snapshots (`esp_gmf_config_t`, `ops.load_config`, `esp_gmf_element_load_config` / `get_config`)
+
 ### Features
 
 - Added capability `ESP_GMF_CAPS_AUDIO_REVERB` for audio reverb effects
 - Added capability `ESP_GMF_CAPS_AUDIO_DELAY` for audio delay effects
+- Added an optional mutex handle on the base element; audio element init creates it on demand and `esp_gmf_element_deinit` releases it
+- Added method metadata for getter associations and runtime-safe execution
+- Added type-aware method argument constraints for ranges and indexed cardinality
+- Added generic pipeline view APIs and linker-registered connectors for discovering named pipelines, handles, and directed connections
+- Added `REVERB` capability definition (`ESP_GMF_CAPS_AUDIO_REVERB`)
+- Added `DELAY` capability definition (`ESP_GMF_CAPS_AUDIO_DELAY`)
 
 ## v1.0.2
 

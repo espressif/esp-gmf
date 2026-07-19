@@ -1,4 +1,4 @@
 idf_component_register(SRCS "audio_render_test.c" "main.c"
                        INCLUDE_DIRS "." "../../private_inc/"
-                       PRIV_REQUIRES esp_timer
+                       PRIV_REQUIRES esp_timer unity
                        WHOLE_ARCHIVE)
