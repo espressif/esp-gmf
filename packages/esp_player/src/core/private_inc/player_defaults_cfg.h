@@ -22,7 +22,7 @@ extern "C" {
     .stack        = 5120,                       \
     .prio         = 5,                          \
     .core         = 0,                          \
-    .stack_in_ext = 0,                          \
+    .stack_in_ext = 1,                          \
 }
 
 #if CONFIG_ESP_PLAYER_ENABLE_AUDIO
@@ -30,14 +30,14 @@ extern "C" {
     .stack        = 5120,                           \
     .prio         = 5,                              \
     .core         = 1,                              \
-    .stack_in_ext = 0,                              \
+    .stack_in_ext = 1,                              \
 }
 
 #define ESP_PLAYER_DEFAULT_AUDIO_RENDER_TASK()  {  \
     .stack        = 5120,                          \
     .prio         = 5,                             \
     .core         = 0,                             \
-    .stack_in_ext = 0,                             \
+    .stack_in_ext = 1,                             \
 }
 #endif  /* CONFIG_ESP_PLAYER_ENABLE_AUDIO */
 
@@ -46,14 +46,14 @@ extern "C" {
     .stack        = 5120,                           \
     .prio         = 5,                              \
     .core         = 0,                              \
-    .stack_in_ext = 0,                              \
+    .stack_in_ext = 1,                              \
 }
 
 #define ESP_PLAYER_DEFAULT_VIDEO_RENDER_TASK()  {  \
     .stack        = 5120,                          \
     .prio         = 5,                             \
     .core         = 1,                             \
-    .stack_in_ext = 0,                             \
+    .stack_in_ext = 1,                             \
 }
 #endif  /* CONFIG_ESP_PLAYER_ENABLE_VIDEO */
 

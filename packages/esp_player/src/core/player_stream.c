@@ -280,7 +280,6 @@ esp_gmf_err_t player_stop_decoder(esp_player_stream_t *stream, QueueHandle_t que
 {
     player_drop_single_queue(stream, queue);
     if (db) {
-        player_reset_data_bus_meta_for_db(stream, db);
         esp_gmf_db_abort(db);
     }
     player_send_null_queue(queue);
@@ -296,7 +295,6 @@ esp_gmf_err_t player_stop_render(esp_player_stream_t *stream, uint8_t task_statu
 {
     if (task_status & bit) {
         if (db) {
-            player_reset_data_bus_meta_for_db(stream, db);
             esp_gmf_db_abort(db);
             esp_gmf_db_done_write(db);
         }

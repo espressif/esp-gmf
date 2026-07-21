@@ -14,6 +14,7 @@
 #include "player_pipeline.h"
 #include "player_submit_frame.h"
 #include "player_url.h"
+#include "esp_gmf_oal_thread.h"
 
 static void player_cmd_task(void *arg)
 {
@@ -25,8 +26,9 @@ static void player_cmd_task(void *arg)
             if (cmd.cmd_type == ESP_PLAYER_CMD_QUIT) {
                 ESP_LOGD(ESP_PLAYER_TAG, "Command task exiting, deleting itself");
                 player_set_events(stream, _CTRL_PLAYER_QUIT);
+                esp_gmf_oal_thread_t self = stream->cmd_task;
                 stream->cmd_task = NULL;
-                vTaskDelete(NULL);
+                esp_gmf_oal_thread_delete(self);
                 return;
             }
         }
@@ -102,8 +104,7 @@ esp_player_err_t esp_player_init(esp_player_config_t *config, esp_player_handle_
 
     player_state_init();
 
-    BaseType_t task_ret = xTaskCreate(player_cmd_task, "player_cmd", 4096, stream, 5, &stream->cmd_task);
-    if (task_ret != pdPASS) {
+    if (esp_gmf_oal_thread_create((esp_gmf_oal_thread_t *)&stream->cmd_task, "player_cmd", player_cmd_task, stream, 4096, 5, true, tskNO_AFFINITY) != ESP_GMF_ERR_OK) {
         ESP_LOGE(ESP_PLAYER_TAG, "Failed to create command task");
         ret = ESP_PLAYER_ERR_FAIL;
         goto _exit;
@@ -432,6 +433,7 @@ esp_player_err_t esp_player_pause(esp_player_handle_t handle)
         return ESP_PLAYER_ERR_INVALID_ARG;
     }
     xSemaphoreTake(stream->lock, portMAX_DELAY);
+    player_clear_events(stream, _CTRL_PLAYER_PAUSED | _CTRL_RUN_TO_END);
     esp_player_cmd_msg_t cmd = {
         .cmd_type = ESP_PLAYER_CMD_PAUSE,
         .data = NULL,
@@ -464,6 +466,7 @@ esp_player_err_t esp_player_resume(esp_player_handle_t handle)
         return ESP_PLAYER_ERR_INVALID_ARG;
     }
     xSemaphoreTake(stream->lock, portMAX_DELAY);
+    player_clear_events(stream, _CTRL_PLAYER_RESUMED);
     esp_player_cmd_msg_t cmd = {
         .cmd_type = ESP_PLAYER_CMD_RESUME,
         .data = NULL,
@@ -497,6 +500,7 @@ esp_player_err_t esp_player_stop(esp_player_handle_t handle)
         return ESP_PLAYER_ERR_INVALID_ARG;
     }
     xSemaphoreTake(stream->lock, portMAX_DELAY);
+    player_clear_events(stream, _CTRL_PLAYER_STOPPED | _CTRL_RUN_TO_END);
     esp_player_cmd_msg_t cmd = {
         .cmd_type = ESP_PLAYER_CMD_STOP,
         .data = NULL,
@@ -556,6 +560,7 @@ esp_player_err_t esp_player_seek(esp_player_handle_t handle, uint64_t time_ms)
     }
     *seek_time = time_ms;
     xSemaphoreTake(stream->lock, portMAX_DELAY);
+    player_clear_events(stream, _CTRL_PLAYER_SEEKING);
     esp_player_cmd_msg_t cmd = {
         .cmd_type = ESP_PLAYER_CMD_SEEK,
         .data = seek_time,

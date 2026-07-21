@@ -1737,6 +1737,49 @@ TEST_CASE("[edge]:test_player_seek_near_end_auto_finish", "[player][scenario]")
     sc_destroy_player_and_render(&ctx);
 }
 
+TEST_CASE("[edge]:test_player_seek_bookmark_play_time_immediate", "[player][scenario]")
+{
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+    esp_player_set_url(ctx.player, "/sdcard/test.mp3");
+    TEST_ASSERT_TRUE(sc_run_and_wait_played(&ctx));
+
+    uint64_t dur = 0;
+    esp_player_get_duration(ctx.player, &dur);
+    TEST_ASSERT_GREATER_THAN_MESSAGE(3000, dur, "Test file too short for bookmark seek test");
+
+    TEST_ASSERT_TRUE(sc_stop_and_wait(&ctx));
+
+    uint64_t bookmark = dur / 3;
+    ESP_LOGI(TAG, "[BookmarkImmediate] duration=%" PRIu64 " ms, seek bookmark=%" PRIu64 " ms",
+             dur, bookmark);
+
+    sc_clear_bits(&ctx, SC_SEEK_DONE_BIT | SC_PLAYED_BIT);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_seek(ctx.player, bookmark));
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_SEEK_MS),
+                             "Expected SEEK_DONE for bookmark seek in STOPPED state");
+
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_run(ctx.player));
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_PLAYED_BIT, SC_TIMEOUT_PLAY_MS), "Expected PLAYED after bookmark seek + run");
+
+    uint64_t play_time = 0;
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_play_time(ctx.player, &play_time));
+    ESP_LOGI(TAG, "[BookmarkImmediate] play_time immediately after PLAYED: %" PRIu64 " ms "
+                  "(expected near %" PRIu64 " ms)", play_time, bookmark);
+
+    uint64_t tolerance = 2000;
+    uint64_t lower = (bookmark > tolerance) ? (bookmark - tolerance) : 0;
+    uint64_t upper = bookmark + tolerance;
+    ESP_LOGI(TAG, "[BookmarkImmediate] Checking play_time=%" PRIu64 " in range [%" PRIu64 ", %" PRIu64 "]",
+             play_time, lower, upper);
+    TEST_ASSERT_GREATER_OR_EQUAL_MESSAGE(lower, play_time, "play_time too small after bookmark seek");
+    TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(upper, play_time, "play_time too large after bookmark seek");
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    sc_stop_and_wait(&ctx);
+    sc_destroy_player_and_render(&ctx);
+}
+
 TEST_CASE("[frame_mode]:test_player_continuous_frame_push_stress", "[player][scenario]")
 {
     sc_ctx_t ctx = {0};
@@ -1872,6 +1915,168 @@ TEST_CASE("[frame_mode]:test_player_frame_pts_tracking", "[player][scenario]")
     uint64_t expected_ms = (uint64_t)(TOTAL_FRAMES - 1) * FRAME_DURATION_MS;
     ESP_LOGI(TAG, "[PtsTracking] Expected: ~%" PRIu64 "ms  Actual: %" PRIu64 "ms  Done: %s",
              expected_ms, final_time, done ? "YES" : "TIMEOUT");
+
+    sc_destroy_player_and_render(&ctx);
+}
+
+TEST_CASE("[frame_mode]:test_player_submit_frame_eos_finished_multi_round", "[player][scenario]")
+{
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 22050, 16, 1));
+
+    const int ROUNDS = 3;
+    const int FRAMES_PER_ROUND = 20;
+    const uint64_t FRAME_DURATION_MS = 23;
+
+    for (int round = 0; round < ROUNDS; round++) {
+        ESP_LOGI(TAG, "[EosFinished] === Round %d/%d ===", round + 1, ROUNDS);
+
+        sc_clear_bits(&ctx, SC_PLAYED_BIT | SC_FINISHED_BIT | SC_ERROR_BIT | SC_STOPPED_BIT);
+        TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                          esp_player_set_url(ctx.player, TEST_FILL_URL_AAC));
+        TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_run(ctx.player));
+
+        int push_ok = 0;
+        for (int i = 0; i < FRAMES_PER_ROUND; i++) {
+            const uint8_t *frame_data = (i % 2 == 0)
+                                            ? test_data_aac_frame1
+                                            : test_data_aac_frame2;
+            size_t frame_len = (i % 2 == 0)
+                                   ? TEST_DATA_AAC_FRAME1_COUNT
+                                   : TEST_DATA_AAC_FRAME2_COUNT;
+            esp_player_frame_t frame = {
+                .data = (uint8_t *)frame_data,
+                .data_len = frame_len,
+                .pts = (uint64_t)i * FRAME_DURATION_MS,
+                .frame_type = ESP_PLAYER_FRAME_TYPE_DEFAULT,
+                .is_bad = false,
+                .eos = false,
+            };
+            esp_player_err_t ret = esp_player_submit_frame(ctx.player, &frame, 1000);
+            if (ret == ESP_PLAYER_ERR_OK) {
+                push_ok++;
+            }
+        }
+
+        esp_player_frame_t eos_frame = {
+            .data = (uint8_t *)test_data_aac_frame1,
+            .data_len = TEST_DATA_AAC_FRAME1_COUNT,
+            .pts = (uint64_t)FRAMES_PER_ROUND * FRAME_DURATION_MS,
+            .frame_type = ESP_PLAYER_FRAME_TYPE_DEFAULT,
+            .is_bad = false,
+            .eos = true,
+        };
+        esp_player_err_t eos_ret = esp_player_submit_frame(ctx.player, &eos_frame, 1000);
+
+        ESP_LOGI(TAG, "[EosFinished] Round %d: pushed %d/%d frames, EOS=%s, waiting FINISHED...",
+                 round + 1, push_ok, FRAMES_PER_ROUND,
+                 (eos_ret == ESP_PLAYER_ERR_OK) ? "OK" : "FAIL");
+        TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_OK, eos_ret, "EOS frame submission should not timeout");
+
+        EventBits_t got = xEventGroupWaitBits(ctx.event_group,
+                                              SC_FINISHED_BIT | SC_ERROR_BIT,
+                                              pdTRUE, pdFALSE,
+                                              pdMS_TO_TICKS(10000));
+        bool has_finished = (got & SC_FINISHED_BIT) != 0;
+        bool has_error = (got & SC_ERROR_BIT) != 0;
+
+        ESP_LOGI(TAG, "[EosFinished] Round %d: FINISHED=%s, ERROR=%s",
+                 round + 1,
+                 has_finished ? "YES" : "NO",
+                 has_error ? "YES" : "NO");
+
+        TEST_ASSERT_FALSE_MESSAGE(has_error, "Unexpected ERROR event during submit_frame playback");
+        TEST_ASSERT_TRUE_MESSAGE(has_finished, "FINISHED event not received after EOS frame");
+
+        vTaskDelay(pdMS_TO_TICKS(300));
+    }
+
+    sc_destroy_player_and_render(&ctx);
+}
+
+TEST_CASE("[frame_mode]:test_player_file_and_frame_mode_switch", "[player][scenario]")
+{
+    char m4a[TEST_PATH_MAX_LEN] = {0};
+    if (!sc_get_first_file(TEST_FILE_AUDIO_PATH, ".m4a", m4a, sizeof(m4a))) {
+        TEST_IGNORE_MESSAGE("No .m4a file found, skip");
+    }
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+
+    const int FRAMES_PER_ROUND = 10;
+    const uint64_t FRAME_DURATION_MS = 23;
+
+    for (int round = 0; round < 2; round++) {
+        /* ------ Step A: play file ------ */
+        ESP_LOGI(TAG, "[FileFrameSwitch] === Round %d Step A: file playback ===", round + 1);
+        sc_clear_bits(&ctx, SC_PLAYED_BIT | SC_FINISHED_BIT | SC_ERROR_BIT | SC_STOPPED_BIT);
+        TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, m4a));
+        TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx), "File playback failed to reach PLAYED");
+
+        vTaskDelay(pdMS_TO_TICKS(500));
+        TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_stop(ctx.player));
+        TEST_ASSERT_TRUE_MESSAGE(
+            sc_wait_bits(&ctx, SC_STOPPED_BIT | SC_FINISHED_BIT, SC_TIMEOUT_STOP_MS),
+            "File playback failed to stop");
+        ESP_LOGI(TAG, "[FileFrameSwitch] Round %d Step A: file stopped OK", round + 1);
+
+        /* ------ Step B: play frame stream ------ */
+        ESP_LOGI(TAG, "[FileFrameSwitch] === Round %d Step B: frame mode ===", round + 1);
+        sc_clear_bits(&ctx, SC_PLAYED_BIT | SC_FINISHED_BIT | SC_ERROR_BIT | SC_STOPPED_BIT);
+        TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, TEST_FILL_URL_AAC));
+        TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_ERR_OK, esp_player_run(ctx.player), "esp_player_run crashed on frame mode after file playback");
+
+        int push_ok = 0;
+        for (int i = 0; i < FRAMES_PER_ROUND; i++) {
+            const uint8_t *frame_data = (i % 2 == 0)
+                                            ? test_data_aac_frame1
+                                            : test_data_aac_frame2;
+            size_t frame_len = (i % 2 == 0)
+                                   ? TEST_DATA_AAC_FRAME1_COUNT
+                                   : TEST_DATA_AAC_FRAME2_COUNT;
+            esp_player_frame_t frame = {
+                .data = (uint8_t *)frame_data,
+                .data_len = frame_len,
+                .pts = (uint64_t)i * FRAME_DURATION_MS,
+                .frame_type = ESP_PLAYER_FRAME_TYPE_DEFAULT,
+                .is_bad = false,
+                .eos = false,
+            };
+            esp_player_err_t ret = esp_player_submit_frame(ctx.player, &frame, 1000);
+            if (ret == ESP_PLAYER_ERR_OK) {
+                push_ok++;
+            }
+        }
+
+        esp_player_frame_t eos_frame = {
+            .data = (uint8_t *)test_data_aac_frame1,
+            .data_len = TEST_DATA_AAC_FRAME1_COUNT,
+            .pts = (uint64_t)FRAMES_PER_ROUND * FRAME_DURATION_MS,
+            .frame_type = ESP_PLAYER_FRAME_TYPE_DEFAULT,
+            .is_bad = false,
+            .eos = true,
+        };
+        esp_player_err_t eos_ret = esp_player_submit_frame(ctx.player, &eos_frame, 1000);
+        ESP_LOGI(TAG, "[FileFrameSwitch] Round %d Step B: pushed %d/%d, EOS=%s",
+                 round + 1, push_ok, FRAMES_PER_ROUND,
+                 (eos_ret == ESP_PLAYER_ERR_OK) ? "OK" : "FAIL");
+
+        EventBits_t got = xEventGroupWaitBits(ctx.event_group,
+                                              SC_FINISHED_BIT | SC_ERROR_BIT,
+                                              pdTRUE, pdFALSE,
+                                              pdMS_TO_TICKS(10000));
+        bool has_finished = (got & SC_FINISHED_BIT) != 0;
+        bool has_error = (got & SC_ERROR_BIT) != 0;
+        ESP_LOGI(TAG, "[FileFrameSwitch] Round %d Step B: FINISHED=%s, ERROR=%s",
+                 round + 1, has_finished ? "YES" : "NO", has_error ? "YES" : "NO");
+        TEST_ASSERT_FALSE_MESSAGE(has_error, "Unexpected ERROR in frame mode");
+        TEST_ASSERT_TRUE_MESSAGE(has_finished, "FINISHED not received in frame mode");
+
+        vTaskDelay(pdMS_TO_TICKS(300));
+    }
 
     sc_destroy_player_and_render(&ctx);
 }
