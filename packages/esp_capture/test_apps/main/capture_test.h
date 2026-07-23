@@ -58,6 +58,8 @@ int dynamic_setup_after_start(int timeout, bool dual_path);
 
 int test_capture_with_decode_all(void);
 
+int test_full_speed_decode_perf(void);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

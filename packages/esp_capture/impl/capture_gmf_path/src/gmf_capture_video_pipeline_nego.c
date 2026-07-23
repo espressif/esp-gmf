@@ -18,6 +18,7 @@
 #include "esp_gmf_video_ppa.h"
 #include "esp_gmf_video_fps_cvt.h"
 #include "esp_gmf_video_enc.h"
+#include "esp_gmf_video_dec.h"
 #include "esp_log.h"
 
 #define TAG "VID_PIPE_NEGO"
@@ -104,6 +105,8 @@ static bool capture_negotiate_ok(esp_capture_video_info_t *a, esp_capture_video_
             a->height == b->height && a->fps == b->fps);
 }
 
+static esp_gmf_element_handle_t get_vdec_element(esp_gmf_pipeline_handle_t pipeline);
+
 static esp_capture_err_t capture_negotiate_all_link(esp_capture_pipeline_builder_if_t *builder,
                                                     esp_capture_gmf_pipeline_t *pipelines,
                                                     uint8_t pipeline_num,
@@ -123,6 +126,17 @@ static esp_capture_err_t capture_negotiate_all_link(esp_capture_pipeline_builder
     if (ret != ESP_CAPTURE_ERR_OK) {
         return ret;
     }
+#if CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER
+    /* Full-speed decode: sink consumes decoded pixels. Use decoder out format here —
+     * sink_info is encoder input (may differ when CLR_CVT follows). */
+    if (capture_pipeline_is_sink(src->pipeline) == false) {
+        esp_gmf_element_handle_t dec = get_vdec_element(src->pipeline);
+        uint32_t dec_out = 0;
+        if (dec && esp_gmf_video_dec_get_dst_format(dec, &dec_out) == ESP_GMF_ERR_OK && dec_out != 0) {
+            dst_info.format_id = (esp_capture_format_id_t)dec_out;
+        }
+    }
+#endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER */
     if (capture_pipeline_is_sink(src->pipeline)) {
         if (!capture_negotiate_ok(sink_info, &dst_info)) {
             ESP_LOGE(TAG, "Fail to negotiate expect %s %dx%d %dfps, actual %s %dx%d %dfps",
@@ -285,8 +299,14 @@ static esp_capture_err_t venc_nego_all_sink(uint8_t path_num, uint8_t *sel_path,
     return ESP_CAPTURE_ERR_NOT_SUPPORTED;
 }
 
+static bool path_needs_decode(esp_capture_video_info_t *src_info, esp_capture_video_info_t *sink_info)
+{
+    return video_need_encode(src_info->format_id) && sink_info->format_id != src_info->format_id;
+}
+
 static esp_capture_err_t venc_nego_for_input_format(uint8_t path_num, uint8_t sel_path,
                                                     esp_gmf_element_handle_t src_element,
+                                                    esp_gmf_pipeline_handle_t src_pipeline,
                                                     esp_capture_gmf_pipeline_t *sink_pipeline,
                                                     esp_capture_video_info_t *sink_in,
                                                     esp_capture_video_info_t *nego_info,
@@ -318,7 +338,11 @@ static esp_capture_err_t venc_nego_for_input_format(uint8_t path_num, uint8_t se
             }
         }
         esp_gmf_element_handle_t enc_element = get_venc_element(sink_pipeline[i].pipeline);
+        /* Full-speed decode places vid_dec on the source pipeline. */
         esp_gmf_element_handle_t dec_element = get_vdec_element(sink_pipeline[i].pipeline);
+        if (dec_element == NULL && src_pipeline != NULL && path_needs_decode(src_info, &sink_in[i])) {
+            dec_element = get_vdec_element(src_pipeline);
+        }
         if (dec_element) {
             if (!video_need_encode(src_info->format_id)) {
                 ESP_LOGE(TAG, "Auto nego unmatched");
@@ -349,27 +373,33 @@ static esp_capture_err_t venc_nego_for_input_format(uint8_t path_num, uint8_t se
                         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
                     }
                     uint32_t matched_format = 0;
-                    for (int i = 0; i < dec_format_num; i++) {
-                        for (int j = 0; j < enc_format_num; j++) {
-                            if (dec_formats[i] == enc_formats[j]) {
-                                matched_format = dec_formats[i];
+                    for (int di = 0; di < dec_format_num && matched_format == 0; di++) {
+                        for (int ej = 0; ej < enc_format_num; ej++) {
+                            if (dec_formats[di] == enc_formats[ej]) {
+                                matched_format = dec_formats[di];
                                 break;
                             }
                         }
                     }
-                    set_vdec_dst_format(dec_element, matched_format ? matched_format : dec_formats[0]);
+                    /* Prefer a shared pixel format. If none, decode to first dec fmt and
+                     * let sink CLR_CVT convert to first enc fmt. */
+                    uint32_t dec_out = matched_format ? matched_format : dec_formats[0];
                     uint32_t enc_input = matched_format ? matched_format : enc_formats[0];
+                    set_vdec_dst_format(dec_element, dec_out);
                     esp_gmf_info_video_t vid_info = {
                         .format_id = enc_input,
                         .width = sink_in[i].width,
                         .height = sink_in[i].height,
                         .fps = sink_in[i].fps,
                     };
-                    set_venc_fmt(enc_element, &vid_info, (uint32_t)sink_in[i].format_id);
-                    sink_in[i].format_id = enc_input;
-                    ESP_LOGI(TAG, "Set path %d in %s out %s", i,
-                             esp_gmf_video_get_format_string(src_info->format_id),
-                             esp_gmf_video_get_format_string(sink_in[i].format_id));
+                    uint32_t dst_codec = (uint32_t)sink_in[i].format_id;
+                    set_venc_fmt(enc_element, &vid_info, dst_codec);
+                    sink_in[i].format_id = (esp_capture_format_id_t)enc_input;
+                    ESP_LOGI(TAG, "Set path %d dec_out %s enc_in %s dst %s%s", i,
+                             esp_gmf_video_get_format_string(dec_out),
+                             esp_gmf_video_get_format_string(enc_input),
+                             esp_gmf_video_get_format_string(dst_codec),
+                             matched_format ? "" : " (via CLR_CVT)");
                 }
                 continue;
             }
@@ -381,10 +411,9 @@ static esp_capture_err_t venc_nego_for_input_format(uint8_t path_num, uint8_t se
                 return ESP_CAPTURE_ERR_NOT_SUPPORTED;
             }
             uint32_t dst_fmt = in_formats[0];
-            for (int i = 0; i < in_format_num; i++) {
-                if (in_formats[i] == sink_in[i].format_id) {
-                    dst_fmt = in_formats[i];
-                    printf("Matched with out format %s\n", esp_gmf_video_get_format_string(dst_fmt));
+            for (int fi = 0; fi < in_format_num; fi++) {
+                if (in_formats[fi] == sink_in[i].format_id) {
+                    dst_fmt = in_formats[fi];
                     break;
                 }
             }
@@ -520,7 +549,7 @@ esp_capture_err_t esp_capture_video_pipeline_auto_negotiate(esp_capture_pipeline
                      esp_gmf_video_get_format_string((uint32_t)max_caps.format_id), (int)max_caps.width,
                      (int)max_caps.height, max_caps.fps);
             esp_capture_video_info_t src_info = {};
-            ret = venc_nego_for_input_format(path_num, sel_path, src_element,
+            ret = venc_nego_for_input_format(path_num, sel_path, src_element, pipelines[i].pipeline,
                                              enc_pipeline, enc_in_info, &max_caps, &src_info);
             if (ret != ESP_CAPTURE_ERR_OK) {
                 // Directly negotiate OK

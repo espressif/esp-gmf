@@ -17,6 +17,16 @@ menu "Espressif Capture Configuration"
         default n
         depends on ESP_CAPTURE_ENABLE_VIDEO
 
+    config ESP_CAPTURE_VIDEO_DEC_OUT_POOL_SIZE
+        int "Video decoder output pool frame count"
+        default 3
+        range 2 4
+        depends on ESP_CAPTURE_ENABLE_VIDEO_DECODER
+        help
+            Number of decoded frames kept in the decoder output pool when
+            full_speed_decode is enabled in esp_capture_cfg_t.
+            Prefer 3 so decode can run ahead of encode without blocking.
+
     config ESP_CAPTURE_ENABLE_PERF_MON
         bool "Enable Performance Monitor for Capture"
         default n

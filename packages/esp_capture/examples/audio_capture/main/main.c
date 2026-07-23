@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -15,12 +15,12 @@
 #include "esp_capture.h"
 #include "esp_log.h"
 
-#define TAG "MAIN"
+#define TAG  "MAIN"
 
-#define RUN_CASE(case, duration) {                        \
-    printf("--------Start to run " #case "--------\n");   \
-    case(duration);                                       \
-    printf("--------End to run " #case "--------\n\n");   \
+#define RUN_CASE(case, duration)  {                      \
+    printf("--------Start to run " #case "--------\n");  \
+    case(duration);                                      \
+    printf("--------End to run " #case "--------\n\n");  \
 }
 
 static void capture_test_scheduler(const char *thread_name, esp_capture_thread_schedule_cfg_t *schedule_cfg)
@@ -65,6 +65,7 @@ void app_main(void)
     RUN_CASE(audio_capture_run, 10000);
     RUN_CASE(audio_capture_run_with_aec, 10000);
     if (mount_success) {
+        RUN_CASE(audio_capture_run_dual_sink, 10000);
         RUN_CASE(audio_capture_run_with_muxer, 10000);
     }
     RUN_CASE(audio_capture_run_with_customized_process, 10000);

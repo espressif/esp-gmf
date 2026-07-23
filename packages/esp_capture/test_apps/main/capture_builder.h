@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -16,15 +16,18 @@ extern "C" {
 #endif  /* __cplusplus */
 
 typedef struct {
-    int  audio_frame_count[2];
-    int  video_frame_count[2];
-    int  muxer_frame_count[2];
-    int  audio_frame_size[2];
-    int  video_frame_size[2];
-    int  muxer_frame_size[2];
-    int  audio_pts[2];
-    int  video_pts[2];
-    int  muxer_pts[2];
+    int   audio_frame_count[2];
+    int   video_frame_count[2];
+    int   muxer_frame_count[2];
+    int   audio_frame_size[2];
+    int   video_frame_size[2];
+    int   muxer_frame_size[2];
+    int   last_audio_pts[2];
+    int   last_video_pts[2];
+    int   audio_pts[2];
+    int   video_pts[2];
+    int   muxer_pts[2];
+    bool  pts_error[2];
 } capture_run_result_t;
 
 typedef struct {

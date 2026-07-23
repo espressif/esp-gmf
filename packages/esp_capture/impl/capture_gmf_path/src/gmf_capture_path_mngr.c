@@ -11,7 +11,7 @@
 #include "capture_os.h"
 #include "capture_utils.h"
 #include "capture_perf_mon.h"
-
+#include "capture_share_copy_el.h"
 #include "esp_log.h"
 
 #define TAG "GMF_PATH_MNGR"
@@ -127,6 +127,23 @@ static esp_capture_path_event_type_t map_pipeline_event_type(gmf_capture_path_mn
     return ESP_CAPTURE_PATH_EVENT_TYPE_NONE;
 }
 
+static esp_capture_err_t common_pipeline_err_handler(gmf_capture_path_res_t *mngr_res, esp_capture_path_event_type_t event)
+{
+    gmf_capture_path_mngr_t *mngr = mngr_res->parent;
+    uint8_t path_mask = (1 << mngr_res->path);
+    for (int i = 0; i < mngr->pipeline_num; i++) {
+        esp_capture_gmf_pipeline_t *pipeline = &mngr->pipeline[i];
+        if (capture_pipeline_is_src(pipeline->pipeline, mngr->pipeline, mngr->pipeline_num) && (pipeline->path_mask & path_mask) != 0) {
+            esp_gmf_element_handle_t share_cp = NULL;
+            esp_gmf_pipeline_get_el_by_name(pipeline->pipeline, "share_copier", &share_cp);
+            if (share_cp) {
+                return capture_share_copy_el_enable(share_cp, mngr_res->path, false);
+            }
+        }
+    }
+    return ESP_CAPTURE_ERR_OK;
+}
+
 static esp_gmf_err_t pipeline_event_hdlr(esp_gmf_event_pkt_t *pkt, void *ctx)
 {
     if (pkt == NULL || pkt->type != ESP_GMF_EVT_TYPE_CHANGE_STATE) {
@@ -146,6 +163,7 @@ static esp_gmf_err_t pipeline_event_hdlr(esp_gmf_event_pkt_t *pkt, void *ctx)
             gmf_capture_path_res_t *res = gmf_capture_path_mngr_get_idx(pipeline_ref->parent, i);
             if (pipeline_ref->pipeline->path_mask & (1 << res->path)) {
                 esp_capture_path_event_type_t event = map_pipeline_event_type(mngr, pipe_event);
+                common_pipeline_err_handler(res, event);
                 if (event) {
                     mngr->cfg.event_cb(mngr->cfg.src_ctx, res->path, event);
                 }

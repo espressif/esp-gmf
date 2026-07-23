@@ -1,5 +1,11 @@
 # Changelog
 
+##  v1.0.1
+
+### Features
+
+- Added `esp_gmf_video_dec_set_out_pool` for decode-into reusable frame pool (zero-copy share with downstream)
+
 ## v1.0.0
 
 - Fixed build error of `vid_ppa` and `vid_overlay` on IDF v5.5.0

@@ -13,7 +13,7 @@ The following table lists the currently supported video processing modules and t
 |Name|TAG|Function|Method|Input Port|Output Port|Hardware Acceleration|Dependent on Video Information|
 |:----:|:----:|:-----:|:----:|:----:|:----:|:----:|:----|
 | VIDEO_ENC | vid_enc | Video encoder: H264, MJPEG | `set_bitrate`<br>`set_dst_codec`<br>`get_src_fmts`<br>`preset`<br>`get_frame_size` | Single | Single | Yes | Yes |
-| VIDEO_DEC | vid_dec | Video decoder: H264, MJPEG | `set_dst_fmt`<br>`set_src_codec`<br>`get_dst_fmts` | Single | Single | No | No |
+| VIDEO_DEC | vid_dec | Video decoder: H264, MJPEG | `set_dst_fmt`<br>`set_src_codec`<br>`get_dst_fmts`<br>`set_out_pool` | Single | Single | No | No |
 | VIDEO_PPA | vid_ppa | Pixel processing accelerator: Color conversion,<br>Scaling, Cropping, Rotation | `set_dst_format`<br>`set_dst_resolution`<br>`set_rotation`<br>`set_cropped_rgn` | Single | Single | Yes | Yes |
 | FPS_CVT | vid_fps_cvt | Frame rate conversion | `set_fps` | Single | Single | No | Yes |
 | OVERLAY_MIXER | vid_overlay | Video overlay mixer | `overlay_enable`<br>`set_rgn`<br>`set_port`<br>`set_alpha` | Multiple | Single | No | Yes |

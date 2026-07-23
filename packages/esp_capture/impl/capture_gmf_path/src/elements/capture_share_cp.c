@@ -16,7 +16,7 @@
 static const char *TAG = "GMF_SHARE_COPIER";
 
 // TODO currently only support 2 outputs
-#define MAX_QUEUE_NUM     (2)
+#define MAX_QUEUE_NUM     (3)
 #define DEFAULT_COPY_NUM  (2)
 
 struct gmf_share_copy;

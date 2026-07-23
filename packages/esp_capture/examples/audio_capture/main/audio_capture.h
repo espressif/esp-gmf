@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -20,6 +20,17 @@ extern "C" {
  *       - Others  Fail to run
  */
 int audio_capture_run(int duration);
+
+/**
+ * @brief  Run audio capture with dual sink for configured duration
+ *
+ * @param[in]  duration  Capture duration (unit ms)
+ *
+ * @return
+ *       - 0       On success
+ *       - Others  Fail to run
+ */
+int audio_capture_run_dual_sink(int duration);
 
 /**
  * @brief  Run audio capture with AEC for configured duration

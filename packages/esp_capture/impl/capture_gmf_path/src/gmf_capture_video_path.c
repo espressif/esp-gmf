@@ -11,6 +11,7 @@
 #include "esp_gmf_caps_def.h"
 #include "esp_gmf_video_enc.h"
 #include "esp_gmf_video_overlay.h"
+#include "esp_gmf_video_param.h"
 #include "esp_log.h"
 #include "capture_pipeline_utils.h"
 #include "capture_gmf_mngr.h"
@@ -48,6 +49,36 @@ typedef struct {
     esp_capture_video_path_mngr_if_t  base;
     gmf_capture_path_mngr_t           mngr;
 } gmf_video_path_t;
+
+#if CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER
+static void video_path_apply_dec_out_pool(gmf_capture_path_mngr_t *mngr)
+{
+    /* Full-speed decode places vid_dec on a dedicated source pipeline (has downstream links).
+     * A single combined pipe is both src and sink — do not enable out pool there. */
+    for (int i = 0; i < mngr->pipeline_num; i++) {
+        esp_capture_gmf_pipeline_t *pipeline = &mngr->pipeline[i];
+        if (capture_pipeline_is_src(pipeline->pipeline, mngr->pipeline, mngr->pipeline_num) == false) {
+            continue;
+        }
+        if (capture_pipeline_is_sink(pipeline->pipeline)) {
+            continue;
+        }
+        esp_gmf_element_handle_t dec = NULL;
+        esp_gmf_pipeline_get_el_by_name(pipeline->pipeline, "vid_dec", &dec);
+        if (dec == NULL) {
+            continue;
+        }
+        esp_gmf_err_t ret = esp_gmf_video_param_set_out_pool(dec, CONFIG_ESP_CAPTURE_VIDEO_DEC_OUT_POOL_SIZE);
+        if (ret != ESP_GMF_ERR_OK) {
+            ESP_LOGW(TAG, "Fail to set decode out pool size %d ret %d",
+                     CONFIG_ESP_CAPTURE_VIDEO_DEC_OUT_POOL_SIZE, (int)ret);
+        } else {
+            ESP_LOGI(TAG, "Decode out pool size set to %d", CONFIG_ESP_CAPTURE_VIDEO_DEC_OUT_POOL_SIZE);
+        }
+        break;
+    }
+}
+#endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER */
 
 static esp_capture_err_t get_video_encoder(gmf_capture_path_mngr_t *mngr, uint8_t idx)
 {
@@ -176,6 +207,9 @@ static esp_capture_err_t video_path_apply_setting(gmf_capture_path_mngr_t *mngr,
 
 static esp_capture_err_t video_path_prepare_all(gmf_capture_path_mngr_t *mngr)
 {
+#if CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER
+    video_path_apply_dec_out_pool(mngr);
+#endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER */
     for (int i = 0; i < mngr->path_num; i++) {
         get_video_encoder(mngr, i);
         video_path_apply_setting(mngr, i);
@@ -274,6 +308,7 @@ static esp_capture_err_t video_path_prepare(gmf_capture_path_res_t *mngr_res)
         if (res->video_q == NULL) {
             return ESP_CAPTURE_ERR_NO_MEM;
         }
+        res->video_share_raw = false;
     }
     if (res->sink_port == NULL) {
         res->sink_port = NEW_ESP_GMF_PORT_OUT_BLOCK(video_sink_acquire, video_sink_release, NULL, res, 0, ESP_GMF_MAX_DELAY);

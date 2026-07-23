@@ -19,6 +19,7 @@
 #include "esp_gmf_data_queue.h"
 #include "esp_capture_sync.h"
 #include "capture_perf_mon.h"
+#include "msg_q.h"
 
 #define CAPTURE_SYNC_TOLERANCE        100
 #define EVENT_GROUP_AUDIO_SRC_EXITED  1
@@ -32,6 +33,7 @@ typedef struct {
     uint32_t                    base_pts;
     esp_capture_audio_src_if_t *audio_src_if;
     esp_gmf_info_sound_t        aud_info;
+    msg_q_handle_t              audio_info_q;
     esp_gmf_data_queue_t       *audio_src_q;
     uint32_t                    audio_frame_samples;
     uint32_t                    audio_frames;
@@ -45,21 +47,12 @@ typedef struct {
 static esp_gmf_err_io_t audio_src_acquire(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
 {
     audio_src_t *audio_src = (audio_src_t *)handle;
-    if (audio_src->audio_src_q) {
-        void *data = NULL;
-        int size;
-        if (wait_ticks == 0) {
-            bool have_data = false;
-            if (esp_gmf_data_queue_have_data(audio_src->audio_src_q, &have_data) != 0 || have_data == false) {
-                ESP_LOGE(TAG, "No data now");
-                return ESP_GMF_IO_FAIL;
-            }
-        }
-        uint32_t timeout = wait_ticks == 0 ? ESP_GMF_DATA_QUEUE_NO_WAIT : ESP_GMF_DATA_QUEUE_WAIT_FOREVER;
-        int ret = esp_gmf_data_queue_acquire_read(audio_src->audio_src_q, &data, &size, timeout);
+    if (audio_src->audio_info_q) {
+        uint8_t *data = NULL;
+        int ret = msg_q_recv(audio_src->audio_info_q, &data, sizeof(uint8_t *), wait_ticks == 0);
         if (ret != 0 || data == NULL) {
-            ESP_LOGE(TAG, "Fail to read data");
-            return ESP_GMF_IO_FAIL;
+            ESP_LOGE(TAG, "Fail to read data or timeout");
+            return wait_ticks == 0 ? ESP_GMF_IO_TIMEOUT : ESP_GMF_IO_FAIL;
         }
         esp_capture_stream_frame_t *frame = (esp_capture_stream_frame_t *)data;
         load->pts = frame->pts;
@@ -76,7 +69,12 @@ static esp_gmf_err_io_t audio_src_release(void *handle, esp_gmf_payload_t *load,
 {
     audio_src_t *audio_src = (audio_src_t *)handle;
     if (audio_src->audio_src_q) {
-        esp_gmf_data_queue_release_read(audio_src->audio_src_q);
+        void *data = NULL;
+        int size = 0;
+        esp_gmf_data_queue_acquire_read(audio_src->audio_src_q, &data, &size, 0);
+        if (data) {
+            esp_gmf_data_queue_release_read(audio_src->audio_src_q);
+        }
     }
     return ESP_GMF_IO_OK;
 }
@@ -137,12 +135,17 @@ static void audio_src_thread(void *arg)
                 }
             }
         }
+        uint8_t *audio_data_info = (uint8_t *)data;
+        msg_q_send(audio_src->audio_info_q, &audio_data_info, sizeof(uint8_t *));
         esp_gmf_data_queue_release_write(audio_src->audio_src_q, frame_size);
         audio_src->audio_frames++;
     }
     audio_src->audio_frames = 0;
     // Wakeup reader if read from device failed
     if (err_exit) {
+        if (audio_src->audio_info_q) {
+            msg_q_wakeup(audio_src->audio_info_q);
+        }
         esp_gmf_data_queue_wakeup(audio_src->audio_src_q);
     }
     ESP_LOGI(TAG, "Audio src thread exited");
@@ -174,7 +177,14 @@ static esp_gmf_job_err_t audio_src_el_open(esp_gmf_audio_element_handle_t self, 
         uint32_t queue_size = (audio_src->audio_frame_size + 32) * 3;
         audio_src->audio_src_q = esp_gmf_data_queue_create(queue_size);
         if (audio_src->audio_src_q == NULL) {
-            ESP_LOGE(TAG, "Fail to allicate audio src queue");
+            ESP_LOGE(TAG, "Fail to allocate audio src queue");
+            return ESP_GMF_JOB_ERR_FAIL;
+        }
+    }
+    if (audio_src->audio_info_q == NULL) {
+        audio_src->audio_info_q = msg_q_create(10, sizeof(uint8_t *));
+        if (audio_src->audio_info_q == NULL) {
+            ESP_LOGE(TAG, "Fail to allocate audio info queue");
             return ESP_GMF_JOB_ERR_FAIL;
         }
     }
@@ -227,6 +237,9 @@ static esp_gmf_job_err_t audio_src_el_close(esp_gmf_audio_element_handle_t self,
 {
     audio_src_t *audio_src = (audio_src_t *)self;
     ESP_LOGI(TAG, "Closed, %p", self);
+    if (audio_src->audio_info_q) {
+        msg_q_wakeup(audio_src->audio_info_q);
+    }
     if (audio_src->fetching_audio) {
         audio_src->fetching_audio = false;
         esp_gmf_data_queue_consume_all(audio_src->audio_src_q);
@@ -236,6 +249,10 @@ static esp_gmf_job_err_t audio_src_el_close(esp_gmf_audio_element_handle_t self,
     if (audio_src->audio_src_q) {
         esp_gmf_data_queue_destroy(audio_src->audio_src_q);
         audio_src->audio_src_q = NULL;
+    }
+    if (audio_src->audio_info_q) {
+        msg_q_destroy(audio_src->audio_info_q);
+        audio_src->audio_info_q = NULL;
     }
     if (audio_src->event_group) {
         capture_event_group_destroy(audio_src->event_group);

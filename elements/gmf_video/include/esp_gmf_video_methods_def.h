@@ -174,6 +174,12 @@ VMETHOD_ARG_DEF(DECODER, GET_DST_FMTS, SRC_CODEC, "src_codec");
 VMETHOD_ARG_DEF(DECODER, GET_DST_FMTS, DST_FMTS_PTR, "dst_fmts");
 VMETHOD_ARG_DEF(DECODER, GET_DST_FMTS, DST_FMTS_NUM_PTR, "dst_fmts_num");
 
+/**
+ * @brief  Video decoder method definition for set output frame pool size
+ */
+VMETHOD_DEF(DECODER, SET_OUT_POOL, "set_out_pool");
+VMETHOD_ARG_DEF(DECODER, SET_OUT_POOL, FRAME_COUNT, "frame_count");
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

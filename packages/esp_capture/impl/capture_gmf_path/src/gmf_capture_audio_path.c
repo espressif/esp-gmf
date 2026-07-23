@@ -205,7 +205,8 @@ static esp_capture_err_t audio_path_release(gmf_capture_path_res_t *mngr_res)
         res->audio_q = NULL;
     }
     if (res->sink_port) {
-        esp_gmf_element_unregister_out_port(res->aenc_el, res->sink_port);
+        esp_gmf_element_handle_t el = res->aenc_el ? res->aenc_el : get_sink_tail_element(mngr_res->parent, res);
+        esp_gmf_element_unregister_out_port(el, res->sink_port);
         res->sink_port = NULL;
     }
     return ESP_CAPTURE_ERR_OK;

@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.1
+
+### Features
+
+- Added support for fullspeed decode through `esp_capture_cfg_t::full_speed_decode` (video source is encoded and need decoded/re-encoded)
+- Added `CONFIG_ESP_CAPTURE_VIDEO_DEC_OUT_POOL_SIZE` (default 2) for full-speed decode pool size
+
+### Bug Fixes
+
+- Enhanced error handler for pipeline error
+  Disable share input when one path error, other path can continue to work
+- Fixed dual sink audio pts and possible audio data wrongly used last frame
+- Use atomic operation to load and set status variable to avoid voilation
+- Fixed video raw bypass flag is not cleared in video path
+
+
 ## v1.0.0~1
 
 ### Docs

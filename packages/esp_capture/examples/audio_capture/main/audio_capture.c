@@ -1,4 +1,4 @@
-/*
+/**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO., LTD
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -16,13 +16,14 @@
 #include "esp_board_device.h"
 #include "esp_board_manager_defs.h"
 #include "dev_audio_codec.h"
+#include "freertos/FreeRTOS.h"
 #include "esp_log.h"
 
-#define TAG "AUDIO_CAPTURE"
+#define TAG  "AUDIO_CAPTURE"
 
 typedef struct {
-    esp_capture_handle_t         capture;  /*!< Capture handle */
-    esp_capture_audio_src_if_t  *aud_src;  /*!< Audio source interface */
+    esp_capture_handle_t        capture;  /*!< Capture handle */
+    esp_capture_audio_src_if_t *aud_src;  /*!< Audio source interface */
 } audio_capture_sys_t;
 
 static int build_audio_capture(audio_capture_sys_t *capture_sys, bool with_aec)
@@ -34,6 +35,7 @@ static int build_audio_capture(audio_capture_sys_t *capture_sys, bool with_aec)
         ESP_LOGE(TAG, "Failed to get audio device");
         return -1;
     }
+    esp_codec_dev_set_in_gain(codec_handle->codec_dev, 32.0);
     // record_handle can be either get from esp_bsp by API `bsp_audio_codec_speaker_init` or use simple `codec_board` API
     if (with_aec) {
         // Test AEC source on esp32s3 and esp32p4
@@ -203,7 +205,103 @@ int audio_capture_run_with_aec(int duration)
     return 0;
 }
 
-#define FILE_SLICE_STORAGE_PATTERN "/sdcard/aud_%d.mp4"
+int audio_capture_run_dual_sink(int duration)
+{
+    audio_capture_sys_t capture_sys = {0};
+    int ret = 0;
+    FILE *audio_fp[2] = {NULL};
+    do {
+        // Open dump file
+        for (int i = 0; i < 2; i++) {
+            char file_path[64] = {0};
+            snprintf(file_path, sizeof(file_path), "/sdcard/aud_%d.raw", i);
+            audio_fp[i] = fopen(file_path, "wb");
+            if (audio_fp[i] == NULL) {
+                ESP_LOGE(TAG, "Fail to open audio file %s", file_path);
+                ret = -1;
+                break;
+            }
+        }
+        if (ret != 0) {
+            break;
+        }
+
+        // Build capture system with AEC
+        ret = build_audio_capture(&capture_sys, false);
+        if (ret != 0) {
+            break;
+        }
+
+        // Setup for sink
+        esp_capture_sink_handle_t sink[2] = {NULL};
+        esp_capture_sink_cfg_t sink_cfg[2] = {
+            {
+                .audio_info = {
+                    .format_id = AUDIO_CAPTURE_FORMAT,
+                    .sample_rate = AUDIO_CAPTURE_SAMPLE_RATE,
+                    .channel = AUDIO_CAPTURE_CHANNEL,
+                    .bits_per_sample = 16,
+                },
+            },
+            {
+                .audio_info = {
+                    .format_id = ESP_CAPTURE_FMT_ID_G711A,
+                    .sample_rate = 8000,
+                    .channel = 1,
+                    .bits_per_sample = 16,
+                },
+            }};
+        for (int i = 0; i < 2; i++) {
+            ret = esp_capture_sink_setup(capture_sys.capture, i, &sink_cfg[i], &sink[i]);
+            if (ret != ESP_CAPTURE_ERR_OK) {
+                ESP_LOGE(TAG, "Fail to setup sink");
+                break;
+            }
+            // Enable sink and start
+            esp_capture_sink_enable(sink[i], ESP_CAPTURE_RUN_MODE_ALWAYS);
+        }
+
+        ret = esp_capture_start(capture_sys.capture);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Fail to start audio capture");
+            break;
+        }
+        uint32_t start_time = (uint32_t)(esp_timer_get_time() / 1000);
+        uint32_t cur_time = start_time;
+        // Read frames until duration reached
+        esp_capture_stream_frame_t frame = {
+            .stream_type = ESP_CAPTURE_STREAM_TYPE_AUDIO,
+        };
+        while (cur_time < start_time + duration) {
+            for (int i = 0; i < 2; i++) {
+                ret = esp_capture_sink_acquire_frame(sink[i], &frame, true);
+                if (ret == ESP_CAPTURE_ERR_OK) {
+                    fwrite(frame.data, 1, frame.size, audio_fp[i]);
+                    esp_capture_sink_release_frame(sink[i], &frame);
+                }
+            }
+            vTaskDelay(10 / portTICK_PERIOD_MS);
+            cur_time = (uint32_t)(esp_timer_get_time() / 1000);
+        }
+
+        // Stop capture
+        ret = esp_capture_stop(capture_sys.capture);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Fail to start audio capture");
+            break;
+        }
+    } while (0);
+    for (int i = 0; i < 2; i++) {
+        if (audio_fp[i]) {
+            fclose(audio_fp[i]);
+            audio_fp[i] = NULL;
+        }
+    }
+    destroy_audio_capture(&capture_sys);
+    return 0;
+}
+
+#define FILE_SLICE_STORAGE_PATTERN  "/sdcard/aud_%d.mp4"
 
 static int check_file_size(int slice_idx)
 {

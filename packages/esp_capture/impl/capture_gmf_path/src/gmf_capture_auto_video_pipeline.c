@@ -334,6 +334,26 @@ static bool need_auto_build(video_pipeline_t *video_pipe)
     return false;
 }
 
+static bool sink_needs_decode(esp_capture_video_info_t *src_info, esp_capture_video_info_t *sink_info)
+{
+    return is_encoded(src_info->format_id) && sink_info->format_id != src_info->format_id;
+}
+
+#if CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER
+static bool any_sink_needs_decode(video_pipeline_t *video_pipe, esp_capture_video_info_t *src_info)
+{
+    for (int i = 0; i < MAX_SINK_NUM; i++) {
+        if (video_pipe->sink_cfg[i].video_info.format_id == ESP_CAPTURE_FMT_ID_NONE) {
+            continue;
+        }
+        if (sink_needs_decode(src_info, &video_pipe->sink_cfg[i].video_info)) {
+            return true;
+        }
+    }
+    return false;
+}
+#endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER */
+
 static esp_capture_err_t auto_negotiate(video_pipeline_t *video_pipe, esp_capture_video_info_t *src_info)
 {
     esp_capture_video_info_t max_sink_info = {};
@@ -375,31 +395,48 @@ static esp_capture_err_t buildup_pipelines(video_pipeline_t *video_pipe)
     const char *proc_elements[VIDEO_PATH_OPS_MAX] = {NULL};
     int proc_num = 0;
     esp_gmf_pool_handle_t pool = video_pipe->cfg.element_pool ? (esp_gmf_pool_handle_t)video_pipe->cfg.element_pool : video_pipe->pool;
-    // Create source pipeline if more than one sink
-    if ((video_pipe->sink_num > 1) || have_user_pipe(video_pipe)) {
-        const char *copy_elements[3];
+    esp_capture_video_info_t src_info = {};
+    bool dec_in_src = false;
+    int ret = ESP_CAPTURE_ERR_OK;
+
+    if (need_auto_build(video_pipe)) {
+        ret = auto_negotiate(video_pipe, &src_info);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            return ret;
+        }
+        get_element_tag_by_caps(video_pipe);
+#if CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER
+        dec_in_src = video_pipe->cfg.full_speed_decode && any_sink_needs_decode(video_pipe, &src_info);
+#endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER */
+    }
+
+    // Create source pipeline for multi-sink, user pipe, or full-speed decode
+    bool need_src_pipe = (video_pipe->sink_num > 1) || have_user_pipe(video_pipe) || dec_in_src;
+    if (need_src_pipe) {
+        const char *copy_elements[4];
         uint8_t copy_num = 0;
         copy_elements[copy_num++] = "vid_src";
+#if CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER
+        if (dec_in_src) {
+            copy_elements[copy_num++] = "vid_dec";
+        }
+#endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER */
 #ifdef CONFIG_ESP_CAPTURE_ENABLE_VIDEO_OVERLAY
         if (video_pipe->cfg.share_overlay) {
             copy_elements[copy_num++] = "vid_overlay";
         }
 #endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_OVERLAY */
         copy_elements[copy_num++] = "share_copier";
-        int ret = esp_gmf_pool_new_pipeline(pool, NULL, copy_elements, copy_num, NULL, &video_pipe->src_pipeline);
+        ret = esp_gmf_pool_new_pipeline(pool, NULL, copy_elements, copy_num, NULL, &video_pipe->src_pipeline);
         if (ret != ESP_GMF_ERR_OK) {
             return ESP_CAPTURE_ERR_NO_RESOURCES;
         }
-    }
-    int ret = ESP_CAPTURE_ERR_OK;
-    if (need_auto_build(video_pipe)) {
-        esp_capture_video_info_t src_info = {};
-        ret = auto_negotiate(video_pipe, &src_info);
-        if (ret != ESP_CAPTURE_ERR_OK) {
-            return ret;
+        if (dec_in_src) {
+            ESP_LOGI(TAG, "Full-speed decode: src pipeline with vid_dec + share_copier");
         }
-        get_element_tag_by_caps(video_pipe);
+    }
 
+    if (need_auto_build(video_pipe)) {
         for (int i = 0; i < MAX_SINK_NUM; i++) {
             if (video_pipe->sink_cfg[i].video_info.format_id == ESP_CAPTURE_FMT_ID_NONE) {
                 continue;
@@ -409,11 +446,11 @@ static esp_capture_err_t buildup_pipelines(video_pipeline_t *video_pipe)
                 continue;
             }
             proc_num = 0;
-            // Add source to same pipeline if only one sink
-            if (video_pipe->sink_num == 1 && (have_user_pipe(video_pipe) == false)) {
+            // Add source to same pipeline if only one sink and no separate src pipe
+            if (video_pipe->sink_num == 1 && need_src_pipe == false) {
                 proc_elements[proc_num++] = "vid_src";
             }
-            if (is_encoded(src_info.format_id) && video_pipe->sink_cfg[i].video_info.format_id != src_info.format_id) {
+            if (dec_in_src == false && sink_needs_decode(&src_info, &video_pipe->sink_cfg[i].video_info)) {
                 proc_elements[proc_num++] = "vid_dec";
             }
 #ifdef CONFIG_ESP_CAPTURE_ENABLE_VIDEO_OVERLAY
@@ -423,7 +460,9 @@ static esp_capture_err_t buildup_pipelines(video_pipeline_t *video_pipe)
 #endif  /* CONFIG_ESP_CAPTURE_ENABLE_VIDEO_OVERLAY */
 
             video_path_ops_t ops[VIDEO_PATH_OPS_MAX] = {};
-            // Sort elements for optimized performance
+            /* Keep ops_src as negotiated camera/src caps (e.g. MJPEG). After full-speed
+             * decode the sink still needs CLR_CVT when enc input != dec output; forcing
+             * ops_src to H264 would drop CLR_CVT and break that path. Unused CLR_CVT bypasses. */
             sort_path_ops(ops, &src_info, &video_pipe->sink_cfg[i].video_info);
             for (int op_idx = 0; op_idx < CAPTURE_ELEMS(ops); op_idx++) {
                 if (ops[op_idx] == VIDEO_PATH_OPS_NONE) {
@@ -499,11 +538,22 @@ static esp_capture_err_t gmf_video_pipeline_build(esp_capture_pipeline_builder_i
 static int gmf_video_pipeline_get_element(esp_capture_pipeline_builder_if_t *builder, uint8_t path_idx, const char *tag, esp_gmf_element_handle_t *element)
 {
     video_pipeline_t *video_pipe = (video_pipeline_t *)builder;
-    if (path_idx > MAX_SINK_NUM || video_pipe->enc_pipeline[path_idx] == NULL) {
+    if (path_idx >= MAX_SINK_NUM || element == NULL || tag == NULL) {
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
-    int ret = esp_gmf_pipeline_get_el_by_name(video_pipe->enc_pipeline[path_idx], tag, element);
-    return (ret == ESP_GMF_ERR_OK) ? ESP_CAPTURE_ERR_OK : ESP_CAPTURE_ERR_NOT_FOUND;
+    if (video_pipe->enc_pipeline[path_idx]) {
+        int ret = esp_gmf_pipeline_get_el_by_name(video_pipe->enc_pipeline[path_idx], tag, element);
+        if (ret == ESP_GMF_ERR_OK) {
+            return ESP_CAPTURE_ERR_OK;
+        }
+    }
+    if (video_pipe->src_pipeline) {
+        int ret = esp_gmf_pipeline_get_el_by_name(video_pipe->src_pipeline, tag, element);
+        if (ret == ESP_GMF_ERR_OK) {
+            return ESP_CAPTURE_ERR_OK;
+        }
+    }
+    return ESP_CAPTURE_ERR_NOT_FOUND;
 }
 
 static int gmf_video_pipeline_get(esp_capture_pipeline_builder_if_t *builder, esp_capture_gmf_pipeline_t *pipe, uint8_t *pipeline_num)

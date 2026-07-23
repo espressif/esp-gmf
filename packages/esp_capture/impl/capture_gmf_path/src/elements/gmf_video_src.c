@@ -126,8 +126,13 @@ static esp_gmf_job_err_t video_src_el_process(esp_gmf_element_handle_t self, voi
                 esp_gmf_port_release_in(in, in_load, 0);
                 return ESP_GMF_JOB_ERR_CONTINUE;
             } else if (video_pts + CAPTURE_SYNC_TOLERANCE < cur_pts) {
-                // Video too slow force to use current pts
-                video_pts = cur_pts;
+                // Video too slow force to inc frame count or use current pts
+                if (video_src->vid_info.fps) {
+                    video_src->video_frames += (uint32_t)((uint64_t)(cur_pts - video_pts) * video_src->vid_info.fps / 1000);
+                    video_pts = video_src_calc_pts(video_src, video_src->video_frames);
+                } else {
+                    video_pts = cur_pts;
+                }
             }
         } else {
             // Force to use sync time
