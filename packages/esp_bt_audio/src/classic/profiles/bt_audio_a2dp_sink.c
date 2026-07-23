@@ -12,6 +12,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/projdefs.h"
 #include "freertos/queue.h"
+#include "freertos/event_groups.h"
 
 #include "esp_log.h"
 #include "esp_check.h"
@@ -31,7 +32,10 @@
 #include "bt_audio_ops.h"
 #include "bt_audio_evt_dispatcher.h"
 
-#define A2DP_SINK_DELAY_VALUE  (50)
+#define A2DP_SINK_DELAY_VALUE      (50)
+#define A2DP_SINK_PROF_TIMEOUT_MS  (5000)
+#define A2DP_SINK_EG_INIT_DONE     BIT0
+#define A2DP_SINK_EG_DEINIT_DONE   BIT1
 #if CONFIG_BT_A2DP_CODEC_AAC_ENABLED
 #define A2DP_AAC_SAMPLES_PER_FRAME  (1024)
 #endif  /* CONFIG_BT_A2DP_CODEC_AAC_ENABLED */
@@ -50,6 +54,8 @@ typedef struct {
 } a2dp_sink_ctx_t;
 
 static a2dp_sink_ctx_t *a2dp_sink = NULL;
+static StaticEventGroup_t s_prof_eg_storage;
+static EventGroupHandle_t s_prof_eg = NULL;
 
 static void a2dp_sink_release_stream(void)
 {
@@ -415,6 +421,23 @@ static void bt_a2d_event_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *p_para
 {
     ESP_LOGD(TAG, "%s event: %d", __func__, event);
 
+    if (ESP_A2D_PROF_STATE_EVT == event) {
+        esp_a2d_cb_param_t *prof = (esp_a2d_cb_param_t *)(p_param);
+        if (ESP_A2D_INIT_SUCCESS == prof->a2d_prof_stat.init_state) {
+            ESP_LOGI(TAG, "A2DP PROF STATE: Init Complete");
+            xEventGroupSetBits(s_prof_eg, A2DP_SINK_EG_INIT_DONE);
+        } else {
+            ESP_LOGI(TAG, "A2DP PROF STATE: Deinit Complete");
+            xEventGroupSetBits(s_prof_eg, A2DP_SINK_EG_DEINIT_DONE);
+        }
+        return;
+    }
+
+    if (!a2dp_sink) {
+        ESP_LOGW(TAG, "A2DP sink event %d: sink not initialized, event dropped", event);
+        return;
+    }
+
     esp_a2d_cb_param_t *a2d = NULL;
 
     switch (event) {
@@ -497,15 +520,6 @@ static void bt_a2d_event_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *p_para
             a2dp_sink_handle_audio_cfg(&a2d->audio_cfg.mcc);
             break;
         }
-        case ESP_A2D_PROF_STATE_EVT: {
-            a2d = (esp_a2d_cb_param_t *)(p_param);
-            if (ESP_A2D_INIT_SUCCESS == a2d->a2d_prof_stat.init_state) {
-                ESP_LOGI(TAG, "A2DP PROF STATE: Init Complete");
-            } else {
-                ESP_LOGI(TAG, "A2DP PROF STATE: Deinit Complete");
-            }
-            break;
-        }
         case ESP_A2D_SNK_PSC_CFG_EVT: {
             a2d = (esp_a2d_cb_param_t *)(p_param);
             ESP_LOGI(TAG, "protocol service capabilities configured: 0x%x ", a2d->a2d_psc_cfg_stat.psc_mask);
@@ -571,6 +585,24 @@ static esp_err_t a2dp_sink_disconnect(uint8_t *bda)
     return ret;
 }
 
+static void a2dp_sink_request_stack_deinit(void)
+{
+    xEventGroupClearBits(s_prof_eg, A2DP_SINK_EG_DEINIT_DONE);
+
+    esp_err_t ret = esp_a2d_sink_deinit();
+    if (ret != ESP_OK) {
+        /* The request never reached the BTC task, so no completion event will follow */
+        ESP_LOGW(TAG, "A2DP sink deinit request rejected: %s", esp_err_to_name(ret));
+        return;
+    }
+
+    EventBits_t bits = xEventGroupWaitBits(s_prof_eg, A2DP_SINK_EG_DEINIT_DONE, pdTRUE, pdFALSE,
+                                           pdMS_TO_TICKS(A2DP_SINK_PROF_TIMEOUT_MS));
+    if ((bits & A2DP_SINK_EG_DEINIT_DONE) == 0) {
+        ESP_LOGW(TAG, "A2DP sink deinit: completion not reported within %d ms", A2DP_SINK_PROF_TIMEOUT_MS);
+    }
+}
+
 esp_err_t bt_audio_a2dp_sink_init()
 {
     if (a2dp_sink) {
@@ -580,8 +612,23 @@ esp_err_t bt_audio_a2dp_sink_init()
     a2dp_sink = heap_caps_calloc_prefer(1, sizeof(a2dp_sink_ctx_t), 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
     ESP_RETURN_ON_FALSE(a2dp_sink, ESP_ERR_NO_MEM, TAG, "Failed to malloc space for a2dp_sink");
 
-    ESP_ERROR_CHECK(esp_a2d_sink_init());
+    if (!s_prof_eg) {
+        s_prof_eg = xEventGroupCreateStatic(&s_prof_eg_storage);
+    }
+    xEventGroupClearBits(s_prof_eg, A2DP_SINK_EG_INIT_DONE | A2DP_SINK_EG_DEINIT_DONE);
+
     ESP_ERROR_CHECK(esp_a2d_register_callback(&bt_a2d_event_cb));
+    ESP_ERROR_CHECK(esp_a2d_sink_init());
+    EventBits_t bits = xEventGroupWaitBits(s_prof_eg, A2DP_SINK_EG_INIT_DONE, pdTRUE, pdFALSE,
+                                           pdMS_TO_TICKS(A2DP_SINK_PROF_TIMEOUT_MS));
+    if ((bits & A2DP_SINK_EG_INIT_DONE) == 0) {
+        ESP_LOGE(TAG, "Timed out waiting for A2DP sink initialization");
+        a2dp_sink_request_stack_deinit();
+        a2dp_sink_ctx_t *ctx = a2dp_sink;
+        a2dp_sink = NULL;
+        free(ctx);
+        return ESP_ERR_TIMEOUT;
+    }
     ESP_ERROR_CHECK(esp_a2d_sink_register_audio_data_callback(bt_a2d_sink_data_cb));
     uint8_t seid = 0;
 #if CONFIG_BT_A2DP_CODEC_AAC_ENABLED
@@ -613,11 +660,12 @@ esp_err_t bt_audio_a2dp_sink_deinit()
         a2dp_sink->stream = NULL;
     }
 
-    esp_a2d_sink_deinit();
+    a2dp_sink_request_stack_deinit();
     esp_bt_gap_set_scan_mode(ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);
 
-    free(a2dp_sink);
+    a2dp_sink_ctx_t *ctx = a2dp_sink;
     a2dp_sink = NULL;
+    free(ctx);
 
     ESP_LOGI(TAG, "A2DP sink: deinitialized");
     return ESP_OK;

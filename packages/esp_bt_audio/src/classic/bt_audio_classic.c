@@ -75,14 +75,14 @@ esp_err_t bt_audio_classic_deinit()
         return ESP_OK;
     }
 
-#ifdef CONFIG_BT_A2DP_ENABLE
-    bt_audio_a2dp_src_deinit();
-    bt_audio_a2dp_sink_deinit();
-#endif  /* CONFIG_BT_A2DP_ENABLE */
 #ifdef CONFIG_BT_AVRCP_ENABLED
     bt_audio_avrcp_ct_deinit();
     bt_audio_avrcp_tg_deinit();
 #endif  /* CONFIG_BT_AVRCP_ENABLED */
+#ifdef CONFIG_BT_A2DP_ENABLE
+    bt_audio_a2dp_src_deinit();
+    bt_audio_a2dp_sink_deinit();
+#endif  /* CONFIG_BT_A2DP_ENABLE */
 #if CONFIG_BT_HFP_CLIENT_ENABLE
     bt_audio_hfp_hf_deinit();
 #endif  /* CONFIG_BT_HFP_CLIENT_ENABLE */

@@ -63,31 +63,32 @@
  * @brief  Runtime context for the LE Audio coordinator.
  */
 typedef struct {
-    esp_ble_audio_start_info_t  start_info;                             /*!< Common BLE Audio start parameters */
-    bt_audio_le_adv_builder_t   adv_builder;                            /*!< Extended advertising data builder */
-    uint8_t                     adv_data[BT_AUDIO_LE_ADV_BUFFER_SIZE];  /*!< Extended advertising data buffer */
-    uint8_t                     connect_target[6];                      /*!< Pending scan target address */
-    uint16_t                    conn_handle;                            /*!< Current LE ACL connection handle */
-    bool                        scan_running            : 1;            /*!< True when GAP discovery is active */
-    bool                        inited_common           : 1;            /*!< Common BLE Audio layer has been initialized */
-    bool                        inited_pacs             : 1;            /*!< PACS module has been initialized */
-    bool                        inited_unicast_server   : 1;            /*!< Unicast server module has been initialized */
-    bool                        inited_broadcast_sink   : 1;            /*!< Broadcast sink module has been initialized */
-    bool                        inited_broadcast_source : 1;            /*!< Broadcast source module has been initialized */
-    bool                        inited_scan_delegator   : 1;            /*!< Scan delegator module has been initialized */
-    bool                        inited_csip             : 1;            /*!< CSIP module has been initialized */
-    bool                        inited_mcc              : 1;            /*!< MCC module has been initialized */
-    bool                        inited_micp             : 1;            /*!< MICP module has been initialized */
-    bool                        inited_ccp              : 1;            /*!< CCP module has been initialized */
-    bool                        inited_vcp_rend         : 1;            /*!< VCP renderer module has been initialized */
-    bool                        started                 : 1;            /*!< Common BLE Audio layer has been started */
+    esp_ble_audio_start_info_t  start_info;                              /*!< Common BLE Audio start parameters */
+    bt_audio_le_adv_builder_t   adv_builder;                             /*!< Extended advertising data builder */
+    uint8_t                     adv_data[BT_AUDIO_LE_ADV_BUFFER_SIZE];   /*!< Extended advertising data buffer */
+    uint8_t                     connect_target[6];                       /*!< Pending scan target address */
+    uint16_t                    conn_handle;                             /*!< Current LE ACL connection handle */
+    bool                        acl_connected            : 1;            /*!< True when an LE ACL link is active */
+    bool                        scan_running             : 1;            /*!< True when GAP discovery is active */
+    bool                        inited_common            : 1;            /*!< Common BLE Audio layer has been initialized */
+    bool                        inited_pacs              : 1;            /*!< PACS module has been initialized */
+    bool                        inited_unicast_server    : 1;            /*!< Unicast server module has been initialized */
+    bool                        inited_broadcast_sink    : 1;            /*!< Broadcast sink module has been initialized */
+    bool                        inited_broadcast_source  : 1;            /*!< Broadcast source module has been initialized */
+    bool                        inited_scan_delegator    : 1;            /*!< Scan delegator module has been initialized */
+    bool                        inited_csip              : 1;            /*!< CSIP module has been initialized */
+    bool                        inited_mcc               : 1;            /*!< MCC module has been initialized */
+    bool                        inited_micp              : 1;            /*!< MICP module has been initialized */
+    bool                        inited_ccp               : 1;            /*!< CCP module has been initialized */
+    bool                        inited_vcp_rend          : 1;            /*!< VCP renderer module has been initialized */
+    bool                        started                  : 1;            /*!< Common BLE Audio layer has been started */
     bool                        broadcast_source_started : 1;           /*!< Broadcast source audio path has been started */
-    bool                        adv_configured          : 1;            /*!< Extended advertising set has been configured */
-    bool                        adv_enabled             : 1;            /*!< Extended advertising is allowed to run */
-    bool                        adv_running             : 1;            /*!< Extended advertising is running */
-    bool                        periodic_adv_running    : 1;            /*!< Periodic advertising is running */
-    bool                        user_connected_notified : 1;            /*!< User has been notified of the current LE connection */
-    esp_bt_audio_le_cfg_t       cfg;                                    /*!< Cached user configuration */
+    bool                        adv_configured           : 1;            /*!< Extended advertising set has been configured */
+    bool                        adv_enabled              : 1;            /*!< Extended advertising is allowed to run */
+    bool                        adv_running              : 1;            /*!< Extended advertising is running */
+    bool                        periodic_adv_running     : 1;            /*!< Periodic advertising is running */
+    bool                        user_connected_notified  : 1;            /*!< User has been notified of the current LE connection */
+    esp_bt_audio_le_cfg_t       cfg;                                     /*!< Cached user configuration */
 } bt_audio_le_ctx_t;
 
 static const char *TAG = "BT_AUD_LE";
@@ -426,6 +427,7 @@ static void bt_audio_le_iso_gap_cb(esp_ble_audio_gap_app_event_t *event)
                 bt_audio_host_acl_connected(event->acl_connect.conn_handle, &peer);
                 if (s_le) {
                     s_le->conn_handle = event->acl_connect.conn_handle;
+                    s_le->acl_connected = true;
                     s_le->adv_running = false;
                     s_le->user_connected_notified = false;
                     memcpy(s_le->connect_target, event->acl_connect.dst.val, sizeof(s_le->connect_target));
@@ -470,6 +472,7 @@ static void bt_audio_le_iso_gap_cb(esp_ble_audio_gap_app_event_t *event)
 #endif  /* CONFIG_BT_TBS_CLIENT */
                 memcpy(conn.addr, s_le->connect_target, sizeof(conn.addr));
                 s_le->user_connected_notified = false;
+                s_le->acl_connected = false;
                 s_le->conn_handle = 0;
                 memset(s_le->connect_target, 0, sizeof(s_le->connect_target));
             }
@@ -579,7 +582,7 @@ static esp_err_t bt_audio_le_connect(uint8_t addr_type, const uint8_t *bt_dev_ad
 static esp_err_t bt_audio_le_disconnect(const uint8_t *bt_dev_addr)
 {
     ESP_RETURN_ON_FALSE(s_le, ESP_ERR_INVALID_STATE, TAG, "LE Audio not initialized");
-    ESP_RETURN_ON_FALSE(s_le->conn_handle, ESP_ERR_INVALID_STATE, TAG, "No LE ACL connection");
+    ESP_RETURN_ON_FALSE(s_le->acl_connected, ESP_ERR_INVALID_STATE, TAG, "No LE ACL connection");
     return bt_audio_host_disconnect(s_le->conn_handle, BT_AUDIO_ERR_REM_USER_CONN_TERM);
 }
 

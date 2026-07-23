@@ -9,3 +9,8 @@ endif()
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 project(bt_audio)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang"
+   OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 16))
+    idf_build_set_property(CXX_COMPILE_OPTIONS "-Wno-error=non-c-typedef-for-linkage" APPEND)
+endif()
