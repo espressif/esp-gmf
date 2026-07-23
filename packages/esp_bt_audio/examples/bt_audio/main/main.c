@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "esp_bt_audio_stream.h"
 #include "sdkconfig.h"
 #include "esp_check.h"
 #include "esp_err.h"
@@ -43,7 +45,9 @@
 
 #include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
-#include "dev_audio_codec.h"
+#include "esp_board_device.h"
+#include "esp_board_manager_includes.h"
+
 #if CONFIG_EXAMPLE_BT_UI_ENABLE
 #include "bt_ui.h"
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
@@ -53,6 +57,7 @@
 #include "stream_proc.h"
 #include "codec_defs.h"
 
+
 #ifdef CONFIG_GMF_EXAMPLE_A2DP_SOURCE
 #define A2DP_SRC_SEND_TASK_CORE_ID     1
 #define A2DP_SRC_SEND_TASK_PRIO        10
@@ -60,10 +65,10 @@
 #endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
 
 #define PHONEBOOK_ENTRY_LOG_BUF_SIZE  512
-#define VOLUME_CTRL_QUEUE_SIZE        8
-#define VOLUME_CTRL_TASK_STACK_SIZE   3072
-#define VOLUME_CTRL_TASK_PRIO         5
-#define BT_UI_DEVICE_NAME             "GMF_BT_UI"
+#define APP_CTRL_QUEUE_SIZE           12
+#define APP_CTRL_TASK_STACK_SIZE      3072
+#define APP_CTRL_TASK_PRIO            5
+#define APP_CTRL_TASK_CORE_ID         0
 
 static const char *TAG = "BT_AUD_EXAMPLE";
 static const char *media_ctrl_cmd_str[] = {
@@ -98,7 +103,6 @@ static const char *call_state_str[] = {
 };
 
 static const char *tel_event_str[] = {
-    "CALL_STATE",
     "BATTERY",
     "SIGNAL_STRENGTH",
     "ROAMING",
@@ -107,8 +111,27 @@ static const char *tel_event_str[] = {
     "UNKNOWN",
 };
 
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+static const char *le_audio_locations_to_str(uint32_t locations)
+{
+    if ((locations & (ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT | ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT)) ==
+        (ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT | ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT)) {
+        return "Front left/right";
+    }
+    if (locations & ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT) {
+        return "Front left";
+    }
+    if (locations & ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT) {
+        return "Front right";
+    }
+    return "None";
+}
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+
 static esp_gmf_pool_handle_t pool = NULL;
-static QueueHandle_t volume_ctrl_queue = NULL;
+static QueueHandle_t app_ctrl_queue = NULL;
+static bool phone_connected = false;
+static esp_bt_audio_tech_t active_connected_tech = ESP_BT_AUDIO_TECH_CLASSIC;
 
 typedef enum {
     VOLUME_CTRL_CMD_ABSOLUTE,
@@ -123,8 +146,26 @@ typedef struct {
     esp_bt_audio_stream_context_t  context;
 } volume_ctrl_cmd_t;
 
+typedef enum {
+    APP_CTRL_MSG_VOLUME,
+    APP_CTRL_MSG_CONNECTABLE_RESTORE,
+    APP_CTRL_MSG_CONNECTABLE_DISABLE_PEER,
+} app_ctrl_msg_id_t;
+
+typedef union {
+    volume_ctrl_cmd_t    volume;
+    esp_bt_audio_tech_t  tech;
+} app_ctrl_msg_data_t;
+
+typedef struct {
+    app_ctrl_msg_id_t    msg_id;
+    app_ctrl_msg_data_t  msg_data;
+} app_ctrl_msg_t;
+
 #if CONFIG_EXAMPLE_BT_UI_ENABLE
 static bt_ui_t *ui = NULL;
+static char s_playback_title[96];
+static char s_playback_artist[96];
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
 
 static inline const char *media_ctrl_cmd_to_str(esp_bt_audio_media_ctrl_cmd_t cmd)
@@ -149,17 +190,159 @@ static inline const char *tel_event_to_str(esp_bt_audio_tel_event_t type)
     return tel_event_str[i < sizeof(tel_event_str) / sizeof(tel_event_str[0]) ? i : (sizeof(tel_event_str) / sizeof(tel_event_str[0]) - 1)];
 }
 
-static bool volume_ctrl_post_cmd(const volume_ctrl_cmd_t *cmd)
+static bool app_ctrl_send_cmd(app_ctrl_msg_id_t msg_id, const app_ctrl_msg_data_t *msg_data)
 {
-    if (volume_ctrl_queue == NULL) {
-        ESP_LOGE(TAG, "Volume control task is not initialized");
+    if (app_ctrl_queue == NULL) {
+        ESP_LOGE(TAG, "App control task is not initialized");
         return false;
     }
-    if (xQueueSend(volume_ctrl_queue, cmd, 0) != pdTRUE) {
-        ESP_LOGW(TAG, "Volume control command queue full, drop action %d", cmd->type);
+
+    app_ctrl_msg_t msg = {
+        .msg_id = msg_id,
+    };
+    if (msg_data) {
+        msg.msg_data = *msg_data;
+    }
+
+    if (xQueueSend(app_ctrl_queue, &msg, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "App control queue full, drop msg %d", msg_id);
         return false;
     }
     return true;
+}
+
+static bool volume_ctrl_post_cmd(const volume_ctrl_cmd_t *cmd)
+{
+    app_ctrl_msg_data_t msg_data = {
+        .volume = *cmd,
+    };
+    return app_ctrl_send_cmd(APP_CTRL_MSG_VOLUME, &msg_data);
+}
+
+static void bt_audio_restore_connectable(void)
+{
+#if CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_HFP_AG) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK) || defined(CONFIG_GMF_EXAMPLE_HFP_HF))
+    {
+        esp_err_t ret = esp_bt_audio_classic_set_scan_mode(true, true);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Restore Classic scan mode failed: %s", esp_err_to_name(ret));
+        }
+    }
+#elif CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
+    {
+        esp_err_t ret = esp_bt_audio_classic_set_scan_mode(true, false);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Restore Classic scan mode failed: %s", esp_err_to_name(ret));
+        }
+    }
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_HFP_AG) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK) || defined(CONFIG_GMF_EXAMPLE_HFP_HF)) */
+
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+    {
+        esp_err_t ret = esp_bt_audio_le_set_advertising(true);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Restore LE advertising failed: %s", esp_err_to_name(ret));
+        }
+    }
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+}
+
+static void bt_audio_disable_peer_connectable(esp_bt_audio_tech_t tech)
+{
+    if (tech == ESP_BT_AUDIO_TECH_CLASSIC) {
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+        esp_err_t ret = esp_bt_audio_le_set_advertising(false);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Disable LE advertising failed: %s", esp_err_to_name(ret));
+        }
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+    } else if (tech == ESP_BT_AUDIO_TECH_LE) {
+#if CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK) || defined(CONFIG_GMF_EXAMPLE_HFP_AG) || defined(CONFIG_GMF_EXAMPLE_HFP_HF))
+        esp_err_t ret = esp_bt_audio_classic_set_scan_mode(false, false);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "Disable Classic scan mode failed: %s", esp_err_to_name(ret));
+        }
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK) || defined(CONFIG_GMF_EXAMPLE_HFP_AG) || defined(CONFIG_GMF_EXAMPLE_HFP_HF)) */
+    }
+}
+
+static esp_err_t volume_ctrl_get_codec(dev_audio_codec_handles_t **codec_handle);
+
+static void app_ctrl_handle_volume(const volume_ctrl_cmd_t *cmd)
+{
+    dev_audio_codec_handles_t *codec_handle = NULL;
+    if (volume_ctrl_get_codec(&codec_handle) != ESP_OK) {
+        return;
+    }
+
+    switch (cmd->type) {
+        case VOLUME_CTRL_CMD_ABSOLUTE:
+            ESP_LOGI(TAG, "Set absolute volume: vol %d, mute %d, context %d", cmd->vol, cmd->mute, cmd->context);
+            esp_codec_dev_set_out_vol(codec_handle->codec_dev, cmd->mute ? 0 : cmd->vol);
+            break;
+        case VOLUME_CTRL_CMD_RELATIVE: {
+            int current_volume = 0;
+            esp_codec_dev_get_out_vol(codec_handle->codec_dev, &current_volume);
+            current_volume = cmd->up_down ?
+                             ((current_volume >= 90) ? 100 : current_volume + 10) :
+                             ((current_volume <= 10) ? 0 : current_volume - 10);
+            esp_codec_dev_set_out_vol(codec_handle->codec_dev, current_volume);
+            ESP_LOGI(TAG, "Set relative volume: up_down %d, context %d, volume %d",
+                     cmd->up_down, cmd->context, current_volume);
+            break;
+        }
+        default:
+            ESP_LOGW(TAG, "Unknown volume control action %d", cmd->type);
+            break;
+    }
+}
+
+static void app_ctrl_task(void *arg)
+{
+    app_ctrl_msg_t msg = {0};
+
+    while (true) {
+        if (xQueueReceive(app_ctrl_queue, &msg, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+
+        switch (msg.msg_id) {
+            case APP_CTRL_MSG_VOLUME:
+                app_ctrl_handle_volume(&msg.msg_data.volume);
+                break;
+            case APP_CTRL_MSG_CONNECTABLE_RESTORE:
+                bt_audio_restore_connectable();
+                break;
+            case APP_CTRL_MSG_CONNECTABLE_DISABLE_PEER:
+                bt_audio_disable_peer_connectable(msg.msg_data.tech);
+                break;
+            default:
+                ESP_LOGW(TAG, "Unknown app control msg %d", msg.msg_id);
+                break;
+        }
+    }
+}
+
+static void setup_app_ctrl_task(void)
+{
+    if (app_ctrl_queue) {
+        return;
+    }
+
+    app_ctrl_queue = xQueueCreate(APP_CTRL_QUEUE_SIZE, sizeof(app_ctrl_msg_t));
+    if (app_ctrl_queue == NULL) {
+        ESP_LOGE(TAG, "Create app control command queue failed");
+        return;
+    }
+
+    BaseType_t ret = xTaskCreatePinnedToCoreWithCaps(app_ctrl_task, "app_ctrl_task", APP_CTRL_TASK_STACK_SIZE,
+                                                     NULL, APP_CTRL_TASK_PRIO, NULL, APP_CTRL_TASK_CORE_ID,
+                                                     MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (ret != pdPASS) {
+        ESP_LOGE(TAG, "Create app control task failed");
+        vQueueDelete(app_ctrl_queue);
+        app_ctrl_queue = NULL;
+    }
 }
 
 static esp_err_t volume_ctrl_get_codec(dev_audio_codec_handles_t **codec_handle)
@@ -172,73 +355,9 @@ static esp_err_t volume_ctrl_get_codec(dev_audio_codec_handles_t **codec_handle)
     return ESP_OK;
 }
 
-static void volume_ctrl_task(void *arg)
-{
-    (void)arg;
-    volume_ctrl_cmd_t cmd = {0};
-
-    while (true) {
-        if (xQueueReceive(volume_ctrl_queue, &cmd, portMAX_DELAY) != pdTRUE) {
-            continue;
-        }
-
-        dev_audio_codec_handles_t *codec_handle = NULL;
-        if (volume_ctrl_get_codec(&codec_handle) != ESP_OK) {
-            continue;
-        }
-
-        switch (cmd.type) {
-            case VOLUME_CTRL_CMD_ABSOLUTE:
-                ESP_LOGI(TAG, "Set absolute volume: vol %d, mute %d, context %d", cmd.vol, cmd.mute, cmd.context);
-                esp_codec_dev_set_out_vol(codec_handle->codec_dev, cmd.vol);
-                break;
-            case VOLUME_CTRL_CMD_RELATIVE: {
-                int current_volume = 0;
-                esp_codec_dev_get_out_vol(codec_handle->codec_dev, &current_volume);
-                current_volume = cmd.up_down ?
-                                 ((current_volume >= 90) ? 100 : current_volume + 10) :
-                                 ((current_volume <= 10) ? 0 : current_volume - 10);
-                esp_codec_dev_set_out_vol(codec_handle->codec_dev, current_volume);
-                ESP_LOGI(TAG, "Set relative volume: up_down %d, context %d, volume %d",
-                         cmd.up_down, cmd.context, current_volume);
-                break;
-            }
-            default:
-                ESP_LOGW(TAG, "Unknown volume control action %d", cmd.type);
-                break;
-        }
-    }
-}
-
-static void setup_volume_ctrl_task(void)
-{
-    if (volume_ctrl_queue) {
-        return;
-    }
-
-    volume_ctrl_queue = xQueueCreate(VOLUME_CTRL_QUEUE_SIZE, sizeof(volume_ctrl_cmd_t));
-    if (volume_ctrl_queue == NULL) {
-        ESP_LOGE(TAG, "Create volume control command queue failed");
-        return;
-    }
-
-    BaseType_t ret = xTaskCreate(volume_ctrl_task, "volume_ctrl_task", VOLUME_CTRL_TASK_STACK_SIZE, NULL,
-                                 VOLUME_CTRL_TASK_PRIO, NULL);
-    if (ret != pdPASS) {
-        ESP_LOGE(TAG, "Create volume control task failed");
-        vQueueDelete(volume_ctrl_queue);
-        volume_ctrl_queue = NULL;
-    }
-}
-
 #if CONFIG_EXAMPLE_BT_UI_ENABLE
-/* --------------------------------------------------------------------- */
-/*  BT Audio callbacks                                                     */
-/* --------------------------------------------------------------------- */
-
 static void on_dial_cb(const char *number, void *ctx)
 {
-    (void)ctx;
     if (number == NULL || number[0] == '\0') {
         return;
     }
@@ -250,7 +369,6 @@ static void on_dial_cb(const char *number, void *ctx)
 
 static void on_end_call_cb(void *ctx)
 {
-    (void)ctx;
     esp_err_t ret = esp_bt_audio_call_reject(0);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "End call failed: %s", esp_err_to_name(ret));
@@ -259,7 +377,6 @@ static void on_end_call_cb(void *ctx)
 
 static void on_answer_call_cb(void *ctx)
 {
-    (void)ctx;
     esp_err_t ret = esp_bt_audio_call_answer(0);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Answer call failed: %s", esp_err_to_name(ret));
@@ -268,7 +385,6 @@ static void on_answer_call_cb(void *ctx)
 
 static void on_play_pause_cb(bool want_play, void *ctx)
 {
-    (void)ctx;
     esp_err_t ret = want_play ? esp_bt_audio_playback_play() : esp_bt_audio_playback_pause();
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Playback %s failed: %s", want_play ? "play" : "pause", esp_err_to_name(ret));
@@ -277,7 +393,6 @@ static void on_play_pause_cb(bool want_play, void *ctx)
 
 static void on_prev_cb(void *ctx)
 {
-    (void)ctx;
     esp_err_t ret = esp_bt_audio_playback_prev();
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Playback prev failed: %s", esp_err_to_name(ret));
@@ -286,7 +401,6 @@ static void on_prev_cb(void *ctx)
 
 static void on_next_cb(void *ctx)
 {
-    (void)ctx;
     esp_err_t ret = esp_bt_audio_playback_next();
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Playback next failed: %s", esp_err_to_name(ret));
@@ -294,13 +408,18 @@ static void on_next_cb(void *ctx)
 }
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
 
-#if CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE <= 1
-static esp_err_t append_mac_suffix_to_device_name(char *device_name, size_t device_name_size)
+static esp_err_t setup_device_name(char *device_name, size_t device_name_size)
 {
+    int written = snprintf(device_name, device_name_size, "%s", CONFIG_GMF_EXAMPLE_BT_DEVICE_NAME);
+    if (written < 0 || (size_t)written >= device_name_size) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+#if CONFIG_GMF_EXAMPLE_BT_DEVICE_NAME_APPEND_MAC
     uint8_t mac[6] = {0};
     char default_name[ESP_BT_AUDIO_HOST_MAX_DEV_NAME_LEN] = {0};
 
-    int written = snprintf(default_name, sizeof(default_name), "%s", device_name);
+    written = snprintf(default_name, sizeof(default_name), "%s", device_name);
     if (written < 0 || (size_t)written >= sizeof(default_name)) {
         return ESP_ERR_INVALID_SIZE;
     }
@@ -314,73 +433,151 @@ static esp_err_t append_mac_suffix_to_device_name(char *device_name, size_t devi
     if (written < 0 || (size_t)written >= device_name_size) {
         return ESP_ERR_INVALID_SIZE;
     }
+#endif  /* CONFIG_GMF_EXAMPLE_BT_DEVICE_NAME_APPEND_MAC */
     return ESP_OK;
 }
-#endif  /* CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE <= 1 */
+
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+static int hex_nibble(char c)
+{
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+    if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+    return -1;
+}
+
+static void bytes_from_hex(const char *hex, uint8_t *out, size_t out_len)
+{
+    if (hex == NULL || out == NULL || out_len == 0) {
+        return;
+    }
+
+    memset(out, 0, out_len);
+    size_t hex_len = strlen(hex);
+    for (size_t i = 0; i < out_len; i++) {
+        if ((i * 2 + 1) < hex_len) {
+            int high = hex_nibble(hex[i * 2]);
+            int low = hex_nibble(hex[i * 2 + 1]);
+            if (high >= 0 && low >= 0) {
+                out[i] = (uint8_t)((high << 4) | low);
+            }
+        }
+    }
+}
+
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+static void bytes_from_string(const char *str, uint8_t *out, size_t out_len)
+{
+    if (str == NULL || out == NULL || out_len == 0) {
+        return;
+    }
+
+    memset(out, 0, out_len);
+    memcpy(out, str, strnlen(str, out_len));
+}
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+
+static void setup_bt_audio_config_from_kconfig(esp_bt_audio_config_t *bt_config)
+{
+    if (bt_config == NULL) {
+        return;
+    }
 
 #if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
-static uint32_t get_classic_roles()
-{
-    uint32_t roles = 0;
 #ifdef CONFIG_GMF_EXAMPLE_A2DP_SOURCE
-    roles |= ESP_BT_AUDIO_CLASSIC_ROLE_A2DP_SRC;
+    bt_config->classic.roles = ESP_BT_AUDIO_CLASSIC_ROLE_A2DP_SRC;
+#else
+    bt_config->classic.roles = ESP_BT_AUDIO_CLASSIC_ROLE_A2DP_SNK;
 #endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
-#ifdef CONFIG_GMF_EXAMPLE_A2DP_SINK
-    roles |= ESP_BT_AUDIO_CLASSIC_ROLE_A2DP_SNK;
-#endif  /* CONFIG_GMF_EXAMPLE_A2DP_SINK */
 #ifdef CONFIG_GMF_EXAMPLE_HFP_HF
-    roles |= ESP_BT_AUDIO_CLASSIC_ROLE_HFP_HF;
+    bt_config->classic.roles |= ESP_BT_AUDIO_CLASSIC_ROLE_HFP_HF;
 #endif  /* CONFIG_GMF_EXAMPLE_HFP_HF */
 #ifdef CONFIG_GMF_EXAMPLE_HFP_AG
-    roles |= ESP_BT_AUDIO_CLASSIC_ROLE_HFP_AG;
+    bt_config->classic.roles |= ESP_BT_AUDIO_CLASSIC_ROLE_HFP_AG;
 #endif  /* CONFIG_GMF_EXAMPLE_HFP_AG */
 #ifdef CONFIG_GMF_EXAMPLE_AVRC_CT
-    roles |= ESP_BT_AUDIO_CLASSIC_ROLE_AVRC_CT;
+    bt_config->classic.roles |= ESP_BT_AUDIO_CLASSIC_ROLE_AVRC_CT;
 #endif  /* CONFIG_GMF_EXAMPLE_AVRC_CT */
 #ifdef CONFIG_GMF_EXAMPLE_AVRC_TG
-    roles |= ESP_BT_AUDIO_CLASSIC_ROLE_AVRC_TG;
+    bt_config->classic.roles |= ESP_BT_AUDIO_CLASSIC_ROLE_AVRC_TG;
 #endif  /* CONFIG_GMF_EXAMPLE_AVRC_TG */
 #ifdef CONFIG_GMF_EXAMPLE_PBAP_PCE
-    roles |= ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE;
+    bt_config->classic.roles |= ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE;
 #endif  /* CONFIG_GMF_EXAMPLE_PBAP_PCE */
-    return roles;
-}
 #endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 
 #if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-#if CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT
-#define LE_LOCATION  ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT
-#elif CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
-#define LE_LOCATION  ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT
-#endif  /* CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT || CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT */
+    bt_config->le.user_case = ESP_BT_AUDIO_LE_USER_CASE_TMAP;
+    bt_config->le.roles = 0;
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_CT
+    bt_config->le.roles |= ESP_BLE_AUDIO_TMAP_ROLE_CT;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_CT */
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMR
+    bt_config->le.roles |= ESP_BLE_AUDIO_TMAP_ROLE_UMR;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMR */
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMR
+    bt_config->le.roles |= ESP_BLE_AUDIO_TMAP_ROLE_BMR;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMR */
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+    bt_config->le.roles |= ESP_BLE_AUDIO_TMAP_ROLE_BMS;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 
-#if CONFIG_GMF_EXAMPLE_LE_SOURCE_ENABLE
-#define LE_SOURCE_COUNT         1
-#define LE_SOURCE_ENABLED       1
-#define LE_SOURCE_CONTEXT_MASK  ESP_BLE_AUDIO_CONTEXT_TYPE_ANY
-#define LE_SOURCE_LOCATION      LE_LOCATION
+    bt_config->le.snk_cnt = 1;
+#ifdef CONFIG_GMF_EXAMPLE_LE_SOURCE_ENABLE
+    bt_config->le.src_cnt = 1;
 #else
-#define LE_SOURCE_COUNT         0
-#define LE_SOURCE_ENABLED       0
-#define LE_SOURCE_CONTEXT_MASK  0
-#define LE_SOURCE_LOCATION      0
+    bt_config->le.src_cnt = 0;
 #endif  /* CONFIG_GMF_EXAMPLE_LE_SOURCE_ENABLE */
 
-static uint32_t get_le_roles(void)
-{
-    uint32_t roles = 0;
-#if CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_CT
-    roles |= ESP_BLE_AUDIO_TMAP_ROLE_CT;
-#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_CT */
-#if CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMR
-    roles |= ESP_BLE_AUDIO_TMAP_ROLE_UMR;
-#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMR */
-#if CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMR
-    roles |= ESP_BLE_AUDIO_TMAP_ROLE_BMR;
-#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMR */
-    return roles;
-}
+    bool pacs_needed = (bt_config->le.roles & (ESP_BLE_AUDIO_TMAP_ROLE_CT |
+                                               ESP_BLE_AUDIO_TMAP_ROLE_UMR |
+                                               ESP_BLE_AUDIO_TMAP_ROLE_BMR)) != 0;
+    bt_config->le.pacs.sink_enabled = pacs_needed;
+    bt_config->le.pacs.sink_context_mask = pacs_needed ? ESP_BLE_AUDIO_CONTEXT_TYPE_ANY : 0;
+    uint32_t le_locations = 0;
+#if CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT
+    le_locations |= ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT */
+#if CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
+    le_locations |= ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT */
+#if CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT_RIGHT
+    le_locations |= ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT | ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT_RIGHT */
+    bt_config->le.pacs.sink_locations = pacs_needed ? le_locations : 0;
+    bt_config->le.pacs.source_locations = pacs_needed ? le_locations : 0;
+#ifdef CONFIG_GMF_EXAMPLE_LE_SOURCE_ENABLE
+    bt_config->le.pacs.source_enabled = pacs_needed;
+#else
+    bt_config->le.pacs.source_enabled = 0;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_SOURCE_ENABLE */
+    bt_config->le.pacs.source_context_mask = bt_config->le.pacs.source_enabled ? ESP_BLE_AUDIO_CONTEXT_TYPE_ANY : 0;
+    if (bt_config->le.pacs.source_enabled == 0) {
+        bt_config->le.pacs.source_locations = 0;
+    }
+
+    bt_config->le.csip.coordinate_set_size = CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE;
+    bt_config->le.csip.rank = CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_RANK;
+#if CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE > 1
+    bytes_from_hex(CONFIG_GMF_EXAMPLE_LE_CSIP_SIRK, bt_config->le.csip.sirk, sizeof(bt_config->le.csip.sirk));
+#endif  /* CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE > 1 */
+
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+    snprintf((char *)bt_config->le.bsrc.broadcast_name, sizeof(bt_config->le.bsrc.broadcast_name),
+             "%s", CONFIG_GMF_EXAMPLE_LE_BSRC_NAME);
+    bytes_from_string(CONFIG_GMF_EXAMPLE_LE_BSRC_CODE, bt_config->le.bsrc.broadcast_code,
+                      sizeof(bt_config->le.bsrc.broadcast_code));
+    bt_config->le.bsrc.stream_num = CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+}
 
 static void media_ctrl_cmd_proc(esp_bt_audio_media_ctrl_cmd_t cmd)
 {
@@ -443,10 +640,6 @@ static void playback_status_chg_proc(esp_bt_audio_event_playback_st_t *event_dat
 
 static void playback_metadata_proc(esp_bt_audio_event_playback_metadata_t *event_data)
 {
-#if CONFIG_EXAMPLE_BT_UI_ENABLE
-    static char title[96];
-    static char artist[96];
-#endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
     if (event_data->type == ESP_BT_AUDIO_PLAYBACK_METADATA_COVER_ART) {
         esp_bt_audio_playback_cover_art_t *cover_art = (esp_bt_audio_playback_cover_art_t *)event_data->value;
         if (cover_art != NULL && cover_art->data != NULL && cover_art->size > 0) {
@@ -456,29 +649,42 @@ static void playback_metadata_proc(esp_bt_audio_event_playback_metadata_t *event
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
         }
     } else {
-        ESP_LOGI(TAG, "Metadata: %s:\t%s",
-                 playback_metadata_type_to_str(event_data->type), event_data->length > 0 ? (const char *)event_data->value : "");
+        ESP_LOGI(TAG, "Metadata: %s:\t%.*s",
+                 playback_metadata_type_to_str(event_data->type),
+                 event_data->value && event_data->length > 0 ? (int)event_data->length : 0,
+                 event_data->value ? (const char *)event_data->value : "");
 #if CONFIG_EXAMPLE_BT_UI_ENABLE
         if (event_data->value != NULL && event_data->length > 0) {
             char *target = NULL;
             size_t target_size = 0;
             if (event_data->type == ESP_BT_AUDIO_PLAYBACK_METADATA_TITLE) {
-                target = title;
-                target_size = sizeof(title);
+                target = s_playback_title;
+                target_size = sizeof(s_playback_title);
             } else if (event_data->type == ESP_BT_AUDIO_PLAYBACK_METADATA_ARTIST) {
-                target = artist;
-                target_size = sizeof(artist);
+                target = s_playback_artist;
+                target_size = sizeof(s_playback_artist);
             }
             if (target != NULL) {
                 size_t copy_len = event_data->length < target_size - 1 ? event_data->length : target_size - 1;
                 memcpy(target, event_data->value, copy_len);
                 target[copy_len] = '\0';
-                bt_ui_update_track(ui, title[0] ? title : NULL, artist[0] ? artist : NULL);
+                bt_ui_update_track(ui, s_playback_title[0] ? s_playback_title : NULL,
+                                   s_playback_artist[0] ? s_playback_artist : NULL);
             }
         }
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
     }
 }
+
+#if CONFIG_EXAMPLE_BT_UI_ENABLE
+static void playback_metadata_clear_ui(void)
+{
+    s_playback_title[0] = '\0';
+    s_playback_artist[0] = '\0';
+    bt_ui_update_track(ui, "", "");
+    bt_ui_post_cover(ui, NULL, 0);
+}
+#endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
 
 static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void *user_data)
 {
@@ -510,24 +716,32 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
                      conn_st->addr[0], conn_st->addr[1], conn_st->addr[2],
                      conn_st->addr[3], conn_st->addr[4], conn_st->addr[5]);
             if (conn_st->connected) {
+                phone_connected = true;
+                active_connected_tech = conn_st->tech;
 #if CONFIG_EXAMPLE_BT_UI_ENABLE
-                bt_ui_set_connected(ui, true);
+                bt_ui_set_connected(ui, true, conn_st->tech);
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
-#if CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK))
-                esp_bt_audio_classic_set_scan_mode(false, false);
-#endif  /* CONFIG_BT_CLASSIC_ENABLED && (defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) || defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)) */
+                app_ctrl_msg_data_t msg_data = {
+                    .tech = conn_st->tech,
+                };
+                app_ctrl_send_cmd(APP_CTRL_MSG_CONNECTABLE_DISABLE_PEER, &msg_data);
 #if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_PBAP_PCE)
-                esp_bt_audio_classic_connect(ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE, conn_st->addr);
+                if (conn_st->tech == ESP_BT_AUDIO_TECH_CLASSIC) {
+                    esp_bt_audio_classic_connect(ESP_BT_AUDIO_CLASSIC_ROLE_PBAP_PCE, conn_st->addr);
+                }
 #endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_PBAP_PCE) */
             } else {
-#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
-                esp_bt_audio_classic_set_scan_mode(true, false);
-#elif CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)
-                esp_bt_audio_classic_set_scan_mode(true, true);
-#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) */
+                if (!phone_connected || conn_st->tech == active_connected_tech) {
+                    phone_connected = false;
+                    app_ctrl_msg_data_t msg_data = {
+                        .tech = conn_st->tech,
+                    };
+                    app_ctrl_send_cmd(APP_CTRL_MSG_CONNECTABLE_RESTORE, &msg_data);
 #if CONFIG_EXAMPLE_BT_UI_ENABLE
-                bt_ui_set_connected(ui, false);
+                    bt_ui_set_connected(ui, false, conn_st->tech);
+                    playback_metadata_clear_ui();
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
+                }
             }
             cli_bt_device_conn_st_chg(conn_st->addr, conn_st->connected);
             break;
@@ -536,8 +750,21 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
             esp_bt_audio_event_stream_st_t *stream_state = (esp_bt_audio_event_stream_st_t *)event_data;
             stream_proc_state_chg(stream_state->stream_handle, stream_state->state);
 #if CONFIG_EXAMPLE_BT_UI_ENABLE
-            bt_ui_update_stream_type(ui, stream_state->stream_handle, stream_state->state);
+            bt_ui_update_stream_state(ui, stream_state->stream_handle, stream_state->state);
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
+            esp_bt_audio_stream_dir_t dir = ESP_BT_AUDIO_STREAM_DIR_UNKNOWN;
+            esp_bt_audio_stream_get_dir(stream_state->stream_handle, &dir);
+            if (stream_state->state == ESP_BT_AUDIO_STREAM_STATE_ALLOCATED &&
+                dir == ESP_BT_AUDIO_STREAM_DIR_SINK) {
+                esp_bt_audio_playback_reg_notifications(ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_STATUS_CHANGE |
+                                                                        ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_CHANGE |
+                                                                        ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_END |
+                                                                        ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_START |
+                                                                        ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_POS_CHANGED |
+                                                                        ESP_BT_AUDIO_PLAYBACK_EVENT_NOW_PLAYING_CHANGE |
+                                                                        ESP_BT_AUDIO_PLAYBACK_EVENT_AVAILABLE_PLAYERS_CHANGE |
+                                                                        ESP_BT_AUDIO_PLAYBACK_EVENT_ADDRESSED_PLAYER_CHANGE);
+            }
             break;
         }
         case ESP_BT_AUDIO_EVENT_MEDIA_CTRL_CMD: {
@@ -679,6 +906,31 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
     }
 }
 
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
+static void bt_audio_reconfig_lcd(void)
+{
+    dev_display_lcd_config_t lcd_cfg;
+    dev_display_lcd_config_t *origin_cfg = NULL;
+    esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, (void **)&origin_cfg);
+    if (origin_cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to get display config");
+        return;
+    }
+    memcpy(&lcd_cfg, origin_cfg, sizeof(dev_display_lcd_config_t));
+    if (strcmp(origin_cfg->sub_type, "rgb") == 0) {
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+        lcd_cfg.sub_cfg.rgb.panel_config.num_fbs = 2;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+    } else if (strcmp(origin_cfg->sub_type, "dsi") == 0) {
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT
+        lcd_cfg.sub_cfg.dsi.dpi_config.num_fbs = 2;
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_DSI_SUPPORT */
+    }
+    esp_board_device_override_config(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, &lcd_cfg, sizeof(dev_display_lcd_config_t));
+    ESP_LOGI(TAG, "LCD configuration overridden");
+}
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
+
 void app_main()
 {
     /* Initialize NVS flash which is used by bluetooth */
@@ -689,8 +941,19 @@ void app_main()
     }
     ESP_ERROR_CHECK(ret);
 
+    /* Initialize only the audio codec devices in monitor mode to keep monitor GPIOs available. */
+#if CONFIG_ESP_BT_AUDIO_MONITOR
+    ESP_ERROR_CHECK(esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_ADC));
+    ESP_ERROR_CHECK(esp_board_manager_init_device_by_name(ESP_BOARD_DEVICE_NAME_AUDIO_DAC));
+#else
+    /* Reconfigure LCD to use double framebuffer */
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT
+    bt_audio_reconfig_lcd();
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT */
+
     /* Initialize all devices with board manager */
     ESP_ERROR_CHECK(esp_board_manager_init());
+#endif  /* CONFIG_ESP_BT_AUDIO_MONITOR */
 
     /* Initialize codec devices */
     esp_codec_dev_sample_info_t fs = {
@@ -702,7 +965,7 @@ void app_main()
     ESP_ERROR_CHECK(esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&codec_handle));
     ESP_ERROR_CHECK(esp_codec_dev_open(codec_handle->codec_dev, &fs));
     ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(codec_handle->codec_dev, 50));
-    setup_volume_ctrl_task();
+    setup_app_ctrl_task();
 
     fs = (esp_codec_dev_sample_info_t) {
         .sample_rate = CODEC_ADC_SAMPLE_RATE,
@@ -722,6 +985,9 @@ void app_main()
     /* Setup pipelines for bluetooth audio */
     stream_proc_init(pool);
 
+    char device_name[ESP_BT_AUDIO_HOST_MAX_DEV_NAME_LEN] = {0};
+    ESP_ERROR_CHECK(setup_device_name(device_name, sizeof(device_name)));
+
 #if CONFIG_EXAMPLE_BT_UI_ENABLE
     bt_ui_config_t ui_cfg = {
         .dial_cb = on_dial_cb,
@@ -737,7 +1003,7 @@ void app_main()
         .prev_next_ctx = NULL,
     };
     ESP_ERROR_CHECK(bt_ui_init());
-    ui = bt_ui_create(BT_UI_DEVICE_NAME, &ui_cfg);
+    ui = bt_ui_create(device_name, &ui_cfg);
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
 
 #if CONFIG_BT_ENABLED
@@ -763,19 +1029,11 @@ void app_main()
     void *host_config = NULL;
 #if CONFIG_BT_NIMBLE_ENABLED
     esp_bt_audio_host_nimble_cfg_t host_cfg = ESP_BT_AUDIO_HOST_NIMBLE_CFG_DEFAULT();
-#if CONFIG_EXAMPLE_BT_UI_ENABLE
-    snprintf(host_cfg.dev_name, sizeof(host_cfg.dev_name), "%s", BT_UI_DEVICE_NAME);
-#endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
-#if CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE <= 1
-    ESP_ERROR_CHECK(append_mac_suffix_to_device_name(host_cfg.dev_name, sizeof(host_cfg.dev_name)));
-#endif  /* CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE <= 1 */
+    snprintf(host_cfg.dev_name, sizeof(host_cfg.dev_name), "%s", device_name);
     host_config = &host_cfg;
 #elif CONFIG_BT_BLUEDROID_ENABLED
     esp_bt_audio_host_bluedroid_cfg_t host_cfg = ESP_BT_AUDIO_HOST_BLUEDROID_CFG_DEFAULT();
-#if CONFIG_EXAMPLE_BT_UI_ENABLE
-    snprintf(host_cfg.dev_name, sizeof(host_cfg.dev_name), "%s", BT_UI_DEVICE_NAME);
-#endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
-    ESP_ERROR_CHECK(append_mac_suffix_to_device_name(host_cfg.dev_name, sizeof(host_cfg.dev_name)));
+    snprintf(host_cfg.dev_name, sizeof(host_cfg.dev_name), "%s", device_name);
     host_config = &host_cfg;
 #endif  /* CONFIG_BT_NIMBLE_ENABLED */
 
@@ -783,63 +1041,50 @@ void app_main()
         .host_config = host_config,
         .event_cb = bt_audio_event_cb,
         .event_user_ctx = NULL,
-#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
-        .classic.roles = get_classic_roles(),
 #ifdef CONFIG_GMF_EXAMPLE_A2DP_SOURCE
         .classic.a2dp_src_send_task_core_id = A2DP_SRC_SEND_TASK_CORE_ID,
         .classic.a2dp_src_send_task_prio = A2DP_SRC_SEND_TASK_PRIO,
         .classic.a2dp_src_send_task_stack_size = A2DP_SRC_SEND_TASK_STACK_SIZE,
 #endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
-#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
-#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-        .le.user_case = ESP_BT_AUDIO_LE_USER_CASE_TMAP,
-        .le.roles = get_le_roles(),
-        .le.snk_cnt = 1,
-        .le.src_cnt = LE_SOURCE_COUNT,
-        .le.pacs = {
-            .sink_enabled = 1,
-            .sink_context_mask = ESP_BLE_AUDIO_CONTEXT_TYPE_ANY,
-            .sink_locations = LE_LOCATION,
-            .source_enabled = LE_SOURCE_ENABLED,
-            .source_context_mask = LE_SOURCE_CONTEXT_MASK,
-            .source_locations = LE_SOURCE_LOCATION,
-        },
-        .le.vcp = {
-            .volume = 50,
-            .mute = 0,
-            .step = 10,
-        },
-        .le.csip = {
-            .coordinate_set_size = CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE,
-            .rank = CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_RANK,
-            .sirk = {184, 3, 170, 198, 175, 187, 101, 162, 90, 65, 241, 83, 5, 105, 143, 132},
-        },
+#ifdef CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+        .le.vcp_rend.volume = 50,
+        .le.vcp_rend.mute = 0,
+        .le.vcp_rend.step = 10,
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     };
+    setup_bt_audio_config_from_kconfig(&bt_config);
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
+    ESP_LOGI(TAG, "Classic Audio configuration:");
+    ESP_LOGI(TAG, "  Roles: 0x%08" PRIX32, bt_config.classic.roles);
+#ifdef CONFIG_GMF_EXAMPLE_A2DP_SOURCE
+    ESP_LOGI(TAG, "  A2DP source send task core ID: %u", bt_config.classic.a2dp_src_send_task_core_id);
+    ESP_LOGI(TAG, "  A2DP source send task priority: %u", bt_config.classic.a2dp_src_send_task_prio);
+    ESP_LOGI(TAG, "  A2DP source send task stack size: %u", bt_config.classic.a2dp_src_send_task_stack_size);
+#endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 #if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
     ESP_LOGI(TAG, "LE Audio configuration:");
-    ESP_LOGI(TAG, "  User case: %s", CONFIG_GMF_EXAMPLE_LE_USER_CASE_TMAP ? "TMAP" : "UNKNOWN");
-    ESP_LOGI(TAG, "  Roles: %s", CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_CT ? "CT" : "UNKNOWN");
-    ESP_LOGI(TAG, "  Roles: %s", CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMR ? "UMR" : "UNKNOWN");
-    ESP_LOGI(TAG, "  Roles: %s", CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMR ? "BMR" : "UNKNOWN");
-    ESP_LOGI(TAG, "  Coordinate set size: %d", CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE);
-    ESP_LOGI(TAG, "  Coordinate set rank: %d", CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_RANK);
-    ESP_LOGI(TAG, "  PACS sink locations: %s", LE_LOCATION == ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT ? "Front left" : "Front right");
+    ESP_LOGI(TAG, "  User case: %s",
+             bt_config.le.user_case == ESP_BT_AUDIO_LE_USER_CASE_TMAP ? "TMAP" : "UNKNOWN");
+    ESP_LOGI(TAG, "  Roles: 0x%08" PRIX32, bt_config.le.roles);
+    ESP_LOGI(TAG, "  Sink count: %u, Source count: %u",
+             bt_config.le.snk_cnt, bt_config.le.src_cnt);
+    ESP_LOGI(TAG, "  Coordinate set size: %u", bt_config.le.csip.coordinate_set_size);
+    ESP_LOGI(TAG, "  Coordinate set rank: %u", bt_config.le.csip.rank);
+    ESP_LOGI(TAG, "  PACS sink locations: %s", le_audio_locations_to_str(bt_config.le.pacs.sink_locations));
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+    ESP_LOGI(TAG, "  Broadcast source name: %s", bt_config.le.bsrc.broadcast_name);
+    ESP_LOGI(TAG, "  Broadcast source stream count: %u", bt_config.le.bsrc.stream_num);
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     ESP_ERROR_CHECK(esp_bt_audio_init(&bt_config));
-#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
+#if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_HFP_AG)
+    ESP_ERROR_CHECK(esp_bt_audio_classic_set_scan_mode(true, true));
+#elif CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
     ESP_ERROR_CHECK(esp_bt_audio_classic_set_scan_mode(true, false));
 #elif CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)
     ESP_ERROR_CHECK(esp_bt_audio_classic_set_scan_mode(true, true));
-#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) */
-    ESP_ERROR_CHECK(esp_bt_audio_playback_reg_notifications(ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_STATUS_CHANGE |
-                                                            ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_CHANGE |
-                                                            ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_END |
-                                                            ESP_BT_AUDIO_PLAYBACK_EVENT_TRACK_REACHED_START |
-                                                            ESP_BT_AUDIO_PLAYBACK_EVENT_PLAY_POS_CHANGED |
-                                                            ESP_BT_AUDIO_PLAYBACK_EVENT_NOW_PLAYING_CHANGE |
-                                                            ESP_BT_AUDIO_PLAYBACK_EVENT_AVAILABLE_PLAYERS_CHANGE |
-                                                            ESP_BT_AUDIO_PLAYBACK_EVENT_ADDRESSED_PLAYER_CHANGE));
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_HFP_AG) */
     /* Initialize console for user interaction */
     cli_init();
 }

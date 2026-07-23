@@ -19,9 +19,9 @@
 
 #include "esp_bt_audio_defs.h"
 #include "esp_bt_audio_playback.h"
+#include "esp_ble_iso_common_api.h"
 #include "esp_ble_audio_mcc_api.h"
 #include "esp_ble_audio_mcs_defs.h"
-#include "host/conn_internal.h"
 #include "bt_audio_evt_dispatcher.h"
 #include "bt_audio_ops.h"
 
@@ -32,13 +32,13 @@
 #define BT_AUDIO_LE_MCC_OP_TIMEOUT_MS                3000
 #define BT_AUDIO_LE_MCC_OP_TIMEOUT_US                (BT_AUDIO_LE_MCC_OP_TIMEOUT_MS * 1000)
 #if CONFIG_BT_MCC_OTS
-#define BT_AUDIO_LE_MCC_METADATA_SUPPORTED_MASK      \
-    (ESP_BT_AUDIO_PLAYBACK_METADATA_TITLE | \
-     ESP_BT_AUDIO_PLAYBACK_METADATA_PLAYING_TIME | \
+#define BT_AUDIO_LE_MCC_METADATA_SUPPORTED_MASK     \
+    (ESP_BT_AUDIO_PLAYBACK_METADATA_TITLE |         \
+     ESP_BT_AUDIO_PLAYBACK_METADATA_PLAYING_TIME |  \
      ESP_BT_AUDIO_PLAYBACK_METADATA_COVER_ART)
 #else
-#define BT_AUDIO_LE_MCC_METADATA_SUPPORTED_MASK      \
-    (ESP_BT_AUDIO_PLAYBACK_METADATA_TITLE | \
+#define BT_AUDIO_LE_MCC_METADATA_SUPPORTED_MASK     \
+    (ESP_BT_AUDIO_PLAYBACK_METADATA_TITLE |         \
      ESP_BT_AUDIO_PLAYBACK_METADATA_PLAYING_TIME)
 #endif  /* CONFIG_BT_MCC_OTS */
 
@@ -62,30 +62,30 @@ typedef enum {
 } bt_audio_le_mcc_op_type_t;
 
 typedef struct bt_audio_le_mcc_op_node {
-    bt_audio_le_mcc_op_type_t        type;
-    uint16_t                         conn_handle;
-    uint8_t                          opcode;
-    struct bt_audio_le_mcc_op_node  *next;
+    bt_audio_le_mcc_op_type_t       type;
+    uint16_t                        conn_handle;
+    uint8_t                         opcode;
+    struct bt_audio_le_mcc_op_node *next;
 } bt_audio_le_mcc_op_node_t;
 
 /**
  * @brief  Runtime context for the Media Control Client.
  */
 typedef struct {
-    uint16_t                    conn_handle;            /*!< Discovered MCS connection handle */
-    uint32_t                    opcodes;                /*!< Supported MCS opcodes bitmask */
-    uint32_t                    notify_mask;            /*!< Playback notification subscription mask */
-    uint8_t                     content_control_id;     /*!< MCS content control ID */
-    bool                        op_busy;                /*!< A MCC operation is waiting for completion */
-    bt_audio_le_mcc_op_type_t   active_op_type;         /*!< Current MCC operation type */
-    uint16_t                    active_op_conn_handle;  /*!< Current MCC operation connection handle */
-    uint8_t                     active_op_opcode;       /*!< Current MCC command opcode */
-    int64_t                     active_op_started_us;   /*!< Active MCC operation start time */
-    bt_audio_le_mcc_op_node_t  *op_head;                /*!< Pending MCC operation list head */
-    bt_audio_le_mcc_op_node_t  *op_tail;                /*!< Pending MCC operation list tail */
-    SemaphoreHandle_t           op_lock;                /*!< Protects the pending MCC operation list */
-    esp_timer_handle_t          op_timer;               /*!< Watchdog timer for active MCC operation */
-    char                        duration_str[BT_AUDIO_LE_MCC_DURATION_STR_LEN];  /*!< Cached duration string */
+    uint16_t                   conn_handle;                                     /*!< Discovered MCS connection handle */
+    uint32_t                   opcodes;                                         /*!< Supported MCS opcodes bitmask */
+    uint32_t                   notify_mask;                                     /*!< Playback notification subscription mask */
+    uint8_t                    content_control_id;                              /*!< MCS content control ID */
+    bool                       op_busy;                                         /*!< A MCC operation is waiting for completion */
+    bt_audio_le_mcc_op_type_t  active_op_type;                                  /*!< Current MCC operation type */
+    uint16_t                   active_op_conn_handle;                           /*!< Current MCC operation connection handle */
+    uint8_t                    active_op_opcode;                                /*!< Current MCC command opcode */
+    int64_t                    active_op_started_us;                            /*!< Active MCC operation start time */
+    bt_audio_le_mcc_op_node_t *op_head;                                         /*!< Pending MCC operation list head */
+    bt_audio_le_mcc_op_node_t *op_tail;                                         /*!< Pending MCC operation list tail */
+    SemaphoreHandle_t          op_lock;                                         /*!< Protects the pending MCC operation list */
+    esp_timer_handle_t         op_timer;                                        /*!< Watchdog timer for active MCC operation */
+    char                       duration_str[BT_AUDIO_LE_MCC_DURATION_STR_LEN];  /*!< Cached duration string */
 } bt_audio_le_mcc_ctx_t;
 
 static const char *TAG = "BT_AUD_LE_MCC";
@@ -267,7 +267,7 @@ static void bt_audio_le_mcc_release_context(bool stop_timer)
 
     if (s_mcc->op_timer) {
         if (stop_timer) {
-            (void)esp_timer_stop(s_mcc->op_timer);
+            esp_timer_stop(s_mcc->op_timer);
         }
         esp_timer_delete(s_mcc->op_timer);
     }
@@ -319,7 +319,7 @@ static inline void bt_audio_le_mcc_start_op_timer(bt_audio_le_mcc_op_type_t type
         return;
     }
     s_mcc->active_op_started_us = esp_timer_get_time();
-    (void)esp_timer_stop(s_mcc->op_timer);
+    esp_timer_stop(s_mcc->op_timer);
     esp_err_t ret = esp_timer_start_once(s_mcc->op_timer, BT_AUDIO_LE_MCC_OP_TIMEOUT_US);
     xSemaphoreGive(s_mcc->op_lock);
     if (ret != ESP_OK) {
@@ -330,7 +330,7 @@ static inline void bt_audio_le_mcc_start_op_timer(bt_audio_le_mcc_op_type_t type
 static inline void bt_audio_le_mcc_stop_op_timer(void)
 {
     if (s_mcc && s_mcc->op_timer) {
-        (void)esp_timer_stop(s_mcc->op_timer);
+        esp_timer_stop(s_mcc->op_timer);
     }
 }
 
@@ -406,8 +406,6 @@ static void bt_audio_le_mcc_complete_op(bt_audio_le_mcc_op_type_t type)
 
 static void bt_audio_le_mcc_op_timer_cb(void *arg)
 {
-    (void)arg;
-
     if (!s_mcc || !s_mcc->op_lock) {
         return;
     }
@@ -458,7 +456,7 @@ static esp_err_t bt_audio_le_mcc_queue_op(bt_audio_le_mcc_op_type_t type, uint16
 
 static inline void bt_audio_le_mcc_queue_read_op(bt_audio_le_mcc_op_type_t type, uint16_t conn_handle)
 {
-    (void)bt_audio_le_mcc_queue_op(type, conn_handle, 0);
+    bt_audio_le_mcc_queue_op(type, conn_handle, 0);
 }
 
 static esp_err_t bt_audio_le_mcc_send_cmd(uint8_t opcode)
@@ -560,7 +558,7 @@ static esp_err_t bt_audio_le_mcc_reg_notifications(uint32_t mask)
     return ESP_OK;
 }
 
-static void bt_audio_le_mcc_discover_mcs_cb(struct bt_conn *conn, int err)
+static void bt_audio_le_mcc_discover_mcs_cb(esp_ble_conn_t *conn, int err)
 {
     if (!s_mcc || !conn) {
         ESP_LOGE(TAG, "MCS discovery complete: conn is NULL");
@@ -575,19 +573,16 @@ static void bt_audio_le_mcc_discover_mcs_cb(struct bt_conn *conn, int err)
     }
 }
 
-static void bt_audio_le_mcc_send_cmd_cb(struct bt_conn *conn, int err, const esp_ble_audio_mpl_cmd_t *cmd)
+static void bt_audio_le_mcc_send_cmd_cb(esp_ble_conn_t *conn, int err, const esp_ble_audio_mpl_cmd_t *cmd)
 {
-    (void)conn;
     if (err) {
         ESP_LOGW(TAG, "MCC command complete: err %d, opcode %u", err, cmd ? cmd->opcode : 0);
     }
     bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_CMD);
 }
 
-static void bt_audio_le_mcc_cmd_ntf(struct bt_conn *conn, int err, const esp_ble_audio_mpl_cmd_ntf_t *ntf)
+static void bt_audio_le_mcc_cmd_ntf(esp_ble_conn_t *conn, int err, const esp_ble_audio_mpl_cmd_ntf_t *ntf)
 {
-    (void)conn;
-    (void)ntf;
     if (err) {
         ESP_LOGW(TAG, "MCC command notify: err %d", err);
         return;
@@ -600,9 +595,8 @@ static void bt_audio_le_mcc_cmd_ntf(struct bt_conn *conn, int err, const esp_ble
     }
 }
 
-static void bt_audio_le_mcc_track_changed_ntf(struct bt_conn *conn, int err)
+static void bt_audio_le_mcc_track_changed_ntf(esp_ble_conn_t *conn, int err)
 {
-    (void)conn;
     if (err) {
         ESP_LOGW(TAG, "MCC track changed notification failed, err %d", err);
         return;
@@ -617,7 +611,7 @@ static void bt_audio_le_mcc_track_changed_ntf(struct bt_conn *conn, int err)
     bt_audio_le_mcc_queue_read_op(BT_AUDIO_LE_MCC_OP_READ_TRACK_DURATION, s_mcc->conn_handle);
 }
 
-static void bt_audio_le_mcc_read_media_state_cb(struct bt_conn *conn, int err, uint8_t state)
+static void bt_audio_le_mcc_read_media_state_cb(esp_ble_conn_t *conn, int err, uint8_t state)
 {
     if (!s_mcc || !conn) {
         bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_MEDIA_STATE);
@@ -634,10 +628,8 @@ static void bt_audio_le_mcc_read_media_state_cb(struct bt_conn *conn, int err, u
     bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_MEDIA_STATE);
 }
 
-static void bt_audio_le_mcc_read_player_name_cb(struct bt_conn *conn, int err, const char *name)
+static void bt_audio_le_mcc_read_player_name_cb(esp_ble_conn_t *conn, int err, const char *name)
 {
-    (void)name;
-
     if (!s_mcc || !conn) {
         bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_PLAYER_NAME);
         return;
@@ -648,7 +640,7 @@ static void bt_audio_le_mcc_read_player_name_cb(struct bt_conn *conn, int err, c
     bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_PLAYER_NAME);
 }
 
-static void bt_audio_le_mcc_read_track_title_cb(struct bt_conn *conn, int err, const char *title)
+static void bt_audio_le_mcc_read_track_title_cb(esp_ble_conn_t *conn, int err, const char *title)
 {
     if (!s_mcc || !conn) {
         bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_TRACK_TITLE);
@@ -664,7 +656,7 @@ static void bt_audio_le_mcc_read_track_title_cb(struct bt_conn *conn, int err, c
     bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_TRACK_TITLE);
 }
 
-static void bt_audio_le_mcc_read_track_duration_cb(struct bt_conn *conn, int err, int32_t dur)
+static void bt_audio_le_mcc_read_track_duration_cb(esp_ble_conn_t *conn, int err, int32_t dur)
 {
     if (!s_mcc || !conn) {
         bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_TRACK_DURATION);
@@ -690,7 +682,7 @@ static void bt_audio_le_mcc_read_track_duration_cb(struct bt_conn *conn, int err
     bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_TRACK_DURATION);
 }
 
-static void bt_audio_le_mcc_read_track_position_cb(struct bt_conn *conn, int err, int32_t pos)
+static void bt_audio_le_mcc_read_track_position_cb(esp_ble_conn_t *conn, int err, int32_t pos)
 {
     if (!s_mcc || !conn) {
         bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_TRACK_POSITION);
@@ -706,7 +698,7 @@ static void bt_audio_le_mcc_read_track_position_cb(struct bt_conn *conn, int err
     bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_TRACK_POSITION);
 }
 
-static void bt_audio_le_mcc_read_playback_speed_cb(struct bt_conn *conn, int err, int8_t speed)
+static void bt_audio_le_mcc_read_playback_speed_cb(esp_ble_conn_t *conn, int err, int8_t speed)
 {
     if (!s_mcc || !conn) {
         bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_PLAYBACK_SPEED);
@@ -718,7 +710,7 @@ static void bt_audio_le_mcc_read_playback_speed_cb(struct bt_conn *conn, int err
     bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_PLAYBACK_SPEED);
 }
 
-static void bt_audio_le_mcc_read_seeking_speed_cb(struct bt_conn *conn, int err, int8_t speed)
+static void bt_audio_le_mcc_read_seeking_speed_cb(esp_ble_conn_t *conn, int err, int8_t speed)
 {
     if (!s_mcc || !conn) {
         bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_SEEKING_SPEED);
@@ -730,7 +722,7 @@ static void bt_audio_le_mcc_read_seeking_speed_cb(struct bt_conn *conn, int err,
     bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_SEEKING_SPEED);
 }
 
-static void bt_audio_le_mcc_read_playing_order_cb(struct bt_conn *conn, int err, uint8_t order)
+static void bt_audio_le_mcc_read_playing_order_cb(esp_ble_conn_t *conn, int err, uint8_t order)
 {
     if (!s_mcc || !conn) {
         bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_PLAYING_ORDER);
@@ -742,7 +734,7 @@ static void bt_audio_le_mcc_read_playing_order_cb(struct bt_conn *conn, int err,
     bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_PLAYING_ORDER);
 }
 
-static void bt_audio_le_mcc_read_playing_orders_supported_cb(struct bt_conn *conn, int err, uint16_t orders)
+static void bt_audio_le_mcc_read_playing_orders_supported_cb(esp_ble_conn_t *conn, int err, uint16_t orders)
 {
     if (!s_mcc || !conn) {
         bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_PLAYING_ORDERS_SUPPORTED);
@@ -754,7 +746,7 @@ static void bt_audio_le_mcc_read_playing_orders_supported_cb(struct bt_conn *con
     bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_PLAYING_ORDERS_SUPPORTED);
 }
 
-static void bt_audio_le_mcc_opcodes_supported_cb(struct bt_conn *conn, int err, uint32_t opcodes)
+static void bt_audio_le_mcc_opcodes_supported_cb(esp_ble_conn_t *conn, int err, uint32_t opcodes)
 {
     esp_bt_audio_playback_ops_t playback_ops = {0};
 
@@ -820,7 +812,7 @@ static void bt_audio_le_mcc_dispatch_cover_art_object(const char *name, bt_audio
     bt_audio_le_mcc_complete_op(type);
 }
 
-static void bt_audio_le_mcc_read_current_track_obj_id_cb(struct bt_conn *conn, int err, uint64_t id)
+static void bt_audio_le_mcc_read_current_track_obj_id_cb(esp_ble_conn_t *conn, int err, uint64_t id)
 {
     if (!s_mcc || !conn) {
         bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_CURRENT_TRACK_OBJECT_ID);
@@ -842,15 +834,14 @@ static void bt_audio_le_mcc_read_current_track_obj_id_cb(struct bt_conn *conn, i
     bt_audio_le_mcc_queue_read_op(BT_AUDIO_LE_MCC_OP_READ_CURRENT_TRACK_OBJECT, conn->handle);
 }
 
-static void bt_audio_le_mcc_otc_current_track_object(struct bt_conn *conn, int err, struct net_buf_simple *buf)
+static void bt_audio_le_mcc_otc_current_track_object(esp_ble_conn_t *conn, int err, struct net_buf_simple *buf)
 {
-    (void)conn;
     bt_audio_le_mcc_dispatch_cover_art_object("current track", BT_AUDIO_LE_MCC_OP_READ_CURRENT_TRACK_OBJECT,
                                               err, buf);
 }
 #endif  /* CONFIG_BT_MCC_OTS */
 
-static void bt_audio_le_mcc_content_control_id_cb(struct bt_conn *conn, int err, uint8_t ccid)
+static void bt_audio_le_mcc_content_control_id_cb(esp_ble_conn_t *conn, int err, uint8_t ccid)
 {
     if (!s_mcc) {
         bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_CONTENT_CONTROL_ID);
@@ -919,10 +910,6 @@ esp_err_t bt_audio_le_mcc_init(void)
         bt_audio_le_mcc_release_context(false);
         return ret;
     }
-
-    esp_bt_audio_playback_ops_t playback_ops = {0};
-    playback_ops.reg_notifications = bt_audio_le_mcc_reg_notifications;
-    bt_audio_ops_set_playback(&playback_ops);
     return ESP_OK;
 }
 
@@ -938,6 +925,26 @@ void bt_audio_le_mcc_deinit(void)
         xSemaphoreGive(s_mcc->op_lock);
     }
     bt_audio_le_mcc_release_context(true);
+}
+
+void bt_audio_le_mcc_on_disconnect(void)
+{
+    if (!s_mcc) {
+        return;
+    }
+
+    bt_audio_ops_set_playback(NULL);
+    bt_audio_le_mcc_stop_op_timer();
+    if (s_mcc->op_lock && xSemaphoreTake(s_mcc->op_lock, portMAX_DELAY) == pdTRUE) {
+        bt_audio_le_mcc_clear_pending_ops();
+        bt_audio_le_mcc_reset_active_op();
+        xSemaphoreGive(s_mcc->op_lock);
+    }
+    s_mcc->conn_handle = BT_AUDIO_LE_MCC_CONN_HANDLE_NONE;
+    s_mcc->opcodes = 0;
+    s_mcc->notify_mask = 0;
+    s_mcc->content_control_id = 0;
+    s_mcc->duration_str[0] = '\0';
 }
 
 esp_err_t bt_audio_le_mcc_discover(uint16_t conn_handle)

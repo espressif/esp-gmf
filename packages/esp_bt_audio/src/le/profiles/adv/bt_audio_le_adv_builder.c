@@ -11,8 +11,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 
-#include "host/ble_hs_adv.h"
-
+#include "bt_audio_host_ops.h"
 #include "bt_audio_le_adv_builder.h"
 
 static const char *TAG = "ADV_BUILDER";
@@ -104,7 +103,7 @@ esp_err_t bt_audio_le_adv_builder_init(size_t size, bt_audio_le_adv_builder_t *o
 
 esp_err_t bt_audio_le_adv_builder_add_service_data(bt_audio_le_adv_builder_t builder, const uint8_t *data, size_t len)
 {
-    return bt_audio_le_adv_builder_add_field(builder, BLE_HS_ADV_TYPE_SVC_DATA_UUID16, data, len);
+    return bt_audio_le_adv_builder_add_field(builder, BT_AUDIO_AD_TYPE_SVC_DATA_UUID16, data, len);
 }
 
 esp_err_t bt_audio_le_adv_builder_add_service_uuid16(bt_audio_le_adv_builder_t builder, uint16_t uuid)
@@ -125,7 +124,7 @@ esp_err_t bt_audio_le_adv_builder_add_service_uuid16(bt_audio_le_adv_builder_t b
 esp_err_t bt_audio_le_adv_builder_add_manufacturer_data(bt_audio_le_adv_builder_t builder,
                                                         const uint8_t *data, size_t len)
 {
-    return bt_audio_le_adv_builder_add_field(builder, BLE_HS_ADV_TYPE_MFG_DATA, data, len);
+    return bt_audio_le_adv_builder_add_field(builder, BT_AUDIO_AD_TYPE_MFG_DATA, data, len);
 }
 
 esp_err_t bt_audio_le_adv_builder_add_name(bt_audio_le_adv_builder_t builder, const char *name)
@@ -135,7 +134,7 @@ esp_err_t bt_audio_le_adv_builder_add_name(bt_audio_le_adv_builder_t builder, co
         return ESP_ERR_INVALID_ARG;
     }
     size_t name_len = strlen(name);
-    return bt_audio_le_adv_builder_add_field(builder, BLE_HS_ADV_TYPE_COMP_NAME, (const uint8_t *)name, name_len);
+    return bt_audio_le_adv_builder_add_field(builder, BT_AUDIO_AD_TYPE_COMP_NAME, (const uint8_t *)name, name_len);
 }
 
 esp_err_t bt_audio_le_adv_builder_add_appearance(bt_audio_le_adv_builder_t builder, uint16_t appearance)
@@ -147,7 +146,7 @@ esp_err_t bt_audio_le_adv_builder_add_appearance(bt_audio_le_adv_builder_t build
     uint8_t v[2];
     v[0] = (uint8_t)(appearance & 0xFF);
     v[1] = (uint8_t)((appearance >> 8) & 0xFF);
-    return bt_audio_le_adv_builder_add_field(builder, BLE_HS_ADV_TYPE_APPEARANCE, v, sizeof(v));
+    return bt_audio_le_adv_builder_add_field(builder, BT_AUDIO_AD_TYPE_APPEARANCE, v, sizeof(v));
 }
 
 esp_err_t bt_audio_le_adv_builder_add_tx_power(bt_audio_le_adv_builder_t builder, int8_t tx_power)
@@ -157,7 +156,7 @@ esp_err_t bt_audio_le_adv_builder_add_tx_power(bt_audio_le_adv_builder_t builder
         return ESP_ERR_INVALID_ARG;
     }
     uint8_t v = (uint8_t)tx_power;
-    return bt_audio_le_adv_builder_add_field(builder, BLE_HS_ADV_TYPE_TX_PWR_LVL, &v, 1);
+    return bt_audio_le_adv_builder_add_field(builder, BT_AUDIO_AD_TYPE_TX_PWR_LVL, &v, 1);
 }
 
 esp_err_t bt_audio_le_adv_builder_add_flags(bt_audio_le_adv_builder_t builder, uint8_t flags)
@@ -166,7 +165,7 @@ esp_err_t bt_audio_le_adv_builder_add_flags(bt_audio_le_adv_builder_t builder, u
         ESP_LOGE(TAG, "Add flags failed: builder is NULL");
         return ESP_ERR_INVALID_ARG;
     }
-    return bt_audio_le_adv_builder_add_field(builder, BLE_HS_ADV_TYPE_FLAGS, &flags, 1);
+    return bt_audio_le_adv_builder_add_field(builder, BT_AUDIO_AD_TYPE_FLAGS, &flags, 1);
 }
 
 esp_err_t bt_audio_le_adv_builder_get_total_len(bt_audio_le_adv_builder_t builder, size_t *size)
@@ -207,7 +206,7 @@ esp_err_t bt_audio_le_adv_builder_get_buffer(bt_audio_le_adv_builder_t builder, 
     size_t p = builder->position;
     if (builder->uuid16_len > 0) {
         out_buffer[p++] = (uint8_t)(1 + builder->uuid16_len);
-        out_buffer[p++] = BLE_HS_ADV_TYPE_INCOMP_UUIDS16;
+        out_buffer[p++] = BT_AUDIO_AD_TYPE_INCOMP_UUIDS16;
         memcpy(out_buffer + p, builder->uuid16_buffer, builder->uuid16_len);
         p += builder->uuid16_len;
         builder->uuid16_len = 0;

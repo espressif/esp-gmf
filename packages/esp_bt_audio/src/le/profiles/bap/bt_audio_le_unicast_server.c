@@ -67,9 +67,6 @@ static int bt_audio_le_unicast_server_config_cb(esp_ble_conn_t *conn,
                                                 esp_ble_audio_bap_qos_cfg_pref_t *const pref,
                                                 esp_ble_audio_bap_ascs_rsp_t *rsp)
 {
-    (void)conn;
-    (void)ep;
-    (void)codec_cfg;
     bt_audio_le_stream_t *le_stream = bt_audio_le_unicast_server_find_free(dir);
     if (!le_stream) {
         *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_NO_MEM,
@@ -92,9 +89,6 @@ static int bt_audio_le_unicast_server_reconfig_cb(esp_ble_audio_bap_stream_t *st
                                                   esp_ble_audio_bap_qos_cfg_pref_t *const pref,
                                                   esp_ble_audio_bap_ascs_rsp_t *rsp)
 {
-    (void)stream;
-    (void)dir;
-    (void)codec_cfg;
     *pref = s_qos_pref;
     *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_SUCCESS,
                                       ESP_BLE_AUDIO_BAP_ASCS_REASON_NONE);
@@ -125,9 +119,6 @@ static int bt_audio_le_unicast_server_enable_cb(esp_ble_audio_bap_stream_t *stre
                                                 size_t meta_len,
                                                 esp_ble_audio_bap_ascs_rsp_t *rsp)
 {
-    (void)stream;
-    (void)meta;
-    (void)meta_len;
     *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_SUCCESS,
                                       ESP_BLE_AUDIO_BAP_ASCS_REASON_NONE);
     return 0;
@@ -136,7 +127,6 @@ static int bt_audio_le_unicast_server_enable_cb(esp_ble_audio_bap_stream_t *stre
 static int bt_audio_le_unicast_server_start_cb(esp_ble_audio_bap_stream_t *stream,
                                                esp_ble_audio_bap_ascs_rsp_t *rsp)
 {
-    (void)stream;
     *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_SUCCESS,
                                       ESP_BLE_AUDIO_BAP_ASCS_REASON_NONE);
     return 0;
@@ -153,7 +143,6 @@ typedef struct {
 
 static inline bool bt_audio_le_metadata_validate(uint8_t type, const uint8_t *data, uint8_t data_len, void *user_data)
 {
-    (void)data;
     bt_audio_le_metadata_parse_t *parse = user_data;
 
     if (!ESP_BLE_AUDIO_METADATA_TYPE_IS_KNOWN(type)) {
@@ -173,7 +162,6 @@ static int bt_audio_le_unicast_server_metadata_cb(esp_ble_audio_bap_stream_t *st
                                                   size_t meta_len,
                                                   esp_ble_audio_bap_ascs_rsp_t *rsp)
 {
-    (void)stream;
     bt_audio_le_metadata_parse_t parse = {
         .rsp = rsp,
     };

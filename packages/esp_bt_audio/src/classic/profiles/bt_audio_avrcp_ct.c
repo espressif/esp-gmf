@@ -63,7 +63,7 @@ typedef struct {
     uint8_t                     transaction_label;           /**< Transaction label for outgoing commands */
     struct avrcp_ct_key_evt_q   key_evt_q;                   /**< Passthrough key press/release timers awaiting release */
 #if CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED
-    cover_art_ctx_t  cover_art;  /**< Cover art context */
+    cover_art_ctx_t             cover_art;                   /**< Cover art context */
 #endif  /* CONFIG_BT_AVRCP_CT_COVER_ART_ENABLED */
 } avrcp_ct_ctx_t;
 
@@ -582,6 +582,7 @@ static void bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t
                     playback_ops.next = avrcp_ct_next;
                     playback_ops.prev = avrcp_ct_prev;
                     playback_ops.request_metadata = avrcp_ct_request_metadata;
+                    playback_ops.reg_notifications = avrcp_ct_register_notifications;
 
                     vol_ops.set_absolute = avrcp_ct_set_absolute_volume;
                     vol_ops.set_relative = avrcp_ct_set_relative_volume;
@@ -592,6 +593,7 @@ static void bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t
                     playback_ops.next = NULL;
                     playback_ops.prev = NULL;
                     playback_ops.request_metadata = NULL;
+                    playback_ops.reg_notifications = NULL;
 
                     vol_ops.set_absolute = NULL;
                     vol_ops.set_relative = NULL;
@@ -621,7 +623,7 @@ static void bt_app_rc_ct_cb(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t
                         avrcp_ct->cover_art.image_size = 0;
                     }
                 } else {
-                    ESP_LOGW(TAG, "CT metadata rsp evt: cover art not connected or transmitting: connected %d, transmitting %d",
+                    ESP_LOGD(TAG, "CT metadata rsp evt: cover art not connected or transmitting: connected %d, transmitting %d",
                              avrcp_ct->cover_art.connected, avrcp_ct->cover_art.transmitting);
                 }
                 break;
@@ -707,10 +709,6 @@ esp_err_t bt_audio_avrcp_ct_init()
     STAILQ_INIT(&avrcp_ct->key_evt_q);
     ESP_RETURN_ON_ERROR(esp_avrc_ct_init(), TAG, "esp_avrc_ct_init failed");
     ESP_RETURN_ON_ERROR(esp_avrc_ct_register_callback(bt_app_rc_ct_cb), TAG, "esp_avrc_ct_register_callback failed");
-    esp_bt_audio_playback_ops_t playback_ops = {0};
-    bt_audio_ops_get_playback(&playback_ops);
-    playback_ops.reg_notifications = avrcp_ct_register_notifications;
-    bt_audio_ops_set_playback(&playback_ops);
     ESP_LOGI(TAG, "CT init success");
 
     return ESP_OK;

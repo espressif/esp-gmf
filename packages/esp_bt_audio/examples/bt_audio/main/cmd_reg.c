@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <stdint.h>
-#include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -206,9 +206,25 @@ static int cmd_volume_down(int argc, char **argv)
 }
 
 #if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
+static bool is_target_bda_empty(void)
+{
+    for (int i = 0; i < sizeof(target_device_bda); ++i) {
+        if (target_device_bda[i] != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool parse_bda(const char *str, uint8_t *bda)
+{
+    return sscanf(str, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+                  &bda[0], &bda[1], &bda[2], &bda[3], &bda[4], &bda[5]) == 6;
+}
+
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC && (CONFIG_GMF_EXAMPLE_A2DP_SOURCE || CONFIG_GMF_EXAMPLE_A2DP_SINK)
 static int cmd_connect_device(int argc, char **argv)
 {
-#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
     if (argc != 2) {
         printf("Usage: connect <mac_address>\n");
         printf("Example: connect 01:02:03:04:05:06\n");
@@ -216,14 +232,13 @@ static int cmd_connect_device(int argc, char **argv)
     }
 
     uint8_t bda[6] = {0};
-    if (sscanf(argv[1], "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
-               &bda[0], &bda[1], &bda[2], &bda[3], &bda[4], &bda[5]) != 6) {
+    if (!parse_bda(argv[1], bda)) {
         printf("Invalid MAC address format. Use: XX:XX:XX:XX:XX:XX\n");
         return 1;
     }
 #if CONFIG_GMF_EXAMPLE_A2DP_SOURCE
     esp_err_t ret = esp_bt_audio_classic_connect(ESP_BT_AUDIO_CLASSIC_ROLE_A2DP_SRC, bda);
-#else   /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#elif CONFIG_GMF_EXAMPLE_A2DP_SINK
     esp_err_t ret = esp_bt_audio_classic_connect(ESP_BT_AUDIO_CLASSIC_ROLE_A2DP_SNK, bda);
 #endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
     if (ret == ESP_OK) {
@@ -233,31 +248,17 @@ static int cmd_connect_device(int argc, char **argv)
         printf("Failed to connect: %s\n", esp_err_to_name(ret));
     }
     return ret == ESP_OK ? 0 : 1;
-#else
-    (void)argc;
-    (void)argv;
-    printf("Classic connect is disabled in LE example mode\n");
-    return 1;
-#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 }
 
 static int cmd_disconnect_device(int argc, char **argv)
 {
-#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
-    bool is_bda_empty = true;
-    for (int i = 0; i < sizeof(target_device_bda); ++i) {
-        if (target_device_bda[i] != 0) {
-            is_bda_empty = false;
-            break;
-        }
-    }
-    if (is_bda_empty) {
+    if (is_target_bda_empty()) {
         printf("No device is currently connected.\n");
         return 1;
     }
 #if CONFIG_GMF_EXAMPLE_A2DP_SOURCE
     esp_err_t ret = esp_bt_audio_classic_disconnect(ESP_BT_AUDIO_CLASSIC_ROLE_A2DP_SRC, target_device_bda);
-#else   /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#elif CONFIG_GMF_EXAMPLE_A2DP_SINK
     esp_err_t ret = esp_bt_audio_classic_disconnect(ESP_BT_AUDIO_CLASSIC_ROLE_A2DP_SNK, target_device_bda);
 #endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
     if (ret == ESP_OK) {
@@ -267,17 +268,12 @@ static int cmd_disconnect_device(int argc, char **argv)
         printf("Failed to disconnect: %s\n", esp_err_to_name(ret));
     }
     return ret == ESP_OK ? 0 : 1;
-#else
-    (void)argc;
-    (void)argv;
-    printf("Classic disconnect is disabled in LE example mode\n");
-    return 1;
-#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 }
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC && (CONFIG_GMF_EXAMPLE_A2DP_SOURCE || CONFIG_GMF_EXAMPLE_A2DP_SINK) */
 
+#if CONFIG_GMF_EXAMPLE_HFP_HF
 static int cmd_hf_connect(int argc, char **argv)
 {
-#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
     if (argc != 2) {
         printf("Usage: hf_connect <mac_address>\n");
         printf("Example: hf_connect 01:02:03:04:05:06\n");
@@ -285,8 +281,7 @@ static int cmd_hf_connect(int argc, char **argv)
     }
 
     uint8_t bda[6];
-    if (sscanf(argv[1], "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
-               &bda[0], &bda[1], &bda[2], &bda[3], &bda[4], &bda[5]) != 6) {
+    if (!parse_bda(argv[1], bda)) {
         printf("Invalid MAC address format. Use: XX:XX:XX:XX:XX:XX\n");
         return 1;
     }
@@ -299,25 +294,11 @@ static int cmd_hf_connect(int argc, char **argv)
         printf("Failed to connect HFP HF: %s\n", esp_err_to_name(ret));
     }
     return ret == ESP_OK ? 0 : 1;
-#else
-    (void)argc;
-    (void)argv;
-    printf("HFP is disabled in LE example mode\n");
-    return 1;
-#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 }
 
 static int cmd_hf_disconnect(int argc, char **argv)
 {
-#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
-    bool is_bda_empty = true;
-    for (int i = 0; i < sizeof(target_device_bda); ++i) {
-        if (target_device_bda[i] != 0) {
-            is_bda_empty = false;
-            break;
-        }
-    }
-    if (is_bda_empty) {
+    if (is_target_bda_empty()) {
         printf("No device is currently connected.\n");
         return 1;
     }
@@ -330,13 +311,56 @@ static int cmd_hf_disconnect(int argc, char **argv)
         printf("Failed to disconnect HFP HF: %s\n", esp_err_to_name(ret));
     }
     return ret == ESP_OK ? 0 : 1;
-#else
+}
+#endif  /* CONFIG_GMF_EXAMPLE_HFP_HF */
+
+#if CONFIG_GMF_EXAMPLE_HFP_AG
+static int cmd_ag_connect(int argc, char **argv)
+{
+    if (argc != 2) {
+        printf("Usage: ag_connect <mac_address>\n");
+        printf("Example: ag_connect 01:02:03:04:05:06\n");
+        return 1;
+    }
+
+    uint8_t bda[6] = {0};
+    if (!parse_bda(argv[1], bda)) {
+        printf("Invalid MAC address format. Use: XX:XX:XX:XX:XX:XX\n");
+        return 1;
+    }
+
+    esp_bt_audio_classic_discovery_stop();
+
+    esp_err_t ret = esp_bt_audio_classic_connect(ESP_BT_AUDIO_CLASSIC_ROLE_HFP_AG, bda);
+    if (ret == ESP_OK) {
+        printf("Connecting HFP AG to device %s...\n", argv[1]);
+        printf("Wait for log: Connection state: SLC_CONNECTED\n");
+        memcpy(target_device_bda, bda, sizeof(target_device_bda));
+    } else {
+        printf("Failed to connect HFP AG: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
+}
+
+static int cmd_ag_disconnect(int argc, char **argv)
+{
     (void)argc;
     (void)argv;
-    printf("HFP is disabled in LE example mode\n");
-    return 1;
-#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
+    if (is_target_bda_empty()) {
+        printf("No device is currently connected.\n");
+        return 1;
+    }
+
+    esp_err_t ret = esp_bt_audio_classic_disconnect(ESP_BT_AUDIO_CLASSIC_ROLE_HFP_AG, target_device_bda);
+    if (ret == ESP_OK) {
+        printf("Disconnecting HFP AG device...\n");
+        memset(target_device_bda, 0, sizeof(target_device_bda));
+    } else {
+        printf("Failed to disconnect HFP AG: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
 }
+#endif  /* CONFIG_GMF_EXAMPLE_HFP_AG */
 #endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 
 static int cmd_call_answer(int argc, char **argv)
@@ -365,7 +389,7 @@ static int cmd_call_dial(int argc, char **argv)
 {
     if (argc > 2) {
         printf("Usage: call_dial [number]\n");
-        printf("  number: Optional. If omitted, redial last number\n");
+        printf("  number: Optional. If omitted, use the role default number/redial behavior\n");
         return 1;
     }
     const char *number = (argc == 2) ? argv[1] : NULL;
@@ -451,8 +475,6 @@ static int cmd_le_scan_start(int argc, char **argv)
 
 static int cmd_le_scan_stop(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
     esp_err_t ret = esp_bt_audio_le_scan_stop();
     if (ret == ESP_OK) {
         printf("LE scan stopped\n");
@@ -493,8 +515,6 @@ static int cmd_le_connect(int argc, char **argv)
 
 static int cmd_le_disconnect(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
     esp_err_t ret = esp_bt_audio_le_disconnect();
     if (ret == ESP_OK) {
         printf("LE disconnect requested\n");
@@ -503,6 +523,30 @@ static int cmd_le_disconnect(int argc, char **argv)
     }
     return ret == ESP_OK ? 0 : 1;
 }
+
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+static int cmd_bms_start(int argc, char **argv)
+{
+    esp_err_t ret = esp_bt_audio_le_broadcast_source_start();
+    if (ret == ESP_OK) {
+        printf("BMS stream started\n");
+    } else {
+        printf("Failed to start BMS stream: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
+}
+
+static int cmd_bms_stop(int argc, char **argv)
+{
+    esp_err_t ret = esp_bt_audio_le_broadcast_source_stop();
+    if (ret == ESP_OK) {
+        printf("BMS stream stopped\n");
+    } else {
+        printf("Failed to stop BMS stream: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
+}
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 
 #if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
@@ -641,7 +685,7 @@ void cli_register_bt(void)
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&vol_down_cmd));
 
-#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC && (CONFIG_GMF_EXAMPLE_A2DP_SOURCE || CONFIG_GMF_EXAMPLE_A2DP_SINK)
     {
         const esp_console_cmd_t connect_cmd = {
             .command = "connect",
@@ -662,6 +706,10 @@ void cli_register_bt(void)
         ESP_ERROR_CHECK(esp_console_cmd_register(&disconnect_cmd));
     }
 
+#endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC && (CONFIG_GMF_EXAMPLE_A2DP_SOURCE || CONFIG_GMF_EXAMPLE_A2DP_SINK) */
+
+#if CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC
+#if CONFIG_GMF_EXAMPLE_HFP_HF
     {
         const esp_console_cmd_t hf_connect_cmd = {
             .command = "hf_connect",
@@ -681,11 +729,35 @@ void cli_register_bt(void)
         };
         ESP_ERROR_CHECK(esp_console_cmd_register(&hf_disconnect_cmd));
     }
+#endif  /* CONFIG_GMF_EXAMPLE_HFP_HF */
+
+#if CONFIG_GMF_EXAMPLE_HFP_AG
+    {
+        const esp_console_cmd_t ag_connect_cmd = {
+            .command = "ag_connect",
+            .help = "Connect HFP AG to a Bluetooth HF device",
+            .hint = "<mac_address>",
+            .func = &cmd_ag_connect,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&ag_connect_cmd));
+    }
+
+    {
+        const esp_console_cmd_t ag_disconnect_cmd = {
+            .command = "ag_disconnect",
+            .help = "Disconnect HFP AG from current Bluetooth device",
+            .hint = NULL,
+            .func = &cmd_ag_disconnect,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&ag_disconnect_cmd));
+    }
+
+#endif  /* CONFIG_GMF_EXAMPLE_HFP_AG */
 #endif  /* CONFIG_BT_CLASSIC_ENABLED && CONFIG_GMF_EXAMPLE_AUDIO_TECH_CLASSIC */
 
     const esp_console_cmd_t call_answer_cmd = {
         .command = "call_answer",
-        .help = "Answer incoming call",
+        .help = "Answer incoming call or simulate AG answer",
         .hint = NULL,
         .func = &cmd_call_answer,
     };
@@ -693,7 +765,7 @@ void cli_register_bt(void)
 
     const esp_console_cmd_t call_reject_cmd = {
         .command = "call_reject",
-        .help = "Reject / terminate call",
+        .help = "Reject or terminate call",
         .hint = NULL,
         .func = &cmd_call_reject,
     };
@@ -701,7 +773,7 @@ void cli_register_bt(void)
 
     const esp_console_cmd_t call_dial_cmd = {
         .command = "call_dial",
-        .help = "Dial number; omit for redial",
+        .help = "Dial number or simulate AG outgoing call",
         .hint = "[number]",
         .func = &cmd_call_dial,
     };
@@ -789,6 +861,28 @@ void cli_register_bt(void)
         };
         ESP_ERROR_CHECK(esp_console_cmd_register(&le_disconnect_cmd));
     }
+
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+    {
+        const esp_console_cmd_t bms_start_cmd = {
+            .command = "bms_start",
+            .help = "Start BMS stream",
+            .hint = NULL,
+            .func = &cmd_bms_start,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&bms_start_cmd));
+    }
+
+    {
+        const esp_console_cmd_t bms_stop_cmd = {
+            .command = "bms_stop",
+            .help = "Stop BMS stream",
+            .hint = NULL,
+            .func = &cmd_bms_stop,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&bms_stop_cmd));
+    }
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 }
 

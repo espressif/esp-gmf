@@ -8,8 +8,7 @@
 #include <string.h>
 #include <strings.h>
 
-#include "host/ble_gap.h"
-#include "host/ble_hs.h"
+#include "bt_audio_host_ops.h"
 
 #include "esp_check.h"
 #include "esp_heap_caps.h"
@@ -61,7 +60,6 @@ typedef struct {
     uint8_t                                              active_stream_count;                                    /*!< Number of active streams */
     bt_audio_le_stream_t                                *streams[CONFIG_BT_BAP_BROADCAST_SNK_STREAM_COUNT];      /*!< Streams */
     esp_ble_audio_bap_stream_t                          *bap_streams[CONFIG_BT_BAP_BROADCAST_SNK_STREAM_COUNT];  /*!< BAP streams */
-    bt_audio_le_gap_event_cb_t                           gap_cb;                                                 /*!< GAP callback for PA sync operations */
 } bt_audio_le_broadcast_sink_ctx_t;
 
 static const char *TAG = "BT_AUD_LE_BSNK";
@@ -217,9 +215,8 @@ static esp_err_t bt_audio_le_broadcast_sink_finish_pa_sync(uint16_t sync_handle)
 
 static esp_err_t bt_audio_le_broadcast_sink_create_pa_sync(const esp_bt_audio_event_device_discovered_t *device)
 {
-    struct ble_gap_periodic_sync_params params = {0};
-    ble_addr_t sync_addr = {0};
-    int err;
+    bt_audio_periodic_sync_params_t params = {0};
+    bt_audio_addr_t sync_addr = {0};
 
     ESP_RETURN_ON_FALSE(s_bsnk && device, ESP_ERR_INVALID_ARG, TAG, "Invalid PA sync args");
     if (s_bsnk->pa_syncing || s_bsnk->pa_sync_handle != BT_AUDIO_LE_PA_SYNC_HANDLE_NONE) {
@@ -231,8 +228,8 @@ static esp_err_t bt_audio_le_broadcast_sink_create_pa_sync(const esp_bt_audio_ev
     memcpy(sync_addr.val, device->addr, sizeof(sync_addr.val));
     params.skip = 0;
     params.sync_timeout = BT_AUDIO_LE_PA_SYNC_SUPERVISION_TIMEOUT;
-    err = ble_gap_periodic_adv_sync_create(&sync_addr, device->disc_data.le.sid, &params, s_bsnk->gap_cb, NULL);
-    ESP_RETURN_ON_FALSE(err == 0, ESP_FAIL, TAG, "Failed to create PA sync: %d", err);
+    esp_err_t err = bt_audio_host_pa_sync_create(&sync_addr, device->disc_data.le.sid, &params);
+    ESP_RETURN_ON_FALSE(err == ESP_OK, ESP_FAIL, TAG, "Failed to create PA sync");
     s_bsnk->pa_syncing = true;
     s_bsnk->pa_state = BT_AUDIO_LE_BSNK_PA_SYNCING;
     if (s_bsnk->target_broadcast_id == BT_AUDIO_LE_INVALID_BROADCAST_ID) {
@@ -246,8 +243,6 @@ static void bt_audio_le_broadcast_sink_base_recv(esp_ble_audio_bap_broadcast_sin
                                                  const esp_ble_audio_bap_base_t *base,
                                                  size_t base_size)
 {
-    (void)sink;
-    (void)base_size;
     uint32_t indexes = 0;
     uint32_t pres_delay = 0;
 
@@ -275,7 +270,6 @@ static void bt_audio_le_broadcast_sink_base_recv(esp_ble_audio_bap_broadcast_sin
 static void bt_audio_le_broadcast_sink_syncable(esp_ble_audio_bap_broadcast_sink_t *sink,
                                                 const esp_ble_iso_biginfo_t *biginfo)
 {
-    (void)sink;
     if (!s_bsnk || !biginfo) {
         return;
     }
@@ -290,7 +284,7 @@ static esp_ble_audio_bap_broadcast_sink_cb_t s_broadcast_sink_cbs = {
     .syncable  = bt_audio_le_broadcast_sink_syncable,
 };
 
-esp_err_t bt_audio_le_broadcast_sink_init(uint32_t location, bt_audio_le_gap_event_cb_t gap_cb)
+esp_err_t bt_audio_le_broadcast_sink_init(uint32_t location)
 {
     ESP_RETURN_ON_FALSE(!s_bsnk, ESP_ERR_INVALID_STATE, TAG, "Broadcast sink already initialized");
 
@@ -301,7 +295,6 @@ esp_err_t bt_audio_le_broadcast_sink_init(uint32_t location, bt_audio_le_gap_eve
     s_bsnk->requested_bis_sync = ESP_BLE_AUDIO_BAP_BIS_SYNC_NO_PREF;
     s_bsnk->target_broadcast_id = BT_AUDIO_LE_INVALID_BROADCAST_ID;
     s_bsnk->pa_sync_handle = BT_AUDIO_LE_PA_SYNC_HANDLE_NONE;
-    s_bsnk->gap_cb = gap_cb;
 
     for (uint8_t i = 0; i < CONFIG_BT_BAP_BROADCAST_SNK_STREAM_COUNT; i++) {
         ESP_RETURN_ON_ERROR(bt_audio_le_stream_create(&s_bsnk->streams[i]), TAG,
@@ -332,7 +325,6 @@ void bt_audio_le_broadcast_sink_deinit(void)
 esp_err_t bt_audio_le_broadcast_sink_sync(const uint8_t *broadcast_name, const uint8_t *broadcast_code,
                                           uint32_t bit_field, uint32_t timeout_ms)
 {
-    (void)timeout_ms;
     ESP_RETURN_ON_FALSE(s_bsnk, ESP_ERR_INVALID_STATE, TAG, "Broadcast sink not initialized");
 
     memset(s_bsnk->target_name, 0, sizeof(s_bsnk->target_name));
@@ -372,15 +364,15 @@ esp_err_t bt_audio_le_broadcast_sink_pa_sync_terminate(void)
     bt_audio_le_broadcast_sink_dispatch_streams(ESP_BT_AUDIO_STREAM_STATE_RELEASED);
 
     if (s_bsnk->pa_sync_handle != BT_AUDIO_LE_PA_SYNC_HANDLE_NONE) {
-        int err = ble_gap_periodic_adv_sync_terminate(s_bsnk->pa_sync_handle);
+        esp_err_t err = bt_audio_host_pa_sync_terminate(s_bsnk->pa_sync_handle);
         if (err) {
-            ESP_LOGW(TAG, "Failed to terminate PA sync: %d", err);
+            ESP_LOGW(TAG, "Failed to terminate PA sync: %s", esp_err_to_name(err));
             ret = ESP_FAIL;
         }
     } else if (s_bsnk->pa_syncing) {
-        int err = ble_gap_periodic_adv_sync_create_cancel();
+        esp_err_t err = bt_audio_host_pa_sync_create_cancel();
         if (err) {
-            ESP_LOGW(TAG, "Failed to cancel pending PA sync: %d", err);
+            ESP_LOGW(TAG, "Failed to cancel pending PA sync: %s", esp_err_to_name(err));
             ret = ESP_FAIL;
         }
     }
@@ -412,8 +404,7 @@ esp_err_t bt_audio_le_broadcast_sink_accept_scan_delegator_req(const esp_ble_aud
     return ESP_OK;
 }
 
-esp_err_t bt_audio_le_broadcast_sink_sync_with_past(
-                                                    struct bt_conn *conn,
+esp_err_t bt_audio_le_broadcast_sink_sync_with_past(uint16_t conn_handle,
                                                     const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state)
 {
     ESP_RETURN_ON_FALSE(s_bsnk, ESP_ERR_INVALID_STATE, TAG, "Broadcast sink not initialized");
@@ -424,16 +415,16 @@ esp_err_t bt_audio_le_broadcast_sink_sync_with_past(
 
     s_bsnk->recv_state = recv_state;
 
-    struct ble_gap_periodic_sync_params params = {0};
+    bt_audio_periodic_sync_params_t params = {0};
     params.skip = 0;
     params.sync_timeout = 1000;
-    int err = ble_gap_periodic_adv_sync_receive(conn->handle, &params, s_bsnk->gap_cb, NULL);
+    esp_err_t err = bt_audio_host_pa_sync_receive(conn_handle, &params);
     if (err) {
-        ESP_LOGW(TAG, "Failed to enable PAST receive: %d", err);
+        ESP_LOGW(TAG, "Failed to enable PAST receive: %s", esp_err_to_name(err));
         return ESP_FAIL;
     }
     bt_audio_le_broadcast_sink_set_scan_delegator_pa_state(ESP_BLE_AUDIO_BAP_PA_STATE_INFO_REQ);
-    ESP_LOGI(TAG, "PAST receive enabled, conn_handle %u, timeout 0x%04x", conn->handle, params.sync_timeout);
+    ESP_LOGI(TAG, "PAST receive enabled, conn_handle %u, timeout 0x%04x", conn_handle, params.sync_timeout);
     s_bsnk->pa_state = BT_AUDIO_LE_BSNK_PA_SYNCING;
     s_bsnk->target_broadcast_id = recv_state->broadcast_id;
     return ESP_OK;
@@ -443,19 +434,17 @@ esp_err_t bt_audio_le_broadcast_sink_sync_without_past(const esp_ble_audio_bap_s
 {
     ESP_RETURN_ON_FALSE(s_bsnk && recv_state, ESP_ERR_INVALID_ARG, TAG, "Invalid receive state");
     s_bsnk->recv_state = recv_state;
-    struct ble_gap_periodic_sync_params params = {0};
-    ble_addr_t sync_addr = {0};
-    int err;
+    bt_audio_periodic_sync_params_t params = {0};
+    bt_audio_addr_t sync_addr = {0};
 
     sync_addr.type = recv_state->addr.type;
     memcpy(sync_addr.val, recv_state->addr.a.val, sizeof(sync_addr.val));
     params.skip = 0;
     params.sync_timeout = 1000;
 
-    err = ble_gap_periodic_adv_sync_create(&sync_addr, recv_state->adv_sid, &params,
-                                           s_bsnk->gap_cb, NULL);
+    esp_err_t err = bt_audio_host_pa_sync_create(&sync_addr, recv_state->adv_sid, &params);
     if (err) {
-        ESP_LOGW(TAG, "Failed to create PA sync without past: %d", err);
+        ESP_LOGW(TAG, "Failed to create PA sync without past: %s", esp_err_to_name(err));
         return ESP_FAIL;
     }
     s_bsnk->pa_syncing = true;
@@ -471,13 +460,11 @@ esp_err_t bt_audio_le_broadcast_sink_set_broadcast_code(const esp_ble_audio_bap_
     s_bsnk->recv_state = recv_state;
     memcpy(s_bsnk->broadcast_code, broadcast_code, ESP_BLE_ISO_BROADCAST_CODE_SIZE);
     s_bsnk->has_broadcast_code = true;
-    (void)bt_audio_le_broadcast_sink_try_big_sync();
+    bt_audio_le_broadcast_sink_try_big_sync();
     return ESP_OK;
 }
 
-esp_err_t bt_audio_le_broadcast_sink_set_bis_sync_req(
-                                                      const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state,
-                                                      uint32_t bit_field)
+esp_err_t bt_audio_le_broadcast_sink_set_bis_sync_req(const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state, uint32_t bit_field)
 {
     ESP_RETURN_ON_FALSE(s_bsnk && recv_state, ESP_ERR_INVALID_ARG, TAG, "Invalid BIS sync request");
     s_bsnk->recv_state = recv_state;

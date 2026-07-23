@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.0
+
+### Features
+
+- Added AAC codec support for A2DP
+- Added HFP Audio Gateway integration
+- Added support of Bluedroid host of BLE Audio
+
+### Bug Fixes
+
+- Fixed a bug where zero-length packets were dropped
+
 ## v1.0.0~1
 
 ### Docs

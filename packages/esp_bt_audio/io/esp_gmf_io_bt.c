@@ -107,7 +107,6 @@ static esp_gmf_err_io_t _bt_acquire_write(esp_gmf_io_handle_t handle, void *payl
         ESP_LOGE(TAG, "Error acquire write bt io, stream = NULL");
         return ESP_GMF_IO_FAIL;
     }
-    (void)block_ticks;
     esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
     bt_io_stream_t *bt_io = (bt_io_stream_t *)handle;
     memset(&bt_io->packet, 0, sizeof(esp_bt_audio_stream_packet_t));

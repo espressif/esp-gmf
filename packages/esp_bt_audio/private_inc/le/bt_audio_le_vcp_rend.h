@@ -19,19 +19,20 @@ extern "C" {
  * @brief  Initialize Volume Control Profile renderer (VCS/VCP) and optional AICS/VOCS.
  *
  * @param[in]  cfg          Volume step, mute, and initial volume (may be NULL for defaults).
- * @param[in]  adv_builder  Optional builder to announce VCS (and AICS when enabled).
+ * @param[in]  adv_builder  Optional builder to announce VCS (and AICS/VOCS when enabled).
  *
  * @return
  *       - ESP_OK          On success
  *       - ESP_ERR_NO_MEM  If VOCS/AICS allocation fails
- *       - Other           non-zero codes from VCP registration or bt_audio_ops integration
+ *       - Other           non-zero codes from VCP renderer registration or bt_audio_ops integration
  */
-esp_err_t bt_audio_le_vcp_init(const esp_bt_audio_le_vcp_cfg_t *cfg, bt_audio_le_adv_builder_t adv_builder);
+esp_err_t bt_audio_le_vcp_rend_init(const esp_bt_audio_le_vcp_rend_cfg_t *cfg,
+                                    bt_audio_le_adv_builder_t adv_builder);
 
 /**
  * @brief  Deinitialize VCP renderer and free VOCS/AICS parameter blocks.
  */
-void bt_audio_le_vcp_deinit(void);
+void bt_audio_le_vcp_rend_deinit(void);
 
 #ifdef __cplusplus
 }

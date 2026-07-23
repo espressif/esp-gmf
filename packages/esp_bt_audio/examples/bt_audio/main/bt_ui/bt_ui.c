@@ -33,11 +33,10 @@
 #define UI_COVER_QUEUE_SIZE       2
 #define UI_COVER_TASK_STACK_SIZE  4096
 #define UI_COVER_TASK_PRIO        5
+#define UI_COVER_TASK_CORE_ID     1
 #define LVGL_DRAW_BUF_LINES       (BT_UI_HEIGHT / 2)
 
-#define BT_UI_FONT_LARGE       (&lv_font_notosanssc_regular_28)
-#define BT_UI_FONT_MEDIUM      (&lv_font_notosanssc_regular_28)
-#define BT_UI_FONT_SMALL       (&lv_font_montserrat_20)
+#define BT_UI_FONT_TEXT        (&lv_font_notosanssc_regular_28)
 #define BT_UI_FONT_ICON        (&lv_font_montserrat_28)
 #define BT_UI_FONT_COVER_ICON  (&lv_font_montserrat_32)
 
@@ -51,6 +50,9 @@
 #define BTN_ROW_HEIGHT    88
 #define BTN_W             92
 #define BTN_H             68
+#define CHANNEL_ROW_H     32
+#define CHANNEL_DOT_SIZE  18
+#define CHANNEL_DOT_GAP   18
 #define NAME_AREA_LINES   5
 #define NAME_AREA_H       240
 #define DIALER_KEYPAD_SZ  92
@@ -62,39 +64,14 @@
 #define VOL_BAR_W          6
 #define VOL_BAR_H          (BT_UI_HEIGHT / 5)
 #define VOL_BAR_RIGHT_GAP  12
-
-LV_FONT_DECLARE(lv_font_notosanssc_regular_28)
-
-#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-LV_IMAGE_DECLARE(speakers_dark_dark_small);
-LV_IMAGE_DECLARE(speakers_dark_light_small);
-LV_IMAGE_DECLARE(speakers_light_dark_small);
-LV_IMAGE_DECLARE(cis_stream_icon);
-LV_IMAGE_DECLARE(bis_stream_icon);
-
-/* Source art is 440x260; keep aspect when fitting the zone below the title. */
-#define SPEAKER_SRC_W      440
-#define SPEAKER_SRC_H      260
-#define LE_TITLE_AREA_H    96
-#define LE_SPEAKER_ZONE_W  (RIGHT_PANEL_W - 16)
-#define LE_SPEAKER_ZONE_H  (COVER_SIZE - LE_TITLE_AREA_H - BTN_ROW_HEIGHT)
-#if (LE_SPEAKER_ZONE_W * SPEAKER_SRC_H / SPEAKER_SRC_W) <= LE_SPEAKER_ZONE_H
-#define SPEAKER_IMG_W  LE_SPEAKER_ZONE_W
-#define SPEAKER_IMG_H  (LE_SPEAKER_ZONE_W * SPEAKER_SRC_H / SPEAKER_SRC_W)
-#else
-#define SPEAKER_IMG_H  LE_SPEAKER_ZONE_H
-#define SPEAKER_IMG_W  (LE_SPEAKER_ZONE_H * SPEAKER_SRC_W / SPEAKER_SRC_H)
-#endif  /* (LE_SPEAKER_ZONE_W * SPEAKER_SRC_H / SPEAKER_SRC_W) <= LE_SPEAKER_ZONE_H */
-#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
-
 #define DIALER_BUF_SIZE  32
 
 /**
  * @brief  Cover image payload queued to the UI task.
  */
 typedef struct {
-    uint8_t  *data;  /*!< Encoded image buffer owned by the UI task */
-    size_t    size;  /*!< Encoded image buffer size in bytes */
+    uint8_t *data;  /*!< Encoded image buffer owned by the UI task */
+    size_t   size;  /*!< Encoded image buffer size in bytes */
 } ui_cover_msg_t;
 
 /**
@@ -109,8 +86,8 @@ struct bt_ui_t {
     lv_obj_t                     *dialer;                    /*!< Dialer page root object */
     lv_obj_t                     *volume_bar;                /*!< Floating volume indicator */
     int                           volume;                    /*!< Tracked volume level */
-    esp_bt_audio_stream_handle_t  stream_type_stream;        /*!< Stream used to derive media placeholder state */
-    bool                          stream_type_is_broadcast;  /*!< True when stream_type_stream is a BIS stream */
+    bool                          suppress_track_metadata;   /*!< Keep stream-state text while BIS is active */
+    esp_bt_audio_stream_handle_t  stream;                    /*!< Stream used to derive media placeholder state */
     QueueHandle_t                 cover_queue;               /*!< Queue carrying cover image updates */
 };
 
@@ -139,28 +116,46 @@ typedef struct {
     bool  in_call;                                   /*!< True while the dialer is in a call state */
 } dialer_call_ctx_t;
 
+/**
+ * @brief  Cached LVGL widgets and callback state used by the media page.
+ */
+typedef struct {
+    lv_obj_t *play_btn;               /*!< Play/pause button */
+    lv_obj_t *title_label;            /*!< Track title label */
+    lv_obj_t *artist_label;           /*!< Track artist label */
+    lv_obj_t *cover_cont;             /*!< Cover-art container */
+    lv_obj_t *cover_img;              /*!< Decoded cover-art image */
+    lv_obj_t *cover_placeholder;      /*!< Placeholder shown when no cover art is available */
+    lv_obj_t *cover_type_label;       /*!< Fallback text/icon label for stream type */
+    lv_obj_t *cover_type_desc_label;  /*!< Broadcast location description label */
+    lv_obj_t *cover_type_img;         /*!< Stream-type image label */
+    lv_obj_t *left_channel_dot;       /*!< Left-channel position indicator */
+    lv_obj_t *right_channel_dot;      /*!< Right-channel position indicator */
+    uint8_t  *cover_data;             /*!< Decoded cover-art buffer */
+    size_t    cover_size;             /*!< Decoded cover-art buffer size */
+#if LVGL_VERSION_MAJOR >= 9
+    lv_image_dsc_t  cover_dsc;      /*!< Persistent descriptor for LVGL (src points here) */
+#else
+    lv_img_dsc_t  cover_img_dsc;   /*!< Persistent descriptor for LVGL (src points here) */
+#endif  /* LVGL_VERSION_MAJOR >= 9 */
+    void (*play_pause_cb)(bool want_play, void *ctx);  /*!< Play/pause callback */
+    void *play_pause_ctx;                              /*!< Context passed to play_pause_cb */
+    void (*prev_cb)(void *ctx);                        /*!< Previous-track callback */
+    void (*next_cb)(void *ctx);                        /*!< Next-track callback */
+    void *prev_next_ctx;                               /*!< Context passed to prev_cb and next_cb */
+} bt_ui_media_refs_t;
+
+LV_FONT_DECLARE(lv_font_notosanssc_regular_28)
+
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+LV_IMAGE_DECLARE(cis_stream_icon);
+LV_IMAGE_DECLARE(bis_stream_icon);
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+
 static char dialer_number_buf[DIALER_BUF_SIZE];
 static lv_obj_t *dialer_number_label;
 static lv_timer_t *s_vol_bar_hide_timer = NULL;
 static const char *TAG = "BT_UI";
-
-#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-static const lv_image_dsc_t *speaker_img_for_location(uint32_t location)
-{
-    bool left = (location & ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT) != 0;
-    bool right = (location & ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT) != 0;
-    if (left && right) {
-        return &speakers_dark_dark_small;
-    }
-    if (left) {
-        return &speakers_dark_light_small;
-    }
-    if (right) {
-        return &speakers_light_dark_small;
-    }
-    return &speakers_dark_dark_small;
-}
-#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 
 static void vol_bar_hide_timer_cb(lv_timer_t *t)
 {
@@ -172,7 +167,149 @@ static void vol_bar_hide_timer_cb(lv_timer_t *t)
     s_vol_bar_hide_timer = NULL;
 }
 
-lv_obj_t *bt_ui_volume_bar_create(lv_obj_t *parent)
+static uint32_t bt_ui_channel_locations_from_tech(esp_bt_audio_tech_t tech)
+{
+    if (tech == ESP_BT_AUDIO_TECH_CLASSIC) {
+        return ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT | ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT;
+    }
+    if (tech != ESP_BT_AUDIO_TECH_LE) {
+        return 0;
+    }
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+    uint32_t locations = 0;
+#if CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT
+    locations |= ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT */
+#if CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
+    locations |= ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT */
+#if CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT_RIGHT
+    locations |= ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT | ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT_RIGHT */
+    return locations;
+#else
+    return 0;
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+}
+
+static bool bt_ui_default_channel_is_le_audio(void)
+{
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+    return true;
+#else
+    return false;
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+}
+
+static void bt_ui_media_set_channel_locations(lv_obj_t *media_root, uint32_t locations, bool le_audio)
+{
+    if (media_root == NULL) {
+        return;
+    }
+    bt_ui_media_refs_t *refs = (bt_ui_media_refs_t *)lv_obj_get_user_data(media_root);
+    if (refs == NULL || refs->left_channel_dot == NULL || refs->right_channel_dot == NULL) {
+        return;
+    }
+
+    lv_color_t bright = lv_color_hex(le_audio ? 0xffd54f : 0x42a5f5);
+    lv_color_t gray = lv_color_hex(0x657080);
+    lv_obj_set_style_bg_color(refs->left_channel_dot,
+                              (locations & ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT) ? bright : gray, 0);
+    lv_obj_set_style_bg_color(refs->right_channel_dot,
+                              (locations & ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT) ? bright : gray, 0);
+}
+
+static void btn_play_pause_click_cb(lv_event_t *e)
+{
+    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
+    lv_obj_t *root = lv_obj_get_parent(lv_obj_get_parent(lv_obj_get_parent(btn)));
+    bt_ui_media_refs_t *refs = root ? (bt_ui_media_refs_t *)lv_obj_get_user_data(root) : NULL;
+    if (refs && refs->play_pause_cb) {
+        /* VALUE_CHANGED runs after toggle: checked => user requested play */
+        bool want_play = lv_obj_has_state(btn, LV_STATE_CHECKED);
+        refs->play_pause_cb(want_play, refs->play_pause_ctx);
+    }
+}
+
+static void btn_prev_click_cb(lv_event_t *e)
+{
+    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
+    lv_obj_t *root = lv_obj_get_parent(lv_obj_get_parent(lv_obj_get_parent(btn)));
+    bt_ui_media_refs_t *refs = root ? (bt_ui_media_refs_t *)lv_obj_get_user_data(root) : NULL;
+    if (refs && refs->prev_cb) {
+        refs->prev_cb(refs->prev_next_ctx);
+    }
+}
+
+static void btn_next_click_cb(lv_event_t *e)
+{
+    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
+    lv_obj_t *root = lv_obj_get_parent(lv_obj_get_parent(lv_obj_get_parent(btn)));
+    bt_ui_media_refs_t *refs = root ? (bt_ui_media_refs_t *)lv_obj_get_user_data(root) : NULL;
+    if (refs && refs->next_cb) {
+        refs->next_cb(refs->prev_next_ctx);
+    }
+}
+
+static void dialer_digit_click_cb(lv_event_t *e)
+{
+    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
+    lv_obj_t *lbl = (lv_obj_t *)lv_obj_get_child(btn, 0);
+    const char *txt = lbl ? lv_label_get_text(lbl) : NULL;
+    if (txt == NULL || dialer_number_label == NULL) {
+        return;
+    }
+    size_t len = lv_strlen(dialer_number_buf);
+    if (len + 2 >= DIALER_BUF_SIZE) {
+        return;
+    }
+    if (txt[0] != '\0') {
+        dialer_number_buf[len] = txt[0];
+        dialer_number_buf[len + 1] = '\0';
+    }
+    lv_label_set_text(dialer_number_label, dialer_number_buf[0] ? dialer_number_buf : "Enter Number");
+}
+
+static void dialer_back_click_cb(lv_event_t *e)
+{
+    if (dialer_number_label == NULL) {
+        return;
+    }
+    size_t len = lv_strlen(dialer_number_buf);
+    if (len > 0) {
+        dialer_number_buf[len - 1] = '\0';
+    }
+    lv_label_set_text(dialer_number_label, dialer_number_buf[0] ? dialer_number_buf : "Enter Number");
+}
+
+static void dialer_call_click_cb(lv_event_t *e)
+{
+    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
+    dialer_call_ctx_t *ctx = (dialer_call_ctx_t *)lv_obj_get_user_data(btn);
+    if (ctx == NULL) {
+        return;
+    }
+    if (ctx->in_call) {
+        if (ctx->end_call_cb) {
+            ctx->end_call_cb(ctx->end_call_cb_ctx);
+        }
+        return;
+    }
+    if (ctx->call_cb) {
+        ctx->call_cb(dialer_number_buf, ctx->call_cb_ctx);
+    }
+}
+
+static void dialer_answer_click_cb(lv_event_t *e)
+{
+    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
+    dialer_call_ctx_t *ctx = (dialer_call_ctx_t *)lv_obj_get_user_data(btn);
+    if (ctx && ctx->answer_call_cb) {
+        ctx->answer_call_cb(ctx->answer_call_cb_ctx);
+    }
+}
+
+static lv_obj_t *bt_ui_volume_bar_create(lv_obj_t *parent)
 {
     lv_obj_t *cont = lv_obj_create(parent);
     lv_obj_remove_style_all(cont);
@@ -202,7 +339,7 @@ lv_obj_t *bt_ui_volume_bar_create(lv_obj_t *parent)
     return cont;
 }
 
-void bt_ui_volume_bar_set_level(lv_obj_t *vol_bar, int level_percent)
+static void bt_ui_volume_bar_set_level(lv_obj_t *vol_bar, int level_percent)
 {
     if (vol_bar == NULL) {
         return;
@@ -234,305 +371,7 @@ void bt_ui_volume_bar_set_level(lv_obj_t *vol_bar, int level_percent)
     }
 }
 
-static void bt_ui_cover_task(void *arg)
-{
-    bt_ui_t *ui = (bt_ui_t *)arg;
-    ui_cover_msg_t msg = {0};
-    while (true) {
-        if (xQueueReceive(ui->cover_queue, &msg, portMAX_DELAY) != pdTRUE) {
-            continue;
-        }
-        if (ui->media != NULL && msg.data != NULL && msg.size > 0) {
-            lvgl_port_lock(0);
-            bt_ui_media_set_cover_image(ui->media, msg.data, msg.size);
-            lvgl_port_unlock();
-        } else if (msg.data != NULL) {
-            free(msg.data);
-        }
-    }
-}
-
-esp_err_t bt_ui_init(void)
-{
-    dev_display_lcd_handles_t *lcd_handles = NULL;
-    dev_display_lcd_config_t *lcd_cfg = NULL;
-    esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, (void **)&lcd_handles);
-    if (ret != ESP_OK || lcd_handles == NULL) {
-        ESP_LOGE(TAG, "Failed to get LCD handle: %s", esp_err_to_name(ret));
-        return ret == ESP_OK ? ESP_ERR_INVALID_STATE : ret;
-    }
-    ret = esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, (void **)&lcd_cfg);
-    if (ret != ESP_OK || lcd_cfg == NULL) {
-        ESP_LOGE(TAG, "Failed to get LCD config: %s", esp_err_to_name(ret));
-        return ret == ESP_OK ? ESP_ERR_INVALID_STATE : ret;
-    }
-
-    const lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-    ESP_RETURN_ON_ERROR(lvgl_port_init(&lvgl_cfg), TAG, "LVGL port init failed");
-
-    lvgl_port_display_cfg_t disp_cfg = {
-        .io_handle = lcd_handles->io_handle,
-        .panel_handle = lcd_handles->panel_handle,
-        .buffer_size = lcd_cfg->lcd_width * LVGL_DRAW_BUF_LINES,
-        .double_buffer = true,
-        .hres = lcd_cfg->lcd_width,
-        .vres = lcd_cfg->lcd_height,
-        .monochrome = false,
-        .rotation = {
-            .swap_xy = lcd_cfg->swap_xy,
-            .mirror_x = lcd_cfg->mirror_x,
-            .mirror_y = lcd_cfg->mirror_y,
-        },
-#if LVGL_VERSION_MAJOR >= 9
-        .color_format = LV_COLOR_FORMAT_RGB565,
-#endif  /* LVGL_VERSION_MAJOR >= 9 */
-        .flags = {
-            .buff_dma = false,
-            .buff_spiram = true,
-        },
-    };
-
-    lv_disp_t *disp = NULL;
-    if (strcmp(lcd_cfg->sub_type, "rgb") == 0) {
-#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
-        const lvgl_port_display_rgb_cfg_t rgb_cfg = {
-            .flags = {
-                .bb_mode = lcd_cfg->sub_cfg.rgb.panel_config.bounce_buffer_size_px > 0,
-                .avoid_tearing = lcd_cfg->sub_cfg.rgb.panel_config.num_fbs > 1,
-            },
-        };
-        disp_cfg.flags.direct_mode = rgb_cfg.flags.avoid_tearing;
-        disp = lvgl_port_add_disp_rgb(&disp_cfg, &rgb_cfg);
-#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
-    } else {
-        disp = lvgl_port_add_disp(&disp_cfg);
-    }
-    if (disp == NULL) {
-        ESP_LOGE(TAG, "Failed to add LVGL display");
-        return ESP_FAIL;
-    }
-
-#ifdef CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT
-    dev_lcd_touch_handles_t *touch_handles = NULL;
-    ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_LCD_TOUCH, (void **)&touch_handles);
-    if (ret == ESP_OK && touch_handles != NULL && touch_handles->touch_handle != NULL) {
-        const lvgl_port_touch_cfg_t touch_cfg = {
-            .disp = disp,
-            .handle = touch_handles->touch_handle,
-        };
-        if (lvgl_port_add_touch(&touch_cfg) == NULL) {
-            ESP_LOGW(TAG, "Failed to add LVGL touch input");
-        }
-    } else {
-        ESP_LOGW(TAG, "LCD touch unavailable: %s", esp_err_to_name(ret));
-    }
-#endif  /* CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT */
-    return ESP_OK;
-}
-
-bt_ui_t *bt_ui_create(const char *device_name, const bt_ui_config_t *config)
-{
-    bt_ui_t *ui = calloc(1, sizeof(bt_ui_t));
-    if (ui == NULL) {
-        ESP_LOGE(TAG, "Failed to allocate UI handle");
-        return NULL;
-    }
-    ui->volume = 50;
-
-    /* Cover-art queue */
-    ui->cover_queue = xQueueCreate(UI_COVER_QUEUE_SIZE, sizeof(ui_cover_msg_t));
-    if (ui->cover_queue == NULL) {
-        ESP_LOGW(TAG, "Create UI cover queue failed");
-        free(ui);
-        return NULL;
-    }
-    BaseType_t task_ret = xTaskCreate(bt_ui_cover_task, "ui_cover", UI_COVER_TASK_STACK_SIZE,
-                                      ui, UI_COVER_TASK_PRIO, NULL);
-    if (task_ret != pdPASS) {
-        vQueueDelete(ui->cover_queue);
-        free(ui);
-        ESP_LOGW(TAG, "Create UI cover task failed");
-        return NULL;
-    }
-
-    lvgl_port_lock(0);
-    lv_obj_t *scr = lv_scr_act();
-    ui->splash = bt_ui_splash_create(scr, device_name);
-
-    ui->main = lv_obj_create(scr);
-    lv_obj_remove_style_all(ui->main);
-    lv_obj_set_size(ui->main, BT_UI_WIDTH, BT_UI_HEIGHT);
-    lv_obj_align(ui->main, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_obj_clear_flag(ui->main, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_opa(ui->main, LV_OPA_TRANSP, 0);
-    lv_obj_add_flag(ui->main, LV_OBJ_FLAG_HIDDEN);
-
-    ui->tabview = lv_tabview_create(ui->main);
-    lv_tabview_set_tab_bar_size(ui->tabview, 0);
-    lv_obj_set_pos(ui->tabview, 0, 0);
-    lv_obj_set_size(ui->tabview, BT_UI_WIDTH, BT_UI_HEIGHT);
-
-    lv_obj_t *tab_dialer = lv_tabview_add_tab(ui->tabview, "");
-    lv_obj_t *tab_music = lv_tabview_add_tab(ui->tabview, "");
-    lv_obj_clear_flag(tab_dialer, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_clear_flag(tab_music, LV_OBJ_FLAG_SCROLLABLE);
-
-    ui->dialer = bt_ui_dialer_create(tab_dialer,
-                                     config ? config->dial_cb : NULL, config ? config->dial_ctx : NULL,
-                                     config ? config->end_call_cb : NULL, config ? config->end_call_ctx : NULL,
-                                     config ? config->answer_call_cb : NULL, config ? config->answer_call_ctx : NULL);
-    ui->media = bt_ui_media_create(tab_music,
-                                   config ? config->play_pause_cb : NULL, config ? config->play_pause_ctx : NULL,
-                                   config ? config->prev_cb : NULL, config ? config->next_cb : NULL,
-                                   config ? config->prev_next_ctx : NULL);
-    ui->volume_bar = bt_ui_volume_bar_create(ui->main);
-    bt_ui_volume_bar_set_level(ui->volume_bar, ui->volume);
-    lv_tabview_set_act(ui->tabview, 1, LV_ANIM_OFF);
-    lvgl_port_unlock();
-
-    return ui;
-}
-
-void bt_ui_set_connected(bt_ui_t *ui, bool connected)
-{
-    if (ui == NULL || ui->splash == NULL || ui->main == NULL) {
-        return;
-    }
-    lvgl_port_lock(0);
-    if (connected) {
-        lv_obj_add_flag(ui->splash, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(ui->main, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_clear_flag(ui->splash, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(ui->main, LV_OBJ_FLAG_HIDDEN);
-    }
-    lvgl_port_unlock();
-}
-
-void bt_ui_update_volume(bt_ui_t *ui, int volume)
-{
-    if (ui == NULL) {
-        return;
-    }
-    ui->volume = volume < 0 ? 0 : (volume > 100 ? 100 : volume);
-    if (ui->volume_bar == NULL) {
-        return;
-    }
-    lvgl_port_lock(0);
-    bt_ui_volume_bar_set_level(ui->volume_bar, ui->volume);
-    lvgl_port_unlock();
-}
-
-int bt_ui_get_volume(const bt_ui_t *ui)
-{
-    return ui ? ui->volume : 0;
-}
-
-void bt_ui_update_playback_status(bt_ui_t *ui, uint32_t play_status)
-{
-    if (ui == NULL || ui->media == NULL) {
-        return;
-    }
-    lvgl_port_lock(0);
-    bt_ui_media_set_playing(ui->media, play_status == ESP_BT_AUDIO_PLAYBACK_STATUS_PLAYING);
-    lvgl_port_unlock();
-}
-
-void bt_ui_update_track(bt_ui_t *ui, const char *title, const char *artist)
-{
-    if (ui == NULL || ui->media == NULL) {
-        return;
-    }
-    lvgl_port_lock(0);
-    bt_ui_media_set_track(ui->media, title, artist);
-    lvgl_port_unlock();
-}
-
-static bt_ui_media_stream_type_t stream_type_from_profile(esp_bt_audio_stream_profile_t profile)
-{
-    switch (profile) {
-        case ESP_BT_AUDIO_STREAM_PROFILE_LE_UNICAST:
-            return BT_UI_MEDIA_STREAM_TYPE_CIS;
-        case ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST:
-            return BT_UI_MEDIA_STREAM_TYPE_BIS;
-        default:
-            return BT_UI_MEDIA_STREAM_TYPE_UNKNOWN;
-    }
-}
-
-void bt_ui_update_stream_type(bt_ui_t *ui, esp_bt_audio_stream_handle_t stream,
-                              esp_bt_audio_stream_state_t state)
-{
-    if (ui == NULL || ui->media == NULL || stream == NULL) {
-        return;
-    }
-    if (state == ESP_BT_AUDIO_STREAM_STATE_STARTED) {
-        esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
-        if (esp_bt_audio_stream_get_profile(stream, &profile) != ESP_OK) {
-            return;
-        }
-        bt_ui_media_stream_type_t type = stream_type_from_profile(profile);
-        if (type == BT_UI_MEDIA_STREAM_TYPE_UNKNOWN) {
-            return;
-        }
-        ui->stream_type_stream = stream;
-        ui->stream_type_is_broadcast = (type == BT_UI_MEDIA_STREAM_TYPE_BIS);
-        lvgl_port_lock(0);
-        bt_ui_media_set_stream_type(ui->media, type);
-        if (ui->stream_type_is_broadcast) {
-            bt_ui_media_set_track(ui->media, "正在收听广播", "");
-        }
-        lvgl_port_unlock();
-    } else if ((state == ESP_BT_AUDIO_STREAM_STATE_STOPPED || state == ESP_BT_AUDIO_STREAM_STATE_RELEASED) &&
-               ui->stream_type_stream == stream) {
-        bool clear_broadcast_title = ui->stream_type_is_broadcast;
-        ui->stream_type_stream = NULL;
-        ui->stream_type_is_broadcast = false;
-        lvgl_port_lock(0);
-        bt_ui_media_set_stream_type(ui->media, BT_UI_MEDIA_STREAM_TYPE_UNKNOWN);
-        if (clear_broadcast_title) {
-            bt_ui_media_set_track(ui->media, "", "");
-        }
-        lvgl_port_unlock();
-    }
-}
-
-void bt_ui_update_call_state(bt_ui_t *ui, int state, const char *number)
-{
-    if (ui == NULL || ui->dialer == NULL) {
-        return;
-    }
-    lvgl_port_lock(0);
-    bt_ui_dialer_set_call_state(ui->dialer, state, number);
-    /* Switch to the dialer tab on any call activity; return to media when idle */
-    if (ui->tabview != NULL) {
-        lv_tabview_set_act(ui->tabview, state != 0 ? 0 : 1, LV_ANIM_ON);
-    }
-    lvgl_port_unlock();
-}
-
-void bt_ui_post_cover(bt_ui_t *ui, const uint8_t *data, size_t size)
-{
-    if (ui == NULL || ui->cover_queue == NULL || data == NULL || size == 0) {
-        return;
-    }
-    uint8_t *copy = heap_caps_malloc_prefer(size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
-    if (copy == NULL) {
-        ESP_LOGW(TAG, "No memory for cover art copy, size %u", (unsigned)size);
-        return;
-    }
-    memcpy(copy, data, size);
-    ui_cover_msg_t msg = {
-        .data = copy,
-        .size = size,
-    };
-    if (xQueueSend(ui->cover_queue, &msg, 0) != pdTRUE) {
-        free(copy);
-        ESP_LOGW(TAG, "Cover art UI queue full, drop update");
-    }
-}
-
-lv_obj_t *bt_ui_splash_create(lv_obj_t *parent, const char *device_name)
+static lv_obj_t *bt_ui_splash_create(lv_obj_t *parent, const char *device_name)
 {
     lv_obj_t *root = lv_obj_create(parent);
     lv_obj_remove_style_all(root);
@@ -544,78 +383,14 @@ lv_obj_t *bt_ui_splash_create(lv_obj_t *parent, const char *device_name)
 
     lv_obj_t *label = lv_label_create(root);
     lv_obj_set_style_text_color(label, lv_color_hex(0xffffff), 0);
-    lv_obj_set_style_text_font(label, BT_UI_FONT_LARGE, 0);
+    lv_obj_set_style_text_font(label, BT_UI_FONT_TEXT, 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text_fmt(label, "Device Name:\n%s", device_name && device_name[0] ? device_name : "(BT)");
     lv_obj_center(label);
     return root;
 }
 
-/**
- * @brief  Cached LVGL widgets and callback state used by the media page.
- */
-typedef struct {
-    lv_obj_t *play_btn;               /*!< Play/pause button */
-    lv_obj_t *title_label;            /*!< Track title label */
-    lv_obj_t *artist_label;           /*!< Track artist label */
-    lv_obj_t *cover_cont;             /*!< Cover-art container */
-    lv_obj_t *cover_img;              /*!< Decoded cover-art image */
-    lv_obj_t *cover_placeholder;      /*!< Placeholder shown when no cover art is available */
-    lv_obj_t *cover_type_label;       /*!< Fallback text/icon label for stream type */
-    lv_obj_t *cover_type_desc_label;  /*!< Broadcast location description label */
-    lv_obj_t *cover_type_img;         /*!< Stream-type image label */
-    uint8_t  *cover_data;             /*!< Decoded cover-art buffer */
-    size_t    cover_size;             /*!< Decoded cover-art buffer size */
-#if LVGL_VERSION_MAJOR >= 9
-    lv_image_dsc_t  cover_dsc;      /*!< Persistent descriptor for LVGL (src points here) */
-#else
-    lv_img_dsc_t  cover_img_dsc;   /*!< Persistent descriptor for LVGL (src points here) */
-#endif  /* LVGL_VERSION_MAJOR >= 9 */
-    void (*play_pause_cb)(bool want_play, void *ctx);  /*!< Play/pause callback */
-    void *play_pause_ctx;                              /*!< Context passed to play_pause_cb */
-    void (*prev_cb)(void *ctx);                        /*!< Previous-track callback */
-    void (*next_cb)(void *ctx);                        /*!< Next-track callback */
-    void *prev_next_ctx;                               /*!< Context passed to prev_cb and next_cb */
-#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-    lv_obj_t *speaker_img;          /*!< Speaker-location illustration */
-#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
-} bt_ui_media_refs_t;
-
-static void btn_play_pause_click_cb(lv_event_t *e)
-{
-    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
-    lv_obj_t *root = lv_obj_get_parent(lv_obj_get_parent(lv_obj_get_parent(btn)));
-    bt_ui_media_refs_t *refs = root ? (bt_ui_media_refs_t *)lv_obj_get_user_data(root) : NULL;
-    if (refs && refs->play_pause_cb) {
-        /* VALUE_CHANGED runs after toggle: checked => user requested play */
-        bool want_play = lv_obj_has_state(btn, LV_STATE_CHECKED);
-        refs->play_pause_cb(want_play, refs->play_pause_ctx);
-    }
-}
-
-static void btn_prev_click_cb(lv_event_t *e)
-{
-    (void)e;
-    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
-    lv_obj_t *root = lv_obj_get_parent(lv_obj_get_parent(lv_obj_get_parent(btn)));
-    bt_ui_media_refs_t *refs = root ? (bt_ui_media_refs_t *)lv_obj_get_user_data(root) : NULL;
-    if (refs && refs->prev_cb) {
-        refs->prev_cb(refs->prev_next_ctx);
-    }
-}
-
-static void btn_next_click_cb(lv_event_t *e)
-{
-    (void)e;
-    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
-    lv_obj_t *root = lv_obj_get_parent(lv_obj_get_parent(lv_obj_get_parent(btn)));
-    bt_ui_media_refs_t *refs = root ? (bt_ui_media_refs_t *)lv_obj_get_user_data(root) : NULL;
-    if (refs && refs->next_cb) {
-        refs->next_cb(refs->prev_next_ctx);
-    }
-}
-
-void bt_ui_media_set_playing(lv_obj_t *media_root, bool playing)
+static void bt_ui_media_set_playing(lv_obj_t *media_root, bool playing)
 {
     if (media_root == NULL) {
         return;
@@ -635,7 +410,7 @@ void bt_ui_media_set_playing(lv_obj_t *media_root, bool playing)
     }
 }
 
-void bt_ui_media_set_track(lv_obj_t *media_root, const char *title, const char *artist)
+static void bt_ui_media_set_track(lv_obj_t *media_root, const char *title, const char *artist)
 {
     if (media_root == NULL) {
         return;
@@ -653,7 +428,7 @@ void bt_ui_media_set_track(lv_obj_t *media_root, const char *title, const char *
     }
 }
 
-void bt_ui_media_set_stream_type(lv_obj_t *media_root, bt_ui_media_stream_type_t type)
+static void bt_ui_media_set_stream_type(lv_obj_t *media_root, esp_bt_audio_stream_profile_t profile)
 {
     if (media_root == NULL) {
         return;
@@ -665,9 +440,9 @@ void bt_ui_media_set_stream_type(lv_obj_t *media_root, bt_ui_media_stream_type_t
 
     const lv_image_dsc_t *icon = NULL;
 #if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-    if (type == BT_UI_MEDIA_STREAM_TYPE_CIS) {
+    if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_UNICAST) {
         icon = &cis_stream_icon;
-    } else if (type == BT_UI_MEDIA_STREAM_TYPE_BIS) {
+    } else if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
         icon = &bis_stream_icon;
     }
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
@@ -692,7 +467,7 @@ void bt_ui_media_set_stream_type(lv_obj_t *media_root, bt_ui_media_stream_type_t
     lv_obj_clear_flag(refs->cover_placeholder, LV_OBJ_FLAG_HIDDEN);
 }
 
-void bt_ui_media_set_cover_image(lv_obj_t *media_root, const uint8_t *data, size_t size)
+static void bt_ui_media_set_cover_image(lv_obj_t *media_root, const uint8_t *data, size_t size)
 {
     ESP_LOGD(TAG, "Set cover image: media_root=%p data=%p size=%u", (void *)media_root, (void *)data,
              (unsigned)size);
@@ -821,9 +596,9 @@ void bt_ui_media_set_cover_image(lv_obj_t *media_root, const uint8_t *data, size
              (unsigned)outimg.height);
 }
 
-lv_obj_t *bt_ui_media_create(lv_obj_t *parent,
-                             void (*play_pause_cb)(bool want_play, void *ctx), void *play_pause_ctx,
-                             void (*prev_cb)(void *ctx), void (*next_cb)(void *ctx), void *prev_next_ctx)
+static lv_obj_t *bt_ui_media_create(lv_obj_t *parent,
+                                    void (*play_pause_cb)(bool want_play, void *ctx), void *play_pause_ctx,
+                                    void (*prev_cb)(void *ctx), void (*next_cb)(void *ctx), void *prev_next_ctx)
 {
     lv_obj_t *root = lv_obj_create(parent);
     lv_obj_remove_style_all(root);
@@ -855,7 +630,7 @@ lv_obj_t *bt_ui_media_create(lv_obj_t *parent,
 
     lv_obj_t *cover_type_desc_label = lv_label_create(cover_placeholder);
     lv_label_set_text(cover_type_desc_label, "");
-    lv_obj_set_style_text_font(cover_type_desc_label, BT_UI_FONT_SMALL, 0);
+    lv_obj_set_style_text_font(cover_type_desc_label, BT_UI_FONT_TEXT, 0);
     lv_obj_set_style_text_color(cover_type_desc_label, lv_color_hex(0xa8b8c8), 0);
     lv_obj_align_to(cover_type_desc_label, cover_type_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 8);
     lv_obj_add_flag(cover_type_desc_label, LV_OBJ_FLAG_HIDDEN);
@@ -887,11 +662,7 @@ lv_obj_t *bt_ui_media_create(lv_obj_t *parent,
 
     lv_obj_t *name_cont = lv_obj_create(right_panel);
     lv_obj_remove_style_all(name_cont);
-#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-    lv_obj_set_size(name_cont, RIGHT_PANEL_W, LE_TITLE_AREA_H);
-#else
     lv_obj_set_size(name_cont, RIGHT_PANEL_W, NAME_AREA_H);
-#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     lv_obj_clear_flag(name_cont, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *name_label = lv_label_create(name_cont);
@@ -901,7 +672,7 @@ lv_obj_t *bt_ui_media_create(lv_obj_t *parent,
     lv_obj_set_style_text_color(name_label, lv_color_hex(0xe8eef4), 0);
     lv_obj_set_width(name_label, RIGHT_PANEL_W);
     lv_obj_align(name_label, LV_ALIGN_TOP_MID, 0, 8);
-    lv_obj_set_style_text_font(name_label, BT_UI_FONT_LARGE, 0);
+    lv_obj_set_style_text_font(name_label, BT_UI_FONT_TEXT, 0);
     lv_obj_set_style_text_line_space(name_label, -4, 0);
 
     lv_obj_t *artist_label = lv_label_create(name_cont);
@@ -911,38 +682,36 @@ lv_obj_t *bt_ui_media_create(lv_obj_t *parent,
     lv_obj_set_style_text_color(artist_label, lv_color_hex(0x9098a0), 0);
     lv_obj_set_width(artist_label, RIGHT_PANEL_W);
     lv_obj_align_to(artist_label, name_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 44);
-    lv_obj_set_style_text_font(artist_label, BT_UI_FONT_MEDIUM, 0);
+    lv_obj_set_style_text_font(artist_label, BT_UI_FONT_TEXT, 0);
     lv_obj_set_style_text_line_space(artist_label, -4, 0);
-#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-    lv_obj_add_flag(artist_label, LV_OBJ_FLAG_HIDDEN);
-#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 
-#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-    lv_obj_t *speaker_cont = lv_obj_create(right_panel);
-    lv_obj_remove_style_all(speaker_cont);
-    lv_obj_set_size(speaker_cont, RIGHT_PANEL_W, 0);
-    lv_obj_set_flex_grow(speaker_cont, 1);
-    lv_obj_clear_flag(speaker_cont, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *speaker_img = lv_image_create(speaker_cont);
-    lv_obj_remove_style_all(speaker_img);
-    lv_obj_set_size(speaker_img, SPEAKER_IMG_W, SPEAKER_IMG_H);
-    lv_obj_clear_flag(speaker_img, LV_OBJ_FLAG_SCROLLABLE);
-#if CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT
-    lv_image_set_src(speaker_img, speaker_img_for_location(ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT));
-#elif CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
-    lv_image_set_src(speaker_img, speaker_img_for_location(ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT));
-#else
-    lv_image_set_src(speaker_img, speaker_img_for_location(0));
-#endif  /* CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT */
-    lv_obj_center(speaker_img);
-#else
     lv_obj_t *spacer = lv_obj_create(right_panel);
     lv_obj_remove_style_all(spacer);
     lv_obj_set_size(spacer, 0, 0);
     lv_obj_set_flex_grow(spacer, 1);
     lv_obj_clear_flag(spacer, LV_OBJ_FLAG_SCROLLABLE);
-#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+
+    lv_obj_t *channel_cont = lv_obj_create(right_panel);
+    lv_obj_remove_style_all(channel_cont);
+    lv_obj_set_size(channel_cont, RIGHT_PANEL_W, CHANNEL_ROW_H);
+    lv_obj_set_flex_flow(channel_cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(channel_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(channel_cont, CHANNEL_DOT_GAP, 0);
+    lv_obj_clear_flag(channel_cont, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *left_channel_dot = lv_obj_create(channel_cont);
+    lv_obj_remove_style_all(left_channel_dot);
+    lv_obj_set_size(left_channel_dot, CHANNEL_DOT_SIZE, CHANNEL_DOT_SIZE);
+    lv_obj_set_style_radius(left_channel_dot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(left_channel_dot, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(left_channel_dot, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *right_channel_dot = lv_obj_create(channel_cont);
+    lv_obj_remove_style_all(right_channel_dot);
+    lv_obj_set_size(right_channel_dot, CHANNEL_DOT_SIZE, CHANNEL_DOT_SIZE);
+    lv_obj_set_style_radius(right_channel_dot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(right_channel_dot, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(right_channel_dot, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *btn_cont = lv_obj_create(right_panel);
     lv_obj_remove_style_all(btn_cont);
@@ -1001,6 +770,8 @@ lv_obj_t *bt_ui_media_create(lv_obj_t *parent,
     s_media_refs.cover_type_label = cover_type_label;
     s_media_refs.cover_type_desc_label = cover_type_desc_label;
     s_media_refs.cover_type_img = cover_type_img;
+    s_media_refs.left_channel_dot = left_channel_dot;
+    s_media_refs.right_channel_dot = right_channel_dot;
     s_media_refs.cover_data = NULL;
     s_media_refs.cover_size = 0;
     s_media_refs.play_pause_cb = play_pause_cb;
@@ -1008,77 +779,17 @@ lv_obj_t *bt_ui_media_create(lv_obj_t *parent,
     s_media_refs.prev_cb = prev_cb;
     s_media_refs.next_cb = next_cb;
     s_media_refs.prev_next_ctx = prev_next_ctx;
-#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-    s_media_refs.speaker_img = speaker_img;
-#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     lv_obj_set_user_data(root, &s_media_refs);
+    bt_ui_media_set_channel_locations(root, bt_ui_channel_locations_from_tech(ESP_BT_AUDIO_TECH_UNKNOWN),
+                                      bt_ui_default_channel_is_le_audio());
 
     return root;
 }
 
-static void dialer_digit_click_cb(lv_event_t *e)
-{
-    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
-    lv_obj_t *lbl = (lv_obj_t *)lv_obj_get_child(btn, 0);
-    const char *txt = lbl ? lv_label_get_text(lbl) : NULL;
-    if (txt == NULL || dialer_number_label == NULL) {
-        return;
-    }
-    size_t len = lv_strlen(dialer_number_buf);
-    if (len + 2 >= DIALER_BUF_SIZE) {
-        return;
-    }
-    if (txt[0] != '\0') {
-        dialer_number_buf[len] = txt[0];
-        dialer_number_buf[len + 1] = '\0';
-    }
-    lv_label_set_text(dialer_number_label, dialer_number_buf[0] ? dialer_number_buf : "Enter Number");
-}
-
-static void dialer_back_click_cb(lv_event_t *e)
-{
-    (void)e;
-    if (dialer_number_label == NULL) {
-        return;
-    }
-    size_t len = lv_strlen(dialer_number_buf);
-    if (len > 0) {
-        dialer_number_buf[len - 1] = '\0';
-    }
-    lv_label_set_text(dialer_number_label, dialer_number_buf[0] ? dialer_number_buf : "Enter Number");
-}
-
-static void dialer_call_click_cb(lv_event_t *e)
-{
-    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
-    dialer_call_ctx_t *ctx = (dialer_call_ctx_t *)lv_obj_get_user_data(btn);
-    if (ctx == NULL) {
-        return;
-    }
-    if (ctx->in_call) {
-        if (ctx->end_call_cb) {
-            ctx->end_call_cb(ctx->end_call_cb_ctx);
-        }
-        return;
-    }
-    if (ctx->call_cb) {
-        ctx->call_cb(dialer_number_buf, ctx->call_cb_ctx);
-    }
-}
-
-static void dialer_answer_click_cb(lv_event_t *e)
-{
-    lv_obj_t *btn = (lv_obj_t *)lv_event_get_target(e);
-    dialer_call_ctx_t *ctx = (dialer_call_ctx_t *)lv_obj_get_user_data(btn);
-    if (ctx && ctx->answer_call_cb) {
-        ctx->answer_call_cb(ctx->answer_call_cb_ctx);
-    }
-}
-
-lv_obj_t *bt_ui_dialer_create(lv_obj_t *parent,
-                              void (*call_cb)(const char *number, void *ctx), void *call_cb_ctx,
-                              void (*end_call_cb)(void *ctx), void *end_call_cb_ctx,
-                              void (*answer_call_cb)(void *ctx), void *answer_call_cb_ctx)
+static lv_obj_t *bt_ui_dialer_create(lv_obj_t *parent,
+                                     void (*call_cb)(const char *number, void *ctx), void *call_cb_ctx,
+                                     void (*end_call_cb)(void *ctx), void *end_call_cb_ctx,
+                                     void (*answer_call_cb)(void *ctx), void *answer_call_cb_ctx)
 {
     dialer_number_buf[0] = '\0';
     dialer_number_label = NULL;
@@ -1098,7 +809,7 @@ lv_obj_t *bt_ui_dialer_create(lv_obj_t *parent,
     lv_label_set_long_mode(dialer_number_label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(dialer_number_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(dialer_number_label, LV_ALIGN_TOP_RIGHT, -44, 88);
-    lv_obj_set_style_text_font(dialer_number_label, BT_UI_FONT_LARGE, 0);
+    lv_obj_set_style_text_font(dialer_number_label, BT_UI_FONT_TEXT, 0);
 
     static const char *keys[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"};
     const int cols = 3, rows = 4;
@@ -1124,7 +835,7 @@ lv_obj_t *bt_ui_dialer_create(lv_obj_t *parent,
             lv_label_set_text(lbl, keys[i]);
             lv_obj_center(lbl);
             lv_obj_set_style_text_color(lbl, lv_color_hex(0xe8eef4), 0);
-            lv_obj_set_style_text_font(lbl, BT_UI_FONT_LARGE, 0);
+            lv_obj_set_style_text_font(lbl, BT_UI_FONT_TEXT, 0);
             lv_obj_add_event_cb(btn, dialer_digit_click_cb, LV_EVENT_CLICKED, NULL);
         }
     }
@@ -1203,7 +914,7 @@ lv_obj_t *bt_ui_dialer_create(lv_obj_t *parent,
     return root;
 }
 
-void bt_ui_dialer_set_call_state(lv_obj_t *dialer_root, int state, const char *number)
+static void bt_ui_dialer_set_call_state(lv_obj_t *dialer_root, int state, const char *number)
 {
     if (dialer_root == NULL) {
         return;
@@ -1271,5 +982,339 @@ void bt_ui_dialer_set_call_state(lv_obj_t *dialer_root, int state, const char *n
         } else {
             lv_obj_clear_flag(refs->back_btn, LV_OBJ_FLAG_HIDDEN);
         }
+    }
+}
+
+static void bt_ui_cover_task(void *arg)
+{
+    bt_ui_t *ui = (bt_ui_t *)arg;
+    ui_cover_msg_t msg = {0};
+    while (true) {
+        if (xQueueReceive(ui->cover_queue, &msg, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+        if (ui->media != NULL && msg.data != NULL && msg.size > 0) {
+            lvgl_port_lock(0);
+            bt_ui_media_set_cover_image(ui->media, msg.data, msg.size);
+            lvgl_port_unlock();
+        } else if (msg.data != NULL) {
+            free(msg.data);
+        }
+    }
+}
+
+esp_err_t bt_ui_init(void)
+{
+    dev_display_lcd_handles_t *lcd_handles = NULL;
+    dev_display_lcd_config_t *lcd_cfg = NULL;
+    esp_err_t ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, (void **)&lcd_handles);
+    if (ret != ESP_OK || lcd_handles == NULL) {
+        ESP_LOGE(TAG, "Failed to get LCD handle: %s", esp_err_to_name(ret));
+        return ret == ESP_OK ? ESP_ERR_INVALID_STATE : ret;
+    }
+    ret = esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_DISPLAY_LCD, (void **)&lcd_cfg);
+    if (ret != ESP_OK || lcd_cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to get LCD config: %s", esp_err_to_name(ret));
+        return ret == ESP_OK ? ESP_ERR_INVALID_STATE : ret;
+    }
+
+    const lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    ESP_RETURN_ON_ERROR(lvgl_port_init(&lvgl_cfg), TAG, "LVGL port init failed");
+
+    lvgl_port_display_cfg_t disp_cfg = {
+        .io_handle = lcd_handles->io_handle,
+        .panel_handle = lcd_handles->panel_handle,
+        .buffer_size = lcd_cfg->lcd_width * LVGL_DRAW_BUF_LINES,
+        .double_buffer = true,
+        .hres = lcd_cfg->lcd_width,
+        .vres = lcd_cfg->lcd_height,
+        .monochrome = false,
+        .rotation = {
+            .swap_xy = lcd_cfg->swap_xy,
+            .mirror_x = lcd_cfg->mirror_x,
+            .mirror_y = lcd_cfg->mirror_y,
+        },
+#if LVGL_VERSION_MAJOR >= 9
+        .color_format = LV_COLOR_FORMAT_RGB565,
+#endif  /* LVGL_VERSION_MAJOR >= 9 */
+        .flags = {
+            .buff_dma = false,
+            .buff_spiram = true,
+        },
+    };
+
+    lv_disp_t *disp = NULL;
+    if (strcmp(lcd_cfg->sub_type, "rgb") == 0) {
+#ifdef CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT
+        const lvgl_port_display_rgb_cfg_t rgb_cfg = {
+            .flags = {
+                .bb_mode = lcd_cfg->sub_cfg.rgb.panel_config.bounce_buffer_size_px > 0,
+                .avoid_tearing = lcd_cfg->sub_cfg.rgb.panel_config.num_fbs > 1,
+            },
+        };
+        disp_cfg.flags.direct_mode = rgb_cfg.flags.avoid_tearing;
+        disp = lvgl_port_add_disp_rgb(&disp_cfg, &rgb_cfg);
+#endif  /* CONFIG_ESP_BOARD_DEV_DISPLAY_LCD_SUB_RGB_SUPPORT */
+    } else {
+        disp = lvgl_port_add_disp(&disp_cfg);
+    }
+    if (disp == NULL) {
+        ESP_LOGE(TAG, "Failed to add LVGL display");
+        return ESP_FAIL;
+    }
+
+#ifdef CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT
+    dev_lcd_touch_handles_t *touch_handles = NULL;
+    ret = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_LCD_TOUCH, (void **)&touch_handles);
+    if (ret == ESP_OK && touch_handles != NULL && touch_handles->touch_handle != NULL) {
+        const lvgl_port_touch_cfg_t touch_cfg = {
+            .disp = disp,
+            .handle = touch_handles->touch_handle,
+        };
+        if (lvgl_port_add_touch(&touch_cfg) == NULL) {
+            ESP_LOGW(TAG, "Failed to add LVGL touch input");
+        }
+    } else {
+        ESP_LOGW(TAG, "LCD touch unavailable: %s", esp_err_to_name(ret));
+    }
+#endif  /* CONFIG_ESP_BOARD_DEV_LCD_TOUCH_SUPPORT */
+    return ESP_OK;
+}
+
+bt_ui_t *bt_ui_create(const char *device_name, const bt_ui_config_t *config)
+{
+    bt_ui_t *ui = calloc(1, sizeof(bt_ui_t));
+    if (ui == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate UI handle");
+        return NULL;
+    }
+    ui->volume = 50;
+
+    /* Cover-art queue */
+    ui->cover_queue = xQueueCreate(UI_COVER_QUEUE_SIZE, sizeof(ui_cover_msg_t));
+    if (ui->cover_queue == NULL) {
+        ESP_LOGW(TAG, "Create UI cover queue failed");
+        free(ui);
+        return NULL;
+    }
+    BaseType_t task_ret = xTaskCreatePinnedToCoreWithCaps(bt_ui_cover_task, "ui_cover", UI_COVER_TASK_STACK_SIZE,
+                                                          ui, UI_COVER_TASK_PRIO, NULL,
+                                                          UI_COVER_TASK_CORE_ID,
+                                                          MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (task_ret != pdPASS) {
+        vQueueDelete(ui->cover_queue);
+        free(ui);
+        ESP_LOGW(TAG, "Create UI cover task failed");
+        return NULL;
+    }
+
+    lvgl_port_lock(0);
+    lv_obj_t *scr = lv_scr_act();
+    ui->splash = bt_ui_splash_create(scr, device_name);
+
+    ui->main = lv_obj_create(scr);
+    lv_obj_remove_style_all(ui->main);
+    lv_obj_set_size(ui->main, BT_UI_WIDTH, BT_UI_HEIGHT);
+    lv_obj_align(ui->main, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_clear_flag(ui->main, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_opa(ui->main, LV_OPA_TRANSP, 0);
+    lv_obj_add_flag(ui->main, LV_OBJ_FLAG_HIDDEN);
+
+#if LVGL_VERSION_MAJOR >= 9
+    ui->tabview = lv_tabview_create(ui->main);
+    lv_tabview_set_tab_bar_size(ui->tabview, 0);
+#else
+    ui->tabview = lv_tabview_create(ui->main, LV_DIR_TOP, 0);
+#endif  /* LVGL_VERSION_MAJOR >= 9 */
+    lv_obj_set_pos(ui->tabview, 0, 0);
+    lv_obj_set_size(ui->tabview, BT_UI_WIDTH, BT_UI_HEIGHT);
+
+    lv_obj_t *tab_dialer = lv_tabview_add_tab(ui->tabview, "");
+    lv_obj_t *tab_music = lv_tabview_add_tab(ui->tabview, "");
+    lv_obj_clear_flag(tab_dialer, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(tab_music, LV_OBJ_FLAG_SCROLLABLE);
+
+    ui->dialer = bt_ui_dialer_create(tab_dialer,
+                                     config ? config->dial_cb : NULL, config ? config->dial_ctx : NULL,
+                                     config ? config->end_call_cb : NULL, config ? config->end_call_ctx : NULL,
+                                     config ? config->answer_call_cb : NULL, config ? config->answer_call_ctx : NULL);
+    ui->media = bt_ui_media_create(tab_music,
+                                   config ? config->play_pause_cb : NULL, config ? config->play_pause_ctx : NULL,
+                                   config ? config->prev_cb : NULL, config ? config->next_cb : NULL,
+                                   config ? config->prev_next_ctx : NULL);
+    ui->volume_bar = bt_ui_volume_bar_create(ui->main);
+    bt_ui_volume_bar_set_level(ui->volume_bar, ui->volume);
+    lv_tabview_set_act(ui->tabview, 1, LV_ANIM_OFF);
+    lvgl_port_unlock();
+
+    return ui;
+}
+
+void bt_ui_set_connected(bt_ui_t *ui, bool connected, esp_bt_audio_tech_t tech)
+{
+    if (ui == NULL || ui->splash == NULL || ui->main == NULL) {
+        return;
+    }
+    lvgl_port_lock(0);
+    if (connected) {
+        lv_obj_add_flag(ui->splash, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(ui->main, LV_OBJ_FLAG_HIDDEN);
+        bt_ui_media_set_channel_locations(ui->media, bt_ui_channel_locations_from_tech(tech),
+                                          tech == ESP_BT_AUDIO_TECH_LE);
+    } else {
+        lv_obj_clear_flag(ui->splash, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ui->main, LV_OBJ_FLAG_HIDDEN);
+        bt_ui_media_set_channel_locations(ui->media, 0, false);
+    }
+    lvgl_port_unlock();
+}
+
+void bt_ui_update_volume(bt_ui_t *ui, int volume)
+{
+    if (ui == NULL) {
+        return;
+    }
+    ui->volume = volume < 0 ? 0 : (volume > 100 ? 100 : volume);
+    if (ui->volume_bar == NULL) {
+        return;
+    }
+    lvgl_port_lock(0);
+    bt_ui_volume_bar_set_level(ui->volume_bar, ui->volume);
+    lvgl_port_unlock();
+}
+
+int bt_ui_get_volume(const bt_ui_t *ui)
+{
+    return ui ? ui->volume : 0;
+}
+
+void bt_ui_update_playback_status(bt_ui_t *ui, uint32_t play_status)
+{
+    if (ui == NULL || ui->media == NULL) {
+        return;
+    }
+    lvgl_port_lock(0);
+    bt_ui_media_set_playing(ui->media, play_status == ESP_BT_AUDIO_PLAYBACK_STATUS_PLAYING);
+    lvgl_port_unlock();
+}
+
+void bt_ui_update_track(bt_ui_t *ui, const char *title, const char *artist)
+{
+    if (ui == NULL || ui->media == NULL) {
+        return;
+    }
+    if (ui->suppress_track_metadata) {
+        return;
+    }
+    lvgl_port_lock(0);
+    bt_ui_media_set_track(ui->media, title, artist);
+    lvgl_port_unlock();
+}
+
+void bt_ui_update_stream_state(bt_ui_t *ui, esp_bt_audio_stream_handle_t stream,
+                               esp_bt_audio_stream_state_t state)
+{
+    if (ui == NULL || ui->media == NULL || stream == NULL) {
+        return;
+    }
+    if (state == ESP_BT_AUDIO_STREAM_STATE_STARTED) {
+        esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+        if (esp_bt_audio_stream_get_profile(stream, &profile) != ESP_OK) {
+            return;
+        }
+        esp_bt_audio_stream_dir_t dir = ESP_BT_AUDIO_STREAM_DIR_UNKNOWN;
+        if (esp_bt_audio_stream_get_dir(stream, &dir) != ESP_OK) {
+            return;
+        }
+        if (profile != ESP_BT_AUDIO_STREAM_PROFILE_LE_UNICAST &&
+            profile != ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
+            return;
+        }
+        bool broadcast_stream = (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST);
+        bool broadcast_source = (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST &&
+                                 dir == ESP_BT_AUDIO_STREAM_DIR_SOURCE);
+        ui->suppress_track_metadata = broadcast_stream;
+        ui->stream = stream;
+        lvgl_port_lock(0);
+        if (broadcast_source) {
+            if (ui->splash != NULL) {
+                lv_obj_add_flag(ui->splash, LV_OBJ_FLAG_HIDDEN);
+            }
+            if (ui->main != NULL) {
+                lv_obj_clear_flag(ui->main, LV_OBJ_FLAG_HIDDEN);
+            }
+            if (ui->tabview != NULL) {
+                lv_tabview_set_act(ui->tabview, 1, LV_ANIM_ON);
+            }
+        }
+        bt_ui_media_set_stream_type(ui->media, profile);
+        if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
+            bt_ui_media_set_track(ui->media, broadcast_source ? "Broadcasting audio" : "Receiving broadcast", "");
+        }
+        lvgl_port_unlock();
+    } else if ((state == ESP_BT_AUDIO_STREAM_STATE_STOPPED || state == ESP_BT_AUDIO_STREAM_STATE_RELEASED) &&
+               ui->stream == stream) {
+        esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+        esp_bt_audio_stream_dir_t dir = ESP_BT_AUDIO_STREAM_DIR_UNKNOWN;
+        if (esp_bt_audio_stream_get_profile(stream, &profile) != ESP_OK) {
+            profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+        }
+        if (esp_bt_audio_stream_get_dir(stream, &dir) != ESP_OK) {
+            dir = ESP_BT_AUDIO_STREAM_DIR_UNKNOWN;
+        }
+        bool clear_broadcast_title = (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST);
+        bool restore_broadcast_source_ui = (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST &&
+                                            dir == ESP_BT_AUDIO_STREAM_DIR_SOURCE);
+        ui->stream = NULL;
+        ui->suppress_track_metadata = false;
+        lvgl_port_lock(0);
+        bt_ui_media_set_stream_type(ui->media, ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN);
+        if (clear_broadcast_title) {
+            bt_ui_media_set_track(ui->media, "", "");
+        }
+        if (restore_broadcast_source_ui) {
+            if (ui->splash != NULL) {
+                lv_obj_clear_flag(ui->splash, LV_OBJ_FLAG_HIDDEN);
+            }
+            if (ui->main != NULL) {
+                lv_obj_add_flag(ui->main, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+        lvgl_port_unlock();
+    }
+}
+
+void bt_ui_update_call_state(bt_ui_t *ui, int state, const char *number)
+{
+    if (ui == NULL || ui->dialer == NULL) {
+        return;
+    }
+    lvgl_port_lock(0);
+    bt_ui_dialer_set_call_state(ui->dialer, state, number);
+    /* Switch to the dialer tab on any call activity; return to media when idle */
+    if (ui->tabview != NULL) {
+        lv_tabview_set_act(ui->tabview, state != 0 ? 0 : 1, LV_ANIM_ON);
+    }
+    lvgl_port_unlock();
+}
+
+void bt_ui_post_cover(bt_ui_t *ui, const uint8_t *data, size_t size)
+{
+    if (ui == NULL || ui->cover_queue == NULL || data == NULL || size == 0) {
+        return;
+    }
+    uint8_t *copy = heap_caps_malloc_prefer(size, 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
+    if (copy == NULL) {
+        ESP_LOGW(TAG, "No memory for cover art copy, size %u", (unsigned)size);
+        return;
+    }
+    memcpy(copy, data, size);
+    ui_cover_msg_t msg = {
+        .data = copy,
+        .size = size,
+    };
+    if (xQueueSend(ui->cover_queue, &msg, 0) != pdTRUE) {
+        free(copy);
+        ESP_LOGW(TAG, "Cover art UI queue full, drop update");
     }
 }

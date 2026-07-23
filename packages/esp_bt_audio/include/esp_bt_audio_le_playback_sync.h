@@ -18,7 +18,7 @@
 extern "C" {
 #endif  /* __cplusplus */
 
-#if CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
+#if CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
 
 /**
  * @brief  Opaque handle for LE playback synchronization (I2S / modem ETM)
@@ -101,9 +101,6 @@ esp_err_t esp_bt_audio_le_playback_sync_deinit(esp_bt_audio_le_playback_sync_han
  *         The queue item type must be esp_bt_audio_le_clk_sync_msg_t.
  *
  * @param[in]   tx_handle       I2S TX channel handle
- * @param[in]   ideal_cnt       Ideal FIFO count at each BLE timing event
- * @param[in]   diff_threshold  Difference threshold for sync interrupt
- * @param[in]   hw_sync_enable  Enable I2S hardware data supplement; otherwise software should adjust data
  * @param[in]   monitor_queue   Queue used to report esp_bt_audio_le_clk_sync_msg_t, can be NULL
  * @param[out]  out_handle      On success, set to a valid handle; on error, set to NULL
  *
@@ -114,22 +111,23 @@ esp_err_t esp_bt_audio_le_playback_sync_deinit(esp_bt_audio_le_playback_sync_han
  *       - Others               Error code from I2S/ETM setup
  */
 esp_err_t esp_bt_audio_le_clk_sync_init(i2s_chan_handle_t tx_handle,
-                                        uint32_t ideal_cnt,
-                                        uint32_t diff_threshold,
-                                        bool hw_sync_enable,
                                         QueueHandle_t monitor_queue,
                                         esp_bt_audio_le_clk_sync_handle_t *out_handle);
 
 /**
  * @brief  Enable LE playback clock synchronization
  *
- * @param[in]  handle  Handle populated by esp_bt_audio_le_clk_sync_init()
+ * @param[in]  handle          Handle populated by esp_bt_audio_le_clk_sync_init()
+ * @param[in]  ideal_cnt       Ideal FIFO count at each BLE timing event
+ * @param[in]  diff_threshold  Difference threshold for sync interrupt
  *
  * @return
  *       - ESP_OK               On success
  *       - ESP_ERR_INVALID_ARG  Invalid argument
  */
-esp_err_t esp_bt_audio_le_clk_sync_enable(esp_bt_audio_le_clk_sync_handle_t handle);
+esp_err_t esp_bt_audio_le_clk_sync_enable(esp_bt_audio_le_clk_sync_handle_t handle,
+                                          uint32_t ideal_cnt,
+                                          uint32_t diff_threshold);
 
 /**
  * @brief  Disable LE playback clock synchronization
@@ -153,7 +151,7 @@ esp_err_t esp_bt_audio_le_clk_sync_disable(esp_bt_audio_le_clk_sync_handle_t han
  */
 esp_err_t esp_bt_audio_le_clk_sync_deinit(esp_bt_audio_le_clk_sync_handle_t handle);
 
-#endif  /* CONFIG_BT_NIMBLE_ENABLED && CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
+#endif  /* CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
 
 #ifdef __cplusplus
 }

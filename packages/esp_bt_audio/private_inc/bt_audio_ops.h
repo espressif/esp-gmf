@@ -73,6 +73,8 @@ typedef struct {
     esp_err_t (*a2d_sink_disconnect)(uint8_t *bda);                   /*!< Disconnect from A2DP sink */
     esp_err_t (*hfp_hf_connect)(uint8_t *bda);                        /*!< Connect to HFP HF */
     esp_err_t (*hfp_hf_disconnect)(uint8_t *bda);                     /*!< Disconnect from HFP HF */
+    esp_err_t (*hfp_ag_connect)(uint8_t *bda);                        /*!< Connect to HFP AG */
+    esp_err_t (*hfp_ag_disconnect)(uint8_t *bda);                     /*!< Disconnect from HFP AG */
     esp_err_t (*pbac_connect)(uint8_t *bda);                          /*!< Connect to PBAC */
     esp_err_t (*pbac_disconnect)(uint8_t *bda);                       /*!< Disconnect from PBAC */
 } esp_bt_audio_classic_ops_t;
@@ -85,6 +87,8 @@ typedef struct {
     esp_err_t (*stop_scan)(void);                                                              /*!< Stop LE scan */
     esp_err_t (*connect)(uint8_t addr_type, const uint8_t *bt_dev_addr, uint32_t timeout_ms);  /*!< Connect LE peer */
     esp_err_t (*disconnect)(const uint8_t *bt_dev_addr);                                       /*!< Disconnect LE ACL link */
+    esp_err_t (*broadcast_source_start)(void);                                                 /*!< Start LE broadcast source */
+    esp_err_t (*broadcast_source_stop)(void);                                                  /*!< Stop LE broadcast source */
     esp_err_t (*broadcast_sync)(const uint8_t *broadcast_name, const uint8_t *broadcast_code,
                                 uint32_t bit_field, uint32_t timeout_ms);  /*!< Sync to LE broadcast */
     esp_err_t (*pa_sync_terminate)(void);                                  /*!< Terminate PA sync */

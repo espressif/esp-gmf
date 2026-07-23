@@ -42,6 +42,11 @@ esp_err_t bt_audio_le_ccp_init(bt_audio_le_ccp_ready_cb_t ready_cb, void *user_c
 void bt_audio_le_ccp_deinit(void);
 
 /**
+ * @brief  Reset connection-scoped CCP state after ACL disconnection.
+ */
+void bt_audio_le_ccp_on_disconnect(void);
+
+/**
  * @brief  Discover TBS instances on the given connection.
  *
  * @param[in]  conn_handle  BLE connection handle.

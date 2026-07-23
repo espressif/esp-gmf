@@ -13,6 +13,12 @@ set(private_includes
     "private_inc"
 )
 
+if (CONFIG_BT_NIMBLE_ENABLED)
+    list(APPEND srcs "src/host/nimble/bt_audio_host_nimble.c")
+elseif (CONFIG_BT_BLUEDROID_ENABLED)
+    list(APPEND srcs "src/host/bluedroid/bt_audio_host_bluedroid.c")
+endif()
+
 if (CONFIG_BT_CLASSIC_ENABLED)
     list(APPEND srcs "src/classic/bt_audio_classic.c"
                      "src/classic/classic_stream/bt_audio_classic_stream.c")
@@ -23,8 +29,11 @@ if (CONFIG_BT_CLASSIC_ENABLED)
         list(APPEND srcs "src/classic/profiles/bt_audio_a2dp_src.c"
                          "src/classic/profiles/bt_audio_a2dp_sink.c")
     endif()
-    if (CONFIG_BT_HFP_ENABLE)
+    if (CONFIG_BT_HFP_CLIENT_ENABLE)
         list(APPEND srcs "src/classic/profiles/bt_audio_hfp_hf.c")
+    endif()
+    if (CONFIG_BT_HFP_AG_ENABLE)
+        list(APPEND srcs "src/classic/profiles/bt_audio_hfp_ag.c")
     endif()
     if (CONFIG_BT_AVRCP_ENABLED)
         list(APPEND srcs "src/classic/profiles/bt_audio_avrcp_ct.c"
@@ -36,7 +45,7 @@ if (CONFIG_BT_CLASSIC_ENABLED)
     list(APPEND private_includes "private_inc/classic")
 endif()
 
-if (CONFIG_BT_NIMBLE_ENABLED AND CONFIG_BT_AUDIO AND CONFIG_BT_ISO)
+if (CONFIG_BT_AUDIO AND CONFIG_BT_ISO)
     list(APPEND srcs
          "src/le/bt_audio_le.c"
          "src/le/le_stream/bt_audio_le_stream.c"
@@ -47,7 +56,7 @@ if (CONFIG_BT_NIMBLE_ENABLED AND CONFIG_BT_AUDIO AND CONFIG_BT_ISO)
         list(APPEND srcs "src/le/profiles/bap/bt_audio_le_unicast_server.c")
     endif()
     if (CONFIG_BT_VCP_VOL_REND)
-        list(APPEND srcs "src/le/profiles/vcp/bt_audio_le_vcp.c")
+        list(APPEND srcs "src/le/profiles/vcp/bt_audio_le_vcp_rend.c")
     endif()
     if (CONFIG_BT_BAP_BROADCAST_SOURCE)
         list(APPEND srcs "src/le/profiles/bap/bt_audio_le_broadcast_source.c")

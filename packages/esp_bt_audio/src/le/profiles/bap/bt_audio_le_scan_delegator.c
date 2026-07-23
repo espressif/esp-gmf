@@ -43,10 +43,14 @@ static int bt_audio_le_scan_delegator_pa_sync_req(struct bt_conn *conn,
     esp_err_t ret = ESP_OK;
 
     if (past_avail) {
-        ret = bt_audio_le_broadcast_sink_sync_with_past(conn, recv_state);
+        ret = bt_audio_le_broadcast_sink_sync_with_past(conn->handle, recv_state);
         if (ret != ESP_OK) {
             ESP_LOGW(TAG, "Failed to receive PAST, falling back to scan: %s", esp_err_to_name(ret));
-            return -EIO;
+            ret = bt_audio_le_broadcast_sink_sync_without_past(recv_state);
+            if (ret != ESP_OK) {
+                ESP_LOGW(TAG, "Failed to receive PA sync without PAST: %s", esp_err_to_name(ret));
+                return -EIO;
+            }
         }
     } else {
         ret = bt_audio_le_broadcast_sink_sync_without_past(recv_state);

@@ -6,4 +6,51 @@ config ESP_BT_AUDIO_GMF_IO_SUPPORT
     help
         Enable GMF IO support for ESP Bluetooth Audio.
 
+menuconfig ESP_BT_AUDIO_MONITOR
+    bool "Enable ESP Bluetooth Audio monitor features"
+    default n
+    help
+        Enable configuration of ESP Bluetooth Audio monitor GPIO features.
+
+if ESP_BT_AUDIO_MONITOR
+
+config ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
+    bool "Enable LE playback sync monitor"
+    default n
+    help
+        Toggle a GPIO through ETM on each LE playback sync event.
+
+config ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR_GPIO
+    int "LE playback sync monitor GPIO"
+    range 0 48
+    default 13
+    depends on ESP_BT_AUDIO_LE_PLAYBACK_SYNC_MONITOR
+
+config ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR
+    bool "Enable LE clock sync monitor"
+    default n
+    help
+        Toggle a GPIO through ETM on each LE clock sync event.
+
+config ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR_GPIO
+    int "LE clock sync monitor GPIO"
+    range 0 48
+    default 14
+    depends on ESP_BT_AUDIO_LE_CLK_SYNC_MONITOR
+
+config ESP_BT_AUDIO_LE_STREAM_MONITOR
+    bool "Enable LE sink stream monitor"
+    default n
+    help
+        Toggle a GPIO when a sink stream receives an ISO packet. The GPIO is
+        initialized when the sink stream starts and driven low when it stops.
+
+config ESP_BT_AUDIO_LE_STREAM_MONITOR_GPIO
+    int "LE sink stream monitor GPIO"
+    range 0 48
+    default 15
+    depends on ESP_BT_AUDIO_LE_STREAM_MONITOR
+
+endif
+
 endmenu

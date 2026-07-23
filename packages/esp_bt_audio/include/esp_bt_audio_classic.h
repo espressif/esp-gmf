@@ -14,7 +14,7 @@
 extern "C" {
 #endif  /* __cplusplus */
 
-#ifdef CONFIG_BT_BLUEDROID_ENABLED
+#ifdef CONFIG_BT_CLASSIC_ENABLED
 
 /**
  * @brief  Start Classic Bluetooth discovery
@@ -77,7 +77,7 @@ esp_err_t esp_bt_audio_classic_disconnect(uint32_t role, uint8_t *bt_dev_addr);
  */
 esp_err_t esp_bt_audio_classic_set_scan_mode(bool connectable, bool discoverable);
 
-#endif  /* CONFIG_BT_BLUEDROID_ENABLED */
+#endif  /* CONFIG_BT_CLASSIC_ENABLED */
 
 #ifdef __cplusplus
 }

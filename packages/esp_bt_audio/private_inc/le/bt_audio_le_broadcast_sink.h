@@ -9,8 +9,6 @@
 
 #include <stdint.h>
 
-#include "host/ble_gap.h"
-
 #include "esp_err.h"
 #include "esp_bt_audio_event.h"
 #include "esp_ble_audio_common_api.h"
@@ -22,15 +20,9 @@ extern "C" {
 #endif  /* __cplusplus */
 
 /**
- * @brief  Callback invoked for NimBLE GAP events on the PA sync path.
- */
-typedef int (*bt_audio_le_gap_event_cb_t)(struct ble_gap_event *event, void *arg);
-
-/**
  * @brief  Initialize the LE broadcast sink profile (single-instance).
  *
  * @param[in]  location  Sink audio location bitmask for PACS.
- * @param[in]  gap_cb    GAP callback for periodic advertising sync (may be NULL if unused).
  *
  * @return
  *       - ESP_OK                 On success
@@ -38,7 +30,7 @@ typedef int (*bt_audio_le_gap_event_cb_t)(struct ble_gap_event *event, void *arg
  *       - ESP_ERR_NO_MEM         If allocation fails
  *       - Other                  non-zero codes from stream or BLE Audio registration APIs
  */
-esp_err_t bt_audio_le_broadcast_sink_init(uint32_t location, bt_audio_le_gap_event_cb_t gap_cb);
+esp_err_t bt_audio_le_broadcast_sink_init(uint32_t location);
 
 /**
  * @brief  Deinitialize the broadcast sink and release resources.
@@ -88,14 +80,14 @@ esp_err_t bt_audio_le_broadcast_sink_accept_scan_delegator_req(const esp_ble_aud
 /**
  * @brief  Enable receiving PA sync through Periodic Advertising Sync Transfer.
  *
- * @param[in]  conn        Connection with the broadcast assistant.
+ * @param[in]  conn_handle  Connection handle with the broadcast assistant.
  * @param[in]  recv_state  Receive state from the assistant.
  *
  * @return
  *       - ESP_OK                 On success
  *       - ESP_ERR_INVALID_STATE  If sink is not ready or PAST is unsupported
  */
-esp_err_t bt_audio_le_broadcast_sink_sync_with_past(struct bt_conn *conn,
+esp_err_t bt_audio_le_broadcast_sink_sync_with_past(uint16_t conn_handle,
                                                     const esp_ble_audio_bap_scan_delegator_recv_state_t *recv_state);
 
 /**

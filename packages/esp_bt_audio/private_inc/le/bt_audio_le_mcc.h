@@ -31,6 +31,11 @@ esp_err_t bt_audio_le_mcc_init(void);
 void bt_audio_le_mcc_deinit(void);
 
 /**
+ * @brief  Reset connection-scoped MCC state after ACL disconnection.
+ */
+void bt_audio_le_mcc_on_disconnect(void);
+
+/**
  * @brief  Discover MCS on the given ACL connection.
  *
  * @param[in]  conn_handle  BLE connection handle.

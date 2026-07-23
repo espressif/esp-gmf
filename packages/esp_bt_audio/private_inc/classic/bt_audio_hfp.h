@@ -32,6 +32,25 @@ esp_err_t bt_audio_hfp_hf_init(void);
  */
 esp_err_t bt_audio_hfp_hf_deinit(void);
 
+/**
+ * @brief  Initialize HFP Audio Gateway
+ *
+ * @return
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_NO_MEM         No memory available
+ *       - ESP_ERR_INVALID_STATE  If already initialized
+ */
+esp_err_t bt_audio_hfp_ag_init(void);
+
+/**
+ * @brief  Deinitialize HFP Audio Gateway
+ *
+ * @return
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_INVALID_STATE  If not initialized
+ */
+esp_err_t bt_audio_hfp_ag_deinit(void);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

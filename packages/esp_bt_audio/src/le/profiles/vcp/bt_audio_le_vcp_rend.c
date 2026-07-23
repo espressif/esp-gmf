@@ -18,17 +18,17 @@
 #include "esp_ble_audio_vocs_api.h"
 
 #include "bt_audio_evt_dispatcher.h"
-#include "bt_audio_le_vcp.h"
+#include "bt_audio_le_vcp_rend.h"
 #include "bt_audio_ops.h"
 
-static const char *TAG = "BT_AUD_LE_VCP";
+static const char *TAG = "BT_AUD_LE_VCP_REND";
 
 static esp_ble_audio_vocs_register_param_t *s_vocs_param;
 static char (*s_vocs_desc)[32];
 static esp_ble_audio_aics_register_param_t *s_aics_param;
 static char (*s_aics_desc)[32];
 
-static esp_err_t bt_audio_le_vcp_set_absolute(uint32_t vol)
+static esp_err_t bt_audio_le_vcp_rend_notify_volume(uint32_t vol)
 {
     if (vol > 100) {
         vol = 100;
@@ -40,11 +40,10 @@ static esp_err_t bt_audio_le_vcp_set_absolute(uint32_t vol)
     return ret;
 }
 
-static void bt_audio_le_vcp_state_cb(struct bt_conn *conn, int err, uint8_t volume, uint8_t mute)
+static void bt_audio_le_vcp_rend_state_cb(struct bt_conn *conn, int err, uint8_t volume, uint8_t mute)
 {
-    (void)conn;
     if (err) {
-        ESP_LOGW(TAG, "VCP state callback failed: %d", err);
+        ESP_LOGW(TAG, "VCP renderer state callback failed: %d", err);
         return;
     }
 
@@ -56,18 +55,20 @@ static void bt_audio_le_vcp_state_cb(struct bt_conn *conn, int err, uint8_t volu
     bt_audio_evt_dispatch(ESP_BT_AUDIO_EVT_DST_USR, ESP_BT_AUDIO_EVENT_VOL_ABSOLUTE, &event);
 }
 
-static void bt_audio_le_vcp_flags_cb(struct bt_conn *conn, int err, uint8_t flags)
+static void bt_audio_le_vcp_rend_flags_cb(struct bt_conn *conn, int err, uint8_t flags)
 {
-    (void)conn;
     if (err == 0) {
-        ESP_LOGD(TAG, "VCP flags 0x%02x", flags);
+        ESP_LOGI(TAG, "VCP renderer flags 0x%02x", flags);
+        esp_bt_audio_vol_ops_t vol_ops = {0};
+        ESP_ERROR_CHECK(bt_audio_ops_get_vol(&vol_ops));
+        vol_ops.notify = bt_audio_le_vcp_rend_notify_volume;
+        ESP_ERROR_CHECK(bt_audio_ops_set_vol(&vol_ops));
+
     }
 }
 
 static void bt_audio_le_vocs_state_cb(esp_ble_audio_vocs_t *inst, int err, int16_t offset)
 {
-    (void)inst;
-    (void)offset;
     if (err) {
         ESP_LOGD(TAG, "VOCS state callback failed: %d", err);
     }
@@ -75,8 +76,6 @@ static void bt_audio_le_vocs_state_cb(esp_ble_audio_vocs_t *inst, int err, int16
 
 static void bt_audio_le_vocs_location_cb(esp_ble_audio_vocs_t *inst, int err, uint32_t location)
 {
-    (void)inst;
-    (void)location;
     if (err) {
         ESP_LOGD(TAG, "VOCS location callback failed: %d", err);
     }
@@ -84,8 +83,6 @@ static void bt_audio_le_vocs_location_cb(esp_ble_audio_vocs_t *inst, int err, ui
 
 static void bt_audio_le_vocs_description_cb(esp_ble_audio_vocs_t *inst, int err, char *description)
 {
-    (void)inst;
-    (void)description;
     if (err) {
         ESP_LOGD(TAG, "VOCS description callback failed: %d", err);
     }
@@ -93,10 +90,6 @@ static void bt_audio_le_vocs_description_cb(esp_ble_audio_vocs_t *inst, int err,
 
 static void bt_audio_le_aics_state_cb(esp_ble_audio_aics_t *inst, int err, int8_t gain, uint8_t mute, uint8_t mode)
 {
-    (void)inst;
-    (void)gain;
-    (void)mute;
-    (void)mode;
     if (err) {
         ESP_LOGD(TAG, "AICS state callback failed: %d", err);
     }
@@ -105,10 +98,6 @@ static void bt_audio_le_aics_state_cb(esp_ble_audio_aics_t *inst, int err, int8_
 static void bt_audio_le_aics_gain_setting_cb(esp_ble_audio_aics_t *inst, int err, uint8_t units,
                                              int8_t minimum, int8_t maximum)
 {
-    (void)inst;
-    (void)units;
-    (void)minimum;
-    (void)maximum;
     if (err) {
         ESP_LOGD(TAG, "AICS gain callback failed: %d", err);
     }
@@ -116,8 +105,6 @@ static void bt_audio_le_aics_gain_setting_cb(esp_ble_audio_aics_t *inst, int err
 
 static void bt_audio_le_aics_type_cb(esp_ble_audio_aics_t *inst, int err, uint8_t input_type)
 {
-    (void)inst;
-    (void)input_type;
     if (err) {
         ESP_LOGD(TAG, "AICS type callback failed: %d", err);
     }
@@ -125,8 +112,6 @@ static void bt_audio_le_aics_type_cb(esp_ble_audio_aics_t *inst, int err, uint8_
 
 static void bt_audio_le_aics_status_cb(esp_ble_audio_aics_t *inst, int err, bool active)
 {
-    (void)inst;
-    (void)active;
     if (err) {
         ESP_LOGD(TAG, "AICS status callback failed: %d", err);
     }
@@ -134,16 +119,14 @@ static void bt_audio_le_aics_status_cb(esp_ble_audio_aics_t *inst, int err, bool
 
 static void bt_audio_le_aics_description_cb(esp_ble_audio_aics_t *inst, int err, char *description)
 {
-    (void)inst;
-    (void)description;
     if (err) {
         ESP_LOGD(TAG, "AICS description callback failed: %d", err);
     }
 }
 
-static esp_ble_audio_vcp_vol_rend_cb_t s_vcp_cbs = {
-    .state = bt_audio_le_vcp_state_cb,
-    .flags = bt_audio_le_vcp_flags_cb,
+static esp_ble_audio_vcp_vol_rend_cb_t s_vcp_rend_cbs = {
+    .state = bt_audio_le_vcp_rend_state_cb,
+    .flags = bt_audio_le_vcp_rend_flags_cb,
 };
 
 static esp_ble_audio_vocs_cb_t s_vocs_cbs = {
@@ -160,7 +143,8 @@ static esp_ble_audio_aics_cb_t s_aics_cbs = {
     .description  = bt_audio_le_aics_description_cb,
 };
 
-esp_err_t bt_audio_le_vcp_init(const esp_bt_audio_le_vcp_cfg_t *cfg, bt_audio_le_adv_builder_t adv_builder)
+esp_err_t bt_audio_le_vcp_rend_init(const esp_bt_audio_le_vcp_rend_cfg_t *cfg,
+                                    bt_audio_le_adv_builder_t adv_builder)
 {
     esp_err_t ret = ESP_OK;
     esp_ble_audio_vcp_vol_rend_register_param_t param = {0};
@@ -213,7 +197,7 @@ esp_err_t bt_audio_le_vcp_init(const esp_bt_audio_le_vcp_cfg_t *cfg, bt_audio_le
     param.step = cfg ? cfg->step : 1;
     param.mute = cfg ? cfg->mute : ESP_BLE_AUDIO_VCP_STATE_UNMUTED;
     param.volume = cfg ? cfg->volume : 10;
-    param.cb = &s_vcp_cbs;
+    param.cb = &s_vcp_rend_cbs;
 
     if (adv_builder) {
         ESP_GOTO_ON_ERROR(bt_audio_le_adv_builder_add_service_uuid16(adv_builder, ESP_BLE_AUDIO_UUID_VCS_VAL),
@@ -230,20 +214,15 @@ esp_err_t bt_audio_le_vcp_init(const esp_bt_audio_le_vcp_cfg_t *cfg, bt_audio_le
 
     ESP_GOTO_ON_ERROR(esp_ble_audio_vcp_vol_rend_register(&param), fail, TAG, "Failed to register VCP renderer");
 
-    esp_bt_audio_vol_ops_t vol_ops = {0};
-    ESP_GOTO_ON_ERROR(bt_audio_ops_get_vol(&vol_ops), fail, TAG, "Failed to get volume ops");
-    vol_ops.set_absolute = bt_audio_le_vcp_set_absolute;
-    ESP_GOTO_ON_ERROR(bt_audio_ops_set_vol(&vol_ops), fail, TAG, "Failed to set volume ops");
-
     return ESP_OK;
 
 fail:
-    bt_audio_le_vcp_deinit();
-    ESP_LOGE(TAG, "Init VCP failed: %s", esp_err_to_name(ret));
+    bt_audio_le_vcp_rend_deinit();
+    ESP_LOGE(TAG, "Init VCP renderer failed: %s", esp_err_to_name(ret));
     return ret;
 }
 
-void bt_audio_le_vcp_deinit(void)
+void bt_audio_le_vcp_rend_deinit(void)
 {
     heap_caps_free(s_vocs_param);
     s_vocs_param = NULL;
