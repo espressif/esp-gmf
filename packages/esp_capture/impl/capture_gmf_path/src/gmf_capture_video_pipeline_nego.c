@@ -284,12 +284,10 @@ static esp_capture_err_t venc_nego_all_sink(uint8_t path_num, uint8_t *sel_path,
         // Always use maxed negotiated fps
         nego_info->fps = merged_fps;
         src_encoded = video_need_encode(nego_info->format_id);
-        if (src_encoded == false) {
-            ret = capture_video_src_el_negotiate(src_element, nego_info, src_info);
-            if (ret == ESP_CAPTURE_ERR_OK) {
-                *sel_bypass = false;
-                return ret;
-            }
+        ret = capture_video_src_el_negotiate(src_element, nego_info, src_info);
+        if (ret == ESP_CAPTURE_ERR_OK) {
+            *sel_bypass = src_encoded;
+            return ret;
         }
         ret = venc_nego_for_encoder(src_element, &sink_pipeline[*sel_path], &sink_in[*sel_path], nego_info, src_info);
         if (ret == ESP_CAPTURE_ERR_OK) {
@@ -302,6 +300,18 @@ static esp_capture_err_t venc_nego_all_sink(uint8_t path_num, uint8_t *sel_path,
 static bool path_needs_decode(esp_capture_video_info_t *src_info, esp_capture_video_info_t *sink_info)
 {
     return video_need_encode(src_info->format_id) && sink_info->format_id != src_info->format_id;
+}
+
+static bool is_sink_bypass(esp_capture_video_info_t *nego_info, esp_capture_video_info_t *sink_info)
+{
+    if (nego_info->format_id == sink_info->format_id &&
+        nego_info->width == sink_info->width &&
+        nego_info->height == sink_info->height) {
+        if ((nego_info->fps == sink_info->fps) || (nego_info->format_id != ESP_CAPTURE_FMT_ID_H264)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 static esp_capture_err_t venc_nego_for_input_format(uint8_t path_num, uint8_t sel_path,
@@ -321,10 +331,22 @@ static esp_capture_err_t venc_nego_for_input_format(uint8_t path_num, uint8_t se
         if (ret != ESP_CAPTURE_ERR_OK) {
             return ret;
         }
-        sel_path = -1;
+        sel_path = 0xFF;
     }
-
     for (int i = 0; i < path_num; i++) {
+        // Check whether bypass if sink is same with src
+        bool sink_bypass = false;
+        if (sel_path == 0xFF || i != sel_path) {
+            sink_bypass = is_sink_bypass(src_info, &sink_in[i]);
+        }
+        if (sink_bypass) {
+            esp_gmf_element_handle_t enc_element = get_venc_element(sink_pipeline[i].pipeline);
+            if (enc_element) {
+                set_venc_dst_codec(enc_element, (uint32_t)src_info->format_id);
+            }
+            continue;
+        }
+        // For selected path already negotiate no need set again
         if (i == sel_path) {
             if (sel_bypass) {
                 esp_gmf_element_handle_t enc_element = get_venc_element(sink_pipeline[sel_path].pipeline);
