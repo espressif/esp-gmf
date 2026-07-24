@@ -32,6 +32,7 @@ extern "C" void test_cxx_build(void)
             .audio_src = audio_src,
             .video_src = video_src,
             .share_overlay = false,
+            .full_speed_decode = false,
         };
         esp_capture_open(&capture_cfg, &capture);
         esp_capture_sink_cfg_t sink_cfg = {

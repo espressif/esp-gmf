@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+### Bug Fixes
+
+- Fixed bypass error when dual sink one sink match source exactly
+- Fixed build issue
+
 ## 1.0.1
 
 ### Features
@@ -14,7 +21,6 @@
 - Fixed dual sink audio pts and possible audio data wrongly used last frame
 - Use atomic operation to load and set status variable to avoid voilation
 - Fixed video raw bypass flag is not cleared in video path
-
 
 ## v1.0.0~1
 

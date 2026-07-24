@@ -2456,6 +2456,20 @@ static int decode_run_one_case(decode_cap_ctx_t *ctx, int case_idx, int frame_co
             dual = true;
             tag = "Sink0 scale to half then encoded to h264 and sink1 decode to RGB565";
             break;
+        case 6:
+            sink_cfg[0].video_info.format_id = ESP_CAPTURE_FMT_ID_MJPEG;
+            sink_cfg[0].video_info.width = DEC_TEST_W;
+            sink_cfg[0].video_info.height = DEC_TEST_H;
+            sink_cfg[0].video_info.fps = DEC_TEST_FPS;
+            sink_cfg[1].video_info.format_id = ESP_CAPTURE_FMT_ID_RGB565;
+            sink_cfg[1].video_info.width = DEC_TEST_W;
+            sink_cfg[1].video_info.height = DEC_TEST_H;
+            sink_cfg[1].video_info.fps = DEC_TEST_FPS;
+            exp0 = 0;
+            exp1 = decodec_get_raw_image_size(ESP_CAPTURE_FMT_ID_RGB565, DEC_TEST_W, DEC_TEST_H);
+            dual = true;
+            tag = "Sink0 bypass and sink1 decode to same-size RGB565";
+            break;
         default:
             return 0;
     }
@@ -2503,7 +2517,7 @@ int test_capture_with_decode_all(void)
     if (ret != 0) {
         ESP_LOGE(TAG, "decode all: open src failed");
     } else {
-        for (int c = 0; c < 6; c++) {
+        for (int c = 0; c < 7; c++) {
             ESP_LOGI(TAG, "decode all: case %d", c);
             if (decode_run_one_case(&ctx, c, 20) != 0) {
                 ret = -1;
