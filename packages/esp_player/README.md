@@ -83,6 +83,7 @@ flowchart TB
 
 | API | Description |
 |-----|-------------|
+| `esp_player_get_state(handle, state)` | Get current main playback state (authoritative snapshot; see `esp_player_state_t`) |
 | `esp_player_get_duration(handle, duration)` | Get total media duration (milliseconds) |
 | `esp_player_get_play_time(handle, current_time)` | Get current playback position (milliseconds) |
 | `esp_player_get_track_num(handle, type, track_num)` | Get the number of tracks of the given type |

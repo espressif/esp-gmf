@@ -184,7 +184,7 @@ typedef struct esp_player_stream {
 
     /* Private (FSM) */
     esp_player_state_t         main_state;    /*!< High-level player state */
-    esp_player_error_source_t  error_source;  /*!< Sticky error source; cleared on ERROR→IDLE recovery */
+    esp_player_error_source_t  error_source;  /*!< Sticky error source; cleared on leave ERROR / prepare */
 } esp_player_stream_t;
 
 /** @brief  Signature of the pipeline factory accepted by `player_create_pipeline_if_expected`. */
@@ -251,12 +251,14 @@ esp_gmf_task_handle_t player_pipeline_task(esp_gmf_pipeline_handle_t pipe);
 void player_send_null_queue(QueueHandle_t queue);
 void player_drop_single_queue(esp_player_stream_t *stream, QueueHandle_t queue);
 void player_drop_all_queues(esp_player_stream_t *stream);
+void player_release_held_decoder_frames(esp_player_stream_t *stream);
 void player_set_task_timeout(esp_gmf_task_handle_t task, uint32_t timeout_ms);
 void player_reset_audio_db(esp_player_stream_t *stream);
 void player_reset_video_db(esp_player_stream_t *stream);
 void player_reset_all_db(esp_player_stream_t *stream);
 void player_clear_all_queues(esp_player_stream_t *stream);
 void player_send_event(esp_player_stream_t *stream, esp_player_event_msg_t *event_msg);
+void player_close_input_io(esp_player_stream_t *stream);
 void player_destroy_input_io(esp_player_stream_t *stream);
 void player_destroy_audio_path(esp_player_stream_t *stream);
 void player_destroy_video_path(esp_player_stream_t *stream);
@@ -280,6 +282,9 @@ void player_pause_decoder_task(esp_player_stream_t *stream,
 void player_raise_error_source(esp_player_stream_t *stream,
                                esp_player_error_source_t error_source,
                                const char *reason);
+bool player_seek_wait_decoder_done(esp_player_stream_t *stream, uint32_t seek_done_bits,
+                                   uint32_t wait_bit, esp_player_error_source_t error_source,
+                                   const char *reason);
 esp_player_err_t player_run_pipeline_with_timeout(esp_player_stream_t *stream,
                                                   esp_gmf_task_handle_t task,
                                                   uint32_t timeout_ms,

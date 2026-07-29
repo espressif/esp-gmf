@@ -8,6 +8,25 @@
 #include <stddef.h>
 
 #include "player_stream.h"
+#include "player_events.h"
+
+static void player_release_el_held_frames(esp_player_stream_t *stream, esp_gmf_element_handle_t el)
+{
+    if (stream == NULL || el == NULL) {
+        return;
+    }
+    esp_gmf_port_t *in = ESP_GMF_ELEMENT_GET_IN_PORT(el);
+    while (in) {
+        esp_gmf_payload_t *pld = in->self_payload;
+        if (pld && pld->buf) {
+            (void)player_release_payload(stream, pld);
+            pld->buf = NULL;
+            pld->valid_size = 0;
+            in->ref_count = 0;
+        }
+        in = in->next;
+    }
+}
 
 static void player_reset_data_bus_meta_for_db(esp_player_stream_t *stream, esp_gmf_db_handle_t db)
 {
@@ -111,6 +130,25 @@ void player_drop_all_queues(esp_player_stream_t *stream)
     }
 }
 
+void player_release_held_decoder_frames(esp_player_stream_t *stream)
+{
+    if (stream == NULL) {
+        return;
+    }
+    if (stream->audio_side && stream->audio_side->decoder) {
+        esp_gmf_element_handle_t aud_dec_el = NULL;
+        if (esp_gmf_pipeline_get_el_by_name(stream->audio_side->decoder, AUDIO_DECODER_TAG, &aud_dec_el) == ESP_GMF_ERR_OK) {
+            player_release_el_held_frames(stream, aud_dec_el);
+        }
+    }
+    if (stream->video_side && stream->video_side->decoder) {
+        esp_gmf_element_handle_t vid_dec_el = NULL;
+        if (esp_gmf_pipeline_get_el_by_name(stream->video_side->decoder, VIDEO_DECODER_TAG, &vid_dec_el) == ESP_GMF_ERR_OK) {
+            player_release_el_held_frames(stream, vid_dec_el);
+        }
+    }
+}
+
 void player_set_task_timeout(esp_gmf_task_handle_t task, uint32_t timeout_ms)
 {
     if (task) {
@@ -172,15 +210,28 @@ void player_send_event(esp_player_stream_t *stream, esp_player_event_msg_t *even
     }
 }
 
+void player_close_input_io(esp_player_stream_t *stream)
+{
+    if (stream == NULL) {
+        return;
+    }
+    if (stream->input_handle && stream->input_state == ESP_PLAYER_INPUT_OPENED) {
+        esp_gmf_io_close(stream->input_handle);
+    }
+    stream->input_state = ESP_PLAYER_INPUT_CLOSED;
+}
+
 void player_destroy_input_io(esp_player_stream_t *stream)
 {
+    if (stream == NULL) {
+        return;
+    }
+    player_close_input_io(stream);
     if (stream->input_handle) {
-        esp_gmf_io_close(stream->input_handle);
         esp_gmf_io_deinit(stream->input_handle);
         esp_gmf_obj_delete(stream->input_handle);
         stream->input_handle = NULL;
     }
-    stream->input_state = ESP_PLAYER_INPUT_CLOSED;
 }
 
 void player_destroy_audio_path(esp_player_stream_t *stream)
@@ -305,7 +356,11 @@ esp_gmf_err_t player_stop_render(esp_player_stream_t *stream, uint8_t task_statu
 
 esp_gmf_err_t player_stop_extractor(esp_player_stream_t *stream)
 {
-    if ((stream->task_status & TASK_STATUS_EXTRACTOR_RUNNING) == 0) {
+    if (stream->extractor == NULL) {
+        return ESP_GMF_ERR_OK;
+    }
+    if ((stream->task_status & TASK_STATUS_EXTRACTOR_RUNNING) == 0
+        && (stream->expected_tasks & TASK_STATUS_EXTRACTOR_RUNNING) == 0) {
         return ESP_GMF_ERR_OK;
     }
     player_drop_all_queues(stream);
@@ -379,6 +434,22 @@ void player_raise_error_source(esp_player_stream_t *stream,
         ESP_LOGE(ESP_PLAYER_TAG, "Error source raised: %d (%s)", error_source, reason ? reason : "");
     }
     stream->error_source = error_source;
+}
+
+bool player_seek_wait_decoder_done(esp_player_stream_t *stream, uint32_t seek_done_bits,
+                                   uint32_t wait_bit, esp_player_error_source_t error_source,
+                                   const char *reason)
+{
+    if ((seek_done_bits & wait_bit) == 0) {
+        return false;
+    }
+    if (player_wait_events(stream, wait_bit, SEEK_DONE_TIMEOUT_MS) != ESP_PLAYER_ERR_OK) {
+        if (stream->error_source == ESP_PLAYER_ERROR_SOURCE_NONE) {
+            player_raise_error_source(stream, error_source, reason);
+        }
+        return true;
+    }
+    return false;
 }
 
 esp_player_err_t player_run_pipeline_with_timeout(esp_player_stream_t *stream,

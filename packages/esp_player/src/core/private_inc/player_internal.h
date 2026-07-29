@@ -55,9 +55,10 @@ void player_set_speed_impl(esp_player_stream_t *stream, float speed, esp_player_
 
 static inline bool is_state_allowed_for_operation(esp_player_stream_t *stream)
 {
-    return (stream->main_state == PLAYER_STATE_IDLE
-            || stream->main_state == PLAYER_STATE_STOPPED
-            || stream->main_state == PLAYER_STATE_FINISHED);
+    return (stream->main_state == ESP_PLAYER_STATE_IDLE
+            || stream->main_state == ESP_PLAYER_STATE_STOPPED
+            || stream->main_state == ESP_PLAYER_STATE_FINISHED
+            || stream->main_state == ESP_PLAYER_STATE_ERROR);
 }
 
 #ifdef __cplusplus

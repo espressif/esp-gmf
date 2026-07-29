@@ -32,6 +32,7 @@ esp_gmf_err_io_t extractor_video_out_release(void *handle, esp_gmf_payload_t *lo
         player_ports_push_bounded(stream, stream->video_side->extractor_queue, load, false);
     if (push_ret == ESP_GMF_IO_OK) {
         player_ports_buffer_note_extractor_frame(stream, false);
+        PLAYER_PORTS_DETACH_BUF(load);
         QueueHandle_t aud_q = stream->audio_side ? stream->audio_side->extractor_queue : NULL;
         bool aud_queue_idle = aud_q && (uxQueueMessagesWaiting(aud_q) == 0);
         if ((player_audio_track_idx(stream) < 0 || aud_queue_idle) && (!stream->is_seeking)) {
@@ -51,7 +52,7 @@ esp_gmf_err_io_t decoder_video_in_acquire(void *handle, esp_gmf_payload_t *load,
 {
     esp_player_stream_t *stream = (esp_player_stream_t *)handle;
     TickType_t recv_wait = portMAX_DELAY;
-    if (stream->buffer_ctrl && stream->main_state == PLAYER_STATE_PLAYING
+    if (stream->buffer_ctrl && stream->main_state == ESP_PLAYER_STATE_PLAYING
         && stream->buffer_ctrl->gate_state == ESP_PLAYER_BUFFER_GATE_NONE
         && _player_is_network_source_uri(stream)) {
         recv_wait = pdMS_TO_TICKS(10);
@@ -96,9 +97,12 @@ _rec_dec_video_in_frame:
             }
         }
         if (load->valid_size == 0) {
+            if (load->buf) {
+                (void)player_release_payload(stream, load);
+            }
             return ESP_GMF_IO_OK;
         }
-        if (stream->sync_handle && stream->main_state == PLAYER_STATE_PLAYING && !stream->is_seeking) {
+        if (stream->sync_handle && stream->main_state == ESP_PLAYER_STATE_PLAYING && !stream->is_seeking) {
             if (player_sync_video_decode_frame(stream->sync_handle, load->pts) == false && load->is_done == false) {
                 ESP_LOGD(TAG, "Drop video frame");
                 if (player_release_payload(stream, load) != ESP_GMF_IO_OK) {

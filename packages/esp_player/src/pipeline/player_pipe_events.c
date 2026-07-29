@@ -117,6 +117,9 @@ esp_gmf_err_t _extractor_pipe_event_handler(esp_gmf_event_pkt_t *event, void *ct
                 }
                 ESP_LOGE(TAG, "Extractor error");
                 player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_EXTRACTOR, "runtime STATE_ERROR");
+                if (stream->is_seeking) {
+                    player_set_events(stream, _CTRL_PLAYER_DECODER_AUDIO_SEEK_DONE | _CTRL_PLAYER_DECODER_VIDEO_SEEK_DONE);
+                }
                 cmd.cmd_type = ESP_PLAYER_CMD_ERROR;
                 player_send_cmd(stream, &cmd);
                 break;

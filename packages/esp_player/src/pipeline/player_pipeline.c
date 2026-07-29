@@ -254,6 +254,12 @@ esp_player_err_t player_create_extractor_pipeline(esp_player_stream_t *stream)
             return ret;
         }
     } else {
+        esp_gmf_task_handle_t ext_task = player_pipeline_task(stream->extractor);
+        esp_gmf_event_state_t ext_state = ESP_GMF_EVENT_STATE_NONE;
+        if (ext_task && esp_gmf_task_get_state(ext_task, &ext_state) == ESP_GMF_ERR_OK
+            && (ext_state == ESP_GMF_EVENT_STATE_RUNNING || ext_state == ESP_GMF_EVENT_STATE_PAUSED)) {
+            esp_gmf_pipeline_stop(stream->extractor);
+        }
         esp_gmf_pipeline_reset(stream->extractor);
         player_extractor_seek(player_extractor_el(stream), player_sync_get_seek_target(stream->sync_handle));
     }
