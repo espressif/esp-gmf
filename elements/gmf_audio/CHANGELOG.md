@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.1
+
+### Bug Fixes
+
+- Fixed `audio_dec` reusing a stale `decoded_size` across decode iterations
+- Fixed `audio_dec` processing decoded data when the reported sample rate, channel count, or bit depth is invalid
+
 ## v1.0.0
 
 ### Features
