@@ -69,7 +69,7 @@ esp_player_err_t esp_player_submit_frame(esp_player_handle_t handle, esp_player_
         return ESP_PLAYER_ERR_INVALID_ARG;
     }
     esp_player_stream_t *stream = (esp_player_stream_t *)handle;
-    if (stream->main_state != PLAYER_STATE_PLAYING && stream->main_state != PLAYER_STATE_PREPARING) {
+    if (stream->main_state != ESP_PLAYER_STATE_PLAYING && stream->main_state != ESP_PLAYER_STATE_PREPARING) {
         ESP_LOGE(ESP_PLAYER_TAG, "Failed to submit frame. state: %d", stream->main_state);
         return ESP_PLAYER_ERR_INVALID_STATE;
     }

@@ -63,6 +63,8 @@ typedef struct {
     uint32_t                raw_sample_rate;        /*!< RAW PCM sample rate (Hz); 0 = not a raw source */
     uint8_t                 raw_channels;           /*!< RAW PCM channel count */
     uint8_t                 raw_bits_per_sample;    /*!< RAW PCM bits per sample */
+    uint64_t                seek_pos_ms;            /*!< Last requested seek position, re-applied after the demuxer is recreated */
+    bool                    seek_pending;           /*!< seek_pos_ms still has to be applied once the new demuxer has parsed */
 } esp_player_extractor_t;
 
 static bool player_extractor_has_output_stream(const esp_player_extractor_t *extractor)
@@ -133,75 +135,79 @@ static esp_gmf_job_err_t player_extractor_open(esp_gmf_element_handle_t self, vo
     esp_extractor_err_t extractor_ret = ESP_EXTRACTOR_ERR_OK;
     esp_player_extractor_t *extractor = (esp_player_extractor_t *)self;
     esp_extractor_config_t *cfg = (esp_extractor_config_t *)OBJ_GET_CFG(self);
-    if (extractor->extractor_handle == NULL) {
-        extractor_ret = esp_extractor_open(cfg, &extractor->extractor_handle);
-        if (extractor_ret != ESP_EXTRACTOR_ERR_OK) {
-            ESP_LOGE(TAG, "Open extractor error, ret: %d", extractor_ret);
-            return ESP_GMF_JOB_ERR_FAIL;
-        }
-        extractor->is_parsed = false;
-        extractor->audio_current_idx = extractor->audio_selected_idx = -1;
-        extractor->video_current_idx = extractor->video_selected_idx = -1;
-        bool frame_across_pes = true;
-        esp_extractor_err_t ctrl_ret = esp_extractor_ctrl(extractor->extractor_handle,
-                                                          ESP_EXTRACTOR_CTRL_TYPE_SET_FRAME_ACROSS_PES,
-                                                          &frame_across_pes, sizeof(frame_across_pes));
-        if (ctrl_ret != ESP_EXTRACTOR_ERR_OK) {
-            ESP_LOGE(TAG, "Set frame_across_pes failed, ret: %d", ctrl_ret);
+    if (extractor->extractor_handle != NULL) {
+        esp_extractor_close(extractor->extractor_handle);
+        extractor->extractor_handle = NULL;
+    }
+    extractor_ret = esp_extractor_open(cfg, &extractor->extractor_handle);
+    if (extractor_ret != ESP_EXTRACTOR_ERR_OK) {
+        ESP_LOGE(TAG, "Open extractor error, ret: %d", extractor_ret);
+        return ESP_GMF_JOB_ERR_FAIL;
+    }
+    extractor->is_parsed = false;
+    extractor->audio_current_idx = extractor->audio_selected_idx = -1;
+    extractor->video_current_idx = extractor->video_selected_idx = -1;
+    bool frame_across_pes = true;
+    esp_extractor_err_t ctrl_ret = esp_extractor_ctrl(extractor->extractor_handle,
+                                                      ESP_EXTRACTOR_CTRL_TYPE_SET_FRAME_ACROSS_PES,
+                                                      &frame_across_pes, sizeof(frame_across_pes));
+    if (ctrl_ret != ESP_EXTRACTOR_ERR_OK) {
+        ESP_LOGE(TAG, "Set frame_across_pes failed, ret: %d", ctrl_ret);
+        esp_extractor_close(extractor->extractor_handle);
+        extractor->extractor_handle = NULL;
+        return ESP_GMF_JOB_ERR_FAIL;
+    }
+    /* Headerless raw sources (e.g. PCM) cannot be probed; the caller selects RAW
+     * and supplies stream parameters via the URL query string. */
+    if (cfg->type == ESP_EXTRACTOR_TYPE_RAW) {
+        if (extractor->raw_sample_rate == 0 || extractor->raw_channels == 0
+            || extractor->raw_bits_per_sample == 0) {
+            ESP_LOGE(TAG, "RAW source missing PCM params (sr=%" PRIu32 " ch=%u bits=%u)",
+                     extractor->raw_sample_rate, extractor->raw_channels, extractor->raw_bits_per_sample);
             esp_extractor_close(extractor->extractor_handle);
             extractor->extractor_handle = NULL;
             return ESP_GMF_JOB_ERR_FAIL;
         }
-        /* Headerless raw sources (e.g. PCM) cannot be probed; the caller selects RAW
-         * and supplies stream parameters via the URL query string. */
-        if (cfg->type == ESP_EXTRACTOR_TYPE_RAW) {
-            if (extractor->raw_sample_rate == 0 || extractor->raw_channels == 0
-                || extractor->raw_bits_per_sample == 0) {
-                ESP_LOGE(TAG, "RAW source missing PCM params (sr=%" PRIu32 " ch=%u bits=%u)",
-                         extractor->raw_sample_rate, extractor->raw_channels, extractor->raw_bits_per_sample);
-                esp_extractor_close(extractor->extractor_handle);
-                extractor->extractor_handle = NULL;
-                return ESP_GMF_JOB_ERR_FAIL;
-            }
-            if (esp_raw_extractor_register() != ESP_EXTRACTOR_ERR_OK) {
-                ESP_LOGE(TAG, "Register raw extractor failed");
-                esp_extractor_close(extractor->extractor_handle);
-                extractor->extractor_handle = NULL;
-                return ESP_GMF_JOB_ERR_FAIL;
-            }
-            esp_extractor_stream_info_t stream_info = {
-                .stream_type = ESP_EXTRACTOR_STREAM_TYPE_AUDIO,
-                .audio_info = {
-                    .format = ESP_EXTRACTOR_AUDIO_FORMAT_PCM,
-                    .sample_rate = extractor->raw_sample_rate,
-                    .channel = extractor->raw_channels,
-                    .bits_per_sample = extractor->raw_bits_per_sample,
-                },
-            };
-            ctrl_ret = esp_extractor_ctrl(extractor->extractor_handle,
-                                          ESP_EXTRACTOR_CTRL_TYPE_SET_STREAM_INFO,
-                                          &stream_info, sizeof(stream_info));
-            if (ctrl_ret != ESP_EXTRACTOR_ERR_OK) {
-                ESP_LOGE(TAG, "Set RAW stream info failed, ret: %d", ctrl_ret);
-                esp_extractor_close(extractor->extractor_handle);
-                extractor->extractor_handle = NULL;
-                return ESP_GMF_JOB_ERR_FAIL;
-            }
-            uint32_t raw_max_frame = PLAYER_RAW_MAX_FRAME_SIZE;
-            ctrl_ret = esp_extractor_ctrl(extractor->extractor_handle,
-                                          ESP_EXTRACTOR_CTRL_TYPE_SET_MAX_FRAME_SIZE,
-                                          &raw_max_frame, sizeof(raw_max_frame));
-            if (ctrl_ret != ESP_EXTRACTOR_ERR_OK) {
-                ESP_LOGE(TAG, "Set RAW max frame size failed, ret: %d", ctrl_ret);
-                esp_extractor_close(extractor->extractor_handle);
-                extractor->extractor_handle = NULL;
-                return ESP_GMF_JOB_ERR_FAIL;
-            }
+        if (esp_raw_extractor_register() != ESP_EXTRACTOR_ERR_OK) {
+            ESP_LOGE(TAG, "Register raw extractor failed");
+            esp_extractor_close(extractor->extractor_handle);
+            extractor->extractor_handle = NULL;
+            return ESP_GMF_JOB_ERR_FAIL;
+        }
+        esp_extractor_stream_info_t stream_info = {
+            .stream_type = ESP_EXTRACTOR_STREAM_TYPE_AUDIO,
+            .audio_info = {
+                .format = ESP_EXTRACTOR_AUDIO_FORMAT_PCM,
+                .sample_rate = extractor->raw_sample_rate,
+                .channel = extractor->raw_channels,
+                .bits_per_sample = extractor->raw_bits_per_sample,
+            },
+        };
+        ctrl_ret = esp_extractor_ctrl(extractor->extractor_handle,
+                                      ESP_EXTRACTOR_CTRL_TYPE_SET_STREAM_INFO,
+                                      &stream_info, sizeof(stream_info));
+        if (ctrl_ret != ESP_EXTRACTOR_ERR_OK) {
+            ESP_LOGE(TAG, "Set RAW stream info failed, ret: %d", ctrl_ret);
+            esp_extractor_close(extractor->extractor_handle);
+            extractor->extractor_handle = NULL;
+            return ESP_GMF_JOB_ERR_FAIL;
+        }
+        uint32_t raw_max_frame = PLAYER_RAW_MAX_FRAME_SIZE;
+        ctrl_ret = esp_extractor_ctrl(extractor->extractor_handle,
+                                      ESP_EXTRACTOR_CTRL_TYPE_SET_MAX_FRAME_SIZE,
+                                      &raw_max_frame, sizeof(raw_max_frame));
+        if (ctrl_ret != ESP_EXTRACTOR_ERR_OK) {
+            ESP_LOGE(TAG, "Set RAW max frame size failed, ret: %d", ctrl_ret);
+            esp_extractor_close(extractor->extractor_handle);
+            extractor->extractor_handle = NULL;
+            return ESP_GMF_JOB_ERR_FAIL;
         }
     }
-    if (extractor->extractor_handle != NULL) {
-        player_extractor_reconcile_id3_parser(extractor, cfg);
-    }
+    /* The caller applies the seek target before running the pipeline, i.e. to the instance that
+     * was just replaced. Seeking cannot happen here because a freshly opened demuxer has no
+     * stream information yet, so defer it until the parse in the process job. */
+    extractor->seek_pending = (extractor->seek_pos_ms != 0);
+    player_extractor_reconcile_id3_parser(extractor, cfg);
     extractor->is_notify_info = false;
     extractor->extract_mask = cfg->extract_mask;
     extractor->eos_mask = 0;
@@ -214,6 +220,8 @@ static esp_gmf_job_err_t player_extractor_open(esp_gmf_element_handle_t self, vo
 
 static esp_gmf_job_err_t player_extractor_ops_close(esp_gmf_element_handle_t self, void *para)
 {
+    esp_player_extractor_t *extractor = (esp_player_extractor_t *)self;
+    extractor->is_parsed = false;
     return ESP_GMF_JOB_ERR_OK;
 }
 
@@ -262,6 +270,12 @@ static esp_gmf_job_err_t player_extractor_process(esp_gmf_element_handle_t self,
         }
         extractor->is_parsed = true;
         player_extractor_finalize_id3(self);
+        if (extractor->seek_pending) {
+            extractor->seek_pending = false;
+            if (player_extractor_seek(self, extractor->seek_pos_ms) != ESP_GMF_ERR_OK) {
+                return ESP_GMF_JOB_ERR_FAIL;
+            }
+        }
     }
     if (extractor->is_notify_info == false) {
         if (esp_gmf_element_notify_vid_info(self, NULL) != ESP_GMF_ERR_OK) {
@@ -522,13 +536,20 @@ esp_gmf_err_t player_extractor_seek(esp_gmf_element_handle_t handle, uint64_t ti
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG;);
     esp_player_extractor_t *extractor = (esp_player_extractor_t *)handle;
+    extractor->seek_pos_ms = time_pos;
 
     if (extractor->extractor_handle) {
+        /* A demuxer that has not parsed its stream yet rejects seeking; let the process job
+         * apply the target once the parse completes. */
+        if (extractor->is_parsed == false) {
+            extractor->seek_pending = (time_pos != 0);
+            return ESP_GMF_ERR_OK;
+        }
         /* The underlying esp_extractor_seek only accepts uint32_t ms (~49 days); this
          * truncation is safe for any realistic media asset. */
         esp_extractor_err_t extractor_ret = esp_extractor_seek(extractor->extractor_handle, (uint32_t)time_pos);
         if (extractor_ret != ESP_EXTRACTOR_ERR_OK) {
-            ESP_LOGE(TAG, "Seek error, ret: %d", extractor_ret);
+            ESP_LOGE(TAG, "Seek to %" PRIu64 " ms error, ret: %d", time_pos, extractor_ret);
             return ESP_GMF_ERR_FAIL;
         }
         return ESP_GMF_ERR_OK;

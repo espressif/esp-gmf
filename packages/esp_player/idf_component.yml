@@ -1,4 +1,4 @@
-version: "1.0.3"
+version: "1.0.4"
 description: Espressif Player is a module for embedded multimedia playback with demux, decode, and audio/video render
 url: https://github.com/espressif/esp-gmf/tree/main/packages/esp_player
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/esp_player/README.md"

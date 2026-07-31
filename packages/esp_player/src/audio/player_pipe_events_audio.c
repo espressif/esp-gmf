@@ -117,7 +117,7 @@ esp_gmf_err_t _audio_render_pipe_event_handler(esp_gmf_event_pkt_t *event, void 
             case ESP_GMF_EVENT_STATE_RUNNING:
                 stream->task_status |= TASK_STATUS_AUDIO_RENDER_RUNNING;
                 stream->runned_status |= TASK_STATUS_AUDIO_RENDER_RUNNING;
-                if (stream->main_state == PLAYER_STATE_PREPARING) {
+                if (stream->main_state == ESP_PLAYER_STATE_PREPARING) {
                     cmd.cmd_type = ESP_PLAYER_CMD_PLAYING;
                     player_send_cmd(stream, &cmd);
                 }

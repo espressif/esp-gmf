@@ -386,7 +386,7 @@ static void sc_concurrent_seek_task(void *arg)
     int local_ok = 0;
 
     for (int i = 0; i < a->rounds; i++) {
-        uint64_t target_ms = (esp_random() % 10) * 1000;
+        uint64_t target_ms = (esp_random() % 10) * 200;
         esp_player_err_t ret = esp_player_seek(a->player, target_ms);
         if (ret == ESP_PLAYER_ERR_OK) {
             local_ok++;
@@ -1573,12 +1573,18 @@ TEST_CASE("[edge]:test_player_seek_while_paused", "[player][scenario]")
     esp_player_set_url(ctx.player, m4a);
     TEST_ASSERT_TRUE(sc_run_and_wait_played(&ctx));
 
+    esp_player_state_t state = ESP_PLAYER_STATE_IDLE;
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_state(ctx.player, &state));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_STATE_PLAYING, state);
+
     uint64_t dur = 0;
     esp_player_get_duration(ctx.player, &dur);
 
     vTaskDelay(pdMS_TO_TICKS(500));
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_pause(ctx.player));
     TEST_ASSERT_TRUE(sc_wait_bits(&ctx, SC_PAUSED_BIT, SC_TIMEOUT_PLAY_MS));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_state(ctx.player, &state));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_STATE_PAUSED, state);
 
     uint64_t paused_pos = 0;
     esp_player_get_play_time(ctx.player, &paused_pos);
@@ -1592,6 +1598,8 @@ TEST_CASE("[edge]:test_player_seek_while_paused", "[player][scenario]")
 
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_resume(ctx.player));
     TEST_ASSERT_TRUE(sc_wait_bits(&ctx, SC_PLAYED_BIT, SC_TIMEOUT_PLAY_MS));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_state(ctx.player, &state));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_STATE_PLAYING, state);
 
     vTaskDelay(pdMS_TO_TICKS(500));
     uint64_t resumed_pos = 0;
@@ -1602,6 +1610,8 @@ TEST_CASE("[edge]:test_player_seek_while_paused", "[player][scenario]")
 
     vTaskDelay(pdMS_TO_TICKS(2000));
     sc_stop_and_wait(&ctx);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_state(ctx.player, &state));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_STATE_STOPPED, state);
     sc_destroy_player_and_render(&ctx);
 }
 
@@ -1776,6 +1786,56 @@ TEST_CASE("[edge]:test_player_seek_bookmark_play_time_immediate", "[player][scen
     TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(upper, play_time, "play_time too large after bookmark seek");
 
     vTaskDelay(pdMS_TO_TICKS(1000));
+    sc_stop_and_wait(&ctx);
+    sc_destroy_player_and_render(&ctx);
+}
+
+TEST_CASE("[edge]:test_player_seek_bookmark_after_finished", "[player][scenario]")
+{
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, "/sdcard/test.mp3"));
+    TEST_ASSERT_TRUE(sc_run_and_wait_played(&ctx));
+
+    uint64_t dur = 0;
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_duration(ctx.player, &dur));
+    TEST_ASSERT_GREATER_THAN_MESSAGE(3000, dur, "Test file too short for finished bookmark seek test");
+
+    uint64_t near_end = dur * 95 / 100;
+    ESP_LOGI(TAG, "[FinishedBookmark] Seek near end %" PRIu64 " ms to reach FINISHED (dur=%" PRIu64 ")",
+             near_end, dur);
+    sc_clear_bits(&ctx, SC_SEEK_DONE_BIT | SC_FINISHED_BIT);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_seek(ctx.player, near_end));
+    TEST_ASSERT_TRUE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_SEEK_MS));
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_FINISHED_BIT, 15000),
+                             "Expected FINISHED after seek near end");
+
+    esp_player_state_t state = ESP_PLAYER_STATE_IDLE;
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_state(ctx.player, &state));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_STATE_FINISHED, state);
+
+    uint64_t bookmark = dur / 3;
+    ESP_LOGI(TAG, "[FinishedBookmark] bookmark seek to %" PRIu64 " ms then run", bookmark);
+    sc_clear_bits(&ctx, SC_SEEK_DONE_BIT | SC_PLAYED_BIT | SC_FINISHED_BIT);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_seek(ctx.player, bookmark));
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_SEEK_MS),
+                             "Expected SEEK_DONE for bookmark seek in FINISHED state");
+
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_run(ctx.player));
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_PLAYED_BIT, SC_TIMEOUT_PLAY_MS),
+                             "Expected PLAYED after FINISHED bookmark seek + run");
+
+    uint64_t play_time = 0;
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_play_time(ctx.player, &play_time));
+    ESP_LOGI(TAG, "[FinishedBookmark] play_time after PLAYED: %" PRIu64 " ms (expected near %" PRIu64 ")",
+             play_time, bookmark);
+
+    uint64_t tolerance = 1000;
+    uint64_t lower = (bookmark > tolerance) ? (bookmark - tolerance) : 0;
+    uint64_t upper = bookmark + tolerance;
+    TEST_ASSERT_GREATER_OR_EQUAL_MESSAGE(lower, play_time, "play_time too small after FINISHED bookmark seek");
+    TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(upper, play_time, "play_time too large after FINISHED bookmark seek");
+
     sc_stop_and_wait(&ctx);
     sc_destroy_player_and_render(&ctx);
 }

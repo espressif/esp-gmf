@@ -162,7 +162,7 @@ esp_gmf_err_io_t player_ports_push_bounded(esp_player_stream_t *stream, QueueHan
         if (xQueueSend(q, load, per_wait) == pdTRUE) {
             return ESP_GMF_IO_OK;
         }
-        if (stream->main_state == PLAYER_STATE_PAUSED) {
+        if (stream->main_state == ESP_PLAYER_STATE_PAUSED) {
             waited = 0;
             continue;
         }
@@ -195,12 +195,18 @@ esp_gmf_err_io_t player_ports_handle_stop_state(esp_player_stream_t *stream, esp
 
 esp_gmf_err_io_t player_release_payload(esp_player_stream_t *stream, esp_gmf_payload_t *load)
 {
-    if (load == NULL || load->buf == NULL) {
+    if (stream == NULL || load == NULL) {
         return ESP_GMF_IO_OK;
     }
+    uint8_t *buf = __atomic_load_n(&load->buf, __ATOMIC_SEQ_CST);
+    if (buf == NULL || !__atomic_compare_exchange_n(&load->buf, &buf, NULL, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+        return ESP_GMF_IO_OK;
+    }
+    uint32_t valid_size = __atomic_exchange_n(&load->valid_size, 0u, __ATOMIC_SEQ_CST);
+
     switch (stream->dec_frame_mode) {
         case ESP_PLAYER_DEC_FRAME_MODE_FILL: {
-            frame_pool_slot_t *slot = frame_pool_find_by_buf(stream->fill_pool, load->buf);
+            frame_pool_slot_t *slot = frame_pool_find_by_buf(stream->fill_pool, buf);
             frame_pool_release(stream->fill_pool, slot);
             return ESP_GMF_IO_OK;
         }
@@ -209,9 +215,10 @@ esp_gmf_err_io_t player_release_payload(esp_player_stream_t *stream, esp_gmf_pay
             return ESP_GMF_IO_OK;
         case ESP_PLAYER_DEC_FRAME_MODE_EXTRACTOR:
         default: {
-            esp_extractor_frame_info_t frame_info;
-            frame_info.frame_buffer = load->buf;
-            frame_info.frame_size = load->valid_size;
+            esp_extractor_frame_info_t frame_info = {
+                .frame_buffer = buf,
+                .frame_size = valid_size,
+            };
             if (player_extractor_release_frame(player_extractor_el(stream), &frame_info) != ESP_GMF_ERR_OK) {
                 ESP_LOGE(TAG, "Failed to release frame, line: %d", __LINE__);
                 return ESP_GMF_IO_FAIL;
@@ -246,7 +253,7 @@ void player_ports_buffer_gate_try_enter(esp_player_stream_t *stream, bool is_aud
 {
     player_buffer_ctrl_t *ctrl = player_buffer_ctrl(stream);
     if (ctrl == NULL || ctrl->gate_state != ESP_PLAYER_BUFFER_GATE_NONE
-        || stream->main_state != PLAYER_STATE_PLAYING || !_player_is_network_source_uri(stream)) {
+        || stream->main_state != ESP_PLAYER_STATE_PLAYING || !_player_is_network_source_uri(stream)) {
         return;
     }
 

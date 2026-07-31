@@ -122,13 +122,8 @@ static void st_seek_create_render_if_expected(esp_player_stream_t *stream)
 
 static bool st_seek_wait_decoder_done(esp_player_stream_t *stream, uint32_t seek_done_bits)
 {
-    if (seek_done_bits & _CTRL_PLAYER_DECODER_VIDEO_SEEK_DONE) {
-        if (player_wait_events(stream, _CTRL_PLAYER_DECODER_VIDEO_SEEK_DONE, portMAX_DELAY) != ESP_PLAYER_ERR_OK) {
-            player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_VIDEO_DECODER, "wait video seek done failed");
-            return true;
-        }
-    }
-    return false;
+    return player_seek_wait_decoder_done(stream, seek_done_bits, _CTRL_PLAYER_DECODER_VIDEO_SEEK_DONE,
+                                         ESP_PLAYER_ERROR_SOURCE_VIDEO_DECODER, "wait video seek done failed");
 }
 
 static bool st_decoder_expected_running(esp_player_stream_t *stream)

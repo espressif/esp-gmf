@@ -144,6 +144,24 @@ typedef struct {
 } esp_player_track_info_t;
 
 /**
+ * @brief  Player main state enumeration
+ *
+ * @note  Queried via esp_player_get_state(). This is the authoritative playback
+ *        lifecycle state. Prefer it over mirroring ESP_PLAYER_EVENT_* for UI and
+ *        control decisions. Transient conditions such as buffering are reported
+ *        only via events (ESP_PLAYER_EVENT_BUFFERING / BUFFERED), not as states.
+ */
+typedef enum {
+    ESP_PLAYER_STATE_IDLE      = 0,  /*!< Idle: freshly initialized or not configured */
+    ESP_PLAYER_STATE_PREPARING = 1,  /*!< Preparing: run requested, pipelines starting */
+    ESP_PLAYER_STATE_PLAYING   = 2,  /*!< Playing: pipelines running and rendering */
+    ESP_PLAYER_STATE_PAUSED    = 3,  /*!< Paused: render tasks suspended */
+    ESP_PLAYER_STATE_STOPPED   = 4,  /*!< Stopped: explicitly stopped by user */
+    ESP_PLAYER_STATE_FINISHED  = 5,  /*!< Finished: reached end of media naturally */
+    ESP_PLAYER_STATE_ERROR     = 6,  /*!< Error: after failure */
+} esp_player_state_t;
+
+/**
  * @brief  Player event type enumeration
  *
  * @note  Do not call APIs that require locking from inside the event callback

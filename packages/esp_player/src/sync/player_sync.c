@@ -328,6 +328,10 @@ bool player_sync_audio_render_frame(player_sync_handle_t handle, uint64_t pts_ms
     if (sync->seek_in_progress) {
         return false;
     }
+    esp_player_stream_t *stream = (esp_player_stream_t *)sync->config.bit_ctx;
+    if (stream && stream->_is_stop) {
+        return false;
+    }
     if (sync->config.sync_mode == ESP_PLAYER_SYNC_MODE_NONE) {
         if (pts_ms > 0) {
             sync->audio_render_pts_ms = pts_ms;
@@ -385,6 +389,10 @@ bool player_sync_video_render_frame(player_sync_handle_t handle, uint64_t pts_ms
     }
     sync_handle_video_pause(sync);
     if (sync->seek_in_progress) {
+        return false;
+    }
+    esp_player_stream_t *stream = (esp_player_stream_t *)sync->config.bit_ctx;
+    if (stream && stream->_is_stop) {
         return false;
     }
     if (sync->config.sync_mode == ESP_PLAYER_SYNC_MODE_NONE) {

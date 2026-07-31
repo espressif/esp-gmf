@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.0.4
+
+### Features
+
+- Added `esp_player_get_state()` and public `esp_player_state_t` for authoritative playback state queries
+
+### Bug Fixes
+
+- Fixed crash and seek stall from incorrect extractor frame release
+- Fixed video decoder reopen with wrong decoded pixel format
+- Fixed `player_cmd` task abort on deinit
+- Fixed stale input IO after stop/finish when the same URI is replayed
+- Fixed brief leftover audio from the previous track after pause, stop, and play a new URI
+
 ## v1.0.3
 
 ### Changes

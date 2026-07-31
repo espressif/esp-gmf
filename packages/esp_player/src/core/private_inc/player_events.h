@@ -39,6 +39,7 @@ extern "C" {
 #define DECODER_STOP_TIMEOUT_MS    1000  // Decoder stop timeout
 #define EXTRACTOR_STOP_TIMEOUT_MS  1000  // Extractor stop timeout
 #define ALL_TASKS_STOP_TIMEOUT_MS  2000  // All tasks stop timeout
+#define SEEK_DONE_TIMEOUT_MS       5000  // Decoder seek done timeout, generous enough for a network source
 
 #define ESP_PLAYER_TASK_IS_RUNNING(status, task_bit)     ((status & task_bit) != 0)
 #define ESP_PLAYER_SET_TASK_RUNNING(status, task_bit)    (status |= task_bit)

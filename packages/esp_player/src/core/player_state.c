@@ -20,13 +20,13 @@
         player_set_events((stream), _CTRL_PLAYER_SEEKING);                                          \
     }                                                                                               \
     switch (old_state) {                                                                            \
-        case PLAYER_STATE_PREPARING:                                                                \
+        case ESP_PLAYER_STATE_PREPARING:                                                            \
             player_set_events(stream, _CTRL_PLAYER_RUN | _CTRL_RUN_TO_END | _CTRL_PLAYER_RESUMED);  \
             break;                                                                                  \
-        case PLAYER_STATE_PAUSED:                                                                   \
+        case ESP_PLAYER_STATE_PAUSED:                                                               \
             player_set_events(stream, _CTRL_PLAYER_PAUSED);                                         \
             break;                                                                                  \
-        case PLAYER_STATE_STOPPED:                                                                  \
+        case ESP_PLAYER_STATE_STOPPED:                                                              \
             player_set_events(stream, _CTRL_PLAYER_STOPPED);                                        \
             break;                                                                                  \
         default:                                                                                    \
@@ -40,13 +40,13 @@ static const player_st_path_ops_t *s_aud_ops;
 static const player_st_path_ops_t *s_vid_ops;
 
 static const char *const k_state_names[] = {
-    [PLAYER_STATE_IDLE]      = "IDLE",
-    [PLAYER_STATE_PREPARING] = "PREPARING",
-    [PLAYER_STATE_PLAYING]   = "PLAYING",
-    [PLAYER_STATE_PAUSED]    = "PAUSED",
-    [PLAYER_STATE_STOPPED]   = "STOPPED",
-    [PLAYER_STATE_FINISHED]  = "FINISHED",
-    [PLAYER_STATE_ERROR]     = "ERROR",
+    [ESP_PLAYER_STATE_IDLE]      = "IDLE",
+    [ESP_PLAYER_STATE_PREPARING] = "PREPARING",
+    [ESP_PLAYER_STATE_PLAYING]   = "PLAYING",
+    [ESP_PLAYER_STATE_PAUSED]    = "PAUSED",
+    [ESP_PLAYER_STATE_STOPPED]   = "STOPPED",
+    [ESP_PLAYER_STATE_FINISHED]  = "FINISHED",
+    [ESP_PLAYER_STATE_ERROR]     = "ERROR",
 };
 
 static const char *const k_cmd_names[] = {
@@ -71,22 +71,24 @@ typedef struct {
 } state_edge_t;
 
 static const state_edge_t k_edges[] = {
-    {PLAYER_STATE_IDLE, ESP_PLAYER_CMD_PREPARE, PLAYER_STATE_PREPARING},
-    {PLAYER_STATE_IDLE, ESP_PLAYER_CMD_ERROR, PLAYER_STATE_ERROR},
-    {PLAYER_STATE_PREPARING, ESP_PLAYER_CMD_STOP, PLAYER_STATE_STOPPED},
-    {PLAYER_STATE_PREPARING, ESP_PLAYER_CMD_ERROR, PLAYER_STATE_ERROR},
-    {PLAYER_STATE_PLAYING, ESP_PLAYER_CMD_PAUSE, PLAYER_STATE_PAUSED},
-    {PLAYER_STATE_PLAYING, ESP_PLAYER_CMD_STOP, PLAYER_STATE_STOPPED},
-    {PLAYER_STATE_PLAYING, ESP_PLAYER_CMD_ERROR, PLAYER_STATE_ERROR},
-    {PLAYER_STATE_PAUSED, ESP_PLAYER_CMD_RESUME, PLAYER_STATE_PLAYING},
-    {PLAYER_STATE_PAUSED, ESP_PLAYER_CMD_STOP, PLAYER_STATE_STOPPED},
-    {PLAYER_STATE_PAUSED, ESP_PLAYER_CMD_ERROR, PLAYER_STATE_ERROR},
-    {PLAYER_STATE_STOPPED, ESP_PLAYER_CMD_PREPARE, PLAYER_STATE_PREPARING},
-    {PLAYER_STATE_STOPPED, ESP_PLAYER_CMD_ERROR, PLAYER_STATE_ERROR},
-    {PLAYER_STATE_FINISHED, ESP_PLAYER_CMD_PREPARE, PLAYER_STATE_PREPARING},
-    {PLAYER_STATE_ERROR, ESP_PLAYER_CMD_STOP, PLAYER_STATE_STOPPED},
-    {PLAYER_STATE_ERROR, ESP_PLAYER_CMD_FINISHED, PLAYER_STATE_FINISHED},
-    {PLAYER_STATE_ERROR, ESP_PLAYER_CMD_ERROR, PLAYER_STATE_ERROR},
+    {ESP_PLAYER_STATE_IDLE, ESP_PLAYER_CMD_PREPARE, ESP_PLAYER_STATE_PREPARING},
+    {ESP_PLAYER_STATE_IDLE, ESP_PLAYER_CMD_ERROR, ESP_PLAYER_STATE_ERROR},
+    {ESP_PLAYER_STATE_PREPARING, ESP_PLAYER_CMD_STOP, ESP_PLAYER_STATE_STOPPED},
+    {ESP_PLAYER_STATE_PREPARING, ESP_PLAYER_CMD_ERROR, ESP_PLAYER_STATE_ERROR},
+    {ESP_PLAYER_STATE_PLAYING, ESP_PLAYER_CMD_PAUSE, ESP_PLAYER_STATE_PAUSED},
+    {ESP_PLAYER_STATE_PLAYING, ESP_PLAYER_CMD_STOP, ESP_PLAYER_STATE_STOPPED},
+    {ESP_PLAYER_STATE_PLAYING, ESP_PLAYER_CMD_ERROR, ESP_PLAYER_STATE_ERROR},
+    {ESP_PLAYER_STATE_PAUSED, ESP_PLAYER_CMD_RESUME, ESP_PLAYER_STATE_PLAYING},
+    {ESP_PLAYER_STATE_PAUSED, ESP_PLAYER_CMD_STOP, ESP_PLAYER_STATE_STOPPED},
+    {ESP_PLAYER_STATE_PAUSED, ESP_PLAYER_CMD_ERROR, ESP_PLAYER_STATE_ERROR},
+    {ESP_PLAYER_STATE_STOPPED, ESP_PLAYER_CMD_PREPARE, ESP_PLAYER_STATE_PREPARING},
+    {ESP_PLAYER_STATE_STOPPED, ESP_PLAYER_CMD_ERROR, ESP_PLAYER_STATE_ERROR},
+    {ESP_PLAYER_STATE_FINISHED, ESP_PLAYER_CMD_PREPARE, ESP_PLAYER_STATE_PREPARING},
+    {ESP_PLAYER_STATE_FINISHED, ESP_PLAYER_CMD_STOP, ESP_PLAYER_STATE_STOPPED},
+    {ESP_PLAYER_STATE_ERROR, ESP_PLAYER_CMD_PREPARE, ESP_PLAYER_STATE_PREPARING},
+    {ESP_PLAYER_STATE_ERROR, ESP_PLAYER_CMD_STOP, ESP_PLAYER_STATE_STOPPED},
+    {ESP_PLAYER_STATE_ERROR, ESP_PLAYER_CMD_FINISHED, ESP_PLAYER_STATE_FINISHED},
+    {ESP_PLAYER_STATE_ERROR, ESP_PLAYER_CMD_ERROR, ESP_PLAYER_STATE_ERROR},
 };
 
 static esp_player_err_t player_transition_to_state(esp_player_stream_t *stream, esp_player_state_t new_state);
@@ -119,9 +121,9 @@ static bool handle_cmd_quit(esp_player_stream_t *stream)
         return true;
     }
     ESP_LOGI(TAG, "Quitting player from %s state", get_state_name(stream->main_state));
-    if (stream->main_state == PLAYER_STATE_PREPARING
-        || stream->main_state == PLAYER_STATE_PLAYING
-        || stream->main_state == PLAYER_STATE_PAUSED) {
+    if (stream->main_state == ESP_PLAYER_STATE_PREPARING
+        || stream->main_state == ESP_PLAYER_STATE_PLAYING
+        || stream->main_state == ESP_PLAYER_STATE_PAUSED) {
         stop_playback(stream);
     }
     return true;
@@ -130,11 +132,10 @@ static bool handle_cmd_quit(esp_player_stream_t *stream)
 static bool handle_cmd_stop(esp_player_stream_t *stream)
 {
     switch (stream->main_state) {
-        case PLAYER_STATE_IDLE:
-        case PLAYER_STATE_FINISHED:
+        case ESP_PLAYER_STATE_IDLE:
             player_set_events(stream, _CTRL_RUN_TO_END);
             return true;
-        case PLAYER_STATE_STOPPED:
+        case ESP_PLAYER_STATE_STOPPED:
             player_set_events(stream, _CTRL_PLAYER_STOPPED);
             return true;
         default:
@@ -144,7 +145,7 @@ static bool handle_cmd_stop(esp_player_stream_t *stream)
 
 static bool handle_cmd_pause(esp_player_stream_t *stream)
 {
-    if (stream->main_state != PLAYER_STATE_FINISHED) {
+    if (stream->main_state != ESP_PLAYER_STATE_FINISHED) {
         return false;
     }
     player_set_events(stream, _CTRL_RUN_TO_END);
@@ -156,7 +157,7 @@ static bool handle_cmd_seek(esp_player_stream_t *stream, const esp_player_cmd_ms
     esp_player_state_t current_state = stream->main_state;
     if (cmd->data == NULL || cmd->data_len != sizeof(uint64_t)) {
         player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_EXTRACTOR, "invalid seek payload");
-        player_transition_to_state(stream, PLAYER_STATE_ERROR);
+        player_transition_to_state(stream, ESP_PLAYER_STATE_ERROR);
         return true;
     }
     uint64_t seek_target = *(uint64_t *)cmd->data;
@@ -169,7 +170,7 @@ static bool handle_cmd_seek(esp_player_stream_t *stream, const esp_player_cmd_ms
 
     player_sync_set_seek_in_progress(stream->sync_handle, true);
     prepare_pipelines_for_seek(stream);
-    if (current_state == PLAYER_STATE_PLAYING || current_state == PLAYER_STATE_PAUSED) {
+    if (current_state == ESP_PLAYER_STATE_PLAYING || current_state == ESP_PLAYER_STATE_PAUSED) {
         seek_playback(stream, current_state);
     }
 
@@ -185,7 +186,7 @@ static bool handle_cmd_seek(esp_player_stream_t *stream, const esp_player_cmd_ms
 
 static bool handle_cmd_finished(esp_player_stream_t *stream)
 {
-    if (stream->main_state != PLAYER_STATE_PREPARING && stream->main_state != PLAYER_STATE_PLAYING) {
+    if (stream->main_state != ESP_PLAYER_STATE_PREPARING && stream->main_state != ESP_PLAYER_STATE_PLAYING) {
         return false;
     }
     if (stream->task_status != 0) {
@@ -194,24 +195,24 @@ static bool handle_cmd_finished(esp_player_stream_t *stream)
     }
     ESP_LOGI(TAG, "All streams ended, sending finish event");
     player_set_events(stream, _CTRL_RUN_TO_END);
-    player_transition_to_state(stream, PLAYER_STATE_FINISHED);
+    player_transition_to_state(stream, ESP_PLAYER_STATE_FINISHED);
     return true;
 }
 
 static bool handle_cmd_playing(esp_player_stream_t *stream)
 {
-    if (stream->main_state != PLAYER_STATE_PREPARING) {
+    if (stream->main_state != ESP_PLAYER_STATE_PREPARING) {
         return true;  // ignored in other states (matches historical default break)
     }
     if (stream->runned_status == stream->expected_tasks) {
-        player_transition_to_state(stream, PLAYER_STATE_PLAYING);
+        player_transition_to_state(stream, ESP_PLAYER_STATE_PLAYING);
     }
     return true;
 }
 
 static bool handle_cmd_report_info(esp_player_stream_t *stream, const esp_player_cmd_msg_t *cmd)
 {
-    if (stream->main_state != PLAYER_STATE_PREPARING) {
+    if (stream->main_state != ESP_PLAYER_STATE_PREPARING) {
         return true;  // ignored in other states
     }
     esp_player_event_msg_t event_msg = {.event_type = 0, .data = NULL, .data_len = 0};
@@ -222,7 +223,7 @@ static bool handle_cmd_report_info(esp_player_stream_t *stream, const esp_player
             player_send_event(stream, &event_msg);
             if (player_create_render_pipeline(stream, true) != ESP_PLAYER_ERR_OK) {
                 ESP_LOGE(TAG, "Failed to start audio renderer");
-                player_transition_to_state(stream, PLAYER_STATE_ERROR);
+                player_transition_to_state(stream, ESP_PLAYER_STATE_ERROR);
             }
             return true;
         case ESP_PLAYER_CMD_REPORT_VIDEO_INFO:
@@ -231,7 +232,7 @@ static bool handle_cmd_report_info(esp_player_stream_t *stream, const esp_player
             player_send_event(stream, &event_msg);
             if (player_create_render_pipeline(stream, false) != ESP_PLAYER_ERR_OK) {
                 ESP_LOGE(TAG, "Failed to start video renderer");
-                player_transition_to_state(stream, PLAYER_STATE_ERROR);
+                player_transition_to_state(stream, ESP_PLAYER_STATE_ERROR);
             }
             return true;
         case ESP_PLAYER_CMD_REPORT_TRACK_INFO: {
@@ -246,7 +247,7 @@ static bool handle_cmd_report_info(esp_player_stream_t *stream, const esp_player
                 if (!(stream->expected_tasks & TASK_STATUS_AUDIO_DECODER_RUNNING)) {
                     start_decoder_by_mode(stream, ESP_PLAYER_MASK_AUDIO);
                     if (stream->error_source != ESP_PLAYER_ERROR_SOURCE_NONE) {
-                        player_transition_to_state(stream, PLAYER_STATE_ERROR);
+                        player_transition_to_state(stream, ESP_PLAYER_STATE_ERROR);
                         return true;
                     }
                 }
@@ -257,7 +258,7 @@ static bool handle_cmd_report_info(esp_player_stream_t *stream, const esp_player
                 if (!(stream->expected_tasks & TASK_STATUS_VIDEO_DECODER_RUNNING)) {
                     start_decoder_by_mode(stream, ESP_PLAYER_MASK_VIDEO);
                     if (stream->error_source != ESP_PLAYER_ERROR_SOURCE_NONE) {
-                        player_transition_to_state(stream, PLAYER_STATE_ERROR);
+                        player_transition_to_state(stream, ESP_PLAYER_STATE_ERROR);
                         return true;
                     }
                 }
@@ -306,6 +307,7 @@ static void enter_preparing(esp_player_stream_t *stream, esp_player_state_t old_
     (void)old_state;
     ESP_LOGI(TAG, "Entering PREPARING state");
     stream->_is_stop = false;
+    stream->error_source = ESP_PLAYER_ERROR_SOURCE_NONE;
     if (stream->input_state == ESP_PLAYER_INPUT_OPEN_FAILED) {
         stream->input_state = ESP_PLAYER_INPUT_CLOSED;
     }
@@ -317,24 +319,24 @@ static void enter_playing(esp_player_stream_t *stream, esp_player_state_t old_st
     ESP_LOGI(TAG, "Entering PLAYING state, old_state: %s", get_state_name(old_state));
     esp_player_event_msg_t event_msg = {.event_type = ESP_PLAYER_EVENT_PLAYED, .data = NULL, .data_len = 0};
     switch (old_state) {
-        case PLAYER_STATE_PAUSED:
+        case ESP_PLAYER_STATE_PAUSED:
             paused_playback(stream);
             player_send_event(stream, &event_msg);
             player_set_events(stream, _CTRL_PLAYER_RESUMED);
             break;
-        case PLAYER_STATE_STOPPED:
+        case ESP_PLAYER_STATE_STOPPED:
             player_send_event(stream, &event_msg);
             break;
-        case PLAYER_STATE_FINISHED:
+        case ESP_PLAYER_STATE_FINISHED:
             finished_playback(stream);
             player_send_event(stream, &event_msg);
             break;
-        case PLAYER_STATE_PREPARING:
+        case ESP_PLAYER_STATE_PREPARING:
             if (stream->runned_status == stream->expected_tasks) {
                 player_send_event(stream, &event_msg);
             }
             break;
-        case PLAYER_STATE_ERROR:
+        case ESP_PLAYER_STATE_ERROR:
             player_send_event(stream, &event_msg);
             break;
         default:
@@ -355,14 +357,11 @@ static void enter_paused(esp_player_stream_t *stream, esp_player_state_t old_sta
 static void enter_stopped(esp_player_stream_t *stream, esp_player_state_t old_state)
 {
     ESP_LOGI(TAG, "Entering STOPPED state");
-    if (old_state == PLAYER_STATE_PAUSED) {
-        paused_playback(stream);
-    }
     stop_playback(stream);
     esp_player_event_msg_t event_msg = {.event_type = ESP_PLAYER_EVENT_STOPPED, .data = NULL, .data_len = 0};
     player_send_event(stream, &event_msg);
     player_set_events(stream, _CTRL_PLAYER_STOPPED | _CTRL_RUN_TO_END);
-    if (old_state == PLAYER_STATE_PREPARING) {
+    if (old_state == ESP_PLAYER_STATE_PREPARING) {
         player_set_events(stream, _CTRL_PLAYER_RUN);
     }
 }
@@ -391,13 +390,13 @@ static void enter_error(esp_player_stream_t *stream, esp_player_state_t old_stat
 typedef void (*state_enter_fn_t)(esp_player_stream_t *stream, esp_player_state_t old_state);
 
 static const state_enter_fn_t k_state_enter[] = {
-    [PLAYER_STATE_IDLE]      = NULL,
-    [PLAYER_STATE_PREPARING] = enter_preparing,
-    [PLAYER_STATE_PLAYING]   = enter_playing,
-    [PLAYER_STATE_PAUSED]    = enter_paused,
-    [PLAYER_STATE_STOPPED]   = enter_stopped,
-    [PLAYER_STATE_FINISHED]  = enter_finished,
-    [PLAYER_STATE_ERROR]     = enter_error,
+    [ESP_PLAYER_STATE_IDLE]      = NULL,
+    [ESP_PLAYER_STATE_PREPARING] = enter_preparing,
+    [ESP_PLAYER_STATE_PLAYING]   = enter_playing,
+    [ESP_PLAYER_STATE_PAUSED]    = enter_paused,
+    [ESP_PLAYER_STATE_STOPPED]   = enter_stopped,
+    [ESP_PLAYER_STATE_FINISHED]  = enter_finished,
+    [ESP_PLAYER_STATE_ERROR]     = enter_error,
 };
 
 static void prepare_pipelines_for_seek(esp_player_stream_t *stream)
@@ -463,7 +462,7 @@ static void start_playback(esp_player_stream_t *stream)
     player_clear_all_queues(stream);
     if ((stream->av_mask & ESP_PLAYER_MASK_AV) == 0) {
         ESP_LOGE(TAG, "Invalid av_mask: 0x%x", stream->av_mask);
-        player_transition_to_state(stream, PLAYER_STATE_ERROR);
+        player_transition_to_state(stream, ESP_PLAYER_STATE_ERROR);
         return;
     }
     _player_init_params(stream);
@@ -508,7 +507,7 @@ static void start_playback(esp_player_stream_t *stream)
     if (stream->error_source != ESP_PLAYER_ERROR_SOURCE_NONE && stream->expected_tasks == 0) {
         ESP_LOGE(TAG, "Pipeline bring-up failed (error_source=%d), transitioning to ERROR",
                  stream->error_source);
-        player_transition_to_state(stream, PLAYER_STATE_ERROR);
+        player_transition_to_state(stream, ESP_PLAYER_STATE_ERROR);
     }
 }
 
@@ -564,8 +563,11 @@ static void stop_playback(esp_player_stream_t *stream)
     uint8_t active = stream->task_status | stream->expected_tasks;
     do {
         ret = ESP_GMF_ERR_OK;
-        if (active & TASK_STATUS_EXTRACTOR_RUNNING) {
-            ret |= player_stop_extractor(stream);
+        if ((active & TASK_STATUS_AUDIO_RENDER_RUNNING) && stream->audio_side && stream->audio_side->render) {
+            ret |= player_stop_render(stream, active, TASK_STATUS_AUDIO_RENDER_RUNNING, aud_db, stream->audio_side->render);
+        }
+        if ((active & TASK_STATUS_VIDEO_RENDER_RUNNING) && stream->video_side && stream->video_side->render) {
+            ret |= player_stop_render(stream, active, TASK_STATUS_VIDEO_RENDER_RUNNING, vid_db, stream->video_side->render);
         }
         if ((active & TASK_STATUS_AUDIO_DECODER_RUNNING) && stream->audio_side && stream->audio_side->decoder) {
             ret |= player_stop_decoder(stream, stream->audio_side->extractor_queue, active, TASK_STATUS_AUDIO_DECODER_RUNNING, stream->audio_side->decoder, aud_db);
@@ -573,17 +575,16 @@ static void stop_playback(esp_player_stream_t *stream)
         if ((active & TASK_STATUS_VIDEO_DECODER_RUNNING) && stream->video_side && stream->video_side->decoder) {
             ret |= player_stop_decoder(stream, stream->video_side->extractor_queue, active, TASK_STATUS_VIDEO_DECODER_RUNNING, stream->video_side->decoder, vid_db);
         }
-        if ((active & TASK_STATUS_AUDIO_RENDER_RUNNING) && stream->audio_side && stream->audio_side->render) {
-            ret |= player_stop_render(stream, active, TASK_STATUS_AUDIO_RENDER_RUNNING, aud_db, stream->audio_side->render);
-        }
-        if ((active & TASK_STATUS_VIDEO_RENDER_RUNNING) && stream->video_side && stream->video_side->render) {
-            ret |= player_stop_render(stream, active, TASK_STATUS_VIDEO_RENDER_RUNNING, vid_db, stream->video_side->render);
+        player_release_held_decoder_frames(stream);
+        if (active & TASK_STATUS_EXTRACTOR_RUNNING) {
+            ret |= player_stop_extractor(stream);
         }
     } while (0);
 
     // Keep sync_handle alive across run/stop cycles; only destroyed in esp_player_deinit.
     stream->runned_status = 0;
     stream->expected_tasks = 0;
+    player_close_input_io(stream);
     xSemaphoreGive(stream->lock_resource);
 }
 
@@ -614,6 +615,7 @@ static void handle_playback_finished(esp_player_stream_t *stream)
 {
     ESP_LOGI(TAG, "Playback finished");
     player_clear_all_queues(stream);
+    player_close_input_io(stream);
 }
 
 static void handle_error_state(esp_player_stream_t *stream, esp_player_state_t old_state)
@@ -627,8 +629,8 @@ static void handle_error_state(esp_player_stream_t *stream, esp_player_state_t o
         deinit_extractor_path(stream);
         player_clear_events(stream, _CTRL_ALL_EVENTS);
         ESP_LOGI(TAG, "State transition: %s -> %s (error auto-recovery)",
-                 get_state_name(stream->main_state), get_state_name(PLAYER_STATE_IDLE));
-        stream->main_state = PLAYER_STATE_IDLE;
+                 get_state_name(stream->main_state), get_state_name(ESP_PLAYER_STATE_IDLE));
+        stream->main_state = ESP_PLAYER_STATE_IDLE;
         SET_EVENTS_BY_STATE_IN_ERROR(stream, old_state);
         return;
     }
@@ -639,23 +641,23 @@ static void handle_error_state(esp_player_stream_t *stream, esp_player_state_t o
         // After the audio path is torn down the extractor's audio track is disabled too
         // (via player_extractor_enable_stream(false) in the decoder/render error handler),
         // so player_audio_track_idx() now returns -1 and video_out_release already throttles.
-        if (old_state == PLAYER_STATE_ERROR) {
+        if (old_state == ESP_PLAYER_STATE_ERROR) {
             player_set_events(stream, _CTRL_ALL_EVENTS);
         }
     } else if (stream->error_source == ESP_PLAYER_ERROR_SOURCE_VIDEO_DECODER || stream->error_source == ESP_PLAYER_ERROR_SOURCE_VIDEO_RENDER) {
         s_vid_ops->stop_path(stream);
         deinit_video_path(stream);
         player_clear_events(stream, _CTRL_PLAYER_SYNC_AUDIO_RESUMED | _CTRL_PLAYER_DECODER_VIDEO_SEEK_DONE);
-        if (old_state == PLAYER_STATE_ERROR) {
+        if (old_state == ESP_PLAYER_STATE_ERROR) {
             player_set_events(stream, _CTRL_ALL_EVENTS);
         }
     }
     uint8_t survivor_render_bit = TASK_STATUS_AUDIO_RENDER_RUNNING | TASK_STATUS_VIDEO_RENDER_RUNNING;
     if (stream->expected_tasks & survivor_render_bit) {
         bool survivor_render_ready = (stream->task_status & survivor_render_bit) != 0;
-        if (survivor_render_ready && old_state == PLAYER_STATE_PREPARING) {
+        if (survivor_render_ready && old_state == ESP_PLAYER_STATE_PREPARING) {
             ESP_LOGI(TAG, "Partial error in PREPARING, surviving stream auto-play");
-            player_transition_to_state(stream, PLAYER_STATE_PLAYING);
+            player_transition_to_state(stream, ESP_PLAYER_STATE_PLAYING);
         } else {
             ESP_LOGI(TAG, "Partial error, keep surviving stream in %s (render_ready=%d)",
                      get_state_name(old_state), survivor_render_ready);
@@ -669,8 +671,8 @@ static void handle_error_state(esp_player_stream_t *stream, esp_player_state_t o
         deinit_extractor_path(stream);
         player_clear_events(stream, _CTRL_ALL_EVENTS);
         ESP_LOGI(TAG, "State transition: %s -> %s (error auto-recovery)",
-                 get_state_name(stream->main_state), get_state_name(PLAYER_STATE_IDLE));
-        stream->main_state = PLAYER_STATE_IDLE;
+                 get_state_name(stream->main_state), get_state_name(ESP_PLAYER_STATE_IDLE));
+        stream->main_state = ESP_PLAYER_STATE_IDLE;
         SET_EVENTS_BY_STATE_IN_ERROR(stream, old_state);
     }
 }
@@ -688,11 +690,12 @@ static void seek_playback(esp_player_stream_t *stream, esp_player_state_t old_st
              __func__, __LINE__, get_state_name(old_state), stream->expected_tasks, stream->task_status);
     if (stream->sync_handle) {
         player_sync_reset(stream->sync_handle);
-        if (old_state == PLAYER_STATE_PAUSED) {
+        if (old_state == ESP_PLAYER_STATE_PAUSED) {
             player_sync_pause(stream->sync_handle);
         }
     }
     player_clear_all_queues(stream);
+    player_release_held_decoder_frames(stream);
     if (stream->audio_side && stream->audio_side->decoder) {
         esp_gmf_element_handle_t aud_dec_el = NULL;
         if (esp_gmf_pipeline_get_el_by_name(stream->audio_side->decoder, AUDIO_DECODER_TAG, &aud_dec_el) == ESP_GMF_ERR_OK
@@ -737,7 +740,7 @@ static void seek_playback(esp_player_stream_t *stream, esp_player_state_t old_st
 
     esp_gmf_db_handle_t aud_db_seek = player_audio_db(stream);
     esp_gmf_db_handle_t vid_db_seek = player_video_db(stream);
-    if (old_state == PLAYER_STATE_PAUSED) {
+    if (old_state == ESP_PLAYER_STATE_PAUSED) {
         int seek_has_expected_decoder =
             (s_aud_ops->decoder_expected_running(stream) ? 1 : 0) | (s_vid_ops->decoder_expected_running(stream) ? 1 : 0);
         if (seek_has_expected_decoder) {
@@ -763,7 +766,7 @@ static void seek_playback(esp_player_stream_t *stream, esp_player_state_t old_st
             }
         }
 
-    } else if (old_state == PLAYER_STATE_PLAYING) {
+    } else if (old_state == ESP_PLAYER_STATE_PLAYING) {
         int seek_has_expected_decoder_play =
             (s_aud_ops->decoder_expected_running(stream) ? 1 : 0) | (s_vid_ops->decoder_expected_running(stream) ? 1 : 0);
         if (seek_has_expected_decoder_play) {

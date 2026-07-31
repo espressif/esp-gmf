@@ -31,12 +31,24 @@ static const char *TAG = "ESP_PLAYER_PIPELINE";
 
 static esp_gmf_err_t player_video_decoder_report_stream_info(esp_player_stream_t *stream)
 {
+    if (stream->extractor == NULL) {
+        ESP_LOGE(TAG, "Decoder reopen requires extractor codec info");
+        return ESP_GMF_ERR_FAIL;
+    }
+    int8_t vid_idx = -1;
+    esp_gmf_element_handle_t ext_el = player_extractor_el(stream);
+    esp_extractor_stream_info_t extractor_info = {0};
+    if (player_extractor_track_active(ext_el, ESP_EXTRACTOR_STREAM_TYPE_VIDEO, &vid_idx) != ESP_GMF_ERR_OK || vid_idx < 0
+        || player_extractor_get_stream_info(ext_el, ESP_EXTRACTOR_STREAM_TYPE_VIDEO, (uint16_t)vid_idx, &extractor_info) != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to get extractor video codec info for decoder reopen");
+        return ESP_GMF_ERR_FAIL;
+    }
     esp_gmf_info_video_t info = {
-        .format_id = (uint32_t)stream->video_side->track_info.video_info.format,
-        .width = stream->video_side->track_info.video_info.width,
-        .height = stream->video_side->track_info.video_info.height,
-        .fps = stream->video_side->track_info.video_info.fps,
-        .bitrate = stream->video_side->track_info.video_info.bitrate,
+        .format_id = (uint32_t)extractor_info.video_info.format,
+        .width = extractor_info.video_info.width,
+        .height = extractor_info.video_info.height,
+        .fps = extractor_info.video_info.fps,
+        .bitrate = extractor_info.bitrate,
     };
     return esp_gmf_pipeline_report_info(stream->video_side->decoder, ESP_GMF_INFO_VIDEO, &info, (int)sizeof(info));
 }

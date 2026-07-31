@@ -383,6 +383,25 @@ TEST_CASE("[interface]:test_player_set_speed", "[player][interface]")
     audio_render_destroy_handle();
 }
 
+TEST_CASE("[interface]:test_player_get_state", "[player][interface]")
+{
+    esp_player_handle_t player = NULL;
+    CREATE_TEST_PLAYER(player);
+
+    esp_player_state_t state = ESP_PLAYER_STATE_ERROR;
+    esp_player_err_t ret = esp_player_get_state(player, &state);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, ret);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_STATE_IDLE, state);
+
+    ret = esp_player_get_state(NULL, &state);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_INVALID_ARG, ret);
+
+    ret = esp_player_get_state(player, NULL);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_INVALID_ARG, ret);
+
+    DESTROY_TEST_PLAYER(player);
+}
+
 TEST_CASE("[interface]:test_player_get_duration", "[player][interface]")
 {
     esp_player_handle_t player = NULL;

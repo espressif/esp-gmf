@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.0~2
+
+- Pin `ethernet_init` to `1.3.0` to avoid incompatible newer releases.
+
 ## v1.0.0~1
 
 - Updated the `esp-board-manager` dependency version.

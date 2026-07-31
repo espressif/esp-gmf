@@ -24,19 +24,6 @@ extern "C" {
 
 typedef struct esp_player_stream esp_player_stream_t;
 
-/**
- * @brief  Player main state enumeration
- */
-typedef enum {
-    PLAYER_STATE_IDLE      = 0,  /*!< Idle: not yet configured (no URL) or freshly init-ed */
-    PLAYER_STATE_PREPARING = 1,  /*!< Preparing: user requested run, pipelines are being brought up but haven't reached RUNNING yet */
-    PLAYER_STATE_PLAYING   = 2,  /*!< Playing: all expected tasks are RUNNING and rendering is happening */
-    PLAYER_STATE_PAUSED    = 3,  /*!< Paused: render tasks are suspended */
-    PLAYER_STATE_STOPPED   = 4,  /*!< Stopped: playback explicitly stopped by user */
-    PLAYER_STATE_FINISHED  = 5,  /*!< Finished: stream reached end-of-media naturally */
-    PLAYER_STATE_ERROR     = 6,  /*!< Error: sticky state after a pipeline-level failure */
-} esp_player_state_t;
-
 /* -------- Commands and state machine (player_state.c) -------- */
 
 /**

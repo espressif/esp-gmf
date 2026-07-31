@@ -26,10 +26,8 @@ static void player_cmd_task(void *arg)
             if (cmd.cmd_type == ESP_PLAYER_CMD_QUIT) {
                 ESP_LOGD(ESP_PLAYER_TAG, "Command task exiting, deleting itself");
                 player_set_events(stream, _CTRL_PLAYER_QUIT);
-                esp_gmf_oal_thread_t self = stream->cmd_task;
                 stream->cmd_task = NULL;
-                esp_gmf_oal_thread_delete(self);
-                return;
+                esp_gmf_oal_thread_delete(NULL);
             }
         }
     }
@@ -353,7 +351,7 @@ esp_player_err_t esp_player_run(esp_player_handle_t handle)
         return ESP_PLAYER_ERR_FAIL;
     }
 
-    if (stream->main_state != PLAYER_STATE_IDLE && stream->main_state != PLAYER_STATE_STOPPED && stream->main_state != PLAYER_STATE_FINISHED) {
+    if (!is_state_allowed_for_operation(stream)) {
         ESP_LOGW(ESP_PLAYER_TAG, "Cannot run in state: %s", get_state_name(stream->main_state));
         return ESP_PLAYER_ERR_INVALID_STATE;
     }
@@ -394,7 +392,7 @@ esp_player_err_t esp_player_run_to_end(esp_player_handle_t handle)
         return ESP_PLAYER_ERR_FAIL;
     }
 
-    if (stream->main_state != PLAYER_STATE_IDLE && stream->main_state != PLAYER_STATE_STOPPED && stream->main_state != PLAYER_STATE_FINISHED) {
+    if (!is_state_allowed_for_operation(stream)) {
         ESP_LOGW(ESP_PLAYER_TAG, "Cannot run_to_end in state: %s", get_state_name(stream->main_state));
         return ESP_PLAYER_ERR_INVALID_STATE;
     }
@@ -424,7 +422,7 @@ esp_player_err_t esp_player_pause(esp_player_handle_t handle)
     }
     esp_player_stream_t *stream = (esp_player_stream_t *)handle;
 
-    if (stream->main_state != PLAYER_STATE_PLAYING) {
+    if (stream->main_state != ESP_PLAYER_STATE_PLAYING) {
         ESP_LOGW(ESP_PLAYER_TAG, "Cannot pause in state: %s", get_state_name(stream->main_state));
         return ESP_PLAYER_ERR_INVALID_STATE;
     }
@@ -457,7 +455,7 @@ esp_player_err_t esp_player_resume(esp_player_handle_t handle)
     }
     esp_player_stream_t *stream = (esp_player_stream_t *)handle;
 
-    if (stream->main_state != PLAYER_STATE_PAUSED) {
+    if (stream->main_state != ESP_PLAYER_STATE_PAUSED) {
         ESP_LOGW(ESP_PLAYER_TAG, "Cannot resume in state: %s", get_state_name(stream->main_state));
         return ESP_PLAYER_ERR_INVALID_STATE;
     }
@@ -490,8 +488,7 @@ esp_player_err_t esp_player_stop(esp_player_handle_t handle)
     }
     esp_player_stream_t *stream = (esp_player_stream_t *)handle;
 
-    if (stream->main_state == PLAYER_STATE_IDLE || stream->main_state == PLAYER_STATE_STOPPED ||
-        stream->main_state == PLAYER_STATE_FINISHED || stream->main_state == PLAYER_STATE_ERROR) {
+    if (stream->main_state == ESP_PLAYER_STATE_IDLE || stream->main_state == ESP_PLAYER_STATE_STOPPED) {
         ESP_LOGW(ESP_PLAYER_TAG, "No need to stop in state: %s", get_state_name(stream->main_state));
         return ESP_PLAYER_ERR_OK;
     }
@@ -529,7 +526,7 @@ esp_player_err_t esp_player_seek(esp_player_handle_t handle, uint64_t time_ms)
         return ESP_PLAYER_ERR_FAIL;
     }
 
-    if (stream->main_state == PLAYER_STATE_IDLE || stream->main_state == PLAYER_STATE_PREPARING) {
+    if (stream->main_state == ESP_PLAYER_STATE_IDLE || stream->main_state == ESP_PLAYER_STATE_PREPARING) {
         ESP_LOGE(ESP_PLAYER_TAG, "Cannot seek in state: %s", get_state_name(stream->main_state));
         return ESP_PLAYER_ERR_INVALID_STATE;
     }
@@ -538,7 +535,8 @@ esp_player_err_t esp_player_seek(esp_player_handle_t handle, uint64_t time_ms)
         return ESP_PLAYER_ERR_INVALID_STATE;
     }
 
-    if (stream->main_state == PLAYER_STATE_FINISHED || stream->main_state == PLAYER_STATE_STOPPED) {
+    if (stream->main_state == ESP_PLAYER_STATE_FINISHED || stream->main_state == ESP_PLAYER_STATE_STOPPED
+        || stream->main_state == ESP_PLAYER_STATE_ERROR) {
         player_sync_set_seek_target(stream->sync_handle, time_ms);
         player_sync_set_render_pts(stream->sync_handle, time_ms);
         esp_player_event_msg_t event_msg = {
@@ -589,6 +587,17 @@ esp_player_err_t esp_player_set_speed(esp_player_handle_t handle, float speed)
     player_set_speed_impl(stream, speed, &ret);
     xSemaphoreGive(stream->lock);
     return ret;
+}
+
+esp_player_err_t esp_player_get_state(esp_player_handle_t handle, esp_player_state_t *state)
+{
+    if (handle == NULL || state == NULL) {
+        ESP_LOGE(ESP_PLAYER_TAG, "Invalid argument, handle: %p, state: %p", handle, state);
+        return ESP_PLAYER_ERR_INVALID_ARG;
+    }
+    esp_player_stream_t *stream = (esp_player_stream_t *)handle;
+    *state = stream->main_state;
+    return ESP_PLAYER_ERR_OK;
 }
 
 esp_player_err_t esp_player_get_duration(esp_player_handle_t handle, uint64_t *duration)

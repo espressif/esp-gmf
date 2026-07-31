@@ -430,6 +430,23 @@ esp_player_err_t esp_player_seek(esp_player_handle_t handle, uint64_t time_ms);
 esp_player_err_t esp_player_set_speed(esp_player_handle_t handle, float speed);
 
 /**
+ * @brief  Get current player state
+ *
+ * @note  Returns the authoritative main-state snapshot (see esp_player_state_t).
+ *        Use this for UI and control decisions instead of mirroring events.
+ *        Events remain the preferred mechanism for edge notifications
+ *        (finished, error, buffering, seek done). Buffering is not a main state.
+ *
+ * @param[in]   handle  Player handle
+ * @param[out]  state   Output player state
+ *
+ * @return
+ *       - ESP_PLAYER_ERR_OK           State read successfully
+ *       - ESP_PLAYER_ERR_INVALID_ARG  Invalid handle or NULL state
+ */
+esp_player_err_t esp_player_get_state(esp_player_handle_t handle, esp_player_state_t *state);
+
+/**
  * @brief  Get media total duration
  *
  * @note  Returns longest active track duration in milliseconds from extractor metadata.

@@ -25,6 +25,11 @@ extern "C" {
     load->is_done    = true;                 \
 } while (0)
 
+#define PLAYER_PORTS_DETACH_BUF(load)  do {  \
+    load->buf        = NULL;                 \
+    load->valid_size = 0;                    \
+} while (0)
+
 /* -------- GMF port callbacks (player_ports.c, audio/video player_ports_*.c) -------- */
 
 esp_gmf_err_io_t extractor_audio_out_release(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks);

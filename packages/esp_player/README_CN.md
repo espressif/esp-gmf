@@ -83,6 +83,7 @@ flowchart TB
 
 | API | 说明 |
 |-----|------|
+| `esp_player_get_state(handle, state)` | 获取当前播放主状态（权威快照，见 `esp_player_state_t`） |
 | `esp_player_get_duration(handle, duration)` | 获取媒体总时长（毫秒） |
 | `esp_player_get_play_time(handle, current_time)` | 获取当前播放进度（毫秒） |
 | `esp_player_get_track_num(handle, type, track_num)` | 获取指定类型的轨道数 |
