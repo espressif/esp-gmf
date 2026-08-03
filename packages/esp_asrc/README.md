@@ -5,6 +5,11 @@
 
 The ASRC (Audio Sample Rate Converter) module is a high-performance audio data format conversion unit that supports sample rate, bit depth, and channel count conversion, enabling format alignment and adaptation between different audio systems. It uses a hardware–software cooperative architecture: on chips with an ASRC peripheral, the module can schedule hardware resources according to configuration for low-latency, high-efficiency real-time conversion; when hardware is unavailable, an optimized software path maintains functionality. Based on current chip capabilities and the configured strategy, the module selects a processing path aimed at optimal resource use. The interface is clear, configuration is flexible, and the module integrates cleanly into embedded audio frameworks, audio middleware, or higher-level applications that require audio format adaptation.
 
+## Breaking changes since v1.1.0
+
+- **ESP32-P4 chip revision**: Assembly optimization on the software path requires **chip version ≥ 3.0**. If the chip version is **< 3.0** and the assembly-optimized library is still used, running software `rate_cvt` may trigger a **Guru Meditation Error** (e.g. `Core 0 panic'ed (Unknown). Exception was unhandled.`), with the crash in RISC-V PIE assembly-optimized routines. On such chips, use **ESP-ASRC version < 1.1.0** (without this assembly-optimization dependency), or use the hardware ASRC path when available.
+- **ESP32-S31 core affinity**: When using software `rate_cvt` with `ESP_AUDIO_EFFECTS_S31_USE_ASM` enabled, the task is pinned to **core 1** by default. To customize task core affinity, disable `ESP_AUDIO_EFFECTS_S31_USE_ASM`.
+
 ## Features
 
 - Sample rate: `src_info.sample_rate` / `dest_info.sample_rate` are integer multiples of **4000 Hz** or **11025 Hz**, each **≤ 192000 Hz** (subject to driver validation).
