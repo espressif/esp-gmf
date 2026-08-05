@@ -65,11 +65,25 @@ static EventGroupHandle_t g_event_group = NULL;
 static esp_gmf_element_handle_t g_afe   = NULL;
 #endif  /* WITH_AFE == true */
 
-static uint8_t get_board_codec_channel_count(const dev_audio_codec_config_t *codec_cfg, bool is_adc)
+static uint8_t count_codec_label_channels(const char *label)
 {
-    uint8_t channels = is_adc ? codec_cfg->adc_max_channel : codec_cfg->dac_max_channel;
+    if (label == NULL || label[0] == '\0') {
+        return 0;
+    }
+    uint8_t channels = 1;
+    for (const char *p = label; *p != '\0'; p++) {
+        if (*p == ',') {
+            channels++;
+        }
+    }
+    return channels;
+}
+
+static uint8_t get_board_record_channel_count(const dev_audio_codec_config_t *codec_cfg)
+{
+    uint8_t channels = count_codec_label_channels(codec_cfg->codec_adc_cfg.label);
     if (channels == 0) {
-        channels = __builtin_popcount(is_adc ? codec_cfg->adc_channel_mask : codec_cfg->dac_channel_mask);
+        channels = codec_cfg->adc_data_cfg.pattern_num;
     }
     return channels;
 }
@@ -77,14 +91,17 @@ static uint8_t get_board_codec_channel_count(const dev_audio_codec_config_t *cod
 static void get_board_audio_info(esp_gmf_app_codec_info_t *codec_info, uint8_t *input_ch_num, uint8_t *input_ch_bits)
 {
     dev_audio_codec_config_t *adc_cfg = NULL;
-    dev_audio_codec_config_t *dac_cfg = NULL;
     ESP_ERROR_CHECK(esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&adc_cfg));
-    ESP_ERROR_CHECK(esp_board_manager_get_device_config(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&dac_cfg));
 
     codec_info->record_info.sample_rate = 16000;
-    codec_info->record_info.channel = get_board_codec_channel_count(adc_cfg, true);
     codec_info->play_info.sample_rate = codec_info->record_info.sample_rate;
-    codec_info->play_info.channel = get_board_codec_channel_count(dac_cfg, false);
+    uint8_t record_channels = get_board_record_channel_count(adc_cfg);
+    if (record_channels) {
+        codec_info->record_info.channel = record_channels;
+    } else {
+        ESP_LOGW(TAG, "Board does not describe the microphone channel count, keep the default %d",
+                 codec_info->record_info.channel);
+    }
 
     *input_ch_num = codec_info->record_info.channel;
     *input_ch_bits = codec_info->record_info.bits_per_sample;

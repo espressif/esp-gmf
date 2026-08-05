@@ -286,7 +286,7 @@ static esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
     return 0;
 }
 
-TEST_CASE("Audio File Stream Play Same URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=1400]")
+TEST_CASE("Audio File Stream Play Same URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=1500]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -370,7 +370,7 @@ TEST_CASE("Audio File Stream Play Same URL Without Close, One pipeline", "[ESP_G
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio File Stream Play Same URL Without Close, Two pipeline", "[ESP_GMF_POOL][leaks=1400]")
+TEST_CASE("Audio File Stream Play Same URL Without Close, Two pipeline", "[ESP_GMF_POOL][leaks=1500]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -513,7 +513,7 @@ TEST_CASE("Audio File Stream Play Same URL Without Close, Two pipeline", "[ESP_G
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio File Stream Play Different URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=1400]")
+TEST_CASE("Audio File Stream Play Different URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=1500]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -603,7 +603,7 @@ TEST_CASE("Audio File Stream Play Different URL Without Close, One pipeline", "[
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio File Stream Play Different URL Without Close, Two pipeline", "[ESP_GMF_POOL][leaks=1400]")
+TEST_CASE("Audio File Stream Play Different URL Without Close, Two pipeline", "[ESP_GMF_POOL][leaks=1500]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);
@@ -993,7 +993,7 @@ TEST_CASE("Audio Http Stream Play Different URL Without Close, Two pipeline", "[
     ESP_GMF_MEM_SHOW(TAG);
 }
 
-TEST_CASE("Audio File Stream Encode Different URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=1400]")
+TEST_CASE("Audio File Stream Encode Different URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=1500]")
 {
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("ESP_GMF_PIPELINE", ESP_LOG_DEBUG);

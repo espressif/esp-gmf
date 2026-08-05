@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.1
+
+### Changes
+
+- Updated `esp-codec-dev` dependency to v2.0.0-beta
+
+### Bug Fixes
+
+- Fixed codec device IO read/write failure on empty payloads
+
 ## v1.0.0
 
 ### Features
