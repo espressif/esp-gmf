@@ -42,6 +42,10 @@ static esp_gmf_err_io_t _codec_dev_acquire_read(esp_gmf_io_handle_t handle, void
     esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
     codec_dev_io_cfg_t *cfg = (codec_dev_io_cfg_t *)OBJ_GET_CFG(codec_dev_io);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_IO_FAIL;);
+    if (wanted_size == 0) {
+        pload->valid_size = 0;
+        return ESP_GMF_IO_OK;
+    }
     if (esp_codec_dev_read(cfg->dev, pload->buf, wanted_size) != ESP_GMF_IO_OK) {
         ESP_LOGE(TAG, "Read failed, wanted: %ld", wanted_size);
         return ESP_GMF_IO_FAIL;
@@ -66,6 +70,9 @@ static esp_gmf_err_io_t _codec_dev_release_write(esp_gmf_io_handle_t handle, voi
     esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
     codec_dev_io_cfg_t *cfg = (codec_dev_io_cfg_t *)OBJ_GET_CFG(codec_dev_io);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_IO_FAIL;);
+    if (pload->valid_size == 0) {
+        return ESP_GMF_IO_OK;
+    }
     if (esp_codec_dev_write(cfg->dev, pload->buf, pload->valid_size) != ESP_GMF_ERR_OK) {
         ESP_LOGE(TAG, "Write failed, valid: %d", pload->valid_size);
         return ESP_GMF_IO_FAIL;

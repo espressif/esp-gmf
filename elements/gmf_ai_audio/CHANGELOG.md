@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.1
+
+### Bug Fixes
+
+- Adapted `aec_rec` and `wwe` examples to esp_codec_dev 2.x channel config
+
 ## v1.0.0~1
 
 ### Docs

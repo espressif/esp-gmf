@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2~1
+
+### Changes
+
+- Updated `esp-codec-dev` dependency to v2.0.0-beta
+
 ## 1.0.2
 
 ### Bug Fixes
