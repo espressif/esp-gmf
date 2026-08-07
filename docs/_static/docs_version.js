@@ -3,6 +3,5 @@ var DOCUMENTATION_VERSIONS = {
               },
     VERSIONS: [
       { name: "latest", old: false },
-      { name: "v1.0", old: false },
     ],
 };

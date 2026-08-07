@@ -5,6 +5,13 @@ Espressif General Multimedia Framework Guide
 
 :link_to_translation:`zh_CN:[中文]`
 
+.. image:: ../_static/Banner_GMF.svg
+   :alt: ESP-GMF Banner
+   :width: 800px
+   :align: center
+
+|
+
 .. list-table::
    :widths: 33 33 34
 

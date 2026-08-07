@@ -5,6 +5,13 @@
 
 :link_to_translation:`en:[English]`
 
+.. image:: ../_static/Banner_GMF.svg
+   :alt: ESP-GMF Banner
+   :width: 800px
+   :align: center
+
+|
+
 .. list-table::
    :widths: 33 33 34
 
