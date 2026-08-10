@@ -1039,10 +1039,11 @@ static void stream_proc_prepare(esp_bt_audio_stream_handle_t stream, stream_user
     }
     esp_bt_audio_stream_codec_info_t codec_info = {0};
     esp_bt_audio_stream_get_codec_info(stream, &codec_info);
-    ESP_LOGI(TAG, "Codec Info: type=%d, bits=%d, channels=%d, sample_rate=%d, cfg_size=%d, codec_cfg=%p",
+    ESP_LOGI(TAG, "Codec Info: type=%d, bits=%d, channels=0x%x (%d ch), sample_rate=%d, cfg_size=%d, codec_cfg=%p",
              codec_info.codec_type,
              codec_info.bits,
              codec_info.channels,
+             __builtin_popcount(codec_info.channels),
              codec_info.sample_rate,
              codec_info.cfg_size,
              codec_info.codec_cfg);

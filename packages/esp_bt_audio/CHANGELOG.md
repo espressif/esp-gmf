@@ -10,6 +10,7 @@
 ### Bug Fixes
 
 - Fix A2DP sink initialization race condition
+- Aligned LE stream `codec_info.channels` with Classic Bluetooth by storing audio location bits (`ESP_BT_AUDIO_AUDIO_LOC_*`) instead of a channel count
 
 ## v1.1.0~2
 

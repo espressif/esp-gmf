@@ -136,7 +136,7 @@ typedef struct {
                                                       */
     uint32_t                          cfg_size;     /*!< Size of the codec configuration */
     uint32_t                          sample_rate;  /*!< Sample rate in Hz */
-    uint32_t                          channels;     /*!< Number of channels */
+    uint32_t                          channels;     /*!< Audio channel location bit mask (ESP_BT_AUDIO_AUDIO_LOC_*) */
     uint32_t                          bits;         /*!< Bit width per sample */
     uint32_t                          frame_size;   /*!< Frame size in bytes */
 } esp_bt_audio_stream_codec_info_t;

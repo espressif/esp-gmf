@@ -466,7 +466,8 @@ static void bt_audio_le_stream_fill_codec_info(bt_audio_le_stream_t *stream,
     stream->base.context = (context == ESP_BLE_AUDIO_CONTEXT_TYPE_CONVERSATIONAL) ? ESP_BT_AUDIO_STREAM_CONTEXT_CONVERSATIONAL : ESP_BT_AUDIO_STREAM_CONTEXT_MEDIA;
     stream->base.codec_info.codec_type = ESP_BT_AUDIO_STREAM_CODEC_LC3;
     stream->base.codec_info.sample_rate = freq > 0 ? freq : 0;
-    stream->base.codec_info.channels = locations ? __builtin_popcount((unsigned int)locations) : 1;
+    stream->base.codec_info.channels =
+        locations ? locations : ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT;
     stream->base.codec_info.bits = 16;
     stream->base.codec_info.frame_size = (octets > 0 && blocks > 0) ? (uint32_t)(octets * blocks) : 0;
 
@@ -480,7 +481,8 @@ static void bt_audio_le_stream_fill_codec_info(bt_audio_le_stream_t *stream,
         }
         dec_cfg->nbyte = stream->base.codec_info.frame_size;
         dec_cfg->sample_rate = stream->base.codec_info.sample_rate;
-        dec_cfg->channel = stream->base.codec_info.channels;
+        dec_cfg->channel =
+            __builtin_popcount((unsigned int)stream->base.codec_info.channels);
         dec_cfg->bits_per_sample = 16;
         dec_cfg->frame_dms = (uint8_t)(frame_dur / 100);
         dec_cfg->len_prefixed = false;
@@ -498,7 +500,8 @@ static void bt_audio_le_stream_fill_codec_info(bt_audio_le_stream_t *stream,
         }
         enc_cfg->nbyte = stream->base.codec_info.frame_size;
         enc_cfg->sample_rate = stream->base.codec_info.sample_rate;
-        enc_cfg->channel = stream->base.codec_info.channels;
+        enc_cfg->channel =
+            __builtin_popcount((unsigned int)stream->base.codec_info.channels);
         enc_cfg->bits_per_sample = 16;
         enc_cfg->frame_dms = (uint8_t)(frame_dur / 100);
         enc_cfg->len_prefixed = false;
