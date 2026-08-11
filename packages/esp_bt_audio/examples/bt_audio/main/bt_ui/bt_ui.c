@@ -24,6 +24,7 @@
 #include "dev_display_lcd.h"
 #include "dev_lcd_touch.h"
 #include "bt_ui.h"
+#include "assets/bt_ui_assets.h"
 #include "lvgl.h"
 #include "jpeg_decoder.h"
 #include "esp_bt_audio_defs.h"
@@ -36,7 +37,7 @@
 #define UI_COVER_TASK_CORE_ID     1
 #define LVGL_DRAW_BUF_LINES       (BT_UI_HEIGHT / 2)
 
-#define BT_UI_FONT_TEXT        (&lv_font_notosanssc_regular_28)
+#define BT_UI_FONT_TEXT        (BT_UI_FONT_CN_28 != NULL ? BT_UI_FONT_CN_28 : &lv_font_montserrat_28)
 #define BT_UI_FONT_ICON        (&lv_font_montserrat_28)
 #define BT_UI_FONT_COVER_ICON  (&lv_font_montserrat_32)
 
@@ -144,13 +145,6 @@ typedef struct {
     void (*next_cb)(void *ctx);                        /*!< Next-track callback */
     void *prev_next_ctx;                               /*!< Context passed to prev_cb and next_cb */
 } bt_ui_media_refs_t;
-
-LV_FONT_DECLARE(lv_font_notosanssc_regular_28)
-
-#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-LV_IMAGE_DECLARE(cis_stream_icon);
-LV_IMAGE_DECLARE(bis_stream_icon);
-#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 
 static char dialer_number_buf[DIALER_BUF_SIZE];
 static lv_obj_t *dialer_number_label;
@@ -441,9 +435,9 @@ static void bt_ui_media_set_stream_type(lv_obj_t *media_root, esp_bt_audio_strea
     const lv_image_dsc_t *icon = NULL;
 #if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
     if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_UNICAST) {
-        icon = &cis_stream_icon;
+        icon = bt_ui_image(BT_UI_IMAGE_CIS_STREAM);
     } else if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
-        icon = &bis_stream_icon;
+        icon = bt_ui_image(BT_UI_IMAGE_BIS_STREAM);
     }
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     if (icon != NULL && refs->cover_type_img != NULL) {
@@ -1022,6 +1016,7 @@ esp_err_t bt_ui_init(void)
     lvgl_cfg.task_stack = 10240;
     lvgl_cfg.task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     ESP_RETURN_ON_ERROR(lvgl_port_init(&lvgl_cfg), TAG, "LVGL port init failed");
+    ESP_RETURN_ON_ERROR(bt_ui_assets_init(), TAG, "UI assets init failed");
 
     lvgl_port_display_cfg_t disp_cfg = {
         .io_handle = lcd_handles->io_handle,
