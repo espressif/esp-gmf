@@ -43,14 +43,18 @@ typedef enum {
  * @brief  Configuration for @ref esp_gmf_fft_init
  */
 typedef struct {
-    int16_t             n_fft;     /*!< Number of real samples `N` (power of two, range [32, 8192]) */
+    int16_t             n_fft;     /*!< Number of real samples `N` (power of two, [32, 8192]). PIE hardware bit-reverse covers real `N` up to 2048; 4096 and 8192 use a software bit-reverse */
     esp_gmf_fft_type_t  fft_type;  /*!< Transform type */
 } esp_gmf_fft_cfg_t;
 
 /**
  * @brief  Allocates twiddle tables and builds a FFT handle from `cfg`
  *
- * @note  Fixed-point precision: Q14 twiddle factors with Q15 butterfly shift (1/2 gain per stage to prevent overflow)
+ * @note
+ *       1. Fixed-point precision: Q14 twiddle factors with Q15 butterfly shift (1/2 gain per stage to prevent overflow)
+ *       2. On PIE targets (ESP32-S3, ESP32-P4, ESP32-S31 ASM), hardware bit-reverse is limited to 10 bits
+ *          (complex length 1024, real `N` <= 2048). Real `N` of 4096 and 8192 fall back to a software
+ *          bit-reverse; PIE butterflies are unchanged. Portable C always uses the software bit-reverse
  *
  * @param[in]   cfg     Non-NULL configuration
  * @param[out]  handle  Receives the FFT handle; set to `NULL` on failure
@@ -108,6 +112,47 @@ esp_gmf_fft_err_t esp_gmf_fft_forward(esp_gmf_fft_handle_t handle, int16_t *data
  *       - ESP_GMF_FFT_ERR_INVALID_ARG  `data` or `handle` is `NULL`
  */
 esp_gmf_fft_err_t esp_gmf_fft_inverse(esp_gmf_fft_handle_t handle, int16_t *data);
+
+/**
+ * @brief  High-precision in-place forward FFT (block floating point, no fixed `4/N` scale)
+ *
+ * @note
+ *       1. Same signature and buffer layout as @ref esp_gmf_fft_forward. Every butterfly
+ *          stage (including the last three) selects `>>1` only when `max_abs >= 8192`.
+ *          Extra mantissa bits stay in `data`.
+ *       2. Input is Q15 (`int16`). The block-float exponent is stored in `handle` and
+ *          consumed by @ref esp_gmf_fft_inverse_hp on the same handle. Do not run two
+ *          HP pipelines concurrently on one handle.
+ *       3. This API does **not** apply the `4/N` gain of @ref esp_gmf_fft_forward.
+ *          `esp_gmf_fft_forward` is unchanged and still uses a fixed per-stage `>>1`.
+ *
+ * @param[in]      handle  Handle obtained from @ref esp_gmf_fft_init
+ * @param[in,out]  data    Pointer to in-place real input and packed spectrum output
+ *
+ * @return
+ *       - ESP_GMF_FFT_OK               Succeeded
+ *       - ESP_GMF_FFT_ERR_INVALID_ARG  `data` or `handle` is `NULL`
+ */
+esp_gmf_fft_err_t esp_gmf_fft_forward_hp(esp_gmf_fft_handle_t handle, int16_t *data);
+
+/**
+ * @brief  High-precision in-place inverse FFT (block floating point, no fixed `4/N` scale)
+ *
+ * @note
+ *       1. Same signature as @ref esp_gmf_fft_inverse. Input must use the half-spectrum
+ *          layout produced by @ref esp_gmf_fft_forward_hp on the same handle.
+ *       2. Output is Q15 time-domain samples approximating the original input
+ *          (no `N/4` multiply). `esp_gmf_fft_inverse` is unchanged and still scales a
+ *          `forward -> inverse` pair by `4/N`.
+ *
+ * @param[in]      handle  Handle obtained from @ref esp_gmf_fft_init
+ * @param[in,out]  data    Pointer to packed spectrum input and in-place real output
+ *
+ * @return
+ *       - ESP_GMF_FFT_OK               Succeeded
+ *       - ESP_GMF_FFT_ERR_INVALID_ARG  `data` or `handle` is `NULL`
+ */
+esp_gmf_fft_err_t esp_gmf_fft_inverse_hp(esp_gmf_fft_handle_t handle, int16_t *data);
 
 #ifdef __cplusplus
 }

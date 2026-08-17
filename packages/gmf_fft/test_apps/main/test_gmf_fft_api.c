@@ -189,3 +189,70 @@ void test_api_inverse_valid(void)
     esp_gmf_fft_deinit(&h);
     esp_gmf_fft_free_aligned(buf);
 }
+
+/* -------------------------------------------------------------------------
+ * esp_gmf_fft_forward_hp / inverse_hp — argument validation
+ * ---------------------------------------------------------------------- */
+
+/** @brief esp_gmf_fft_forward_hp with NULL data must return ESP_GMF_FFT_ERR_INVALID_ARG. */
+void test_api_forward_hp_null_data(void)
+{
+    esp_gmf_fft_handle_t h = NULL;
+    const esp_gmf_fft_cfg_t cfg = {.n_fft = VALID_N_FFT, .fft_type = ESP_GMF_FFT_TYPE_REAL_Q15};
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_OK, esp_gmf_fft_init(&cfg, &h));
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_ERR_INVALID_ARG, esp_gmf_fft_forward_hp(h, NULL));
+    esp_gmf_fft_deinit(&h);
+}
+
+/** @brief esp_gmf_fft_forward_hp with NULL handle must return ESP_GMF_FFT_ERR_INVALID_ARG. */
+void test_api_forward_hp_null_handle(void)
+{
+    int16_t buf[BUF_LEN];
+    memset(buf, 0, sizeof(buf));
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_ERR_INVALID_ARG, esp_gmf_fft_forward_hp(NULL, buf));
+}
+
+/** @brief esp_gmf_fft_forward_hp with valid args must return ESP_GMF_FFT_OK. */
+void test_api_forward_hp_valid(void)
+{
+    int16_t *buf = (int16_t *)esp_gmf_fft_calloc_aligned(BUF_LEN, sizeof(int16_t), 16u);
+    TEST_ASSERT_NOT_NULL(buf);
+    esp_gmf_fft_handle_t h = NULL;
+    const esp_gmf_fft_cfg_t cfg = {.n_fft = VALID_N_FFT, .fft_type = ESP_GMF_FFT_TYPE_REAL_Q15};
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_OK, esp_gmf_fft_init(&cfg, &h));
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_OK, esp_gmf_fft_forward_hp(h, buf));
+    esp_gmf_fft_deinit(&h);
+    esp_gmf_fft_free_aligned(buf);
+}
+
+/** @brief esp_gmf_fft_inverse_hp with NULL data must return ESP_GMF_FFT_ERR_INVALID_ARG. */
+void test_api_inverse_hp_null_data(void)
+{
+    esp_gmf_fft_handle_t h = NULL;
+    const esp_gmf_fft_cfg_t cfg = {.n_fft = VALID_N_FFT, .fft_type = ESP_GMF_FFT_TYPE_REAL_Q15};
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_OK, esp_gmf_fft_init(&cfg, &h));
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_ERR_INVALID_ARG, esp_gmf_fft_inverse_hp(h, NULL));
+    esp_gmf_fft_deinit(&h);
+}
+
+/** @brief esp_gmf_fft_inverse_hp with NULL handle must return ESP_GMF_FFT_ERR_INVALID_ARG. */
+void test_api_inverse_hp_null_handle(void)
+{
+    int16_t buf[BUF_LEN];
+    memset(buf, 0, sizeof(buf));
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_ERR_INVALID_ARG, esp_gmf_fft_inverse_hp(NULL, buf));
+}
+
+/** @brief esp_gmf_fft_inverse_hp with valid args must return ESP_GMF_FFT_OK. */
+void test_api_inverse_hp_valid(void)
+{
+    int16_t *buf = (int16_t *)esp_gmf_fft_calloc_aligned(BUF_LEN, sizeof(int16_t), 16u);
+    TEST_ASSERT_NOT_NULL(buf);
+    esp_gmf_fft_handle_t h = NULL;
+    const esp_gmf_fft_cfg_t cfg = {.n_fft = VALID_N_FFT, .fft_type = ESP_GMF_FFT_TYPE_REAL_Q15};
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_OK, esp_gmf_fft_init(&cfg, &h));
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_OK, esp_gmf_fft_forward_hp(h, buf));
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_OK, esp_gmf_fft_inverse_hp(h, buf));
+    esp_gmf_fft_deinit(&h);
+    esp_gmf_fft_free_aligned(buf);
+}

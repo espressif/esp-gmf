@@ -5,10 +5,10 @@
 
 ## 例程简介
 
-本示例演示 `gmf_fft` 组件的基本用法：生成多频余弦信号，执行 512 点 Q15 实数 FFT，在串口终端打印 dB 刻度的频谱柱状图，然后执行 IFFT 并打印往返峰值误差。
+本示例演示 `gmf_fft` 组件的基本用法：生成多频余弦信号，分别用普通接口（`esp_gmf_fft_forward` / `inverse`）和 HP 接口（`forward_hp` / `inverse_hp`）做 512 点 Q15 实数 FFT，在串口终端打印 dB 刻度的频谱柱状图，并打印往返峰值误差。
 
 - 频谱打印：合成 3 组余弦波，执行实数 FFT，并在串口中打印频谱柱状图。
-- 往返验证：对 FFT 输出执行 IFFT，并打印缩放后的峰值误差。
+- 往返验证：普通接口对 IFFT 输出乘 `N/4` 后比误差；HP 接口输出为 Q15，不必再乘 `N/4`。
 
 ### 典型场景
 
@@ -21,7 +21,8 @@
 - 示例先生成 3 组余弦波，频率 bin 分别为 8、24、40，幅度分别为 1000、5000、3000。
 - 调用 `esp_gmf_fft_forward` 完成 Q15 实数 FFT，输出 `N/2 + 1` 个频点的半边频谱。
 - 根据频谱中各 bin 的幅度换算 dB，并打印竖直柱状图。
-- 调用 `esp_gmf_fft_inverse` 还原时域信号，并打印缩放后的峰值误差。
+- 调用 `esp_gmf_fft_inverse` 还原时域信号，并打印乘 `N/4` 后的峰值误差。
+- 用同一组输入再跑 `esp_gmf_fft_forward_hp` / `inverse_hp`，打印 HP 频谱图和 Q15 峰值误差。
 
 ## 环境配置
 
@@ -104,8 +105,9 @@ idf.py -p PORT flash monitor
 1. 分配 `ESP_GMF_FFT_BUFFER_SIZE(N_FFT)` 个 `int16_t` 的对齐缓冲区。
 2. 生成 3 组余弦波并保存原始输入。
 3. 初始化 `esp_gmf_fft_handle_t` 并执行 `esp_gmf_fft_forward`。
-4. 打印频谱图后执行 `esp_gmf_fft_inverse`。
-5. 打印往返峰值误差并释放资源。
+4. 打印频谱图后执行 `esp_gmf_fft_inverse`，打印乘 `N/4` 后的往返峰值误差。
+5. 从原始输入再跑 `esp_gmf_fft_forward_hp` / `inverse_hp`，打印 HP 频谱图和 Q15 峰值误差。
+6. 释放资源。
 
 ### 日志输出
 
@@ -122,7 +124,12 @@ idf.py -p PORT flash monitor
       0       8      16      24      32      40      48
       Bin
 
-  Round-trip peak error after scaling by N/4: ...
+  Round-trip peak error after scaling by N/4: 86（ESP32-P4）/ 128（ESP32-S3）
+
+  esp_gmf_fft_hp  N=512  |  signal: cos(bin=8,A=1000) + cos(bin=24,A=5000) + cos(bin=40,A=3000)
+  Peak: bin=24  mag=...
+
+  HP round-trip peak error (Q15, no N/4): 3（ESP32-P4）/ 7（ESP32-S3）
 ```
 
 三个频率 bin 处会出现明显峰值，其余 bin 接近噪底。

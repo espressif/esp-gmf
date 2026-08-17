@@ -10,6 +10,10 @@
  *
  *         Signal : x[t] = A0*cos(2*pi*k0*t/N) + A1*cos(2*pi*k1*t/N) + A2*cos(2*pi*k2*t/N)
  *
+ *         Runs both the fixed-scale APIs (`esp_gmf_fft_forward` / `inverse`,
+ *         round-trip scaled by N/4) and the HP APIs (`forward_hp` / `inverse_hp`,
+ *         Q15 round-trip with no N/4 multiply).
+ *
  *         Spectrum chart: Y-axis = dB (0 at top, DB_FLOOR at bottom)
  *         X-axis = frequency bin 0 .. PLOT_BINS-1
  *         '#' = bar reaches this row, '.' = bar does not
@@ -27,6 +31,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "esp_log.h"
 
@@ -81,7 +86,7 @@ static uint32_t bin_magnitude(const int16_t *data, unsigned k)
     return isqrt32((uint32_t)(re * re) + (uint32_t)(im * im));
 }
 
-static void print_spectrum(const int16_t *data)
+static void print_spectrum(const char *title, const int16_t *data)
 {
     /* find peak magnitude */
     uint32_t peak_mag = 1u;
@@ -113,7 +118,7 @@ static void print_spectrum(const int16_t *data)
 
     /* header */
     printf("\n");
-    printf("  esp_gmf_fft  N=%u  |  signal: ", N_FFT);
+    printf("  %s  N=%u  |  signal: ", title, N_FFT);
     for (int t = 0; t < N_TONES; t++) {
         printf("cos(bin=%d,A=%d)%s",
                TONE_BIN[t], TONE_AMP[t], t < N_TONES - 1 ? " + " : "");
@@ -208,13 +213,34 @@ void app_main(void)
         goto cleanup;
     }
 
-    print_spectrum(buf);
+    print_spectrum("esp_gmf_fft", buf);
 
     if (esp_gmf_fft_inverse(handle, buf) != ESP_GMF_FFT_OK) {
         ESP_LOGE(TAG, "esp_gmf_fft_inverse failed");
         goto cleanup;
     }
     printf("  Round-trip peak error after scaling by N/4: %" PRIu32 "\n", calc_roundtrip_peak_error(origin, buf));
+
+    memcpy(buf, origin, (size_t)N_FFT * sizeof(int16_t));
+    if (esp_gmf_fft_forward_hp(handle, buf) != ESP_GMF_FFT_OK) {
+        ESP_LOGE(TAG, "esp_gmf_fft_forward_hp failed");
+        goto cleanup;
+    }
+    print_spectrum("esp_gmf_fft_hp", buf);
+
+    if (esp_gmf_fft_inverse_hp(handle, buf) != ESP_GMF_FFT_OK) {
+        ESP_LOGE(TAG, "esp_gmf_fft_inverse_hp failed");
+        goto cleanup;
+    }
+    uint32_t hp_err = 0;
+    for (int i = 0; i < N_FFT; i++) {
+        int32_t diff = (int32_t)buf[i] - (int32_t)origin[i];
+        uint32_t abs_diff = (diff < 0) ? (uint32_t)-diff : (uint32_t)diff;
+        if (abs_diff > hp_err) {
+            hp_err = abs_diff;
+        }
+    }
+    printf("  HP round-trip peak error (Q15, no N/4): %" PRIu32 "\n", hp_err);
 
 cleanup:
     esp_gmf_fft_deinit(&handle);

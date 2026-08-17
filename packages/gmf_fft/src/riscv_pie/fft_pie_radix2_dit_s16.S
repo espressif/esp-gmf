@@ -13,12 +13,12 @@
 # Registers: RISC-V calling convention; each function documents args below. Some routines pair
 #   entry save with tail `mv x10, x30` to restore a0 (data pointer).
 # -----------------------------------------------------------------------------
-# void fft_radix2_bit_reverse_s16(int16_t *data, int32_t cpx_points, int32_t log2N);
-# Bit-reverse permute the spectrum by log2N bits; inner block touches 16 complex samples per pattern.
-    .section .text
-    .global fft_radix2_bit_reverse_s16
-    .type   fft_radix2_bit_reverse_s16, @function
-fft_radix2_bit_reverse_s16:
+# void fft_radix2_bit_reverse_s16_hw(int16_t *data, int32_t cpx_points, int32_t log2N);
+# Hardware bit-reverse (3–10 bits). C wrapper fft_radix2_bit_reverse_s16 falls back for larger N.
+    .section .iram1.text,"ax",@progbits
+    .global fft_radix2_bit_reverse_s16_hw
+    .type   fft_radix2_bit_reverse_s16_hw, @function
+fft_radix2_bit_reverse_s16_hw:
     .balign 4                                                                 # IALIGN: better for vector fetch
     .option norvc                                                             # no compressed insns (loop / PIE need fixed widths)
     # args: x10=data, x11=N complex points, x12=log2(N)
