@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.6
+
+### Bug Fixes
+
+- Fixed Vorbis playback failing when the same source is run again
+- Fixed fill/block AV dropping early frames while the other decoder pipeline was still starting
+
 ## v1.0.5
 
 ### Breaking Changes

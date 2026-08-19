@@ -14,6 +14,9 @@
 #include "player_internal.h"
 
 #include "esp_gmf_audio_dec.h"
+#include "esp_gmf_cap.h"
+#include "esp_gmf_caps_def.h"
+#include "esp_gmf_element.h"
 #include "esp_gmf_obj.h"
 
 #include "player_audio_render.h"
@@ -43,6 +46,26 @@ static inline uint32_t player_audio_ringbuf_size(uint32_t sample_rate, uint8_t c
         sz = AUDIO_RB_FLAC_MAX_SIZE;
     }
     return sz;
+}
+
+static esp_gmf_element_handle_t player_aud_dec_el_by_caps(esp_gmf_pipeline_handle_t pipe)
+{
+    esp_gmf_element_handle_t el = NULL;
+    if (pipe == NULL || esp_gmf_pipeline_get_head_el(pipe, &el) != ESP_GMF_ERR_OK) {
+        return NULL;
+    }
+    for (; el != NULL; esp_gmf_pipeline_get_next_el(pipe, el, &el)) {
+        const esp_gmf_cap_t *caps = NULL;
+        if (esp_gmf_element_get_caps(el, &caps) != ESP_GMF_ERR_OK) {
+            continue;
+        }
+        for (; caps != NULL; caps = caps->next) {
+            if (caps->cap_eightcc == ESP_GMF_CAPS_AUDIO_DECODER) {
+                return el;
+            }
+        }
+    }
+    return NULL;
 }
 
 static esp_player_err_t player_get_audio_dec_cfg(esp_player_stream_t *stream)
@@ -118,6 +141,11 @@ static esp_player_err_t player_get_audio_dec_cfg(esp_player_stream_t *stream)
         case ESP_AUDIO_SIMPLE_DEC_TYPE_VORBIS: {
             esp_vorbis_dec_cfg_t *vorbis_cfg = (esp_vorbis_dec_cfg_t *)stream->dec_cfg.dec_cfg;
             esp_vorbis_dec_cfg_t *vorbis_cfg_spec = (esp_vorbis_dec_cfg_t *)stream->audio_side->track_info.audio_info.spec_info;
+            if (vorbis_cfg_spec == NULL || stream->audio_side->track_info.audio_info.spec_info_len < sizeof(esp_vorbis_dec_cfg_t)) {
+                ESP_LOGE(TAG, "VORBIS spec info is invalid, spec_info=%p, spec_info_len=%u",
+                         vorbis_cfg_spec, (unsigned int)stream->audio_side->track_info.audio_info.spec_info_len);
+                return ESP_PLAYER_ERR_FAIL;
+            }
             uint32_t spec_info_len = vorbis_cfg_spec->info_size + vorbis_cfg_spec->setup_size + sizeof(esp_vorbis_dec_cfg_t);
             if (stream->audio_side->track_info.audio_info.spec_info_len != spec_info_len) {
                 ESP_LOGE(TAG, "VORBIS spec info len error, expected: %u, got: %u", (unsigned int)spec_info_len,
@@ -280,6 +308,14 @@ esp_player_err_t player_pl_run_create_audio_decoder(esp_player_stream_t *stream)
             return ret;
         }
     } else {
+        esp_gmf_element_handle_t aud_dec_el = player_aud_dec_el_by_caps(stream->audio_side->decoder);
+        if (stream->dec_frame_mode == ESP_PLAYER_DEC_FRAME_MODE_EXTRACTOR && aud_dec_el != NULL) {
+            if (player_get_audio_dec_cfg(stream) != ESP_PLAYER_ERR_OK
+                || esp_gmf_audio_dec_reconfig(aud_dec_el, &stream->dec_cfg) != ESP_GMF_ERR_OK) {
+                player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_AUDIO_DECODER, "refresh dec cfg");
+                return ESP_PLAYER_ERR_FAIL;
+            }
+        }
         esp_gmf_pipeline_reset(stream->audio_side->decoder);
     }
     esp_gmf_task_handle_t aud_dec_task = player_pipeline_task(stream->audio_side->decoder);

@@ -25,7 +25,8 @@ extern "C" {
 esp_player_err_t player_create_extractor_pipeline(esp_player_stream_t *stream);
 esp_player_err_t player_create_decoder_pipeline(esp_player_stream_t *stream, bool is_audio);
 esp_player_err_t player_create_render_pipeline(esp_player_stream_t *stream, bool is_audio);
-esp_player_err_t queues_init(esp_player_stream_t *stream, bool is_audio);
+esp_player_err_t player_prepare_frame_queues(esp_player_stream_t *stream);
+esp_player_err_t queues_init(esp_player_stream_t *stream, esp_player_track_type_t track_type);
 
 /* -------- Component-internal: player_pipeline.c <-> audio/video pipeline .c -------- */
 

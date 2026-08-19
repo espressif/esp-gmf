@@ -29,7 +29,7 @@ static esp_gmf_err_t extractor_handle_report_info(esp_player_stream_t *stream, e
     int8_t audio_active_idx = -1;
     if (player_extractor_track_active(ext_el, ESP_EXTRACTOR_STREAM_TYPE_AUDIO, &audio_active_idx) == ESP_GMF_ERR_OK) {
         if (audio_active_idx >= 0) {
-            if (queues_init(stream, true) != ESP_PLAYER_ERR_OK) {
+            if (queues_init(stream, ESP_PLAYER_TRACK_TYPE_AUDIO) != ESP_PLAYER_ERR_OK) {
                 player_send_cmd(stream, cmd);
                 return ESP_GMF_ERR_FAIL;
             }
@@ -50,7 +50,7 @@ static esp_gmf_err_t extractor_handle_report_info(esp_player_stream_t *stream, e
     int8_t video_active_idx = -1;
     if (player_extractor_track_active(ext_el, ESP_EXTRACTOR_STREAM_TYPE_VIDEO, &video_active_idx) == ESP_GMF_ERR_OK) {
         if (video_active_idx >= 0) {
-            if (queues_init(stream, false) != ESP_PLAYER_ERR_OK) {
+            if (queues_init(stream, ESP_PLAYER_TRACK_TYPE_VIDEO) != ESP_PLAYER_ERR_OK) {
                 player_send_cmd(stream, cmd);
                 return ESP_GMF_ERR_FAIL;
             }
