@@ -5,6 +5,7 @@
  * See LICENSE file for details.
  */
 
+#include <stdbool.h>
 #include "esp_gmf_element.h"
 #include "esp_gmf_video_types.h"
 
@@ -93,6 +94,24 @@ esp_gmf_err_t esp_gmf_video_ppa_set_cropped_rgn(esp_gmf_element_handle_t handle,
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid configuration provided
  */
 esp_gmf_err_t esp_gmf_video_ppa_set_rotation(esp_gmf_element_handle_t handle, uint16_t degree);
+
+/**
+ * @brief  Enable full-speed PPA convert (async convert into an internal data queue)
+ *
+ * @note  Only allowed before element running / after stopped.
+ *        Full-speed mode is intended when `vid_ppa` is the first element in the pipeline
+ *        so the async task can freely acquire input frames.
+ *        On open failure of the async path, the element falls back to normal mode.
+ *
+ * @param[in]  handle  Video PPA handle
+ * @param[in]  enable  true to enable full-speed mode
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK              Success
+ *       - ESP_GMF_ERR_INVALID_ARG     Invalid configuration provided
+ *       - ESP_GMF_ERR_INVALID_STATE   Element is running or paused
+ */
+esp_gmf_err_t esp_gmf_video_ppa_set_full_speed(esp_gmf_element_handle_t handle, bool enable);
 
 #ifdef __cplusplus
 }

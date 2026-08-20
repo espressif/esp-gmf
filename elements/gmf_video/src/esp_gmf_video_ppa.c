@@ -11,12 +11,15 @@
 #include "esp_gmf_err.h"
 #include "esp_gmf_node.h"
 #include "esp_gmf_oal_mem.h"
+#include "esp_gmf_oal_thread.h"
 #include "esp_gmf_video_ppa.h"
 #include "esp_gmf_video_methods_def.h"
 #include "esp_gmf_caps_def.h"
 #include "esp_gmf_element.h"
 #include "esp_gmf_video_element.h"
 #include "esp_gmf_info.h"
+#include "esp_gmf_port.h"
+#include "esp_gmf_data_queue.h"
 #include "gmf_video_common.h"
 #include "esp_heap_caps.h"
 #include "esp_fourcc.h"
@@ -24,20 +27,37 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "freertos/event_groups.h"
 #include "esp_idf_version.h"
 #include "esp_gmf_oal_mutex.h"
-#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
+#if CONFIG_SOC_PPA_SUPPORTED
 #include "driver/ppa.h"
 #include "esp_private/dma2d.h"
 #include "hal/dma2d_types.h"
 #include "hal/color_types.h"
 #include "soc/dma2d_channel.h"
 #include "esp_imgfx_color_convert.h"
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
 
-static const char *TAG = "VCVT_EL";
+static const char *TAG = "PPA_EL";
 
-#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
+#define PPA_FS_FRAME_COUNT      (2)
+#define PPA_FS_TASK_STACK       (4096)
+#define PPA_FS_TASK_PRIO        (5)
+#define PPA_FS_TASK_EXIT_BIT    (BIT0)
+#define PPA_FS_ACQUIRE_TIMEOUT  (50)
+
+/**
+ * @brief  Per-frame header stored in full-speed data queue slot
+ */
+typedef struct {
+    uint64_t  pts;         /*!< Presentation timestamp */
+    uint32_t  pixel_off;   /*!< Offset from slot start to aligned pixel buffer */
+    uint32_t  frame_size;  /*!< Converted frame bytes */
+    uint8_t   is_done;     /*!< End of stream marker */
+} ppa_fs_hdr_t;
+
+#if CONFIG_SOC_PPA_SUPPORTED
 
 /**
  * @brief  2D-DMA EOF callback
@@ -79,7 +99,7 @@ typedef struct {
     dma2d_m2m_transaction_t  trans;    /*!< 2D-DMA M2M transaction */
     dma2d_csc_config_t       tx_cvt;   /*!< 2D-DMA TX color space conversion configuration */
 } dma2d_info_t;
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
 
 /**
  * @brief  Video PPA (Pixel Processing Accelerator) definition
@@ -93,7 +113,18 @@ typedef struct {
     esp_gmf_video_rgn_t      crop_rgn;        /*!< Cropped region setting */
     uint32_t                 out_frame_size;  /*!< Output frame size of PPA */
     bool                     bypass;          /*!< Whether PPA is bypassed or not */
-#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
+    bool                     full_speed;      /*!< User request for full-speed async convert */
+    bool                     fs_enabled;      /*!< Whether full-speed path is active */
+    bool                     fs_running;      /*!< Async convert task run flag */
+    bool                     async_error;     /*!< Fatal error reported by async task */
+    esp_gmf_oal_thread_t     fs_task;         /*!< Async convert task handle */
+    esp_gmf_port_handle_t    orig_in;         /*!< Original element in port */
+    esp_gmf_port_handle_t    fs_in_port;      /*!< Data queue read port used by process */
+    esp_gmf_port_handle_t    fs_out_port;     /*!< Data queue write port used by async task */
+    esp_gmf_data_queue_t    *fs_queue;        /*!< Converted frame queue (2 frames) */
+    uint32_t                 fs_slot_size;    /*!< Bytes reserved per queue slot */
+    EventGroupHandle_t       fs_event;        /*!< Async task lifecycle events */
+#if CONFIG_SOC_PPA_SUPPORTED
     ppa_client_handle_t               ppa_handle;         /*!< PPA client handle */
     ppa_srm_oper_config_t             ppa_config;         /*!< PPA SRM operation configuration */
     bool                              supported;          /*!< Whether setting supported or not */
@@ -110,10 +141,10 @@ typedef struct {
     uint32_t                          sw_ppa_out_fmt;     /*!< PPA output pixel format before optional post-imgfx */
     bool                              sw_both_reuse_out;  /*!< both-path: first imgfx into acquired out (same res + same byte size as dst) */
     bool                              sw_imgfx_only;      /*!< Same geometry: single imgfx src→dst, no PPA/2D-DMA */
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
 } gmf_video_ppa_t;
 
-#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
+#if CONFIG_SOC_PPA_SUPPORTED
 static SemaphoreHandle_t s_ppa_srm_mtx;
 static portMUX_TYPE s_ppa_srm_init_mux = portMUX_INITIALIZER_UNLOCKED;
 static int dm2d_convert(gmf_video_ppa_t *vid_cvt, esp_gmf_payload_t *in_load, esp_gmf_payload_t *out_load);
@@ -942,7 +973,304 @@ static void close_dma2d(gmf_video_ppa_t *vid_cvt)
         dma2d->rx_desc = NULL;
     }
 }
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
+
+static esp_gmf_err_io_t ppa_fs_acquire_out(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
+{
+    gmf_video_ppa_t *vid_cvt = (gmf_video_ppa_t *)handle;
+    (void)wanted_size;
+    if (vid_cvt->fs_queue == NULL) {
+        return ESP_GMF_IO_FAIL;
+    }
+    void *slot = NULL;
+    uint32_t timeout = (wait_ticks < 0 || (uint32_t)wait_ticks == ESP_GMF_MAX_DELAY) ?
+                       ESP_GMF_DATA_QUEUE_WAIT_FOREVER : (uint32_t)wait_ticks;
+    if (esp_gmf_data_queue_acquire_write(vid_cvt->fs_queue, &slot, (int)vid_cvt->fs_slot_size, timeout) != 0 ||
+        slot == NULL) {
+        return (timeout == 0) ? ESP_GMF_IO_TIMEOUT : ESP_GMF_IO_ABORT;
+    }
+    uint8_t align = ESP_GMF_ELEMENT_GET(vid_cvt)->out_attr.port.buf_addr_aligned;
+    if (align == 0) {
+        align = 64;
+    }
+    ppa_fs_hdr_t *hdr = (ppa_fs_hdr_t *)slot;
+    uint8_t *pixels = (uint8_t *)GMF_VIDEO_ALIGN_UP((uintptr_t)((uint8_t *)slot + sizeof(ppa_fs_hdr_t)), align);
+    hdr->pixel_off = (uint32_t)(pixels - (uint8_t *)slot);
+    hdr->pts = 0;
+    hdr->frame_size = 0;
+    hdr->is_done = 0;
+    load->buf = pixels;
+    load->buf_length = vid_cvt->out_frame_size;
+    load->valid_size = 0;
+    load->needs_free = 0;
+    load->is_done = false;
+    return ESP_GMF_IO_OK;
+}
+
+static esp_gmf_err_io_t ppa_fs_release_out(void *handle, esp_gmf_payload_t *load, int wait_ticks)
+{
+    (void)wait_ticks;
+    gmf_video_ppa_t *vid_cvt = (gmf_video_ppa_t *)handle;
+    if (vid_cvt->fs_queue == NULL) {
+        return ESP_GMF_IO_FAIL;
+    }
+    if (load->valid_size == 0 && load->is_done == false) {
+        return esp_gmf_data_queue_release_write(vid_cvt->fs_queue, 0) == 0 ? ESP_GMF_IO_OK : ESP_GMF_IO_FAIL;
+    }
+    void *slot = esp_gmf_data_queue_get_write_data(vid_cvt->fs_queue);
+    if (slot == NULL) {
+        return ESP_GMF_IO_FAIL;
+    }
+    ppa_fs_hdr_t *hdr = (ppa_fs_hdr_t *)slot;
+    hdr->pts = load->pts;
+    hdr->is_done = load->is_done;
+    hdr->frame_size = (uint32_t)load->valid_size;
+    return esp_gmf_data_queue_release_write(vid_cvt->fs_queue, (int)vid_cvt->fs_slot_size) == 0 ?
+           ESP_GMF_IO_OK : ESP_GMF_IO_FAIL;
+}
+
+static esp_gmf_err_io_t ppa_fs_acquire_in(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
+{
+    (void)wanted_size;
+    gmf_video_ppa_t *vid_cvt = (gmf_video_ppa_t *)handle;
+    if (vid_cvt->fs_queue == NULL) {
+        return ESP_GMF_IO_FAIL;
+    }
+    void *slot = NULL;
+    int size = 0;
+    uint32_t timeout = (wait_ticks < 0 || (uint32_t)wait_ticks == ESP_GMF_MAX_DELAY) ?
+                       ESP_GMF_DATA_QUEUE_WAIT_FOREVER : (uint32_t)wait_ticks;
+    if (esp_gmf_data_queue_acquire_read(vid_cvt->fs_queue, &slot, &size, timeout) != 0 || slot == NULL) {
+        return (timeout == 0) ? ESP_GMF_IO_TIMEOUT : ESP_GMF_IO_ABORT;
+    }
+    ppa_fs_hdr_t *hdr = (ppa_fs_hdr_t *)slot;
+    load->buf = (uint8_t *)slot + hdr->pixel_off;
+    load->buf_length = vid_cvt->out_frame_size;
+    load->valid_size = hdr->frame_size;
+    load->pts = hdr->pts;
+    load->is_done = hdr->is_done;
+    load->needs_free = 0;
+    return ESP_GMF_IO_OK;
+}
+
+static esp_gmf_err_io_t ppa_fs_release_in(void *handle, esp_gmf_payload_t *load, int wait_ticks)
+{
+    (void)load;
+    (void)wait_ticks;
+    gmf_video_ppa_t *vid_cvt = (gmf_video_ppa_t *)handle;
+    if (vid_cvt->fs_queue == NULL) {
+        return ESP_GMF_IO_FAIL;
+    }
+    return esp_gmf_data_queue_release_read(vid_cvt->fs_queue) == 0 ? ESP_GMF_IO_OK : ESP_GMF_IO_FAIL;
+}
+
+static void ppa_fs_destroy_ports(gmf_video_ppa_t *vid_cvt)
+{
+    if (vid_cvt->fs_in_port) {
+        esp_gmf_port_deinit(vid_cvt->fs_in_port);
+        vid_cvt->fs_in_port = NULL;
+    }
+    if (vid_cvt->fs_out_port) {
+        esp_gmf_port_deinit(vid_cvt->fs_out_port);
+        vid_cvt->fs_out_port = NULL;
+    }
+}
+
+static void ppa_fs_destroy_queue(gmf_video_ppa_t *vid_cvt)
+{
+    if (vid_cvt->fs_queue) {
+        esp_gmf_data_queue_t *queue = vid_cvt->fs_queue;
+        esp_gmf_data_queue_wakeup(queue);
+        vid_cvt->fs_queue = NULL;
+        esp_gmf_data_queue_destroy(queue);
+    }
+    vid_cvt->fs_slot_size = 0;
+}
+
+static void ppa_fs_stop(gmf_video_ppa_t *vid_cvt)
+{
+    if (vid_cvt->fs_enabled == false && vid_cvt->fs_task == NULL && vid_cvt->fs_queue == NULL) {
+        return;
+    }
+    vid_cvt->fs_running = false;
+    if (vid_cvt->fs_queue) {
+        esp_gmf_data_queue_wakeup(vid_cvt->fs_queue);
+    }
+    if (vid_cvt->fs_event && (vid_cvt->fs_task || vid_cvt->fs_enabled)) {
+        xEventGroupWaitBits(vid_cvt->fs_event, PPA_FS_TASK_EXIT_BIT, pdTRUE, pdFALSE, pdMS_TO_TICKS(2000));
+    }
+    if (vid_cvt->orig_in) {
+        ESP_GMF_ELEMENT_GET(vid_cvt)->in = vid_cvt->orig_in;
+        vid_cvt->orig_in = NULL;
+    }
+    ppa_fs_destroy_ports(vid_cvt);
+    ppa_fs_destroy_queue(vid_cvt);
+    if (vid_cvt->fs_event) {
+        vEventGroupDelete(vid_cvt->fs_event);
+        vid_cvt->fs_event = NULL;
+    }
+    vid_cvt->fs_enabled = false;
+    vid_cvt->async_error = false;
+}
+
+static esp_gmf_job_err_t ppa_process_frame(gmf_video_ppa_t *vid_cvt, esp_gmf_port_handle_t in_port,
+                                          esp_gmf_port_handle_t out_port, bool force_bypass, int in_wait_ticks)
+{
+    esp_gmf_payload_t *in_load = NULL;
+    esp_gmf_payload_t *out_load = NULL;
+    int ret = esp_gmf_port_acquire_in(in_port, &in_load, ESP_GMF_ELEMENT_GET(vid_cvt)->in_attr.data_size, in_wait_ticks);
+    if (ret < 0) {
+        if (ret == ESP_GMF_IO_TIMEOUT) {
+            return ESP_GMF_JOB_ERR_CONTINUE;
+        }
+        ESP_GMF_PORT_ACQUIRE_IN_CHECK(TAG, ret, ret, return ret);
+    }
+    bool bypass = force_bypass || vid_cvt->bypass;
+    uint32_t wanted_size = 0;
+    if (bypass) {
+        out_load = in_load;
+        wanted_size = in_load->valid_size ? in_load->valid_size : 1;
+    } else {
+        out_load = NULL;
+        wanted_size = ESP_GMF_ELEMENT_GET(vid_cvt)->out_attr.data_size;
+    }
+    ret = esp_gmf_port_acquire_out(out_port, &out_load, wanted_size, ESP_GMF_MAX_DELAY);
+    ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, ret, ret, esp_gmf_port_release_in(in_port, in_load, ESP_GMF_MAX_DELAY); return ret);
+    if (in_load->valid_size > 0 && bypass == false) {
+#if CONFIG_SOC_PPA_SUPPORTED
+        if (vid_cvt->sw_imgfx_only || vid_cvt->use_ppa) {
+            ret = video_ppa_run_convert(vid_cvt, in_load, out_load);
+        } else {
+            ret = dm2d_convert(vid_cvt, in_load, out_load);
+        }
+        if (ret == 0) {
+            out_load->valid_size = vid_cvt->out_frame_size;
+            out_load->pts = in_load->pts;
+            out_load->is_done = in_load->is_done;
+        } else {
+            out_load->valid_size = 0;
+        }
+#else
+        ret = ESP_GMF_JOB_ERR_FAIL;
+        out_load->valid_size = 0;
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
+    } else if (bypass && out_load) {
+        out_load->is_done = in_load->is_done;
+    }
+    bool is_done = out_load ? out_load->is_done : in_load->is_done;
+    esp_gmf_port_release_out(out_port, out_load, ESP_GMF_MAX_DELAY);
+    esp_gmf_port_release_in(in_port, in_load, ESP_GMF_MAX_DELAY);
+    if (ret < 0) {
+        return ret;
+    }
+    if (is_done) {
+        return ESP_GMF_JOB_ERR_DONE;
+    }
+    return ESP_GMF_JOB_ERR_OK;
+}
+
+static void ppa_fs_task(void *arg)
+{
+    gmf_video_ppa_t *vid_cvt = (gmf_video_ppa_t *)arg;
+    ESP_LOGI(TAG, "Full-speed convert task start");
+    while (vid_cvt->fs_running) {
+        int ret = ppa_process_frame(vid_cvt, vid_cvt->orig_in, vid_cvt->fs_out_port,
+                                    false, PPA_FS_ACQUIRE_TIMEOUT);
+        if (ret == ESP_GMF_JOB_ERR_CONTINUE) {
+            continue;
+        }
+        if (ret == ESP_GMF_JOB_ERR_DONE) {
+            break;
+        }
+        if (ret < 0) {
+            if (vid_cvt->fs_running == false || ret == ESP_GMF_ERR_ABORT) {
+                break;
+            }
+            ESP_LOGE(TAG, "Full-speed convert fatal error ret:%d", (int)ret);
+            vid_cvt->async_error = true;
+            if (vid_cvt->fs_queue) {
+                esp_gmf_data_queue_wakeup(vid_cvt->fs_queue);
+            }
+            break;
+        }
+    }
+    vid_cvt->fs_running = false;
+    esp_gmf_oal_thread_t self_task = vid_cvt->fs_task;
+    vid_cvt->fs_task = NULL;
+    if (vid_cvt->fs_event) {
+        xEventGroupSetBits(vid_cvt->fs_event, PPA_FS_TASK_EXIT_BIT);
+    }
+    ESP_LOGI(TAG, "Full-speed convert task exit");
+    esp_gmf_oal_thread_delete(self_task);
+}
+
+static esp_gmf_err_t ppa_fs_start(gmf_video_ppa_t *vid_cvt)
+{
+    esp_gmf_element_t *el = ESP_GMF_ELEMENT_GET(vid_cvt);
+    if (el->in == NULL) {
+        ESP_LOGW(TAG, "No in port, disable full-speed");
+        return ESP_GMF_ERR_INVALID_STATE;
+    }
+    if (el->in->writer) {
+        ESP_LOGW(TAG, "Full-speed only supported as first pipeline element, fallback");
+        return ESP_GMF_ERR_NOT_SUPPORT;
+    }
+    uint8_t align = el->out_attr.port.buf_addr_aligned;
+    if (align == 0) {
+        align = 64;
+    }
+    uint32_t slot_size = sizeof(ppa_fs_hdr_t) + (align > 1 ? (align - 1) : 0) + vid_cvt->out_frame_size;
+    int q_size = (int)((slot_size + 64) * PPA_FS_FRAME_COUNT);
+    vid_cvt->fs_queue = esp_gmf_data_queue_create(q_size);
+    if (vid_cvt->fs_queue == NULL) {
+        ESP_LOGW(TAG, "Create full-speed queue failed");
+        return ESP_GMF_ERR_MEMORY_LACK;
+    }
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    do {
+        vid_cvt->fs_slot_size = slot_size;
+        vid_cvt->fs_out_port = NEW_ESP_GMF_PORT_OUT_BLOCK(ppa_fs_acquire_out, ppa_fs_release_out, NULL,
+                                                        vid_cvt, 0, ESP_GMF_MAX_DELAY);
+        vid_cvt->fs_in_port = NEW_ESP_GMF_PORT_IN_BLOCK(ppa_fs_acquire_in, ppa_fs_release_in, NULL,
+                                                        vid_cvt, 0, ESP_GMF_MAX_DELAY);
+        if (vid_cvt->fs_out_port == NULL || vid_cvt->fs_in_port == NULL) {
+            ret = ESP_GMF_ERR_MEMORY_LACK;
+            GMF_VIDEO_BREAK_ON_FAIL(ret);
+        }
+        esp_gmf_port_set_writer(vid_cvt->fs_out_port, vid_cvt);
+        esp_gmf_port_set_reader(vid_cvt->fs_in_port, vid_cvt);
+        vid_cvt->fs_event = xEventGroupCreate();
+        if (vid_cvt->fs_event == NULL) {
+            ret = ESP_GMF_ERR_MEMORY_LACK;
+            GMF_VIDEO_BREAK_ON_FAIL(ret);
+        }
+        xEventGroupClearBits(vid_cvt->fs_event, PPA_FS_TASK_EXIT_BIT);
+        vid_cvt->orig_in = el->in;
+        el->in = vid_cvt->fs_in_port;
+        vid_cvt->async_error = false;
+        vid_cvt->fs_running = true;
+        int core_id = xTaskGetCoreID(NULL) ? 0 : 1;
+        ret = esp_gmf_oal_thread_create(&vid_cvt->fs_task, "ppa_fs", ppa_fs_task, vid_cvt,
+                                        PPA_FS_TASK_STACK, PPA_FS_TASK_PRIO, true, core_id);
+        if (ret != ESP_GMF_ERR_OK) {
+            ESP_LOGW(TAG, "Create full-speed task failed");
+            el->in = vid_cvt->orig_in;
+            vid_cvt->orig_in = NULL;
+            vid_cvt->fs_running = false;
+            GMF_VIDEO_BREAK_ON_FAIL(ret);
+        }
+        vid_cvt->fs_enabled = true;
+        ESP_LOGI(TAG, "Full-speed convert enabled slot:%u q:%d", (unsigned)slot_size, q_size);
+        return ESP_GMF_ERR_OK;
+    } while (0);
+    if (vid_cvt->fs_event) {
+        vEventGroupDelete(vid_cvt->fs_event);
+        vid_cvt->fs_event = NULL;
+    }
+    ppa_fs_destroy_ports(vid_cvt);
+    ppa_fs_destroy_queue(vid_cvt);
+    return ret;
+}
 
 static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void *para)
 {
@@ -982,7 +1310,7 @@ static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void 
         vid_cvt->bypass = true;
     }
     if (vid_cvt->bypass == false) {
-#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
+#if CONFIG_SOC_PPA_SUPPORTED
         bool dma2d_ok = check_2ddma_supported(vid_cvt);
         bool hw_native = hw_native_accepts_src_dst(vid_cvt);
         bool geom = vid_ppa_geometry_needs_hw(vid_cvt);
@@ -1093,11 +1421,16 @@ static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void 
         ESP_LOGE(TAG, "Not support video convert hardware not supported");
         ret = ESP_GMF_JOB_ERR_FAIL;
         goto __video_ppa_open_exit;
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
     }
 __video_ppa_open_exit:
     esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
     if (ret == ESP_GMF_JOB_ERR_OK) {
+        if (vid_cvt->bypass == false && vid_cvt->full_speed) {
+            if (ppa_fs_start(vid_cvt) != ESP_GMF_ERR_OK) {
+                ESP_LOGW(TAG, "Full-speed setup failed, continue in normal mode");
+            }
+        }
         esp_gmf_element_notify_vid_info(self, &vid_info);
     }
     return ret;
@@ -1106,50 +1439,24 @@ __video_ppa_open_exit:
 static esp_gmf_job_err_t gmf_video_ppa_process(esp_gmf_element_handle_t self, void *para)
 {
     gmf_video_ppa_t *vid_cvt = (gmf_video_ppa_t *)self;
-    int ret = 0;
-    esp_gmf_port_handle_t in_port = ESP_GMF_ELEMENT_GET(self)->in;
-    esp_gmf_port_handle_t out_port = ESP_GMF_ELEMENT_GET(self)->out;
-    esp_gmf_payload_t *in_load = NULL;
-    esp_gmf_payload_t *out_load = NULL;
-    ret = esp_gmf_port_acquire_in(in_port, &in_load, ESP_GMF_ELEMENT_GET(self)->in_attr.data_size, ESP_GMF_MAX_DELAY);
-    ESP_GMF_PORT_ACQUIRE_IN_CHECK(TAG, ret, ret, return ret);
-    uint32_t wanted_size = 0;
-    if (vid_cvt->bypass) {
-        out_load = in_load;
-        wanted_size = in_load->valid_size;
-    } else {
-        out_load = NULL;
-        wanted_size = ESP_GMF_ELEMENT_GET(vid_cvt)->out_attr.data_size;
+    if (vid_cvt->async_error) {
+        ESP_LOGE(TAG, "Full-speed async convert failed");
+        return ESP_GMF_JOB_ERR_FAIL;
     }
-    ret = esp_gmf_port_acquire_out(out_port, &out_load, wanted_size, ESP_GMF_MAX_DELAY);
-    ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, ret, ret, esp_gmf_port_release_in(in_port, in_load, ESP_GMF_MAX_DELAY); return ret);
-    if (in_load->valid_size > 0 && vid_cvt->bypass == false) {
-#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
-        if (vid_cvt->sw_imgfx_only || vid_cvt->use_ppa) {
-            ret = video_ppa_run_convert(vid_cvt, in_load, out_load);
-        } else {
-            ret = dm2d_convert(vid_cvt, in_load, out_load);
-        }
-        if (ret == 0) {
-            out_load->valid_size = vid_cvt->out_frame_size;
-            out_load->pts = in_load->pts;
-        }
-#else
-        ret = ESP_GMF_JOB_ERR_FAIL;
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
+    if (vid_cvt->fs_enabled) {
+        /* Use timeout so pipeline STOP can be observed while waiting for converted frames */
+        return ppa_process_frame(vid_cvt, ESP_GMF_ELEMENT_GET(self)->in, ESP_GMF_ELEMENT_GET(self)->out,
+                                 true, PPA_FS_ACQUIRE_TIMEOUT);
     }
-    esp_gmf_port_release_out(out_port, out_load, ESP_GMF_MAX_DELAY);
-    esp_gmf_port_release_in(in_port, in_load, ESP_GMF_MAX_DELAY);
-    if (out_load->is_done) {
-        ret = ESP_GMF_JOB_ERR_DONE;
-    }
-    return ret;
+    return ppa_process_frame(vid_cvt, ESP_GMF_ELEMENT_GET(self)->in, ESP_GMF_ELEMENT_GET(self)->out,
+                             false, ESP_GMF_MAX_DELAY);
 }
 
 static esp_gmf_job_err_t gmf_video_ppa_close(esp_gmf_element_handle_t self, void *para)
 {
-#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
     gmf_video_ppa_t *vid_cvt = (gmf_video_ppa_t *)self;
+    ppa_fs_stop(vid_cvt);
+#if CONFIG_SOC_PPA_SUPPORTED
     close_sw_color_convert(vid_cvt);
     free_sw_scratch(vid_cvt);
     if (vid_cvt->use_ppa) {
@@ -1157,13 +1464,14 @@ static esp_gmf_job_err_t gmf_video_ppa_close(esp_gmf_element_handle_t self, void
     } else if (!vid_cvt->sw_imgfx_only) {
         close_dma2d(vid_cvt);
     }
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
     return ESP_GMF_JOB_ERR_OK;
 }
 
 static esp_gmf_err_t gmf_video_ppa_destroy(esp_gmf_element_handle_t self)
 {
     gmf_video_ppa_t *vid_cvt = (gmf_video_ppa_t *)self;
+    ppa_fs_stop(vid_cvt);
     esp_gmf_video_el_deinit(self);
     if (vid_cvt != NULL) {
         esp_gmf_oal_free(vid_cvt);
@@ -1218,6 +1526,21 @@ static esp_gmf_err_t set_crop(esp_gmf_element_handle_t handle, esp_gmf_args_desc
     return ESP_GMF_ERR_OK;
 }
 
+static esp_gmf_err_t set_full_speed(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                    uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_element_get_state(handle, &state);
+    if (state == ESP_GMF_EVENT_STATE_RUNNING || state == ESP_GMF_EVENT_STATE_PAUSED) {
+        return ESP_GMF_ERR_INVALID_STATE;
+    }
+    gmf_video_ppa_t *vid_cvt = (gmf_video_ppa_t *)handle;
+    vid_cvt->full_speed = *(bool *)buf;
+    return ESP_GMF_ERR_OK;
+}
+
 static esp_gmf_err_t gmf_video_ppa_new(void *cfg, esp_gmf_obj_handle_t *handle)
 {
     return esp_gmf_video_ppa_init(cfg, (esp_gmf_element_handle_t *)handle);
@@ -1260,6 +1583,14 @@ static esp_gmf_err_t gmf_video_ppa_load_methods(esp_gmf_element_handle_t handle)
         GMF_VIDEO_BREAK_ON_FAIL(ret);
         ret = esp_gmf_method_append(&methods, VMETHOD(CROP, SET_CROP_RGN), set_crop, set_args);
         GMF_VIDEO_BREAK_ON_FAIL(ret);
+
+        set_args = NULL;
+        ret = esp_gmf_args_desc_append(&set_args, VMETHOD_ARG(PPA, SET_FULL_SPEED, ENABLE),
+                                       ESP_GMF_ARGS_TYPE_UINT8, sizeof(bool), 0);
+        GMF_VIDEO_BREAK_ON_FAIL(ret);
+        ret = esp_gmf_method_append(&methods, VMETHOD(PPA, SET_FULL_SPEED), set_full_speed, set_args);
+        GMF_VIDEO_BREAK_ON_FAIL(ret);
+
         ((esp_gmf_element_t *)handle)->method = methods;
         return ESP_GMF_ERR_OK;
     } while (0);
@@ -1428,6 +1759,26 @@ __video_ppa_set_res_exit:
     return ret;
 }
 
+esp_gmf_err_t esp_gmf_video_ppa_set_full_speed(esp_gmf_element_handle_t handle, bool enable)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)handle)->lock);
+    const esp_gmf_method_t *method_head = NULL;
+    const esp_gmf_method_t *method = NULL;
+    esp_gmf_element_get_method((esp_gmf_element_handle_t)handle, &method_head);
+    esp_gmf_method_found(method_head, VMETHOD(PPA, SET_FULL_SPEED), &method);
+    ESP_GMF_NULL_CHECK(TAG, method_head, {ret = ESP_GMF_ERR_NOT_SUPPORT; goto __video_ppa_set_fs_exit;});
+    ESP_GMF_NULL_CHECK(TAG, method, {ret = ESP_GMF_ERR_NOT_SUPPORT; goto __video_ppa_set_fs_exit;});
+    uint8_t buf[1] = {0};
+    esp_gmf_args_set_value(method->args_desc, VMETHOD_ARG(PPA, SET_FULL_SPEED, ENABLE), buf,
+                           (uint8_t *)&enable, sizeof(bool));
+    ret = esp_gmf_element_exe_method((esp_gmf_element_handle_t)handle, VMETHOD(PPA, SET_FULL_SPEED), buf, sizeof(buf));
+__video_ppa_set_fs_exit:
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)handle)->lock);
+    return ret;
+}
+
 /**
  * @brief  This API is for debug only
  */
@@ -1447,7 +1798,7 @@ int gmf_video_ppa_test(uint32_t from_codec, int32_t to_codec, uint32_t width, ui
     vid_cvt->dst_height = height;
     gmf_video_ppa_open(cvt, NULL);
     int ret = 0;
-#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31
+#if CONFIG_SOC_PPA_SUPPORTED
     esp_gmf_payload_t in_load = {
         .buf = src,
         .buf_length = pixel_buffer_size(from_codec, width, height),
@@ -1465,7 +1816,7 @@ int gmf_video_ppa_test(uint32_t from_codec, int32_t to_codec, uint32_t width, ui
     }
     ESP_LOGI(TAG, "RGB swap:%d byteswap:%d scramble:%d", vid_cvt->ppa_config.rgb_swap, vid_cvt->ppa_config.byte_swap, v);
     ret = video_ppa_run_convert(vid_cvt, &in_load, &out_load);
-#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
+#endif  /* CONFIG_SOC_PPA_SUPPORTED */
     gmf_video_ppa_close(cvt, NULL);
     gmf_video_ppa_destroy(cvt);
     return ret;

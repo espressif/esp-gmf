@@ -22,6 +22,7 @@
 #include "esp_gmf_caps_def.h"
 #include "freertos/FreeRTOS.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_heap_caps.h"
 #include "esp_gmf_video_scale.h"
 #include "esp_gmf_video_crop.h"
@@ -96,6 +97,7 @@ typedef struct {
     uint32_t                    out_frame_count;
     uint32_t                    out_max_size;
     bool                        no_need_free;
+    bool                        perf_mode;  /*!< Skip I/O delay/logs for throughput measurement */
 } video_el_test_t;
 
 typedef struct {
@@ -274,7 +276,9 @@ static esp_gmf_err_io_t in_acquire(void *handle, esp_gmf_payload_t *load, uint32
 static esp_gmf_err_io_t in_release(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
 {
     video_el_inst.in_frame_count++;
-    vTaskDelay(10 / portTICK_RATE_MS);
+    if (video_el_inst.perf_mode == false) {
+        vTaskDelay(10 / portTICK_RATE_MS);
+    }
     return ESP_GMF_IO_OK;
 }
 
@@ -835,7 +839,9 @@ static esp_gmf_err_io_t out_release(void *handle, esp_gmf_payload_t *load, uint3
 {
     video_el_inst.out_pixel = load->buf;
     video_el_inst.out_size = load->valid_size;
-    ESP_LOGI(TAG, "Out frame %d size %d", (int)video_el_inst.out_frame_count, (int)video_el_inst.out_size);
+    if (video_el_inst.perf_mode == false) {
+        ESP_LOGI(TAG, "Out frame %d size %d", (int)video_el_inst.out_frame_count, (int)video_el_inst.out_size);
+    }
     video_el_inst.out_frame_count++;
     // FIXME: why add this ugly code
     if (video_el_inst.no_need_free == false) {
@@ -1077,6 +1083,155 @@ TEST_CASE("vid_ppa soft color convert integration", "[ESP_GMF_VIDEO][leaks=1400]
     }
     release_convert_pipeline(&res);
 }
+
+TEST_CASE("vid_ppa scale/rotate performance", "[ESP_GMF_VIDEO][leaks=1400]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    convert_res_t res;
+    memset(&video_el_inst, 0, sizeof(video_el_test_t));
+    video_el_inst.perf_mode = true;
+    TEST_ASSERT_EQUAL(0, prepare_pool(&res));
+    const char *name[] = {"vid_ppa", NULL};
+    TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, name));
+
+    static const struct {
+        uint16_t    src_w;
+        uint16_t    src_h;
+        uint16_t    dst_w;
+        uint16_t    dst_h;
+        uint16_t    rotate;
+        const char *const desc;
+    } cases[] = {
+        {1920, 1080, 960, 540, 0,
+         "1920x1080 RGB565 -> 960x540 scale only"},
+        {1920, 1080, 540, 960, 90,
+         "1920x1080 RGB565 -> 540x960 scale + rotate 90"},
+        {1080, 1280, 540, 640, 0,
+         "1080x1280 RGB565 -> 540x640 scale only"},
+        {1080, 1280, 640, 540, 90,
+         "1080x1280 RGB565 -> 640x540 scale + rotate 90"},
+    };
+
+    const int run_ms = 3000;
+    for (size_t i = 0; i < ELEMS(cases); i++) {
+        ESP_LOGI(TAG, "vid_ppa perf case %u: %s", (unsigned)i, cases[i].desc);
+        video_el_inst.src_res.width = cases[i].src_w;
+        video_el_inst.src_res.height = cases[i].src_h;
+        video_el_inst.out_res.width = cases[i].dst_w;
+        video_el_inst.out_res.height = cases[i].dst_h;
+        video_el_inst.rotate_degree = cases[i].rotate;
+        video_el_inst.out_codec = ESP_FOURCC_RGB16;
+        video_el_inst.in_frame_count = 0;
+        video_el_inst.out_frame_count = 0;
+        TEST_ASSERT_EQUAL(0, allocate_src_pattern(ESP_FOURCC_RGB16, false));
+
+        esp_gmf_video_param_set_dst_format(res.convert_hd, ESP_FOURCC_RGB16);
+        esp_gmf_video_param_set_dst_resolution(res.convert_hd, &video_el_inst.out_res);
+        esp_gmf_video_param_set_rotate_angle(res.convert_hd, cases[i].rotate);
+
+        esp_gmf_info_video_t info = {
+            .format_id = ESP_FOURCC_RGB16,
+            .width = cases[i].src_w,
+            .height = cases[i].src_h,
+        };
+        esp_gmf_pipeline_report_info(res.pipe, ESP_GMF_INFO_VIDEO, &info, sizeof(info));
+
+        int64_t t0 = esp_timer_get_time();
+        TEST_ASSERT_MESSAGE(esp_gmf_pipeline_run(res.pipe) == ESP_GMF_ERR_OK, cases[i].desc);
+        vTaskDelay(run_ms / portTICK_RATE_MS);
+        TEST_ASSERT_MESSAGE(esp_gmf_pipeline_stop(res.pipe) == ESP_GMF_ERR_OK, cases[i].desc);
+        int64_t elapsed_us = esp_timer_get_time() - t0;
+
+        uint32_t frames = video_el_inst.out_frame_count;
+        float fps = (elapsed_us > 0) ? (frames * 1000000.0f / (float)elapsed_us) : 0.0f;
+        float us_per_frame = (frames > 0) ? ((float)elapsed_us / (float)frames) : 0.0f;
+        ESP_LOGI(TAG, "  result: out_frames=%u in_frames=%u elapsed=%lld us (%.2f ms) fps=%.2f us/frame=%.1f",
+                 (unsigned)frames, (unsigned)video_el_inst.in_frame_count,
+                 (long long)elapsed_us, elapsed_us / 1000.0f, fps, us_per_frame);
+        TEST_ASSERT_GREATER_THAN_UINT32_MESSAGE(0, frames, cases[i].desc);
+
+        free_video_el_inst();
+        esp_gmf_pipeline_reset(res.pipe);
+        esp_gmf_pipeline_loading_jobs(res.pipe);
+    }
+    release_convert_pipeline(&res);
+}
+
+TEST_CASE("vid_ppa scale/rotate + Encoder performance", "[ESP_GMF_VIDEO][leaks=1400]")
+{
+    esp_log_level_set("*", ESP_LOG_INFO);
+    convert_res_t res;
+    memset(&video_el_inst, 0, sizeof(video_el_test_t));
+    video_el_inst.perf_mode = true;
+    TEST_ASSERT_EQUAL(0, prepare_pool(&res));
+    const char *name[] = {"vid_ppa", "vid_enc", NULL};
+    TEST_ASSERT_EQUAL(0, prepare_convert_pipeline(&res, name));
+
+    /* 1080x1280 -> 640x540 rotate 90, compare full-speed on/off FPS */
+    const uint16_t src_w = 1080;
+    const uint16_t src_h = 1280;
+    const uint16_t dst_w = 640;
+    const uint16_t dst_h = 540;
+    const uint16_t rotate = 90;
+    const int run_ms = 3000;
+    float fps_off = 0.0f;
+    float fps_on = 0.0f;
+    for (int full_speed = 0; full_speed <= 1; full_speed++)
+    {
+        ESP_LOGI(TAG, "vid_ppa+enc perf full_speed=%d: %dx%d RGB565 -> %dx%d rotate %d",
+                 full_speed, src_w, src_h, dst_w, dst_h, rotate);
+        video_el_inst.src_res.width = src_w;
+        video_el_inst.src_res.height = src_h;
+        video_el_inst.out_res.width = dst_w;
+        video_el_inst.out_res.height = dst_h;
+        video_el_inst.rotate_degree = rotate;
+        video_el_inst.out_codec = ESP_FOURCC_OUYY_EVYY;
+        video_el_inst.in_frame_count = 0;
+        video_el_inst.out_frame_count = 0;
+        TEST_ASSERT_EQUAL(0, allocate_src_pattern(ESP_FOURCC_RGB16, false));
+
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_video_ppa_set_full_speed(res.convert_hd, full_speed != 0));
+        esp_gmf_video_param_set_dst_format(res.convert_hd, ESP_FOURCC_OUYY_EVYY);
+        esp_gmf_video_param_set_dst_resolution(res.convert_hd, &video_el_inst.out_res);
+        esp_gmf_video_param_set_rotate_angle(res.convert_hd, rotate);
+
+        esp_gmf_info_video_t info = {
+            .format_id = ESP_FOURCC_RGB16,
+            .width = src_w,
+            .height = src_h,
+            .fps = 30,
+        };
+        esp_gmf_pipeline_report_info(res.pipe, ESP_GMF_INFO_VIDEO, &info, sizeof(info));
+        esp_gmf_video_param_set_dst_codec(res.enc_hd, ESP_FOURCC_H264);
+
+        int64_t t0 = esp_timer_get_time();
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res.pipe));
+        vTaskDelay(run_ms / portTICK_RATE_MS);
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res.pipe));
+        int64_t elapsed_us = esp_timer_get_time() - t0;
+
+        uint32_t frames = video_el_inst.out_frame_count;
+        float fps = (elapsed_us > 0) ? (frames * 1000000.0f / (float)elapsed_us) : 0.0f;
+        float us_per_frame = (frames > 0) ? ((float)elapsed_us / (float)frames) : 0.0f;
+        ESP_LOGI(TAG, "  result full_speed=%d: out_frames=%u in_frames=%u elapsed=%lld us (%.2f ms) fps=%.2f us/frame=%.1f",
+                 full_speed, (unsigned)frames, (unsigned)video_el_inst.in_frame_count,
+                 (long long)elapsed_us, elapsed_us / 1000.0f, fps, us_per_frame);
+        TEST_ASSERT_GREATER_THAN_UINT32(0, frames);
+        if (full_speed) {
+            fps_on = fps;
+        } else {
+            fps_off = fps;
+        }
+
+        free_video_el_inst();
+        esp_gmf_pipeline_reset(res.pipe);
+        esp_gmf_pipeline_loading_jobs(res.pipe);
+    }
+    ESP_LOGI(TAG, "vid_ppa+enc fullspeed compare: off=%.2f fps on=%.2f fps (x%.2f)",
+             fps_off, fps_on, (fps_off > 0.0f) ? (fps_on / fps_off) : 0.0f);
+    release_convert_pipeline(&res);
+}
+
 #endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S31 */
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4

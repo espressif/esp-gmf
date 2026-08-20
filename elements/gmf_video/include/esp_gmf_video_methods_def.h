@@ -180,6 +180,12 @@ VMETHOD_ARG_DEF(DECODER, GET_DST_FMTS, DST_FMTS_NUM_PTR, "dst_fmts_num");
 VMETHOD_DEF(DECODER, SET_OUT_POOL, "set_out_pool");
 VMETHOD_ARG_DEF(DECODER, SET_OUT_POOL, FRAME_COUNT, "frame_count");
 
+/**
+ * @brief  Video PPA method definition for enable full-speed async convert
+ */
+VMETHOD_DEF(PPA, SET_FULL_SPEED, "set_full_speed");
+VMETHOD_ARG_DEF(PPA, SET_FULL_SPEED, ENABLE, "enable");
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
