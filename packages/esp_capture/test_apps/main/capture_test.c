@@ -2757,3 +2757,54 @@ int test_full_speed_decode_perf(void)
 }
 
 #endif  /* TEST_WITH_VIDEO */
+
+int audio_src_sync_read_path_test(int timeout, bool dual)
+{
+    capture_sys_t capture_sys = {0};
+    int ret = 0;
+    do {
+        ret = build_advance_audio_only_capture_sys(&capture_sys);
+        BREAK_ON_FAIL(ret);
+
+        bool sync_read = true;
+        ret = capture_sys.aud_path->base.set(&capture_sys.aud_path->base, 0,
+                                               ESP_CAPTURE_PATH_SET_TYPE_AUDIO_SRC_SYNC_READ,
+                                               &sync_read, sizeof(sync_read));
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to set audio src sync read");
+            ret = -1;
+            break;
+        }
+
+        esp_capture_sink_cfg_t sink_cfg = {
+            .audio_info = {
+                .format_id = ESP_CAPTURE_FMT_ID_AAC,
+                .sample_rate = 48000,
+                .channel = 2,
+                .bits_per_sample = 16,
+            },
+        };
+        ret = esp_capture_sink_setup(capture_sys.capture, 0, &sink_cfg, &capture_sys.capture_sink[0]);
+        BREAK_ON_FAIL(ret);
+        if (dual) {
+            esp_capture_sink_cfg_t sink_cfg_1 = {
+                .audio_info = {
+                    .format_id = ESP_CAPTURE_FMT_ID_G711A,
+                    .sample_rate = 8000,
+                    .channel = 1,
+                    .bits_per_sample = 16,
+                },
+            };
+            ret = esp_capture_sink_setup(capture_sys.capture, 1, &sink_cfg_1, &capture_sys.capture_sink[1]);
+            BREAK_ON_FAIL(ret);
+        }
+        ret = read_all_frames(&capture_sys, dual, timeout);
+        BREAK_ON_FAIL(ret);
+        if (!verify_test_result(&capture_sys, dual, TEST_RESULT_VERIFY_AUDIO, timeout)) {
+            ESP_LOGE(TAG, "Failed to verify sync read audio frames and PTS");
+            ret = -1;
+        }
+    } while (0);
+    destroy_capture_sys(&capture_sys);
+    return ret;
+}

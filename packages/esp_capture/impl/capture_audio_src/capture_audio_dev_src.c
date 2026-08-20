@@ -102,6 +102,7 @@ static esp_capture_err_t audio_dev_src_start(esp_capture_audio_src_if_t *h)
     int block_sample = fs.sample_rate * MIN_READ_BLOCK_DURATION / 1000;
     src->read_block_size = block_sample * fs.bits_per_sample / 8 * fs.channel;
     src->start = true;
+    src->abort = 0;
     src->frame_num = 0;
     src->frames = 0;
     return ESP_CAPTURE_ERR_OK;

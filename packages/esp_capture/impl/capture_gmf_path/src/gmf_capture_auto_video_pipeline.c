@@ -29,9 +29,6 @@
 #include "esp_log.h"
 
 #define TAG "GMF_VID_PIPE"
-
-#define MAX_SINK_NUM (2)
-
 typedef enum {
     VIDEO_PATH_OPS_NONE        = 0,
     VIDEO_PATH_OPS_FPS_CONVERT = 1,
@@ -56,10 +53,10 @@ struct video_pipeline_t {
     uint8_t                                    sink_num;
     bool                                       pipeline_created;
     esp_gmf_pipeline_handle_t                  src_pipeline;
-    esp_gmf_pipeline_handle_t                  enc_pipeline[MAX_SINK_NUM];
-    bool                                       build_by_user[MAX_SINK_NUM];
-    video_path_ctx_t                           path_ctx[MAX_SINK_NUM];
-    esp_capture_stream_info_t                  sink_cfg[MAX_SINK_NUM];
+    esp_gmf_pipeline_handle_t                  enc_pipeline[CONFIG_ESP_CAPTURE_MAX_SINK_NUM];
+    bool                                       build_by_user[CONFIG_ESP_CAPTURE_MAX_SINK_NUM];
+    video_path_ctx_t                           path_ctx[CONFIG_ESP_CAPTURE_MAX_SINK_NUM];
+    esp_capture_stream_info_t                  sink_cfg[CONFIG_ESP_CAPTURE_MAX_SINK_NUM];
     const char                                *ops_tags[VIDEO_PATH_OPS_MAX];
 };
 
@@ -85,7 +82,9 @@ static esp_capture_err_t gmf_video_pool_create(esp_capture_pipeline_builder_if_t
         capture_video_src_el_init(NULL, &el);
         CAPTURE_BREAK_ON_ERR(esp_gmf_pool_register_element(video_pipe->pool, el, NULL));
 
-        capture_share_copy_el_cfg_t copy_cfg = {};
+        capture_share_copy_el_cfg_t copy_cfg = {
+            .copies = CONFIG_ESP_CAPTURE_MAX_SINK_NUM,
+        };
         capture_share_copy_el_init(&copy_cfg, &el);
         CAPTURE_BREAK_ON_ERR(esp_gmf_pool_register_element(video_pipe->pool, el, NULL));
 
@@ -126,12 +125,23 @@ static esp_capture_err_t gmf_video_pool_create(esp_capture_pipeline_builder_if_t
 static uint8_t get_sink_num(video_pipeline_t *video_pipe)
 {
     uint8_t sink_num = 0;
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (video_pipe->sink_cfg[i].video_info.format_id) {
             sink_num++;
         }
     }
     return sink_num;
+}
+
+static uint8_t get_sink_mask(video_pipeline_t *video_pipe)
+{
+    uint8_t sink_mask = 0;
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
+        if (video_pipe->sink_cfg[i].video_info.format_id) {
+            sink_mask |= (1U << i);
+        }
+    }
+    return sink_mask;
 }
 
 static bool is_encoded(esp_capture_format_id_t format_id)
@@ -150,7 +160,7 @@ static int resolution_differ(esp_capture_video_info_t *a, esp_capture_video_info
 static void get_max_sink_cfg(video_pipeline_t *video_pipe, esp_capture_video_info_t *max_sink_info)
 {
     int8_t sink_num = 0;
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (video_pipe->sink_cfg[i].video_info.format_id == ESP_CAPTURE_FMT_ID_NONE) {
             continue;
         }
@@ -273,7 +283,7 @@ static esp_gmf_element_handle_t get_src_element(video_pipeline_t *video_pipe)
     if (video_pipe->src_pipeline) {
         esp_gmf_pipeline_get_el_by_name(video_pipe->src_pipeline, "vid_src", &src_element);
     } else if (video_pipe->sink_num == 1) {
-        for (int i = 0; i < MAX_SINK_NUM; i++) {
+        for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
             if (video_pipe->enc_pipeline[i]) {
                 esp_gmf_pipeline_get_el_by_name(video_pipe->enc_pipeline[i], "vid_src", &src_element);
                 break;
@@ -299,7 +309,10 @@ static esp_capture_err_t video_pipeline_link(video_pipeline_t *video_pipe)
     esp_gmf_pipeline_get_el_by_name(video_pipe->src_pipeline, "share_copier", &cp_element);
 
     // Connect pipelines
-    for (int i = 0; i < video_pipe->sink_num; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
+        if (video_pipe->enc_pipeline[i] == NULL) {
+            continue;
+        }
         // Set pre stop callback to avoid read or write blocked when stop
         esp_gmf_element_handle_t element = NULL;
         video_pipe->path_ctx[i].path = i;
@@ -317,7 +330,7 @@ static esp_capture_err_t video_pipeline_link(video_pipeline_t *video_pipe)
 
 static bool have_user_pipe(video_pipeline_t *video_pipe)
 {
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (video_pipe->build_by_user[i]) {
             return true;
         }
@@ -327,7 +340,7 @@ static bool have_user_pipe(video_pipeline_t *video_pipe)
 
 static bool need_auto_build(video_pipeline_t *video_pipe)
 {
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (video_pipe->sink_cfg[i].video_info.format_id && video_pipe->build_by_user[i] == false) {
             return true;
         }
@@ -345,7 +358,7 @@ static bool sink_needs_decode(esp_capture_video_info_t *src_info, esp_capture_vi
 #if CONFIG_ESP_CAPTURE_ENABLE_VIDEO_DECODER
 static bool any_sink_needs_decode(video_pipeline_t *video_pipe, esp_capture_video_info_t *src_info)
 {
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (video_pipe->sink_cfg[i].video_info.format_id == ESP_CAPTURE_FMT_ID_NONE) {
             continue;
         }
@@ -440,7 +453,7 @@ static esp_capture_err_t buildup_pipelines(video_pipeline_t *video_pipe)
     }
 
     if (need_auto_build(video_pipe)) {
-        for (int i = 0; i < MAX_SINK_NUM; i++) {
+        for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
             if (video_pipe->sink_cfg[i].video_info.format_id == ESP_CAPTURE_FMT_ID_NONE) {
                 continue;
             }
@@ -523,7 +536,7 @@ static esp_capture_err_t gmf_video_pipeline_build(esp_capture_pipeline_builder_i
                                                   esp_capture_gmf_pipeline_cfg_t *pipe_cfg)
 {
     video_pipeline_t *video_pipe = (video_pipeline_t *)builder;
-    if (path_idx >= MAX_SINK_NUM) {
+    if (path_idx >= CONFIG_ESP_CAPTURE_MAX_SINK_NUM) {
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     if (video_pipe->enc_pipeline[path_idx]) {
@@ -541,7 +554,7 @@ static esp_capture_err_t gmf_video_pipeline_build(esp_capture_pipeline_builder_i
 static int gmf_video_pipeline_get_element(esp_capture_pipeline_builder_if_t *builder, uint8_t path_idx, const char *tag, esp_gmf_element_handle_t *element)
 {
     video_pipeline_t *video_pipe = (video_pipeline_t *)builder;
-    if (path_idx >= MAX_SINK_NUM || element == NULL || tag == NULL) {
+    if (path_idx >= CONFIG_ESP_CAPTURE_MAX_SINK_NUM || element == NULL || tag == NULL) {
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     if (video_pipe->enc_pipeline[path_idx]) {
@@ -581,9 +594,9 @@ static int gmf_video_pipeline_get(esp_capture_pipeline_builder_if_t *builder, es
     if (video_pipe->src_pipeline) {
         pipe[fill_pipe].pipeline = video_pipe->src_pipeline;
         pipe[fill_pipe].name = "vid_src";
-        pipe[fill_pipe++].path_mask = (1 << video_pipe->sink_num) - 1;
+        pipe[fill_pipe++].path_mask = get_sink_mask(video_pipe);
     }
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (video_pipe->enc_pipeline[i]) {
             pipe[fill_pipe].pipeline = video_pipe->enc_pipeline[i];
             // TODO support more pipelines ?
@@ -598,7 +611,7 @@ static int gmf_video_pipeline_get(esp_capture_pipeline_builder_if_t *builder, es
 static int gmf_video_pipeline_set_cfg(esp_capture_pipeline_builder_if_t *builder, uint8_t path_idx, esp_capture_stream_info_t *sink_cfg)
 {
     video_pipeline_t *video_pipe = (video_pipeline_t *)builder;
-    if (video_pipe == NULL || path_idx >= MAX_SINK_NUM || sink_cfg == NULL) {
+    if (video_pipe == NULL || path_idx >= CONFIG_ESP_CAPTURE_MAX_SINK_NUM || sink_cfg == NULL) {
         return ESP_CAPTURE_ERR_INVALID_ARG;
     }
     video_pipe->sink_cfg[path_idx] = *sink_cfg;
@@ -608,7 +621,7 @@ static int gmf_video_pipeline_get_cfg(esp_capture_pipeline_builder_if_t *builder
                                       esp_capture_stream_info_t *sink_cfg)
 {
     video_pipeline_t *video_pipe = (video_pipeline_t *)builder;
-    if (video_pipe == NULL || path_idx >= MAX_SINK_NUM || sink_cfg == NULL) {
+    if (video_pipe == NULL || path_idx >= CONFIG_ESP_CAPTURE_MAX_SINK_NUM || sink_cfg == NULL) {
         return ESP_CAPTURE_ERR_INVALID_ARG;
     }
     *sink_cfg = video_pipe->sink_cfg[path_idx];
@@ -618,7 +631,7 @@ static int gmf_video_pipeline_get_cfg(esp_capture_pipeline_builder_if_t *builder
 static int gmf_video_pipeline_release(esp_capture_pipeline_builder_if_t *pipeline)
 {
     video_pipeline_t *video_pipe = (video_pipeline_t *)pipeline;
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (video_pipe->enc_pipeline[i]) {
             // Do not destroyed user created pipeline
             if (video_pipe->build_by_user[i] == false) {
@@ -643,7 +656,7 @@ static int gmf_video_pipeline_release(esp_capture_pipeline_builder_if_t *pipelin
 static void gmf_video_pipeline_destroy(esp_capture_pipeline_builder_if_t *builder)
 {
     video_pipeline_t *video_pipe = (video_pipeline_t *)builder;
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         video_pipe->build_by_user[i] = false;
     }
     gmf_video_pipeline_release(builder);

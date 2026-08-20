@@ -15,9 +15,12 @@ uint8_t capture_pipeline_get_path_num(esp_capture_gmf_pipeline_t *pipeline, uint
     uint8_t path_num = 0;
     uint8_t max_mask = 0;
     for (int i = 0; i < num; i++) {
-        if (pipeline->path_mask > max_mask) {
-            max_mask = pipeline->path_mask;
+        if (pipeline[i].path_mask > max_mask) {
+            max_mask = pipeline[i].path_mask;
         }
+    }
+    if (max_mask == 0) {
+        return 0;
     }
     path_num = sizeof(int) * 8 - __builtin_clz(max_mask);
     return path_num;

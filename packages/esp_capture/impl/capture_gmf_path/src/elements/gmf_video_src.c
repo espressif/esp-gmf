@@ -53,6 +53,9 @@ static esp_gmf_err_io_t video_src_acquire(void *handle, esp_gmf_payload_t *load,
         load->buf_length = frame.size;
         load->valid_size = frame.size;
     }
+    if (ret == ESP_CAPTURE_ERR_TIMEOUT) {
+        return ESP_GMF_IO_TIMEOUT;
+    }
     return ret >= 0 ? frame.size : -1;
 }
 
@@ -107,6 +110,9 @@ static esp_gmf_job_err_t video_src_el_process(esp_gmf_element_handle_t self, voi
     esp_gmf_payload_t *out_load = NULL;
     int ret = esp_gmf_port_acquire_in(in, &in_load, 1, -1);
     if (ret < 0 || in_load == NULL) {
+        if (ret == ESP_GMF_IO_TIMEOUT) {
+            return ESP_GMF_JOB_ERR_CONTINUE;
+        }
         ESP_LOGE(TAG, "Acquire on in port, ret:%d", ret);
         return ret == ESP_GMF_IO_ABORT ? ESP_GMF_JOB_ERR_OK : ESP_GMF_JOB_ERR_FAIL;
     }

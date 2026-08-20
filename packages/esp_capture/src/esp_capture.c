@@ -29,7 +29,6 @@
 #include "esp_capture_advance.h"
 
 #define TAG                   "ESP_CAPTURE"
-#define CAPTURE_MAX_PATH_NUM  (3)  /*!< Maximum of capture path supported */
 #define CAPTURE_STREAM_Q_NUM  (5)
 
 /* Path status flags (atomic) to avoid bitfield RMW races across threads */
@@ -85,7 +84,7 @@ struct capture_path_t {
 typedef struct capture_t {
     esp_capture_advance_cfg_t          cfg;
     esp_capture_cfg_t                  src_cfg;
-    capture_path_t                    *path[CAPTURE_MAX_PATH_NUM];
+    capture_path_t                    *path[CONFIG_ESP_CAPTURE_MAX_SINK_NUM];
     uint8_t                            path_num;
     esp_capture_sync_handle_t          sync_handle;
     bool                               started;
@@ -215,6 +214,9 @@ static int video_sink_release_frame(void *item, void *ctx)
 {
     esp_capture_stream_frame_t *frame = (esp_capture_stream_frame_t *)item;
     capture_path_t *path = (capture_path_t *)ctx;
+    if (path->parent->started == false || IS_VIDEO_PATH_DISABLED(path->stat)) {
+        return ESP_CAPTURE_ERR_OK;
+    }
     esp_capture_path_mngr_if_t *capture_path = &path->parent->cfg.video_path->base;
     return capture_path->return_frame(capture_path, path->path_type, frame);
 }
@@ -223,6 +225,9 @@ static int audio_sink_release_frame(void *item, void *ctx)
 {
     esp_capture_stream_frame_t *frame = (esp_capture_stream_frame_t *)item;
     capture_path_t *path = (capture_path_t *)ctx;
+    if (path->parent->started == false || IS_AUDIO_PATH_DISABLED(path->stat)) {
+        return ESP_CAPTURE_ERR_OK;
+    }
     esp_capture_path_mngr_if_t *capture_path = &path->parent->cfg.audio_path->base;
     ESP_LOGD(TAG, "Begin to return audio frame");
     return capture_path->return_frame(capture_path, path->path_type, frame);
@@ -808,8 +813,8 @@ esp_capture_err_t esp_capture_sink_setup(esp_capture_handle_t h, uint8_t type, e
             capture_reset_sink(cur);
             break;
         }
-        if (capture->path_num >= CAPTURE_MAX_PATH_NUM) {
-            ESP_LOGE(TAG, "Maximum sink %d reached", CAPTURE_MAX_PATH_NUM);
+        if (capture->path_num >= CONFIG_ESP_CAPTURE_MAX_SINK_NUM) {
+            ESP_LOGE(TAG, "Maximum sink %d reached", CONFIG_ESP_CAPTURE_MAX_SINK_NUM);
             CAPTURE_BREAK_SET_RETURN(ret, ESP_CAPTURE_ERR_NOT_ENOUGH);
         }
         capture->path[capture->path_num] = (capture_path_t *)capture_calloc(1, sizeof(capture_path_t));
@@ -1015,7 +1020,8 @@ esp_capture_err_t esp_capture_sink_enable(esp_capture_sink_handle_t h, esp_captu
     int ret = ESP_CAPTURE_ERR_OK;
     // Handle one shot mode for video
     esp_capture_path_mngr_if_t *video_path = &capture->cfg.video_path->base;
-    if (video_path) {
+    if (video_path &&
+        path->sink_cfg.video_info.format_id != ESP_CAPTURE_FMT_ID_NONE) {
         bool run_once = (run_type == ESP_CAPTURE_RUN_MODE_ONESHOT);
         ret = video_path->set(video_path, path->path_type, ESP_CAPTURE_PATH_SET_TYPE_RUN_ONCE, &run_once, sizeof(bool));
     }
@@ -1040,11 +1046,21 @@ esp_capture_err_t esp_capture_sink_enable(esp_capture_sink_handle_t h, esp_captu
         flush_path_stream_output(path);
     }
     esp_capture_path_mngr_if_t *audio_path = &capture->cfg.audio_path->base;
-    if (audio_path) {
+    if (audio_path &&
+        path->sink_cfg.audio_info.format_id != ESP_CAPTURE_FMT_ID_NONE) {
         ret = audio_path->enable_path(audio_path, path->path_type, enable);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            capture_mutex_unlock(capture->api_lock);
+            return ret;
+        }
     }
-    if (video_path) {
+    if (video_path &&
+        path->sink_cfg.video_info.format_id != ESP_CAPTURE_FMT_ID_NONE) {
         ret = video_path->enable_path(video_path, path->path_type, enable);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            capture_mutex_unlock(capture->api_lock);
+            return ret;
+        }
     }
     if (enable) {
         SET_STAT(path->stat, STAT_FLAG_ENABLE);

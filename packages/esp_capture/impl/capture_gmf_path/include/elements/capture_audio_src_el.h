@@ -80,6 +80,23 @@ esp_gmf_err_t capture_audio_src_el_set_src_if(esp_gmf_element_handle_t handle, e
 esp_gmf_err_t capture_audio_src_el_set_in_frame_samples(esp_gmf_element_handle_t handle, int frame_samples);
 
 /**
+ * @brief  Enable synchronous read mode for audio source element
+ *
+ * @note  When enabled, audio frames are read in the element process callback instead of
+ *        a dedicated AUD_SRC thread. Data queue and info queue are still used so multiple
+ *        sinks can share the same frame. Must be called before the element starts running.
+ *
+ * @param[in]  handle  Audio capture source element handle
+ * @param[in]  enable  true to enable sync read mode, false for async thread read (default)
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK             On success
+ *       - ESP_GMF_ERR_INVALID_ARG    Invalid argument
+ *       - ESP_GMF_ERR_INVALID_STATE  Element already running
+ */
+esp_gmf_err_t capture_audio_src_el_set_sync_read(esp_gmf_element_handle_t handle, bool enable);
+
+/**
  * @brief  Negotiate audio source capabilities
  *
  * @note  This function can only be called before the element starts running

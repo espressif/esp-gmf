@@ -30,8 +30,6 @@
 
 #define TAG "GMF_AUD_PIPE"
 
-#define MAX_SINK_NUM (2)
-
 typedef struct audio_pipeline_t audio_pipeline_t;
 
 typedef enum {
@@ -55,17 +53,17 @@ struct audio_pipeline_t {
     bool                                       pipeline_created;
     esp_gmf_pipeline_handle_t                  src_pipeline;
     uint8_t                                    sink_num;
-    esp_gmf_pipeline_handle_t                  enc_pipeline[MAX_SINK_NUM];
-    bool                                       build_by_user[MAX_SINK_NUM];
-    esp_capture_stream_info_t                  sink_cfg[MAX_SINK_NUM];
-    audio_path_ctx_t                           path_ctx[MAX_SINK_NUM];
+    esp_gmf_pipeline_handle_t                  enc_pipeline[CONFIG_ESP_CAPTURE_MAX_SINK_NUM];
+    bool                                       build_by_user[CONFIG_ESP_CAPTURE_MAX_SINK_NUM];
+    esp_capture_stream_info_t                  sink_cfg[CONFIG_ESP_CAPTURE_MAX_SINK_NUM];
+    audio_path_ctx_t                           path_ctx[CONFIG_ESP_CAPTURE_MAX_SINK_NUM];
     const char                                *ops_tags[AUDIO_PATH_OPS_MAX];
 };
 
 static uint8_t get_sink_num(audio_pipeline_t *audio_pipe)
 {
     uint8_t sink_num = 0;
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (audio_pipe->sink_cfg[i].audio_info.format_id) {
             sink_num++;
         }
@@ -73,10 +71,21 @@ static uint8_t get_sink_num(audio_pipeline_t *audio_pipe)
     return sink_num;
 }
 
+static uint8_t get_sink_mask(audio_pipeline_t *audio_pipe)
+{
+    uint8_t sink_mask = 0;
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
+        if (audio_pipe->sink_cfg[i].audio_info.format_id) {
+            sink_mask |= (1U << i);
+        }
+    }
+    return sink_mask;
+}
+
 static void get_max_sink_cfg(audio_pipeline_t *audio_pipe, esp_capture_audio_info_t *max_sink_info)
 {
     int8_t sink_num = 0;
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (audio_pipe->sink_cfg[i].audio_info.format_id) {
             if (sink_num == 0) {
                 *max_sink_info = audio_pipe->sink_cfg[i].audio_info;
@@ -183,7 +192,7 @@ static esp_gmf_element_handle_t get_src_element(audio_pipeline_t *audio_pipe)
     if (audio_pipe->src_pipeline) {
         esp_gmf_pipeline_get_el_by_name(audio_pipe->src_pipeline, "aud_src", &src_element);
     } else if (audio_pipe->sink_num == 1) {
-        for (int i = 0; i < MAX_SINK_NUM; i++) {
+        for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
             if (audio_pipe->enc_pipeline[i]) {
                 esp_gmf_pipeline_get_el_by_name(audio_pipe->enc_pipeline[i], "aud_src", &src_element);
                 break;
@@ -206,7 +215,10 @@ static esp_capture_err_t audio_pipe_link(audio_pipeline_t *audio_pipe)
     esp_gmf_pipeline_get_el_by_name(audio_pipe->src_pipeline, "share_copier", &cp_element);
 
     // Connect pipelines
-    for (int i = 0; i < audio_pipe->sink_num; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
+        if (audio_pipe->enc_pipeline[i] == NULL) {
+            continue;
+        }
         // Set pre stop callback to avoid read or write blocked when stop
         esp_gmf_element_handle_t element = NULL;
         audio_pipe->path_ctx[i].path = i;
@@ -224,7 +236,7 @@ static esp_capture_err_t audio_pipe_link(audio_pipeline_t *audio_pipe)
 
 static bool have_user_pipe(audio_pipeline_t *audio_pipe)
 {
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (audio_pipe->build_by_user[i]) {
             return true;
         }
@@ -234,7 +246,7 @@ static bool have_user_pipe(audio_pipeline_t *audio_pipe)
 
 static bool need_auto_build(audio_pipeline_t *audio_pipe)
 {
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (audio_pipe->sink_cfg[i].audio_info.format_id && audio_pipe->build_by_user[i] == false) {
             return true;
         }
@@ -283,7 +295,7 @@ static esp_capture_err_t buildup_pipelines(audio_pipeline_t *audio_pipe)
         // Build pipelines according negotiate info
         const char *proc_elements[AUDIO_PATH_OPS_MAX] = {NULL};
         int proc_num = 0;
-        for (int i = 0; i < MAX_SINK_NUM; i++) {
+        for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
             if (audio_pipe->sink_cfg[i].audio_info.format_id == ESP_CAPTURE_FMT_ID_NONE) {
                 continue;
             }
@@ -372,7 +384,9 @@ static esp_capture_err_t gmf_audio_pool_create(esp_capture_pipeline_builder_if_t
         capture_audio_src_el_init(NULL, &el);
         CAPTURE_BREAK_ON_ERR(esp_gmf_pool_register_element(audio_pipe->pool, el, NULL));
 
-        capture_share_copy_el_cfg_t copy_cfg = {};
+        capture_share_copy_el_cfg_t copy_cfg = {
+            .copies = CONFIG_ESP_CAPTURE_MAX_SINK_NUM,
+        };
         capture_share_copy_el_init(&copy_cfg, &el);
         CAPTURE_BREAK_ON_ERR(esp_gmf_pool_register_element(audio_pipe->pool, el, NULL));
 
@@ -410,7 +424,7 @@ static esp_capture_err_t gmf_audio_pipeline_build(esp_capture_pipeline_builder_i
                                                   esp_capture_gmf_pipeline_cfg_t *pipe_cfg)
 {
     audio_pipeline_t *audio_pipe = (audio_pipeline_t *)builder;
-    if (path_idx >= MAX_SINK_NUM) {
+    if (path_idx >= CONFIG_ESP_CAPTURE_MAX_SINK_NUM) {
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     if (audio_pipe->enc_pipeline[path_idx]) {
@@ -447,9 +461,9 @@ static esp_capture_err_t gmf_audio_pipeline_get(esp_capture_pipeline_builder_if_
     if (audio_pipe->src_pipeline) {
         pipe[fill_pipe].pipeline = audio_pipe->src_pipeline;
         pipe[fill_pipe].name = "aud_src";
-        pipe[fill_pipe++].path_mask = (1 << audio_pipe->sink_num) - 1;
+        pipe[fill_pipe++].path_mask = get_sink_mask(audio_pipe);
     }
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (audio_pipe->enc_pipeline[i]) {
             pipe[fill_pipe].pipeline = audio_pipe->enc_pipeline[i];
             // TODO support more pipelines ?
@@ -464,7 +478,7 @@ static esp_capture_err_t gmf_audio_pipeline_get(esp_capture_pipeline_builder_if_
 static esp_capture_err_t gmf_audio_pipeline_get_element(esp_capture_pipeline_builder_if_t *builder, uint8_t path_idx, const char *tag, esp_gmf_element_handle_t *element)
 {
     audio_pipeline_t *audio_pipe = (audio_pipeline_t *)builder;
-    if (path_idx > MAX_SINK_NUM || audio_pipe->enc_pipeline[path_idx] == NULL) {
+    if (path_idx > CONFIG_ESP_CAPTURE_MAX_SINK_NUM || audio_pipe->enc_pipeline[path_idx] == NULL) {
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     esp_gmf_err_t ret = esp_gmf_pipeline_get_el_by_name(audio_pipe->enc_pipeline[path_idx], tag, element);
@@ -474,7 +488,7 @@ static esp_capture_err_t gmf_audio_pipeline_get_element(esp_capture_pipeline_bui
 static esp_capture_err_t gmf_audio_pipeline_release(esp_capture_pipeline_builder_if_t *builder)
 {
     audio_pipeline_t *audio_pipe = (audio_pipeline_t *)builder;
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         if (audio_pipe->enc_pipeline[i]) {
             // Not release user setting pipelines
             if (audio_pipe->build_by_user[i] == false) {
@@ -499,7 +513,7 @@ static esp_capture_err_t gmf_audio_pipeline_release(esp_capture_pipeline_builder
 static void gmf_audio_pipeline_destroy(esp_capture_pipeline_builder_if_t *builder)
 {
     audio_pipeline_t *audio_pipe = (audio_pipeline_t *)builder;
-    for (int i = 0; i < MAX_SINK_NUM; i++) {
+    for (int i = 0; i < CONFIG_ESP_CAPTURE_MAX_SINK_NUM; i++) {
         audio_pipe->build_by_user[i] = false;
     }
     gmf_audio_pipeline_release(builder);
@@ -513,7 +527,7 @@ static void gmf_audio_pipeline_destroy(esp_capture_pipeline_builder_if_t *builde
 static esp_capture_err_t gmf_audio_pipeline_set_cfg(esp_capture_pipeline_builder_if_t *builder, uint8_t path_idx, esp_capture_stream_info_t *sink_cfg)
 {
     audio_pipeline_t *audio_pipe = (audio_pipeline_t *)builder;
-    if (audio_pipe == NULL || path_idx >= MAX_SINK_NUM || sink_cfg == NULL) {
+    if (audio_pipe == NULL || path_idx >= CONFIG_ESP_CAPTURE_MAX_SINK_NUM || sink_cfg == NULL) {
         return ESP_CAPTURE_ERR_INVALID_ARG;
     }
     audio_pipe->sink_cfg[path_idx] = *sink_cfg;
@@ -524,7 +538,7 @@ static esp_capture_err_t gmf_audio_pipeline_get_cfg(esp_capture_pipeline_builder
                                                     esp_capture_stream_info_t *sink_cfg)
 {
     audio_pipeline_t *audio_pipe = (audio_pipeline_t *)builder;
-    if (audio_pipe == NULL || path_idx >= MAX_SINK_NUM || sink_cfg == NULL) {
+    if (audio_pipe == NULL || path_idx >= CONFIG_ESP_CAPTURE_MAX_SINK_NUM || sink_cfg == NULL) {
         return ESP_CAPTURE_ERR_INVALID_ARG;
     }
     *sink_cfg = audio_pipe->sink_cfg[path_idx];

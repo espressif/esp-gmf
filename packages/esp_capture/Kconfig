@@ -7,6 +7,11 @@ menu "Espressif Capture Configuration"
         bool "Enable Video Capture"
         default y
 
+    config ESP_CAPTURE_MAX_SINK_NUM
+        int "Capture maximum sink number"
+        default 3
+        range 1 8
+
     config ESP_CAPTURE_ENABLE_VIDEO_OVERLAY
         bool "Enable Video Overlay for Capture"
         default y
@@ -19,13 +24,13 @@ menu "Espressif Capture Configuration"
 
     config ESP_CAPTURE_VIDEO_DEC_OUT_POOL_SIZE
         int "Video decoder output pool frame count"
-        default 3
+        default 2
         range 2 4
         depends on ESP_CAPTURE_ENABLE_VIDEO_DECODER
         help
             Number of decoded frames kept in the decoder output pool when
             full_speed_decode is enabled in esp_capture_cfg_t.
-            Prefer 3 so decode can run ahead of encode without blocking.
+            Prefer 2 so decode can run ahead of encode without blocking.
 
     config ESP_CAPTURE_ENABLE_PERF_MON
         bool "Enable Performance Monitor for Capture"
