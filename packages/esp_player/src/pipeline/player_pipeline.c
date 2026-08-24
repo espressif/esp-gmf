@@ -68,12 +68,6 @@ esp_player_err_t player_config_decoder_pipeline(esp_player_stream_t *stream, boo
         }
     }
     esp_gmf_pipeline_register_el(*decoder_pipe, decoder_el);
-    if (stream->dec_frame_mode != ESP_PLAYER_DEC_FRAME_MODE_EXTRACTOR) {
-        if (queues_init(stream, is_audio) != ESP_PLAYER_ERR_OK) {
-            ret = ESP_PLAYER_ERR_FAIL;
-            goto fail;
-        }
-    }
     if (esp_gmf_element_register_in_port(decoder_el, decoder_inport) != ESP_GMF_ERR_OK) {
         ret = ESP_PLAYER_ERR_FAIL;
         goto fail;
@@ -110,8 +104,9 @@ fail:
     return ret;
 }
 
-esp_player_err_t queues_init(esp_player_stream_t *stream, bool is_audio)
+esp_player_err_t queues_init(esp_player_stream_t *stream, esp_player_track_type_t track_type)
 {
+    const bool is_audio = (track_type == ESP_PLAYER_TRACK_TYPE_AUDIO);
     const uint32_t queue_size =
         (stream->dec_frame_mode == ESP_PLAYER_DEC_FRAME_MODE_BLOCK)  ? 1
         : (stream->dec_frame_mode == ESP_PLAYER_DEC_FRAME_MODE_FILL) ? ESP_PLAYER_FILL_QUEUE_NUM
@@ -121,6 +116,24 @@ esp_player_err_t queues_init(esp_player_stream_t *stream, bool is_audio)
         return player_pl_queues_init_audio(stream, queue_size);
     }
     return player_pl_queues_init_video(stream, queue_size);
+}
+
+esp_player_err_t player_prepare_frame_queues(esp_player_stream_t *stream)
+{
+    if (stream->dec_frame_mode == ESP_PLAYER_DEC_FRAME_MODE_EXTRACTOR) {
+        return ESP_PLAYER_ERR_OK;
+    }
+    if ((stream->av_mask & ESP_PLAYER_MASK_AUDIO) && stream->audio_side
+        && queues_init(stream, ESP_PLAYER_TRACK_TYPE_AUDIO) != ESP_PLAYER_ERR_OK) {
+        player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_AUDIO_DECODER, "audio frame queue");
+        return ESP_PLAYER_ERR_FAIL;
+    }
+    if ((stream->av_mask & ESP_PLAYER_MASK_VIDEO) && stream->video_side
+        && queues_init(stream, ESP_PLAYER_TRACK_TYPE_VIDEO) != ESP_PLAYER_ERR_OK) {
+        player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_VIDEO_DECODER, "video frame queue");
+        return ESP_PLAYER_ERR_FAIL;
+    }
+    return ESP_PLAYER_ERR_OK;
 }
 
 esp_player_err_t player_create_extractor_pipeline(esp_player_stream_t *stream)

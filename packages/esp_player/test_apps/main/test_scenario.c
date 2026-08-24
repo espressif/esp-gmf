@@ -1639,6 +1639,7 @@ TEST_CASE("[recovery]:test_player_run_to_end_playing_error", "[player][scenario]
     TEST_ASSERT_TRUE(sc_wait_bits(&ctx, SC_PLAYED_BIT, SC_TIMEOUT_PLAY_MS));
 
     uint8_t bad[TEST_DATA_AAC_FRAME1_COUNT];
+    memset(bad, 0, sizeof(bad));
     memcpy(bad, test_data_aac_frame1, TEST_DATA_AAC_FRAME1_COUNT - 10);
     frame.data = bad;
     for (int i = 0; i < 25; i++) {

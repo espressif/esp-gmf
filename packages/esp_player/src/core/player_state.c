@@ -528,6 +528,11 @@ static void start_playback(esp_player_stream_t *stream)
     if (pending_seek > 0) {
         player_sync_set_render_pts(stream->sync_handle, pending_seek);
     }
+    if (player_prepare_frame_queues(stream) != ESP_PLAYER_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to prepare frame queues, transitioning to ERROR");
+        player_transition_to_state(stream, ESP_PLAYER_STATE_ERROR);
+        return;
+    }
     if (stream->dec_frame_mode == ESP_PLAYER_DEC_FRAME_MODE_EXTRACTOR) {
         start_decoder_by_mode(stream, ESP_PLAYER_MASK_AV);
     } else {
