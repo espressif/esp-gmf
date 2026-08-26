@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.2
+
+### Features
+
+- Added full speed conversion for `vid_ppa` through `esp_gmf_video_ppa_set_full_speed`
+  - Typical use cases like high speed encoding after conversion in one pipeline
+  - Limitation: `vid_ppa` should be the first element in pipeline
+
 ## v1.0.1~1
 
 ### Changes

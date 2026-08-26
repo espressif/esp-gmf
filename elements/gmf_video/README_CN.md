@@ -14,7 +14,7 @@ ESP GMF Video 是一套专为视频编解码和视频转换等设计的视频处
 |:----:|:-----:|:----:|:----:|:----:|:----:|:----:|:----|
 | VIDEO_ENC | vid_enc | 视频编码器：H264, MJPEG | `set_bitrate`<br>`set_dst_codec`<br>`get_src_fmts`<br>`preset`<br>`get_frame_size` | 单个 | 单个 | 是 | 是 |
 | VIDEO_DEC | vid_dec | 视频解码器：H264, MJPEG | `set_dst_fmt`<br>`set_src_codec`<br>`get_dst_fmts` | 单个 | 单个 | 否 | 否 |
-| VIDEO_PPA | vid_ppa | 像素处理加速器：颜色转换，缩放，<br>裁剪，旋转 | `set_dst_format`<br>`set_dst_resolution`<br>`set_rotation`<br>`set_cropped_rgn` | 单个 | 单个 | 是 | 是 |
+| VIDEO_PPA | vid_ppa | 像素处理加速器：颜色转换，缩放，<br>裁剪，旋转, <br> 全速转换 | `set_dst_format`<br>`set_dst_resolution`<br>`set_rotation`<br>`set_cropped_rgn`<br> `set_full_speed` | 单个 | 单个 | 是 | 是 |
 | FPS_CVT | vid_fps_cvt | 帧率转换 | `set_fps` | 单个 | 单个 | 否 | 是 |
 | OVERLAY_MIXER | vid_overlay | 视频叠加混合器 | `overlay_enable`<br>`set_rgn`<br>`set_port`<br>`set_alpha` | 多个 | 单个 | 否 | 是 |
 | COLOR_CVT | vid_color_cvt | 软件颜色转换 | `set_dst_fmt` | 单个 | 单个 | 否 | 是 |

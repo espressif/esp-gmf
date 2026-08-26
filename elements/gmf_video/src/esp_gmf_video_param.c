@@ -186,3 +186,13 @@ esp_gmf_err_t esp_gmf_video_param_set_out_pool(esp_gmf_element_handle_t self, in
 
     RELEASE_VMETHOD_SETTING();
 }
+
+esp_gmf_err_t esp_gmf_video_param_set_full_speed(esp_gmf_element_handle_t self, bool enable)
+{
+    const char *method_name = VMETHOD(PPA, SET_FULL_SPEED);
+    PREPARE_VMETHOD_SETTING();
+
+    SET_METHOD_ARG(VMETHOD_ARG(PPA, SET_FULL_SPEED, ENABLE), enable);
+
+    RELEASE_VMETHOD_SETTING();
+}

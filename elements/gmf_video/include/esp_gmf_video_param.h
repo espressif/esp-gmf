@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include "esp_gmf_element.h"
 #include "esp_gmf_video_types.h"
 #include "esp_gmf_video_methods_def.h"
@@ -229,6 +230,20 @@ esp_gmf_err_t esp_gmf_video_param_get_dst_fmts_by_codec(esp_gmf_element_handle_t
  *       - Others                   Failed to apply method
  */
 esp_gmf_err_t esp_gmf_video_param_set_out_pool(esp_gmf_element_handle_t handle, int frame_count);
+
+/**
+ * @brief  Enable full-speed async convert for video PPA
+ *
+ * @param[in]  handle  Video element handle
+ * @param[in]  enable  true to enable full-speed mode
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_NOT_FOUND    Not found the method
+ *       - ESP_GMF_ERR_MEMORY_LACK  Failed to allocate memory
+ *       - Others                   Failed to apply method
+ */
+esp_gmf_err_t esp_gmf_video_param_set_full_speed(esp_gmf_element_handle_t handle, bool enable);
 
 #ifdef __cplusplus
 }

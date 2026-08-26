@@ -194,14 +194,6 @@ static inline uint32_t overlay_dst_frame_size(const esp_gmf_info_video_t *info, 
     return 0;
 }
 
-static uint8_t overlay_dst_cache_pixel_bytes(overlay_dst_desc_t *desc)
-{
-    if (desc->type == OVERLAY_DST_OUYY_EVYY) {
-        return 0;
-    }
-    return desc->pixel_bytes;
-}
-
 static inline uint16_t overlay_read_dst_rgb565(uint16_t raw, bool dst_byte_swap)
 {
     return dst_byte_swap ? __builtin_bswap16(raw) : raw;
@@ -697,13 +689,11 @@ static esp_gmf_err_t hw_mixer_blend_do(gmf_vid_overlay_t *mixer, esp_gmf_video_r
         .width = blend_win->width,
         .height = blend_win->height,
     };
-    bool ouyy_frame = (desc->type == OVERLAY_DST_OUYY_EVYY);
-    uint8_t dst_px_bytes = overlay_dst_cache_pixel_bytes(desc);
     esp_gmf_err_t ret;
-    if (ouyy_frame) {
+    if (desc->type == OVERLAY_DST_OUYY_EVYY) {
         ret = overlay_cache_sync_ouyy_frame(dst->data, src_info->width, src_info->height, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
     } else {
-        ret = overlay_cache_sync_rect(dst->data, src_info->width, &dst_rect, dst_px_bytes,
+        ret = overlay_cache_sync_rect(dst->data, src_info->width, &dst_rect, desc->pixel_bytes,
                                       ESP_CACHE_MSYNC_FLAG_DIR_C2M);
     }
     if (ret != ESP_GMF_ERR_OK) {
@@ -780,10 +770,10 @@ static esp_gmf_err_t hw_mixer_blend_do(gmf_vid_overlay_t *mixer, esp_gmf_video_r
     if (err != ESP_OK) {
         return ESP_GMF_ERR_FAIL;
     }
-    if (ouyy_frame) {
+    if (desc->type == OVERLAY_DST_OUYY_EVYY) {
         return overlay_cache_sync_ouyy_frame(dst->data, src_info->width, src_info->height, ESP_CACHE_MSYNC_FLAG_DIR_M2C);
     }
-    return overlay_cache_sync_rect(dst->data, src_info->width, &dst_rect, dst_px_bytes,
+    return overlay_cache_sync_rect(dst->data, src_info->width, &dst_rect, desc->pixel_bytes,
                                    ESP_CACHE_MSYNC_FLAG_DIR_M2C);
 }
 
