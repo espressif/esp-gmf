@@ -72,7 +72,11 @@ function set_env_variable() {
 
 function common_before_scripts() {
   source $IDF_PATH/tools/ci/utils.sh
-  is_based_on_commits $REQUIRED_ANCESTOR_COMMITS
+  if declare -F is_based_on_commits >/dev/null 2>&1; then
+    is_based_on_commits ${REQUIRED_ANCESTOR_COMMITS:-}
+  else
+    warning "Skip is_based_on_commits (not in this IDF tools/ci/utils.sh)"
+  fi
 
   if [[ -n "$IDF_DONT_USE_MIRRORS" ]]; then
     export IDF_MIRROR_PREFIX_MAP=
