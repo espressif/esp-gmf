@@ -416,6 +416,23 @@ esp_player_err_t player_pl_create_audio_render(esp_player_stream_t *stream)
             return ret;
         }
     } else {
+        /* Reused across stop/play: refresh sample_info so stream_open uses the latest decoder format. */
+        esp_gmf_element_handle_t audio_render_el = NULL;
+        if (esp_gmf_pipeline_get_el_by_name(stream->audio_side->render, AUDIO_RENDER_TAG, &audio_render_el) != ESP_GMF_ERR_OK
+            || audio_render_el == NULL) {
+            player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_AUDIO_RENDER, "get_render_el");
+            return ESP_PLAYER_ERR_FAIL;
+        }
+        esp_audio_render_sample_info_t sample_info = {
+            .sample_rate = stream->audio_side->track_info.audio_info.sample_rate,
+            .bits_per_sample = stream->audio_side->track_info.audio_info.bits_per_sample,
+            .channel = stream->audio_side->track_info.audio_info.channels,
+        };
+        if (player_audio_render_set_sample_info(audio_render_el, &sample_info) != ESP_GMF_ERR_OK
+            || player_audio_render_set_frame_duration(audio_render_el, ESP_PLAYER_AUDIO_RENDER_FRAME_MS) != ESP_GMF_ERR_OK) {
+            player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_AUDIO_RENDER, "refresh sample_info");
+            return ESP_PLAYER_ERR_FAIL;
+        }
         esp_gmf_pipeline_reset(stream->audio_side->render);
     }
     return player_run_pipeline_with_timeout(stream, player_pipeline_task(stream->audio_side->render), TASK_TIMEOUT_MS,

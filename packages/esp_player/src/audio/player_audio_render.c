@@ -201,6 +201,32 @@ AUDIO_RENDER_INIT_FAIL:
     return ret;
 }
 
+esp_gmf_err_t player_audio_render_set_sample_info(esp_gmf_element_handle_t handle,
+                                                  const esp_audio_render_sample_info_t *sample_info)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG;);
+    ESP_GMF_NULL_CHECK(TAG, sample_info, return ESP_GMF_ERR_INVALID_ARG;);
+    if (sample_info->sample_rate == 0 || sample_info->channel == 0 || sample_info->bits_per_sample == 0) {
+        ESP_LOGE(TAG, "Invalid sample info");
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    player_audio_render_config_t *cfg = (player_audio_render_config_t *)OBJ_GET_CFG(handle);
+    if (cfg == NULL) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    if (cfg->sample_info.sample_rate != sample_info->sample_rate
+        || cfg->sample_info.bits_per_sample != sample_info->bits_per_sample
+        || cfg->sample_info.channel != sample_info->channel) {
+        ESP_LOGI(TAG, "Refresh sample info: %lu Hz/%u bits/%u ch -> %lu Hz/%u bits/%u ch",
+                 (unsigned long)cfg->sample_info.sample_rate, cfg->sample_info.bits_per_sample, cfg->sample_info.channel,
+                 (unsigned long)sample_info->sample_rate, sample_info->bits_per_sample, sample_info->channel);
+        cfg->sample_info.sample_rate = sample_info->sample_rate;
+        cfg->sample_info.bits_per_sample = sample_info->bits_per_sample;
+        cfg->sample_info.channel = sample_info->channel;
+    }
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t player_audio_render_set_frame_duration(esp_gmf_element_handle_t handle, uint32_t duration_ms)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG;);

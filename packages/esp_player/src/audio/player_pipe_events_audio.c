@@ -74,13 +74,11 @@ esp_gmf_err_t _audio_decoder_pipe_event_handler(esp_gmf_event_pkt_t *event, void
             case ESP_GMF_EVENT_STATE_ERROR: {
                 ESP_LOGE(TAG, "Audio decoder error");
                 stream->task_status &= ~TASK_STATUS_AUDIO_DECODER_RUNNING;
-                player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_AUDIO_DECODER, "runtime STATE_ERROR");
                 int8_t aud_idx = player_audio_track_idx(stream);
                 if (aud_idx >= 0) {
                     player_extractor_enable_stream(player_extractor_el(stream), ESP_EXTRACTOR_STREAM_TYPE_AUDIO, aud_idx, false);
                 }
-                cmd.cmd_type = ESP_PLAYER_CMD_ERROR;
-                player_send_cmd(stream, &cmd);
+                player_report_error(stream, ESP_PLAYER_ERROR_SOURCE_AUDIO_DECODER, "runtime STATE_ERROR");
                 break;
             }
         }
@@ -143,7 +141,6 @@ esp_gmf_err_t _audio_render_pipe_event_handler(esp_gmf_event_pkt_t *event, void 
             case ESP_GMF_EVENT_STATE_ERROR: {
                 ESP_LOGE(TAG, "Audio render error");
                 stream->task_status &= ~TASK_STATUS_AUDIO_RENDER_RUNNING;
-                player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_AUDIO_RENDER, "runtime STATE_ERROR");
                 if (stream->sync_handle != NULL && stream->video_side && stream->video_side->track_info.video_info.fps > 0) {
                     player_sync_set_video_fps(stream->sync_handle, stream->video_side->track_info.video_info.fps);
                     player_sync_enable_video_fps_sync(stream->sync_handle, true);
@@ -152,8 +149,7 @@ esp_gmf_err_t _audio_render_pipe_event_handler(esp_gmf_event_pkt_t *event, void 
                 if (aud_idx >= 0) {
                     player_extractor_enable_stream(player_extractor_el(stream), ESP_EXTRACTOR_STREAM_TYPE_AUDIO, aud_idx, false);
                 }
-                cmd.cmd_type = ESP_PLAYER_CMD_ERROR;
-                player_send_cmd(stream, &cmd);
+                player_report_error(stream, ESP_PLAYER_ERROR_SOURCE_AUDIO_RENDER, "runtime STATE_ERROR");
                 break;
             }
         }

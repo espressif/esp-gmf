@@ -48,6 +48,7 @@ static bool g_video_render_ut_keep_alive = false;
 static void *g_video_render_handle = NULL;
 static esp_gmf_pool_handle_t g_video_render_pool = NULL;
 static uint8_t g_audio_max_stream_num = 1;
+static volatile uint32_t g_audio_write_bytes = 0;
 
 static void register_element_to_pool(esp_gmf_pool_handle_t pool, esp_gmf_element_handle_t el, const char *name)
 {
@@ -94,8 +95,19 @@ static int audio_render_writer_cb(uint8_t *pcm_data, uint32_t pcm_size, void *ct
         return -1;
     }
 
+    g_audio_write_bytes += pcm_size;
     ESP_LOGD(TAG, "Audio data written: %" PRIu32 " bytes", pcm_size);
     return 0;
+}
+
+void audio_render_reset_write_bytes(void)
+{
+    g_audio_write_bytes = 0;
+}
+
+uint32_t audio_render_get_write_bytes(void)
+{
+    return g_audio_write_bytes;
 }
 
 static esp_player_err_t create_default_pool(esp_gmf_pool_handle_t *pool)
@@ -449,6 +461,7 @@ void audio_render_set_max_stream_num(uint8_t max_stream_num)
 
 void audio_render_destroy_handle(void)
 {
+    g_audio_write_bytes = 0;
     if (g_audio_render_handle) {
         esp_audio_render_destroy(g_audio_render_handle);
         g_audio_render_handle = NULL;

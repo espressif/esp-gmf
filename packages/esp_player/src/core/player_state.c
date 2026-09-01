@@ -11,6 +11,7 @@
 #include "player_state.h"
 #include "player_state_path_ops.h"
 #include "player_pipeline.h"
+#include "player_ports.h"
 #include "player_url.h"
 #include "player_defaults_cfg.h"
 
@@ -191,6 +192,7 @@ static bool handle_cmd_seek(esp_player_stream_t *stream, const esp_player_cmd_ms
 
     player_sync_set_seek_in_progress(stream->sync_handle, false);
     if (stream->error_source == ESP_PLAYER_ERROR_SOURCE_NONE) {
+        /* seek_playback() already reset tracking before the extractor resumed. */
         player_sync_set_render_pts(stream->sync_handle, seek_target);
         esp_player_event_msg_t event_msg = {.event_type = ESP_PLAYER_EVENT_SEEK_DONE, .data = NULL, .data_len = 0};
         player_send_event(stream, &event_msg);
@@ -278,7 +280,7 @@ static bool handle_cmd_report_info(esp_player_stream_t *stream, const esp_player
                         return true;
                     }
                 }
-                if (aud_idx < 0) {
+                if (aud_idx < 0 && stream->video_side->track_info.video_info.fps > 0) {
                     player_sync_set_video_fps(stream->sync_handle, stream->video_side->track_info.video_info.fps);
                     player_sync_enable_video_fps_sync(stream->sync_handle, true);
                 } else {
@@ -510,8 +512,9 @@ static void start_playback(esp_player_stream_t *stream)
     if (stream->buffer_ctrl) {
         stream->buffer_ctrl->gate_state = ESP_PLAYER_BUFFER_GATE_NONE;
         stream->buffer_ctrl->low_since = 0;
-        stream->buffer_ctrl->avg_audio_frame_ms = 0;
-        stream->buffer_ctrl->avg_video_frame_ms = 0;
+        stream->buffer_ctrl->pool_limited = false;
+        stream->buffer_ctrl->extractor_push_blocked = false;
+        player_ports_buffer_reset_tracking(stream);
     }
     if (enable_network_buffering && stream->buffer_ctrl) {
         stream->buffer_ctrl->gate_state = ESP_PLAYER_BUFFER_GATE_PRE_BUFFERING;
@@ -930,4 +933,17 @@ esp_player_err_t player_send_cmd(esp_player_stream_t *stream, esp_player_cmd_msg
         return ESP_PLAYER_ERR_TIMEOUT;
     }
     return ESP_PLAYER_ERR_OK;
+}
+
+void player_report_error(esp_player_stream_t *stream, esp_player_error_source_t error_source,
+                         const char *reason)
+{
+    /* Raise before sending: the ERROR event carries `stream->error_source`. */
+    player_raise_error_source(stream, error_source, reason);
+    esp_player_cmd_msg_t cmd = {
+        .cmd_type = ESP_PLAYER_CMD_ERROR,
+        .data = NULL,
+        .data_len = 0,
+    };
+    player_send_cmd(stream, &cmd);
 }

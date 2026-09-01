@@ -31,6 +31,7 @@
 
 #include "esp_player.h"
 #include "esp_player_advance.h"
+#include "esp_audio_simple_dec.h"
 #include "render_common.h"
 #include "test_data.h"
 
@@ -44,10 +45,11 @@
 #define SC_BUFFERED_BIT    (1 << 7)
 #define SC_TRACK_INFO_BIT  (1 << 8)
 
-#define SC_TIMEOUT_PLAY_MS    10000
-#define SC_TIMEOUT_STOP_MS    8000
-#define SC_TIMEOUT_SEEK_MS    5000
-#define SC_TIMEOUT_FINISH_MS  120000
+#define SC_TIMEOUT_PLAY_MS     10000
+#define SC_TIMEOUT_STOP_MS     8000
+#define SC_TIMEOUT_SEEK_MS     5000
+#define SC_TIMEOUT_FINISH_MS   120000
+#define SC_HTTP_EOS_MARGIN_MS  15000
 
 typedef struct {
     esp_player_handle_t  player;
@@ -361,6 +363,70 @@ static bool sc_stop_and_wait(sc_ctx_t *c)
 {
     esp_player_stop(c->player);
     return sc_wait_bits(c, SC_STOPPED_BIT | SC_FINISHED_BIT, SC_TIMEOUT_STOP_MS);
+}
+
+static void sc_set_pcm_track(esp_player_handle_t player, uint32_t sample_rate,
+                             uint8_t channels, uint8_t bits)
+{
+    esp_player_track_info_t info = {
+        .track_type = ESP_PLAYER_TRACK_TYPE_AUDIO,
+        .audio_info = {
+            .format = (esp_player_format_t)ESP_AUDIO_SIMPLE_DEC_TYPE_PCM,
+            .sample_rate = sample_rate,
+            .channels = channels,
+            .bits_per_sample = bits,
+        },
+    };
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_track_info(player, &info));
+}
+
+static void sc_submit_pcm_silence(esp_player_handle_t player, uint32_t sample_rate,
+                                  uint8_t channels, uint8_t bits, uint32_t duration_ms,
+                                  uint64_t pts, bool eos)
+{
+    uint32_t nbytes = sample_rate * (uint32_t)channels * ((uint32_t)bits / 8U) * duration_ms / 1000U;
+    TEST_ASSERT_GREATER_THAN_MESSAGE(0, nbytes, "PCM payload size must be > 0");
+
+    uint8_t *buf = (uint8_t *)calloc(1, nbytes);
+    TEST_ASSERT_NOT_NULL(buf);
+    esp_player_frame_t frame = {
+        .data = buf,
+        .data_len = nbytes,
+        .pts = pts,
+        .frame_type = ESP_PLAYER_FRAME_TYPE_DEFAULT,
+        .is_bad = false,
+        .eos = eos,
+    };
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_submit_frame(player, &frame, 3000));
+    free(buf);
+}
+
+static void sc_run_submit_pcm_wait_finished(sc_ctx_t *c, uint32_t sample_rate,
+                                            uint8_t channels, uint8_t bits, uint32_t duration_ms)
+{
+    sc_clear_bits(c, SC_PLAYED_BIT | SC_FINISHED_BIT | SC_ERROR_BIT | SC_STOPPED_BIT);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_run(c->player));
+
+    /* Measure this non-EOS frame; the minimal EOS frame below only terminates playback. */
+    sc_submit_pcm_silence(c->player, sample_rate, channels, bits, duration_ms, 0, false);
+    EventBits_t got = xEventGroupWaitBits(c->event_group,
+                                          SC_PLAYED_BIT | SC_FINISHED_BIT | SC_ERROR_BIT,
+                                          pdTRUE, pdFALSE,
+                                          pdMS_TO_TICKS(SC_TIMEOUT_PLAY_MS));
+    TEST_ASSERT_EQUAL_MESSAGE(0, got & SC_ERROR_BIT, "Unexpected ERROR while starting PCM render");
+    TEST_ASSERT_EQUAL_MESSAGE(0, got & SC_FINISHED_BIT, "PCM playback finished before EOS");
+    TEST_ASSERT_TRUE_MESSAGE((got & SC_PLAYED_BIT) != 0, "PCM render did not reach PLAYED before EOS");
+
+    const uint32_t eos_duration_ms = 1;
+    sc_submit_pcm_silence(c->player, sample_rate, channels, bits,
+                          eos_duration_ms, duration_ms, true);
+
+    got = xEventGroupWaitBits(c->event_group,
+                              SC_FINISHED_BIT | SC_ERROR_BIT,
+                              pdTRUE, pdFALSE,
+                              pdMS_TO_TICKS(8000));
+    TEST_ASSERT_EQUAL_MESSAGE(0, got & SC_ERROR_BIT, "Unexpected ERROR during PCM fill playback");
+    TEST_ASSERT_TRUE_MESSAGE((got & SC_FINISHED_BIT) != 0, "FINISHED not received after PCM EOS");
 }
 
 static void sc_trigger_full_error(sc_ctx_t *ctx, const char *error_url)
@@ -2119,8 +2185,8 @@ TEST_CASE("[frame_mode]:test_player_frame_pts_tracking", "[player][scenario]")
     esp_player_get_play_time(ctx.player, &final_time);
 
     uint64_t expected_ms = (uint64_t)(TOTAL_FRAMES - 1) * FRAME_DURATION_MS;
-    ESP_LOGI(TAG, "[PtsTracking] Expected: ~%" PRIu64 "ms  Actual: %" PRIu64 "ms  Done: %s",
-             expected_ms, final_time, done ? "YES" : "TIMEOUT");
+    ESP_LOGI(TAG, "[PtsTracking] Done: %s  Expected: ~%" PRIu64 "ms  Actual: %" PRIu64 "ms",
+             done ? "YES" : "TIMEOUT", expected_ms, final_time);
 
     sc_destroy_player_and_render(&ctx);
 }
@@ -2197,6 +2263,49 @@ TEST_CASE("[frame_mode]:test_player_submit_frame_eos_finished_multi_round", "[pl
 
         vTaskDelay(pdMS_TO_TICKS(300));
     }
+
+    sc_destroy_player_and_render(&ctx);
+}
+
+TEST_CASE("[frame_mode]:test_player_reuse_render_sample_info", "[player][scenario][audio]")
+{
+    const uint32_t duration_ms = 80;
+    const uint32_t sr_mono = 8000;
+    const uint32_t sr_stereo = 48000;
+    const uint32_t render_sample_rate = 44100;
+    const uint8_t render_channels = 2;
+    const uint8_t bits = 16;
+    const uint32_t expected_out_bytes =
+        render_sample_rate * render_channels * ((uint32_t)bits / 8U) * duration_ms / 1000U;
+    const uint32_t min_out_bytes = expected_out_bytes / 2U;
+    const uint32_t max_out_bytes = expected_out_bytes * 2U;
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, render_sample_rate, bits, render_channels));
+
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, "fill:///test.pcm"));
+    sc_set_pcm_track(ctx.player, sr_mono, 1, bits);
+    audio_render_reset_write_bytes();
+    sc_run_submit_pcm_wait_finished(&ctx, sr_mono, 1, bits, duration_ms);
+    uint32_t first_out_bytes = audio_render_get_write_bytes();
+    ESP_LOGI(TAG, "Initial mono round: device write bytes=%" PRIu32, first_out_bytes);
+    TEST_ASSERT_GREATER_OR_EQUAL_MESSAGE(min_out_bytes, first_out_bytes,
+                                         "Initial PCM round produced too little device PCM");
+    TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(max_out_bytes, first_out_bytes,
+                                      "Initial PCM round produced too much device PCM");
+
+    sc_set_pcm_track(ctx.player, sr_stereo, 2, bits);
+    audio_render_reset_write_bytes();
+    sc_run_submit_pcm_wait_finished(&ctx, sr_stereo, 2, bits, duration_ms);
+
+    uint32_t out_bytes = audio_render_get_write_bytes();
+    ESP_LOGI(TAG, "Reuse-render stereo round: device write bytes=%" PRIu32, out_bytes);
+    TEST_ASSERT_GREATER_OR_EQUAL_MESSAGE(min_out_bytes, out_bytes,
+                                         "Stereo round produced too little device PCM");
+    TEST_ASSERT_LESS_OR_EQUAL_MESSAGE(max_out_bytes, out_bytes,
+                                      "Stereo round produced too much device PCM; "
+                                      "audio render likely reused stale mono sample_info");
 
     sc_destroy_player_and_render(&ctx);
 }
@@ -2522,6 +2631,139 @@ TEST_CASE("[buffering]:test_player_rebuffer_event_pair_http", "[player][bufferin
     vTaskDelay(pdMS_TO_TICKS(3000));
     TEST_ASSERT_EQUAL_MESSAGE(0, xEventGroupGetBits(ctx.event_group) & SC_ERROR_BIT,
                               "ERROR reported during steady HTTP playback");
+
+    sc_stop_and_wait(&ctx);
+    sc_destroy_player_and_render(&ctx);
+
+    esp_gmf_app_wifi_disconnect();
+}
+
+TEST_CASE("[buffering]:test_player_pause_keeps_rebuffer_gate_http", "[player][buffering][leaks=20000]")
+{
+    esp_gmf_app_test_case_uses_tcpip();
+    esp_gmf_app_wifi_connect();
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+
+    /* Drive the gate from config, not from link speed: `rebuffer_enter_ms` above any reachable
+     * level makes it enter, and a 4KB pool cannot hold `rebuffer_resume_ms`, so the pool
+     * saturates while the gate holds the decoder. */
+    esp_player_buffer_config_t buffer_cfg = {
+        .extractor_pool_size = 4096,
+        .prebuffer_resume_ms = 100,
+        .rebuffer_enter_ms = 60000,
+        .rebuffer_resume_ms = 60000,
+        .rebuffer_grace_ms = 50,
+    };
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_buffer_config(ctx.player, &buffer_cfg));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, TEST_HTTP_URL));
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx), "HTTP stream failed to reach PLAYED");
+
+    /* Startup pre-buffering already reported; wait for the first runtime re-buffering gate. */
+    sc_clear_bits(&ctx, SC_BUFFERING_BIT | SC_BUFFERED_BIT);
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_BUFFERING_BIT, 5000),
+                             "Expected RE_BUFFERING with rebuffer_enter_ms above any reachable level");
+
+    /* Pause inside the gate. This has to land before the saturation timer expires, which leaves
+     * several hundred milliseconds against a command that takes a few. */
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_pause(ctx.player));
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_PAUSED_BIT, 3000), "Expected PAUSED");
+
+    /* Accepting the saturated pool resumes the gate, which reports BUFFERED. While paused the
+     * pool is full only because nothing is draining, so that must not happen. */
+    sc_clear_bits(&ctx, SC_BUFFERING_BIT | SC_BUFFERED_BIT);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    TEST_ASSERT_EQUAL_MESSAGE(0, xEventGroupGetBits(ctx.event_group) & SC_BUFFERED_BIT,
+                              "Gate resumed while paused: a full pool was taken as proof the "
+                              "resume threshold is unreachable");
+
+    /* Playing again, the same full pool is real evidence, so the gate must still let go. */
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_resume(ctx.player));
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_BUFFERED_BIT, 10000),
+                             "Gate never resumed after playback resumed");
+
+    TEST_ASSERT_EQUAL_MESSAGE(0, xEventGroupGetBits(ctx.event_group) & SC_ERROR_BIT,
+                              "Unexpected ERROR during pause/resume buffering");
+
+    sc_stop_and_wait(&ctx);
+    sc_destroy_player_and_render(&ctx);
+
+    esp_gmf_app_wifi_disconnect();
+}
+
+TEST_CASE("[buffering]:test_player_http_eos_finished", "[player][buffering][leaks=20000]")
+{
+    esp_gmf_app_test_case_uses_tcpip();
+    esp_gmf_app_wifi_connect();
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      esp_player_set_url(ctx.player, TEST_HTTPS_URL));
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx),
+                             "HTTP stream failed to reach PLAYED");
+
+    uint64_t duration_ms = 0;
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_duration(ctx.player, &duration_ms));
+    TEST_ASSERT_TRUE_MESSAGE(duration_ms > 0, "HTTP stream has no duration");
+
+    sc_clear_bits(&ctx, SC_FINISHED_BIT | SC_ERROR_BIT);
+
+    /* Wait past media duration for FINISHED; the gate must release on EOS. */
+    EventBits_t got = xEventGroupWaitBits(ctx.event_group,
+                                          SC_FINISHED_BIT | SC_ERROR_BIT,
+                                          pdTRUE, pdFALSE,
+                                          pdMS_TO_TICKS(duration_ms + SC_HTTP_EOS_MARGIN_MS));
+    TEST_ASSERT_EQUAL_MESSAGE(0, got & SC_ERROR_BIT,
+                              "ERROR while playing HTTP stream to its end");
+    TEST_ASSERT_NOT_EQUAL_MESSAGE(0, got & SC_FINISHED_BIT,
+                                  "No FINISHED at end of HTTP stream (buffering gate held the EOS frame)");
+
+    esp_player_state_t state = ESP_PLAYER_STATE_IDLE;
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_state(ctx.player, &state));
+    TEST_ASSERT_EQUAL_MESSAGE(ESP_PLAYER_STATE_FINISHED, state,
+                              "Player did not settle in FINISHED after HTTP end of stream");
+
+    sc_stop_and_wait(&ctx);
+    sc_destroy_player_and_render(&ctx);
+
+    esp_gmf_app_wifi_disconnect();
+}
+
+TEST_CASE("[buffering]:test_player_http_seek_near_end_finished", "[player][buffering][leaks=20000]")
+{
+    esp_gmf_app_test_case_uses_tcpip();
+    esp_gmf_app_wifi_connect();
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, 16, 2));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      esp_player_set_url(ctx.player, TEST_HTTPS_URL));
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx),
+                             "HTTP stream failed to reach PLAYED");
+
+    uint64_t duration_ms = 0;
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_duration(ctx.player, &duration_ms));
+    TEST_ASSERT_TRUE_MESSAGE(duration_ms > 0, "HTTP stream has no duration");
+
+    uint64_t near_end = duration_ms * 95 / 100;
+    sc_clear_bits(&ctx, SC_SEEK_DONE_BIT | SC_FINISHED_BIT | SC_ERROR_BIT);
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_seek(ctx.player, near_end));
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_SEEK_MS),
+                             "SEEK_DONE missing after HTTP seek near end");
+
+    EventBits_t got = xEventGroupWaitBits(ctx.event_group,
+                                          SC_FINISHED_BIT | SC_ERROR_BIT,
+                                          pdTRUE, pdFALSE,
+                                          pdMS_TO_TICKS((duration_ms - near_end) + SC_HTTP_EOS_MARGIN_MS));
+    TEST_ASSERT_EQUAL_MESSAGE(0, got & SC_ERROR_BIT,
+                              "ERROR after HTTP seek near end");
+    TEST_ASSERT_NOT_EQUAL_MESSAGE(0, got & SC_FINISHED_BIT,
+                                  "No FINISHED after HTTP seek near end (seek reset dropped source_eos)");
 
     sc_stop_and_wait(&ctx);
     sc_destroy_player_and_render(&ctx);

@@ -203,6 +203,9 @@ static esp_gmf_job_err_t player_video_render_process(esp_gmf_element_handle_t se
         vTaskDelay(1);
         return ESP_GMF_JOB_ERR_OK;
     }
+    if (in_load->valid_size == 0 && !in_load->is_done) {
+        goto _process_release;
+    }
     if (cfg->sync_handle) {
         player_sync_video_fps_sync(cfg->sync_handle);
         if (!in_load->is_done && !player_sync_video_render_frame(cfg->sync_handle, in_load->pts)) {

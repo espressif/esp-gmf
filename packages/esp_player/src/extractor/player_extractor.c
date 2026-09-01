@@ -17,10 +17,16 @@
 
 #include "player_extractor.h"
 #include "player_stream.h"
+#include "player_submit_frame.h"
 
 /* Chunk size the RAW extractor reads per frame for headerless inputs (e.g. PCM).
  * Must stay within the extractor output pool (DEFAULT_EXTRACTOR_AUDIO_POOL_SIZE). */
 #define PLAYER_RAW_MAX_FRAME_SIZE  (2048)
+
+/* A/V share one demux pool and a video frame dwarfs an audio one, so reading ahead on video
+ * starves audio. Stop once audio is dry and video holds this head. */
+#define PLAYER_EXTRACTOR_VIDEO_HEAD_WHEN_AUDIO_EMPTY  (2U)
+#define PLAYER_EXTRACTOR_AV_FAIRNESS_HOLD_MS          (10U)
 
 #define PLAYER_EXTRACTOR_INFO_TO_VIDEO_STREAM_INFO(stream_info, extractor_info)  do {  \
     (stream_info)->track_type         = ESP_PLAYER_TRACK_TYPE_VIDEO;                   \
@@ -57,9 +63,8 @@ typedef struct {
     bool                    is_parsed;              /*!< Parsing status */
     bool                    is_notify_info;         /*!< Is notify info */
     uint8_t                 eos_mask;               /*!< EOS mask */
-    uint8_t                 wait_for_output_count;  /*!< Wait for output count */
+    uint8_t                 wait_for_output_count;  /*!< Consecutive reads refused by a full output pool */
     uint64_t                last_pts;               /*!< Last PTS (ms) */
-    uint64_t                delta_pts;              /*!< Delta PTS (ms) */
     uint32_t                raw_sample_rate;        /*!< RAW PCM sample rate (Hz); 0 = not a raw source */
     uint8_t                 raw_channels;           /*!< RAW PCM channel count */
     uint8_t                 raw_bits_per_sample;    /*!< RAW PCM bits per sample */
@@ -75,6 +80,42 @@ static bool player_extractor_has_output_stream(const esp_player_extractor_t *ext
         return true;
     }
     return false;
+}
+
+static bool player_extractor_should_hold_for_audio(esp_player_extractor_t *extractor,
+                                                   esp_gmf_element_handle_t self)
+{
+    if (extractor->extract_mask != ESP_EXTRACT_MASK_AV) {
+        return false;
+    }
+    if (extractor->audio_selected_idx < 0 || extractor->video_selected_idx < 0) {
+        return false;
+    }
+    esp_extractor_config_t *cfg = (esp_extractor_config_t *)OBJ_GET_CFG(self);
+    if (cfg == NULL || cfg->in_ctx == NULL) {
+        return false;
+    }
+    esp_player_stream_t *stream = (esp_player_stream_t *)cfg->in_ctx;
+    if (stream->is_seeking || stream->_is_stop) {
+        return false;
+    }
+    if (stream->buffer_ctrl != NULL
+        && stream->buffer_ctrl->gate_state != ESP_PLAYER_BUFFER_GATE_NONE) {
+        return false;
+    }
+    if (stream->audio_side == NULL || stream->audio_side->frame_queue == NULL
+        || stream->video_side == NULL || stream->video_side->frame_queue == NULL) {
+        return false;
+    }
+    /* Audio already sent EOS: its queue stays empty, so holding would clamp video for the tail. */
+    if ((extractor->eos_mask & ESP_EXTRACT_MASK_AUDIO) == 0) {
+        return false;
+    }
+    if (player_frame_queue_count(stream->audio_side->frame_queue) != 0) {
+        return false;
+    }
+    return player_frame_queue_count(stream->video_side->frame_queue)
+           >= PLAYER_EXTRACTOR_VIDEO_HEAD_WHEN_AUDIO_EMPTY;
 }
 
 static esp_gmf_job_err_t extractor_send_eos(esp_gmf_port_handle_t out_port)
@@ -208,7 +249,6 @@ static esp_gmf_job_err_t player_extractor_open(esp_gmf_element_handle_t self, vo
     extractor->eos_mask = 0;
     extractor->wait_for_output_count = 0;
     extractor->last_pts = 0;
-    extractor->delta_pts = 0;
     ESP_LOGD(TAG, "Open extractor, extract_mask: %d", extractor->extract_mask);
     return ESP_GMF_JOB_ERR_OK;
 }
@@ -319,6 +359,11 @@ static esp_gmf_job_err_t player_extractor_process(esp_gmf_element_handle_t self,
         return ESP_GMF_JOB_ERR_CONTINUE;
     }
 
+    if (player_extractor_should_hold_for_audio(extractor, self)) {
+        vTaskDelay(pdMS_TO_TICKS(PLAYER_EXTRACTOR_AV_FAIRNESS_HOLD_MS));
+        return ESP_GMF_JOB_ERR_CONTINUE;
+    }
+
     // read frame
     esp_extractor_frame_info_t frame_info = {0};
     extractor_ret = esp_extractor_read_frame(extractor->extractor_handle, &frame_info);
@@ -327,7 +372,11 @@ static esp_gmf_job_err_t player_extractor_process(esp_gmf_element_handle_t self,
         return ESP_GMF_JOB_ERR_ABORT;
     }
     if (extractor_ret == ESP_EXTRACTOR_ERR_WAITING_OUTPUT) {
-        ESP_LOGD(TAG, "Extractor is waiting output, line: %d", __LINE__);
+        ESP_LOGD(TAG, "Extractor is waiting output, count=%u", (unsigned)extractor->wait_for_output_count);
+        /* Distinguishes a full pool from a slow network. */
+        if (extractor->wait_for_output_count < UINT8_MAX) {
+            extractor->wait_for_output_count++;
+        }
         vTaskDelay(pdMS_TO_TICKS(10));
         return ESP_GMF_JOB_ERR_CONTINUE;
     }
@@ -343,7 +392,6 @@ static esp_gmf_job_err_t player_extractor_process(esp_gmf_element_handle_t self,
         frame_info.pts = extractor->last_pts;
     }
     extractor->wait_for_output_count = 0;
-    extractor->delta_pts = frame_info.pts - extractor->last_pts;
     extractor->last_pts = frame_info.pts;
     if (extractor->raw_sample_rate != 0 && frame_info.frame_size > 0) {
         uint32_t byte_rate = extractor->raw_sample_rate * extractor->raw_channels
@@ -740,12 +788,12 @@ esp_gmf_err_t player_extractor_get_last_pts(esp_gmf_element_handle_t handle, uin
     return ESP_GMF_ERR_OK;
 }
 
-esp_gmf_err_t player_extractor_get_delta_pts(esp_gmf_element_handle_t handle, uint64_t *delta_ms)
+esp_gmf_err_t player_extractor_get_output_wait_count(esp_gmf_element_handle_t handle, uint8_t *count)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG;);
-    ESP_GMF_NULL_CHECK(TAG, delta_ms, return ESP_GMF_ERR_INVALID_ARG;);
+    ESP_GMF_NULL_CHECK(TAG, count, return ESP_GMF_ERR_INVALID_ARG;);
     esp_player_extractor_t *extractor = (esp_player_extractor_t *)handle;
-    *delta_ms = extractor->delta_pts;
+    *count = extractor->wait_for_output_count;
     return ESP_GMF_ERR_OK;
 }
 

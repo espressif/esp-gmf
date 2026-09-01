@@ -32,7 +32,10 @@ esp_gmf_err_io_t extractor_audio_out_release(void *handle, esp_gmf_payload_t *lo
     esp_gmf_err_io_t push_ret =
         player_ports_push_bounded(stream, stream->audio_side->frame_queue, load, true);
     if (push_ret == ESP_GMF_IO_OK) {
-        player_ports_buffer_note_extractor_frame(stream, true);
+        player_ports_buffer_note_queued(stream, true, load->pts);
+        if (load->is_done) {
+            player_ports_buffer_note_source_eos(stream);
+        }
         PLAYER_PORTS_DETACH_BUF(load);
         return ESP_GMF_IO_OK;
     }
@@ -57,12 +60,8 @@ _rec_dec_audio_in_frame:
         PLAYER_PORTS_EMPTY_LOAD(load);
         return ESP_GMF_IO_ABORT;
     }
-    player_ports_buffer_gate_try_enter(stream, true);
-    if (stream->buffer_ctrl && stream->buffer_ctrl->gate_state != ESP_PLAYER_BUFFER_GATE_NONE) {
-        if (player_ports_buffer_gate_try_leave(stream) == false) {
-            vTaskDelay(pdMS_TO_TICKS(10));
-            goto _rec_dec_audio_in_frame;
-        }
+    if (player_ports_buffer_gate_wait(stream, true) == false) {
+        goto _rec_dec_audio_in_frame;
     }
     if (player_frame_queue_acquire(stream->audio_side->frame_queue, &stream->audio_side->read_node,
                                    load, recv_wait_ms) == ESP_GMF_IO_OK) {
@@ -87,6 +86,8 @@ _rec_dec_audio_in_frame:
                                        &stream->audio_side->read_node);
             return ESP_GMF_IO_OK;
         }
+        /* Count as consumed even if the frame is dropped below. */
+        player_ports_buffer_note_consumed(stream, true, load->pts);
         if (stream->sync_handle && stream->main_state == ESP_PLAYER_STATE_PLAYING && !stream->is_seeking) {
             if (player_sync_audio_decode_frame(stream->sync_handle, load->pts) == false && load->is_done == false) {
                 if (player_frame_queue_release(stream, stream->audio_side->frame_queue,

@@ -35,6 +35,7 @@ typedef struct {
 } player_audio_render_config_t;
 
 esp_gmf_err_t player_audio_render_init(player_audio_render_config_t *config, esp_gmf_element_handle_t *handle);
+esp_gmf_err_t player_audio_render_set_sample_info(esp_gmf_element_handle_t handle, const esp_audio_render_sample_info_t *sample_info);
 esp_gmf_err_t player_audio_render_set_frame_duration(esp_gmf_element_handle_t handle, uint32_t duration_ms);
 esp_gmf_err_t player_audio_render_set_speed(esp_gmf_element_handle_t handle, float speed);
 esp_gmf_err_t player_audio_render_get_latency(esp_gmf_element_handle_t handle, uint32_t *latency);

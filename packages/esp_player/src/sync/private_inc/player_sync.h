@@ -38,6 +38,7 @@ esp_player_err_t player_sync_create(player_sync_config_t *config, player_sync_ha
 esp_player_err_t player_sync_destroy(player_sync_handle_t handle);
 
 esp_player_err_t player_sync_set_mode(player_sync_handle_t handle, esp_player_sync_mode_t sync_mode);
+esp_player_err_t player_sync_get_mode(player_sync_handle_t handle, esp_player_sync_mode_t *sync_mode);
 
 esp_player_err_t player_sync_set_speed(player_sync_handle_t handle, float speed);
 

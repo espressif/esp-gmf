@@ -9,6 +9,7 @@
 
 #include "player_stream.h"
 #include "player_events.h"
+#include "player_ports.h"
 #include "player_submit_frame.h"
 
 static void player_release_el_held_frames(esp_player_stream_t *stream, esp_gmf_element_handle_t el,
@@ -131,6 +132,7 @@ void player_drop_all_queues(esp_player_stream_t *stream)
         player_drop_single_queue(stream, stream->video_side->frame_queue,
                                  &stream->video_side->read_node);
     }
+    player_ports_buffer_reset_tracking(stream);
 }
 
 void player_release_held_decoder_frames(esp_player_stream_t *stream)

@@ -23,6 +23,7 @@ variables:
 
 before_script:
   - source ${CI_PROJECT_DIR}/tools/ci/utils.sh
+  - add_gitlab_local_dns
   - add_gitlab_ssh_keys
 
 include:

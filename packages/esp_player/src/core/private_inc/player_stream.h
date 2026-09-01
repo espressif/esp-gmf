@@ -124,11 +124,23 @@ typedef enum {
     ESP_PLAYER_BUFFER_GATE_RE_BUFFERING  = 2,  /*!< Runtime re-buffering gate */
 } esp_player_buffer_gate_t;
 
+/**
+ * @brief  Buffered PTS span of one track: what the ports pushed vs what the decoder took
+ */
 typedef struct {
-    esp_player_buffer_gate_t  gate_state;          /*!< Buffer gate sub-state (PRE_BUFFERING/RE_BUFFERING/NONE). */
-    TickType_t                low_since;           /*!< Effective-buffer low-watermark enter tick (0 = inactive). */
-    uint32_t                  avg_audio_frame_ms;  /*!< EWMA audio frame duration for queue→ms estimate. */
-    uint32_t                  avg_video_frame_ms;  /*!< EWMA video frame duration for queue→ms estimate. */
+    bool      valid;      /*!< Span has a zero point (the first frame was queued). */
+    uint64_t  write_pts;  /*!< PTS (ms) of the newest frame pushed to the queue. */
+    uint64_t  read_pts;   /*!< PTS (ms) of the newest frame taken by the decoder. */
+} player_buffer_span_t;
+
+typedef struct {
+    esp_player_buffer_gate_t  gate_state;              /*!< Buffer gate sub-state (PRE_BUFFERING/RE_BUFFERING/NONE). */
+    TickType_t                low_since;               /*!< Effective-buffer low-watermark enter tick (0 = inactive). */
+    player_buffer_span_t      audio;                   /*!< Audio buffered PTS span; the gate measure. */
+    player_buffer_span_t      video;                   /*!< Video buffered PTS span; the gate measure. */
+    bool                      pool_limited;            /*!< Latch: demux pool cannot reach the re-buffering threshold. */
+    bool                      extractor_push_blocked;  /*!< One-shot: extractor could not enqueue while gated. */
+    bool                      source_eos;              /*!< Latch: demuxer queued EOS, no refill can arrive. */
 } player_buffer_ctrl_t;
 
 typedef struct {

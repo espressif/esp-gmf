@@ -199,6 +199,16 @@ esp_player_err_t player_sync_set_mode(player_sync_handle_t handle, esp_player_sy
     return ESP_PLAYER_ERR_OK;
 }
 
+esp_player_err_t player_sync_get_mode(player_sync_handle_t handle, esp_player_sync_mode_t *sync_mode)
+{
+    player_sync_internal_t *sync = NULL;
+    if (!sync_validate_handle(handle, &sync) || sync_mode == NULL) {
+        return ESP_PLAYER_ERR_INVALID_ARG;
+    }
+    *sync_mode = sync->config.sync_mode;
+    return ESP_PLAYER_ERR_OK;
+}
+
 esp_player_err_t player_sync_destroy(player_sync_handle_t handle)
 {
     if (handle == NULL) {
@@ -439,7 +449,8 @@ bool player_sync_video_render_frame(player_sync_handle_t handle, uint64_t pts_ms
         return true;
     }
     if (sync->config.sync_mode == ESP_PLAYER_SYNC_MODE_AUDIO) {
-        if (last_pts_ms == 0) {
+        /* fps==0 (live sources): do not drop later frames after a PTS gap. */
+        if (last_pts_ms == 0 || sync->video_fps <= 0.0f) {
             sync->video_render_pts_ms = pts_ms;
             return true;
         }
