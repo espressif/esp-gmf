@@ -527,24 +527,41 @@ static int cmd_le_disconnect(int argc, char **argv)
 #ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
 static int cmd_bms_start(int argc, char **argv)
 {
-    esp_err_t ret = esp_bt_audio_le_broadcast_source_start();
+    bool adv_was_running = esp_bt_audio_le_is_advertising();
+    esp_err_t ret = esp_bt_audio_le_set_advertising(true);
+    if (ret != ESP_OK) {
+        printf("Failed to start BMS advertising: %s\n", esp_err_to_name(ret));
+        return 1;
+    }
+    ret = esp_bt_audio_le_broadcast_source_start();
     if (ret == ESP_OK) {
         printf("BMS stream started\n");
-    } else {
-        printf("Failed to start BMS stream: %s\n", esp_err_to_name(ret));
+        return 0;
     }
-    return ret == ESP_OK ? 0 : 1;
+    printf("Failed to start BMS stream: %s\n", esp_err_to_name(ret));
+    if (!adv_was_running) {
+        esp_err_t adv_ret = esp_bt_audio_le_set_advertising(false);
+        if (adv_ret != ESP_OK) {
+            printf("Failed to restore BMS advertising: %s\n", esp_err_to_name(adv_ret));
+        }
+    }
+    return 1;
 }
 
 static int cmd_bms_stop(int argc, char **argv)
 {
     esp_err_t ret = esp_bt_audio_le_broadcast_source_stop();
-    if (ret == ESP_OK) {
-        printf("BMS stream stopped\n");
-    } else {
+    if (ret != ESP_OK) {
         printf("Failed to stop BMS stream: %s\n", esp_err_to_name(ret));
+        return 1;
     }
-    return ret == ESP_OK ? 0 : 1;
+    ret = esp_bt_audio_le_set_advertising(false);
+    if (ret != ESP_OK) {
+        printf("Failed to stop BMS advertising: %s\n", esp_err_to_name(ret));
+        return 1;
+    }
+    printf("BMS stream stopped\n");
+    return 0;
 }
 #endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */

@@ -327,6 +327,11 @@ esp_err_t esp_bt_audio_le_set_advertising(bool enable)
     return ESP_OK;
 }
 
+bool esp_bt_audio_le_is_advertising(void)
+{
+    return s_le && s_le->started && s_le->adv_running;
+}
+
 static esp_err_t bt_audio_le_start_scan(const uint8_t *target, uint32_t timeout_ms)
 {
     bt_audio_scan_params_t params = {0};
@@ -664,7 +669,9 @@ static esp_err_t bt_audio_le_prepare_adv_builder(const esp_bt_audio_le_cfg_t *cf
 
     bt_audio_le_adv_builder_add_flags(s_le->adv_builder, 0x06);
     bt_audio_le_adv_builder_add_appearance(s_le->adv_builder, ESP_BLE_AUDIO_APPEARANCE_WEARABLE_AUDIO_DEVICE_EARBUD);
-    bt_audio_le_adv_builder_add_service_uuid16(s_le->adv_builder, ESP_BLE_AUDIO_UUID_PACS_VAL);
+    if (bt_audio_le_pacs_enabled(&cfg->pacs)) {
+        bt_audio_le_adv_builder_add_service_uuid16(s_le->adv_builder, ESP_BLE_AUDIO_UUID_PACS_VAL);
+    }
 
     if (cfg->user_case == ESP_BT_AUDIO_LE_USER_CASE_TMAP) {
 #if CONFIG_BT_TMAP

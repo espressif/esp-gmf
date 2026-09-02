@@ -67,6 +67,15 @@ esp_err_t esp_bt_audio_le_scan_stop(void);
 esp_err_t esp_bt_audio_le_set_advertising(bool enable);
 
 /**
+ * @brief  Query whether LE Audio advertising is currently running.
+ *
+ * @return
+ *       - true   Extended advertising is running
+ *       - false  Advertising is stopped, or LE Audio is not started
+ */
+bool esp_bt_audio_le_is_advertising(void);
+
+/**
  * @brief  Connect to a LE device.
  *
  * @param[in]  addr_type    LE peer address type.

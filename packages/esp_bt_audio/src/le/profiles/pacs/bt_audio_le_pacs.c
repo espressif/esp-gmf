@@ -8,15 +8,17 @@
 #include "esp_check.h"
 #include "esp_log.h"
 
+#include "bt_audio_le_pacs.h"
+
+static const char *TAG = "BT_AUD_LE_PACS";
+
+#if CONFIG_BT_PACS
+
 #include "esp_ble_iso_common_api.h"
 #include "esp_ble_audio_codec_api.h"
 #include "esp_ble_audio_defs.h"
 #include "esp_ble_audio_lc3_defs.h"
 #include "esp_ble_audio_pacs_api.h"
-
-#include "bt_audio_le_pacs.h"
-
-static const char *TAG = "BT_AUD_LE_PACS";
 
 static const uint16_t s_sink_ctx_mask = ESP_BLE_AUDIO_CONTEXT_TYPE_ANY;
 static const uint16_t s_source_ctx_mask = ESP_BLE_AUDIO_CONTEXT_TYPE_ANY;
@@ -126,3 +128,18 @@ void bt_audio_le_pacs_unregister(void)
         s_pacs_registered = false;
     }
 }
+
+#else  /* !CONFIG_BT_PACS */
+
+esp_err_t bt_audio_le_pacs_register(const esp_bt_audio_le_pacs_cfg_t *cfg)
+{
+    ESP_RETURN_ON_FALSE(cfg, ESP_ERR_INVALID_ARG, TAG, "PACS config is NULL");
+    ESP_LOGE(TAG, "PACS requested but CONFIG_BT_PACS is disabled (enable BT_PAC_SNK and/or BT_PAC_SRC)");
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+void bt_audio_le_pacs_unregister(void)
+{
+}
+
+#endif  /* CONFIG_BT_PACS */

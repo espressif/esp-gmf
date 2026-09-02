@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Extended the LE Broadcast Source configuration with a stream count, per-BIS audio locations, and named LC3 broadcast presets
+- Added `esp_bt_audio_le_is_advertising()` to query whether LE advertising is running
+
 ## v1.1.0~2
 
 ### Changes

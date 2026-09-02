@@ -183,9 +183,11 @@ menu "BT Audio Basic Example (GMF)"
             default 1
             range 1 2
             help
-                Set the number of BIS source streams requested by the example.
-                The esp_bt_audio component clamps this value to the ESP-IDF
-                CONFIG_BT_BAP_BROADCAST_SRC_STREAM_COUNT limit.
+                Number of BIS streams in one BIG. 1 broadcasts a single mono
+                BIS. 2 broadcasts one BIG carrying two BIS streams, with the
+                decoded stereo media split into a front left and a front right
+                stream. Initialization fails if this value exceeds
+                CONFIG_BT_BAP_BROADCAST_SRC_STREAM_COUNT.
 
         choice GMF_EXAMPLE_LE_LOCATION
             prompt "LE Audio location"
@@ -216,10 +218,12 @@ menu "BT Audio Basic Example (GMF)"
 
         config GMF_EXAMPLE_LE_COORDINATE_SET_SIZE
             int "LE Audio coordinate set size"
+            default 1 if GMF_EXAMPLE_LE_TMAP_ROLE_BMS && !GMF_EXAMPLE_LE_TMAP_ROLE_CT && !GMF_EXAMPLE_LE_TMAP_ROLE_UMR && !GMF_EXAMPLE_LE_TMAP_ROLE_BMR
             default 2
             range 0 2
             help
                 Set the CSIP coordinated set size advertised by the LE Audio example.
+                Source-only BMS builds default to 1 so CSIP set-member linkage is not pulled in.
 
         config GMF_EXAMPLE_LE_COORDINATE_SET_RANK
             int

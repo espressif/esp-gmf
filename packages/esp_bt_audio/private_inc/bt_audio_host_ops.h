@@ -375,33 +375,6 @@ typedef esp_err_t (*bt_audio_host_id_infer_auto_t)(int privacy, uint8_t *out_add
 typedef const char *(*bt_audio_host_svc_gap_device_name_t)(void);
 
 /**
- * @brief  Get the number of free ISO TX buffers.
- *
- * @param[in]  conn_handle  ISO connection handle
- *
- * @return
- *       - Number of free ISO TX buffers
- */
-typedef uint16_t (*bt_audio_host_iso_free_buf_num_get_t)(uint16_t conn_handle);
-
-/**
- * @brief  Send ISO data through the host HCI path.
- *
- * @param[in]  conn_handle  ISO connection handle
- * @param[in]  sdu          SDU data buffer
- * @param[in]  sdu_len      SDU data length in bytes
- * @param[in]  ts_flag      True if time_stamp is valid
- * @param[in]  time_stamp   ISO packet timestamp
- * @param[in]  pkt_seq_num  ISO packet sequence number
- *
- * @return
- *       - ESP_OK  On success
- *       - Other   Host adapter error code
- */
-typedef esp_err_t (*bt_audio_host_hci_iso_tx_t)(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                                                bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num);
-
-/**
  * @brief  Register the active host event callback.
  *
  * @return
@@ -444,8 +417,6 @@ typedef struct {
     bt_audio_host_pa_sync_receive_t             pa_sync_receive;         /*!< Enable PAST receive */
     bt_audio_host_id_infer_auto_t               id_infer_auto;           /*!< Infer local address type */
     bt_audio_host_svc_gap_device_name_t         svc_gap_device_name;     /*!< Get GAP device name */
-    bt_audio_host_iso_free_buf_num_get_t        iso_free_buf_num_get;    /*!< Get free ISO TX buffers */
-    bt_audio_host_hci_iso_tx_t                  hci_iso_tx;              /*!< Send ISO data */
     bt_audio_host_register_event_cb_t           register_event_cb;       /*!< Register host event callback */
     bt_audio_host_post_gap_event_t              post_gap_event;          /*!< Forward host GAP event */
 } bt_audio_host_ops_t;
@@ -740,35 +711,6 @@ esp_err_t bt_audio_host_id_infer_auto(int privacy, uint8_t *out_addr_type);
  *       - NULL if the host operation is not registered or no name is available
  */
 const char *bt_audio_host_svc_gap_device_name(void);
-
-/**
- * @brief  Get the number of free ISO TX buffers.
- *
- * @param[in]  conn_handle  ISO connection handle
- *
- * @return
- *       - Number of free ISO TX buffers
- *       - 0 if the host operation is not registered
- */
-uint16_t bt_audio_host_iso_free_buf_num_get(uint16_t conn_handle);
-
-/**
- * @brief  Send ISO data through the host HCI path.
- *
- * @param[in]  conn_handle  ISO connection handle
- * @param[in]  sdu          SDU data buffer
- * @param[in]  sdu_len      SDU data length in bytes
- * @param[in]  ts_flag      True if time_stamp is valid
- * @param[in]  time_stamp   ISO packet timestamp
- * @param[in]  pkt_seq_num  ISO packet sequence number
- *
- * @return
- *       - ESP_OK                 On success
- *       - ESP_ERR_INVALID_STATE  If the host operation is not registered
- *       - Other                  Host adapter error code
- */
-esp_err_t bt_audio_host_hci_iso_tx(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                                   bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num);
 
 /**
  * @brief  Register the active host event callback.

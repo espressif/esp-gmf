@@ -64,6 +64,12 @@
 #define A2DP_SRC_SEND_TASK_STACK_SIZE  4096
 #endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
 
+#ifdef CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+#define LE_SRC_SEND_TASK_CORE_ID        0
+#define LE_SRC_SEND_TASK_PRIO           16
+#define LE_SRC_SEND_TASK_STACK_SIZE     4096
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+
 #define PHONEBOOK_ENTRY_LOG_BUF_SIZE  512
 #define APP_CTRL_QUEUE_SIZE           12
 #define APP_CTRL_TASK_STACK_SIZE      3072
@@ -438,6 +444,7 @@ static esp_err_t setup_device_name(char *device_name, size_t device_name_size)
 }
 
 #if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+#if CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE > 1
 static int hex_nibble(char c)
 {
     if (c >= '0' && c <= '9') {
@@ -470,6 +477,7 @@ static void bytes_from_hex(const char *hex, uint8_t *out, size_t out_len)
         }
     }
 }
+#endif  /* CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE > 1 */
 
 #ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
 static void bytes_from_string(const char *str, uint8_t *out, size_t out_len)
@@ -575,6 +583,10 @@ static void setup_bt_audio_config_from_kconfig(esp_bt_audio_config_t *bt_config)
     bytes_from_string(CONFIG_GMF_EXAMPLE_LE_BSRC_CODE, bt_config->le.bsrc.broadcast_code,
                       sizeof(bt_config->le.bsrc.broadcast_code));
     bt_config->le.bsrc.stream_num = CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM;
+#if CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM > 1
+    bt_config->le.bsrc.stream_locations[0] = ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT;
+    bt_config->le.bsrc.stream_locations[1] = ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM > 1 */
 #endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 }
@@ -1050,6 +1062,9 @@ void app_main()
         .le.vcp_rend.volume = 50,
         .le.vcp_rend.mute = 0,
         .le.vcp_rend.step = 10,
+        .le.src_send_task_core_id = LE_SRC_SEND_TASK_CORE_ID,
+        .le.src_send_task_prio = LE_SRC_SEND_TASK_PRIO,
+        .le.src_send_task_stack_size = LE_SRC_SEND_TASK_STACK_SIZE,
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     };
     setup_bt_audio_config_from_kconfig(&bt_config);
@@ -1069,12 +1084,15 @@ void app_main()
     ESP_LOGI(TAG, "  Roles: 0x%08" PRIX32, bt_config.le.roles);
     ESP_LOGI(TAG, "  Sink count: %u, Source count: %u",
              bt_config.le.snk_cnt, bt_config.le.src_cnt);
+    ESP_LOGI(TAG, "  Source send task core ID: %u", bt_config.le.src_send_task_core_id);
+    ESP_LOGI(TAG, "  Source send task priority: %u", bt_config.le.src_send_task_prio);
+    ESP_LOGI(TAG, "  Source send task stack size: %u", bt_config.le.src_send_task_stack_size);
     ESP_LOGI(TAG, "  Coordinate set size: %u", bt_config.le.csip.coordinate_set_size);
     ESP_LOGI(TAG, "  Coordinate set rank: %u", bt_config.le.csip.rank);
     ESP_LOGI(TAG, "  PACS sink locations: %s", le_audio_locations_to_str(bt_config.le.pacs.sink_locations));
 #ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
     ESP_LOGI(TAG, "  Broadcast source name: %s", bt_config.le.bsrc.broadcast_name);
-    ESP_LOGI(TAG, "  Broadcast source stream count: %u", bt_config.le.bsrc.stream_num);
+    ESP_LOGI(TAG, "  Broadcast source: 1 BIG / %u BIS", bt_config.le.bsrc.stream_num);
 #endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     ESP_ERROR_CHECK(esp_bt_audio_init(&bt_config));

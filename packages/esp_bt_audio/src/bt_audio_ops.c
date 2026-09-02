@@ -391,21 +391,6 @@ const char *bt_audio_host_svc_gap_device_name(void)
     return bt_ops->host_ops.svc_gap_device_name();
 }
 
-uint16_t bt_audio_host_iso_free_buf_num_get(uint16_t conn_handle)
-{
-    if (!bt_ops || !bt_ops->host_ops.iso_free_buf_num_get) {
-        return 0;
-    }
-    return bt_ops->host_ops.iso_free_buf_num_get(conn_handle);
-}
-
-esp_err_t bt_audio_host_hci_iso_tx(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                                   bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num)
-{
-    BT_AUDIO_HOST_RETURN_ON_NO_OP(hci_iso_tx);
-    return bt_ops->host_ops.hci_iso_tx(conn_handle, sdu, sdu_len, ts_flag, time_stamp, pkt_seq_num);
-}
-
 esp_err_t bt_audio_host_register_event_cb(void)
 {
     BT_AUDIO_HOST_RETURN_ON_NO_OP(register_event_cb);

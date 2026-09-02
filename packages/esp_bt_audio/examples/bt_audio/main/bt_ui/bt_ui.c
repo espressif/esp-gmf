@@ -1018,7 +1018,9 @@ esp_err_t bt_ui_init(void)
         return ret == ESP_OK ? ESP_ERR_INVALID_STATE : ret;
     }
 
-    const lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    lvgl_cfg.task_stack = 10240;
+    lvgl_cfg.task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     ESP_RETURN_ON_ERROR(lvgl_port_init(&lvgl_cfg), TAG, "LVGL port init failed");
 
     lvgl_port_display_cfg_t disp_cfg = {

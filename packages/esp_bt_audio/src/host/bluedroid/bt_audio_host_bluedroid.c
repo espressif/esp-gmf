@@ -51,10 +51,6 @@ static const char *TAG = "BT_AUD_HOST_BDROID";
 #define BT_AUDIO_BDROID_GAP_OP_TIMEOUT_MS      5000
 #define BT_AUDIO_BDROID_SCAN_DURATION_UNIT_MS  10
 
-extern uint16_t r_ble_ll_iso_free_buf_num_get(uint16_t conn_handle);
-extern int esp_ble_hci_iso_tx(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                              bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num);
-
 static uint32_t bdroid_disc_timeout_to_duration(uint32_t timeout_ms)
 {
     if (timeout_ms == 0) {
@@ -570,22 +566,6 @@ static const char *bdroid_svc_gap_device_name(void)
     return s_host->ble_dev_name[0] ? s_host->ble_dev_name : NULL;
 }
 
-static uint16_t bdroid_iso_free_buf_num_get(uint16_t conn_handle)
-{
-    return r_ble_ll_iso_free_buf_num_get(conn_handle);
-}
-
-static esp_err_t bdroid_hci_iso_tx(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                                   bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num)
-{
-    int rc = esp_ble_hci_iso_tx(conn_handle, sdu, sdu_len, ts_flag, time_stamp, pkt_seq_num);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Send HCI ISO data failed: conn_handle %u, error %d", conn_handle, rc);
-        return ESP_FAIL;
-    }
-    return ESP_OK;
-}
-
 static esp_err_t bdroid_register_event_cb(void)
 {
     if (s_host && s_host->gap_cb_registered) {
@@ -664,8 +644,6 @@ static esp_err_t bdroid_ble_stack_setup(esp_bt_audio_host_bluedroid_cfg_t *host_
         .pa_sync_receive = bdroid_pa_sync_receive,
         .id_infer_auto = bdroid_id_infer_auto,
         .svc_gap_device_name = bdroid_svc_gap_device_name,
-        .iso_free_buf_num_get = bdroid_iso_free_buf_num_get,
-        .hci_iso_tx = bdroid_hci_iso_tx,
         .register_event_cb = bdroid_register_event_cb,
         .post_gap_event = bdroid_post_gap_event,
     };

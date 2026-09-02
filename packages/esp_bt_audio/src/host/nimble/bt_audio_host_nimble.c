@@ -33,10 +33,6 @@ typedef struct {
     SemaphoreHandle_t host_exit_sem;                                  /*!< Signals completion of the NimBLE host task */
 } bt_audio_host_nimble_t;
 
-extern uint16_t r_ble_ll_iso_free_buf_num_get(uint16_t conn_handle);
-extern int ble_hs_hci_iso_tx(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                             bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num);
-
 static const char *TAG = "BT_AUD_HOST_NIMBLE";
 static bt_audio_host_nimble_t *s_host;
 
@@ -341,22 +337,6 @@ static const char *nimble_svc_gap_device_name(void)
     return ble_svc_gap_device_name();
 }
 
-static uint16_t nimble_iso_free_buf_num_get(uint16_t conn_handle)
-{
-    return r_ble_ll_iso_free_buf_num_get(conn_handle);
-}
-
-static esp_err_t nimble_hci_iso_tx(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                                   bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num)
-{
-    int rc = ble_hs_hci_iso_tx(conn_handle, sdu, sdu_len, ts_flag, time_stamp, pkt_seq_num);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Send HCI ISO data failed: conn_handle %u, error %d", conn_handle, rc);
-        return ESP_FAIL;
-    }
-    return ESP_OK;
-}
-
 static esp_err_t nimble_register_event_cb(void)
 {
     return ESP_OK;
@@ -415,8 +395,6 @@ static esp_err_t bt_audio_host_nimble_init(void)
         .pa_sync_receive = nimble_pa_sync_receive,
         .id_infer_auto = nimble_id_infer_auto,
         .svc_gap_device_name = nimble_svc_gap_device_name,
-        .iso_free_buf_num_get = nimble_iso_free_buf_num_get,
-        .hci_iso_tx = nimble_hci_iso_tx,
         .register_event_cb = nimble_register_event_cb,
         .post_gap_event = nimble_post_gap_event,
     };
