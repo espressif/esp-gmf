@@ -14,13 +14,13 @@
  * Registers follow the Xtensa call convention; each routine documents a2-a6 (etc.) below.
  */
 
-/* void fft_radix2_bit_reverse_s16(int16_t *data, int32_t cpx_points, int32_t log2N); */
-/* Bit-reverse the spectrum by log2N bits; inner pattern touches 16 complex samples. */
+/* void fft_radix2_bit_reverse_s16_hw(int16_t *data, int32_t cpx_points, int32_t log2N); */
+/* Hardware bit-reverse (3–10 bits). C wrapper fft_radix2_bit_reverse_s16 falls back for larger N. */
     .text
     .align 4
-    .global fft_radix2_bit_reverse_s16
-    .type   fft_radix2_bit_reverse_s16, @function
-fft_radix2_bit_reverse_s16:
+    .global fft_radix2_bit_reverse_s16_hw
+    .type   fft_radix2_bit_reverse_s16_hw, @function
+fft_radix2_bit_reverse_s16_hw:
     /* a2=data, a3=N complex points, a4=log2(N) */
      .align 4
     entry sp, 16

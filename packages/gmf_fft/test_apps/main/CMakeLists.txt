@@ -2,6 +2,7 @@ set(MAIN_TEST_SRCS
     "gmf_fft_test_runner.c"
     "test_gmf_fft_api.c"
     "test_gmf_fft_forward_vs_float.c"
+    "test_gmf_fft_edge_cases.c"
 )
 
 idf_component_register(

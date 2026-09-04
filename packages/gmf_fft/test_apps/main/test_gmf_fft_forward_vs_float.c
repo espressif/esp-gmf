@@ -388,3 +388,81 @@ void test_fft_q15_roundtrip_n1024(void)
 {
     run_roundtrip(1024u, (float)ESP_GMF_FFT_TEST_SINE_AMP * 0.06f);
 }
+
+/**
+ * @brief  HP forward then inverse; output is Q15 (no N/4).
+ * @param  n_real            Real samples (even, power of two).
+ * @param  max_err_rel_peak  Upper bound on worst |y-orig| / peak_in.
+ */
+static void run_hp_roundtrip(unsigned n_real, float max_err_rel_peak)
+{
+    TEST_ASSERT_EQUAL_INT(0, (int)(n_real % 2u));
+    unsigned n_cpx = n_real / 2u;
+    const size_t nel = (size_t)n_real;
+    const size_t buf_nel = nel + ESP_GMF_FFT_TEST_DATA_TAIL_INT16;
+    int16_t *orig = (int16_t *)esp_gmf_fft_calloc_aligned(nel, sizeof(int16_t), 16u);
+    int16_t *buf = (int16_t *)esp_gmf_fft_calloc_aligned(buf_nel, sizeof(int16_t), 16u);
+    TEST_ASSERT_NOT_NULL(orig);
+    TEST_ASSERT_NOT_NULL(buf);
+    fill_signal_packed_a(orig, (int)n_real);
+    memcpy(buf, orig, nel * sizeof(int16_t));
+    int peak_in = 0;
+    for (size_t i = 0; i < nel; i++) {
+        int v = (int)orig[i];
+        if (v < 0) {
+            v = -v;
+        }
+        if (v > peak_in) {
+            peak_in = v;
+        }
+    }
+    esp_gmf_fft_handle_t handle = NULL;
+    const esp_gmf_fft_cfg_t fft_cfg = {
+        .n_fft = (int16_t)n_real,
+        .fft_type = ESP_GMF_FFT_TYPE_REAL_Q15,
+    };
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_OK, esp_gmf_fft_init(&fft_cfg, &handle));
+    TEST_ASSERT_NOT_NULL(handle);
+    int64_t t0 = esp_timer_get_time();
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_OK, esp_gmf_fft_forward_hp(handle, buf));
+    int64_t t1 = esp_timer_get_time();
+    TEST_ASSERT_EQUAL_INT(ESP_GMF_FFT_OK, esp_gmf_fft_inverse_hp(handle, buf));
+    int64_t t2 = esp_timer_get_time();
+    int worst = 0;
+    for (size_t i = 0; i < nel; i++) {
+        int32_t d = (int32_t)buf[i] - (int32_t)orig[i];
+        int adi = (d >= 0) ? d : -d;
+        if (adi > worst) {
+            worst = adi;
+        }
+    }
+    const float peak_f = (peak_in > 0) ? (float)peak_in : 1.f;
+    const float rel = (float)worst / peak_f;
+    printf(
+        "[esp_gmf_fft] hp_roundtrip N_real=%u n_cpx=%u impl=%s peak_in=%d worst_q15=%d worst/peak=%.6f lim_rel=%.6f\n",
+        n_real, n_cpx, q15_impl_str(), peak_in, worst, rel, (double)max_err_rel_peak);
+    printf("[esp_gmf_fft] hp timing N_real=%u forward=%" PRId64 " us inverse=%" PRId64 " us\n", n_real, (t1 - t0),
+           (t2 - t1));
+    TEST_ASSERT_TRUE(rel <= max_err_rel_peak + 5e-4f);
+    esp_gmf_fft_deinit(&handle);
+    esp_gmf_fft_free_aligned(buf);
+    esp_gmf_fft_free_aligned(orig);
+}
+
+/** @brief Unity: HP round-trip as Q15, N_real=32. */
+void test_fft_q15_hp_roundtrip_n32(void)
+{
+    run_hp_roundtrip(32u, 0.02f);
+}
+
+/** @brief Unity: HP round-trip as Q15, N_real=512. */
+void test_fft_q15_hp_roundtrip_n512(void)
+{
+    run_hp_roundtrip(512u, 0.02f);
+}
+
+/** @brief Unity: HP round-trip as Q15, N_real=1024. */
+void test_fft_q15_hp_roundtrip_n1024(void)
+{
+    run_hp_roundtrip(1024u, 0.02f);
+}

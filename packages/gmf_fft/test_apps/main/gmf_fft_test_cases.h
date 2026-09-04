@@ -27,6 +27,12 @@ void test_api_forward_valid(void);
 void test_api_inverse_null_data(void);
 void test_api_inverse_null_handle(void);
 void test_api_inverse_valid(void);
+void test_api_forward_hp_null_data(void);
+void test_api_forward_hp_null_handle(void);
+void test_api_forward_hp_valid(void);
+void test_api_inverse_hp_null_data(void);
+void test_api_inverse_hp_null_handle(void);
+void test_api_inverse_hp_valid(void);
 
 /* Numerical tests (test_gmf_fft_forward_vs_float.c) */
 void test_fft_q15_forward_vs_float_n32(void);
@@ -35,3 +41,8 @@ void test_fft_q15_forward_vs_float_n1024(void);
 void test_fft_q15_roundtrip_n32(void);
 void test_fft_q15_roundtrip_n512(void);
 void test_fft_q15_roundtrip_n1024(void);
+void test_fft_q15_hp_roundtrip_n32(void);
+void test_fft_q15_hp_roundtrip_n512(void);
+void test_fft_q15_hp_roundtrip_n1024(void);
+void test_fft_q15_edge_dc_impulse_fullscale(void);
+void test_fft_q15_edge_n8192(void);

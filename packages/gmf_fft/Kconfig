@@ -1,0 +1,13 @@
+menu "GMF FFT Configuration"
+
+    config GMF_FFT_S31_USE_ASM
+        bool "Use ESP32-S31 PIE assembly-optimized FFT"
+        depends on IDF_TARGET_ESP32S31
+        default n
+        help
+            Select the RISC-V PIE assembly implementation for ESP32-S31.
+            Disable this option to use the portable C implementation.
+            When PIE assembly is enabled, related *_process() calls must
+            run on Core 1.
+
+endmenu

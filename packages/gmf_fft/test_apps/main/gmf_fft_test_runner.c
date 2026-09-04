@@ -36,6 +36,12 @@ void esp_gmf_fft_test_runner_run(void)
     RUN_TEST(test_api_inverse_null_data);
     RUN_TEST(test_api_inverse_null_handle);
     RUN_TEST(test_api_inverse_valid);
+    RUN_TEST(test_api_forward_hp_null_data);
+    RUN_TEST(test_api_forward_hp_null_handle);
+    RUN_TEST(test_api_forward_hp_valid);
+    RUN_TEST(test_api_inverse_hp_null_data);
+    RUN_TEST(test_api_inverse_hp_null_handle);
+    RUN_TEST(test_api_inverse_hp_valid);
 
     /* Numerical correctness */
     RUN_TEST(test_fft_q15_forward_vs_float_n32);
@@ -44,6 +50,11 @@ void esp_gmf_fft_test_runner_run(void)
     RUN_TEST(test_fft_q15_roundtrip_n32);
     RUN_TEST(test_fft_q15_roundtrip_n512);
     RUN_TEST(test_fft_q15_roundtrip_n1024);
+    RUN_TEST(test_fft_q15_hp_roundtrip_n32);
+    RUN_TEST(test_fft_q15_hp_roundtrip_n512);
+    RUN_TEST(test_fft_q15_hp_roundtrip_n1024);
+    RUN_TEST(test_fft_q15_edge_dc_impulse_fullscale);
+    RUN_TEST(test_fft_q15_edge_n8192);
 
     (void)UNITY_END();
 }

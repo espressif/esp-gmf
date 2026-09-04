@@ -5,10 +5,10 @@
 
 ## Example Overview
 
-This example shows basic `gmf_fft` usage. It generates a multi-tone cosine signal, runs a 512-point Q15 real FFT, prints a dB-scale spectrum bar chart in the serial terminal, then runs IFFT and prints the round-trip peak error.
+This example shows basic `gmf_fft` usage. It generates a multi-tone cosine signal, runs a 512-point Q15 real FFT with both the regular APIs (`esp_gmf_fft_forward` / `inverse`) and the HP APIs (`forward_hp` / `inverse_hp`), prints a dB-scale spectrum bar chart in the serial terminal, and prints round-trip peak error.
 
 - Spectrum print: generate 3 cosine tones, run real FFT, and print a spectrum bar chart in the serial terminal.
-- Round-trip check: run IFFT on the FFT output and print the scaled peak error.
+- Round-trip check: the regular APIs scale IFFT output by `N/4` before comparing; the HP APIs return Q15 and do not need `N/4`.
 
 ### Typical Use Cases
 
@@ -21,7 +21,8 @@ This example shows basic `gmf_fft` usage. It generates a multi-tone cosine signa
 - The example first generates 3 cosine tones at frequency bins 8, 24, and 40, with amplitudes 1000, 5000, and 3000.
 - It calls `esp_gmf_fft_forward` to run Q15 real FFT and output `N/2 + 1` half-spectrum frequency bins.
 - It converts each frequency bin magnitude to dB and prints a vertical bar chart.
-- It calls `esp_gmf_fft_inverse` to restore the time-domain signal and prints the scaled peak error.
+- It calls `esp_gmf_fft_inverse` to restore the time-domain signal and prints the peak error after multiplying by `N/4`.
+- It reruns the same input with `esp_gmf_fft_forward_hp` / `inverse_hp`, prints the HP spectrum chart, and prints the Q15 peak error.
 
 ## Environment Setup
 
@@ -104,8 +105,9 @@ After the example starts, it runs the following steps:
 1. Allocate an aligned buffer with `ESP_GMF_FFT_BUFFER_SIZE(N_FFT)` `int16_t` elements.
 2. Generate 3 cosine tones and save the original input.
 3. Initialize `esp_gmf_fft_handle_t` and run `esp_gmf_fft_forward`.
-4. Print the spectrum chart, then run `esp_gmf_fft_inverse`.
-5. Print the round-trip peak error and release resources.
+4. Print the spectrum chart, then run `esp_gmf_fft_inverse` and print the round-trip peak error after multiplying by `N/4`.
+5. Restore the original input and run `esp_gmf_fft_forward_hp` / `inverse_hp`, then print the HP spectrum chart and the Q15 peak error.
+6. Release resources.
 
 ### Log Output
 
@@ -122,7 +124,12 @@ The key output is shown below:
       0       8      16      24      32      40      48
       Bin
 
-  Round-trip peak error after scaling by N/4: ...
+  Round-trip peak error after scaling by N/4: 86 (ESP32-P4) / 128 (ESP32-S3)
+
+  esp_gmf_fft_hp  N=512  |  signal: cos(bin=8,A=1000) + cos(bin=24,A=5000) + cos(bin=40,A=3000)
+  Peak: bin=24  mag=...
+
+  HP round-trip peak error (Q15, no N/4): 3 (ESP32-P4) / 7 (ESP32-S3)
 ```
 
 The three configured frequency bins should show clear peaks, while other bins stay close to the noise floor.
