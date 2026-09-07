@@ -254,8 +254,12 @@ static esp_gmf_job_err_t esp_gmf_howl_process(esp_gmf_element_handle_t self, voi
             goto __howl_release;
         }
     }
-    esp_ae_err_t ae_ret = esp_ae_howl_process(howl->howl_hd, (esp_ae_sample_t)in_load->buf, (esp_ae_sample_t)out_load->buf);
-    ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {out_len = ESP_GMF_JOB_ERR_FAIL; goto __howl_release;}, "HOWL process error %d", ae_ret);
+    if (esp_gmf_element_is_bypass(howl)) {
+        memcpy(out_load->buf, in_load->buf, howl->frame_bytes);
+    } else {
+        esp_ae_err_t ae_ret = esp_ae_howl_process(howl->howl_hd, (esp_ae_sample_t)in_load->buf, (esp_ae_sample_t)out_load->buf);
+        ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {out_len = ESP_GMF_JOB_ERR_FAIL; goto __howl_release;}, "HOWL process error %d", ae_ret);
+    }
 
     ESP_LOGV(TAG, "Frame bytes: %u, IN-PLD: %p-%p-%d-%d-%d, OUT-PLD: %p-%p-%d-%d-%d",
              (unsigned)howl->frame_bytes, in_load, in_load->buf, in_load->valid_size, in_load->buf_length, in_load->is_done,
@@ -637,6 +641,7 @@ esp_gmf_err_t esp_gmf_howl_init(esp_ae_howl_cfg_t *config, esp_gmf_element_handl
     ESP_GMF_ELEMENT_OUT_PORT_ATTR_SET(el_cfg.out_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
                                       ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
     el_cfg.dependency = true;
+    el_cfg.bypass_policy = ESP_GMF_BYPASS_CUSTOM;
     ret = esp_gmf_audio_el_init(howl, &el_cfg);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto HOWL_INIT_FAIL, "Failed to initialize howl element");
     ESP_GMF_ELEMENT_GET(howl)->ops.open = esp_gmf_howl_open;

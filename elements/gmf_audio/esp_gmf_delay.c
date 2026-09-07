@@ -69,6 +69,14 @@ static esp_gmf_err_t __delay_get_delay_time(esp_gmf_element_handle_t handle, esp
     return esp_gmf_delay_get_delay_time(handle, (uint16_t *)buf);
 }
 
+static esp_gmf_err_t __delay_get_max_delay(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                           uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, arg_desc, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_delay_get_max_delay(handle, (uint16_t *)buf);
+}
+
 static esp_gmf_err_t __delay_set_feedback(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
                                           uint8_t *buf, int buf_len)
 {
@@ -308,6 +316,14 @@ static esp_gmf_err_t _load_delay_methods_func(esp_gmf_element_handle_t handle)
     ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(DELAY, GET_DELAY_TIME));
     get_args = NULL;
 
+    ret = esp_gmf_args_desc_append(&get_args, AMETHOD_ARG(DELAY, GET_MAX_DELAY, MAX_DELAY),
+                                   ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {goto __fail;}, "Failed to append MAX_DELAY argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DELAY, GET_MAX_DELAY), __delay_get_max_delay,
+                                          get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {goto __fail;}, "Failed to register %s method", AMETHOD(DELAY, GET_MAX_DELAY));
+    get_args = NULL;
+
     ret = esp_gmf_args_desc_append_with_constraint(&set_args, AMETHOD_ARG(DELAY, SET_MIX_RATIO, MIX_RATIO),
                                                    ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
                                                    &s_delay_mix_constraint);
@@ -394,6 +410,22 @@ esp_gmf_err_t esp_gmf_delay_get_delay_time(esp_gmf_element_handle_t handle, uint
         }
     } else {
         *delay_time_ms = cfg->delay_para.delay_time_ms;
+    }
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_delay_get_max_delay(esp_gmf_element_handle_t handle, uint16_t *max_delay_ms)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, max_delay_ms, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    esp_ae_delay_cfg_t *cfg = (esp_ae_delay_cfg_t *)OBJ_GET_CFG(handle);
+    if (cfg == NULL) {
+        ret = ESP_GMF_ERR_FAIL;
+    } else {
+        *max_delay_ms = cfg->max_delay_ms;
     }
     esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
@@ -527,6 +559,7 @@ esp_gmf_err_t esp_gmf_delay_init(esp_ae_delay_cfg_t *config, esp_gmf_element_han
     ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.out_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
                                      ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
     el_cfg.dependency = true;
+    el_cfg.bypass_policy = ESP_GMF_BYPASS_COMMON;
     ret = esp_gmf_audio_el_init(delay, &el_cfg);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto DELAY_INIT_FAIL, "Failed to initialize delay element");
     ESP_GMF_ELEMENT_GET(delay)->ops.open = esp_gmf_delay_open;

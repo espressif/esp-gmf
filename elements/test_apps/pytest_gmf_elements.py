@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+
 import pytest
 from pytest_embedded import Dut
 from pytest_embedded_idf.unity_tester import UnittestMenuCase
@@ -71,8 +73,12 @@ def _resolve_case_timeout(case: UnittestMenuCase) -> float:
     indirect=True,
 )
 def test_gmf_elements(dut: Dut, unity_case_timeout: float) -> None:
+    wanted = os.environ.get('GMF_UNITY_NAMES')
+    wanted_set = {n.strip() for n in wanted.split(',')} if wanted else None
     for case in dut.test_menu:
         if case.is_ignored or case.type not in ('normal', 'multi_stage'):
+            continue
+        if wanted_set is not None and case.name not in wanted_set:
             continue
         dut.run_single_board_case(
             case.name,

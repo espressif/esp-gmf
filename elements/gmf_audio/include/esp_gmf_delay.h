@@ -65,6 +65,19 @@ esp_gmf_err_t esp_gmf_delay_set_delay_time(esp_gmf_element_handle_t handle, uint
 esp_gmf_err_t esp_gmf_delay_get_delay_time(esp_gmf_element_handle_t handle, uint16_t *delay_time_ms);
 
 /**
+ * @brief  Get the maximum delay time from the element configuration
+ *
+ * @param[in]   handle         The delay element handle
+ * @param[out]  max_delay_ms   Maximum delay time in milliseconds (`cfg->max_delay_ms`)
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_FAIL         Configuration is unavailable
+ */
+esp_gmf_err_t esp_gmf_delay_get_max_delay(esp_gmf_element_handle_t handle, uint16_t *max_delay_ms);
+
+/**
  * @brief  Set the feedback coefficient
  *
  * @param[in]  handle    The delay element handle

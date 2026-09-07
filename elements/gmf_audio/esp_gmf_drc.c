@@ -472,6 +472,7 @@ static esp_gmf_err_t _load_drc_methods_func(esp_gmf_element_handle_t handle)
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append POINT_NUM arg");
     ret = esp_gmf_method_append(&method, AMETHOD(DRC, GET_POINTS), __drc_get_points, args);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, GET_POINTS));
+
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
     el->method = method;
     return ESP_GMF_ERR_OK;
@@ -851,6 +852,7 @@ esp_gmf_err_t esp_gmf_drc_init(esp_ae_drc_cfg_t *config, esp_gmf_element_handle_
     ESP_GMF_ELEMENT_OUT_PORT_ATTR_SET(el_cfg.out_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
         ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
     el_cfg.dependency = true;
+    el_cfg.bypass_policy = ESP_GMF_BYPASS_COMMON;
     ret = esp_gmf_audio_el_init(drc, &el_cfg);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto DRC_INIT_FAIL, "Failed to initialize drc element");
     ESP_GMF_ELEMENT_GET(drc)->ops.open = gmf_drc_open;

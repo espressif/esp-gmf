@@ -494,6 +494,7 @@ esp_gmf_err_t esp_gmf_alc_init(esp_ae_alc_cfg_t *config, esp_gmf_element_handle_
     ESP_GMF_ELEMENT_OUT_PORT_ATTR_SET(el_cfg.out_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
                                       ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
     el_cfg.dependency = true;
+    el_cfg.bypass_policy = ESP_GMF_BYPASS_COMMON;
     ret = esp_gmf_audio_el_init(alc, &el_cfg);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto ALC_INIT_FAIL, "Failed to initialize alc element");
     ESP_GMF_ELEMENT_GET(alc)->ops.open = esp_gmf_alc_open;

@@ -173,7 +173,14 @@ static esp_gmf_job_err_t esp_gmf_sonic_process(esp_gmf_element_handle_t self, vo
     esp_gmf_payload_t *out_load = NULL;
     bool is_done = false;
     sonic->out_data_hd.needed_num = sonic->out_size / sonic->bytes_per_sample;
-    if (sonic->speed == 1.0f && sonic->pitch == 1.0f && (sonic->out_data_hd.out_num < sonic->out_data_hd.needed_num)) {
+    /* Bypass always passthroughs. Identity speed/pitch still flushes leftover AE output first. */
+    if (((esp_gmf_element_is_bypass(sonic)) || (sonic->speed == 1.0f && sonic->pitch == 1.0f)) &&
+         (sonic->out_data_hd.out_num < sonic->out_data_hd.needed_num)) {
+        if (esp_gmf_element_is_bypass(sonic)) {
+            sonic->in_data_hd.num = 0;
+            sonic->in_data_hd.consume_num = 0;
+            sonic->out_data_hd.out_num = 0;
+        }
         out_len = gmf_sonic_bypass_process(sonic, in_port, out_port, &in_load, &out_load);
         goto __sonic_release;
     } else {
@@ -485,6 +492,7 @@ esp_gmf_err_t esp_gmf_sonic_init(esp_ae_sonic_cfg_t *config, esp_gmf_element_han
     ESP_GMF_ELEMENT_IN_PORT_ATTR_SET(el_cfg.out_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
                                      ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
     el_cfg.dependency = true;
+    el_cfg.bypass_policy = ESP_GMF_BYPASS_CUSTOM;
     ret = esp_gmf_audio_el_init(sonic, &el_cfg);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto SONIC_INIT_FAIL, "Failed to initialize sonic element");
     ESP_GMF_ELEMENT_GET(sonic)->ops.open = esp_gmf_sonic_open;

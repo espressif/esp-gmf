@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include "esp_gmf_err.h"
 #include "esp_gmf_obj.h"
 #include "esp_gmf_job.h"
@@ -56,6 +57,15 @@ extern "C" {
  */
 #define ESP_GMF_EL_PORT_CAP_SINGLE (1)  /*!< Bit0 for single port capability */
 #define ESP_GMF_EL_PORT_CAP_MULTI  (2)  /*!< Bit1 for multi-port capability */
+
+/**
+ * @brief  Element processing bypass policy
+ */
+typedef enum {
+    ESP_GMF_BYPASS_DISABLE = 0,  /*!< Element does not support bypass */
+    ESP_GMF_BYPASS_COMMON,       /*!< Use common passthrough in `esp_gmf_element_process_running` */
+    ESP_GMF_BYPASS_CUSTOM,       /*!< Element handles bypass in its own `process` */
+} esp_gmf_bypass_policy_t;
 
 /**
  * @brief  The GMF element handle
@@ -117,20 +127,28 @@ typedef struct esp_gmf_element {
     esp_gmf_cap_t               *caps;            /*!< Element capabilities */
 
     /* Protect */
-    void                        *ctx;             /*!< User Context */
-    void                        *lock;            /*!< Optional mutex handle stored by the owner; not created by `esp_gmf_element_init` */
-    uint8_t                      dependency : 1;  /*!< Indicates if the element depends on other information to open */
+    void                        *ctx;                /*!< User Context */
+    void                        *lock;               /*!< Optional mutex handle stored by the owner; not created by `esp_gmf_element_init` */
+    uint8_t                      dependency : 1;     /*!< Indicates if the element depends on other information to open */
+    uint8_t                      bypass_policy : 2;  /*!< Bypass policy, see `esp_gmf_bypass_policy_t`. Default DISABLE */
+    uint8_t                      bypass : 1;         /*!< Pass input to output without processing. Default false */
 } esp_gmf_element_t;
+
+static inline bool esp_gmf_element_is_bypass(esp_gmf_element_handle_t handle)
+{
+    return (handle != NULL) && (ESP_GMF_ELEMENT_GET(handle)->bypass != 0);
+}
 
 /**
  * @brief  Configuration structure for a GMF element
  */
 typedef struct {
-    void                        *ctx;         /*!< User context */
-    esp_gmf_event_cb             cb;          /*!< Callback function */
-    esp_gmf_element_port_attr_t  in_attr;     /*!< Input port attributes */
-    esp_gmf_element_port_attr_t  out_attr;    /*!< Output port attributes */
-    bool                         dependency;  /*!< Indicates if the element depends on other information to open */
+    void                        *ctx;            /*!< User context */
+    esp_gmf_event_cb             cb;             /*!< Callback function */
+    esp_gmf_element_port_attr_t  in_attr;        /*!< Input port attributes */
+    esp_gmf_element_port_attr_t  out_attr;       /*!< Output port attributes */
+    bool                         dependency;     /*!< Indicates if the element depends on other information to open */
+    esp_gmf_bypass_policy_t      bypass_policy;  /*!< Bypass policy for this element. Default DISABLE */
 } esp_gmf_element_cfg_t;
 
 /**
@@ -519,6 +537,37 @@ esp_gmf_err_t esp_gmf_element_lock(esp_gmf_element_handle_t handle);
  *       - ESP_GMF_ERR_INVALID_STATE  Mutex handle is unavailable
  */
 esp_gmf_err_t esp_gmf_element_unlock(esp_gmf_element_handle_t handle);
+
+/**
+ * @brief  Enable or disable processing bypass for an element
+ *
+ *         When bypass is enabled:
+ *         - `ESP_GMF_BYPASS_COMMON` passes acquired input to the output in
+ *           `esp_gmf_element_process_running` without running the element's process
+ *         - `ESP_GMF_BYPASS_CUSTOM` sets the flag and the element handles it in process
+ *         Bypass is disabled by default so the element processes data after init.
+ *
+ * @param[in]  handle         GMF element handle
+ * @param[in]  bypass_enable  true to bypass processing, false to process normally
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ *       - ESP_GMF_ERR_NOT_SUPPORT  Element bypass policy is `ESP_GMF_BYPASS_DISABLE`
+ */
+esp_gmf_err_t esp_gmf_element_set_bypass(esp_gmf_element_handle_t handle, bool bypass_enable);
+
+/**
+ * @brief  Get whether processing bypass is enabled for an element
+ *
+ * @param[in]   handle         GMF element handle
+ * @param[out]  bypass_enable  Pointer to store the bypass flag
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           On success
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
+ */
+esp_gmf_err_t esp_gmf_element_get_bypass(esp_gmf_element_handle_t handle, bool *bypass_enable);
 
 /**
  * @brief  Retrieve the capability structure associated with a given ESP-GMF element

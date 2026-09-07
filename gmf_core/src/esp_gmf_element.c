@@ -100,6 +100,8 @@ esp_gmf_err_t esp_gmf_element_init(esp_gmf_element_handle_t handle, esp_gmf_elem
 
     el->ctx = config->ctx;
     el->job_mask = 0;
+    el->bypass_policy = config->bypass_policy;
+    el->bypass = false;
     return ESP_GMF_ERR_OK;
 }
 
@@ -272,6 +274,61 @@ esp_gmf_err_t esp_gmf_element_get_prev_el(esp_gmf_element_handle_t handle, esp_g
     return ESP_GMF_ERR_OK;
 }
 
+static esp_gmf_job_err_t esp_gmf_element_process_common_bypass(esp_gmf_element_t *el)
+{
+    esp_gmf_port_handle_t in_port = el->in;
+    esp_gmf_port_handle_t out_port = el->out;
+    if ((in_port == NULL) || (out_port == NULL)) {
+        ESP_LOGE(TAG, "There is no in or out port, in:%p, out:%p [%p-%s]", in_port, out_port, el, OBJ_GET_TAG(el));
+        return ESP_GMF_JOB_ERR_FAIL;
+    }
+    esp_gmf_payload_t *in_load = NULL;
+    esp_gmf_payload_t *out_load = NULL;
+    esp_gmf_job_err_t out_len = ESP_GMF_JOB_ERR_OK;
+    int wanted = el->in_attr.data_size;
+    esp_gmf_err_io_t load_ret = esp_gmf_port_acquire_in(in_port, &in_load, wanted, ESP_GMF_MAX_DELAY);
+    if ((in_load == NULL) || (load_ret < ESP_GMF_IO_OK)) {
+        if (load_ret == ESP_GMF_IO_ABORT) {
+            out_len = ESP_GMF_JOB_ERR_ABORT;
+        } else {
+            ESP_LOGE(TAG, "Acquire in failed, ret:%d [%p-%s]", load_ret, el, OBJ_GET_TAG(el));
+            out_len = ESP_GMF_JOB_ERR_FAIL;
+        }
+        goto __bypass_release;
+    }
+    if (in_port->is_shared == 1) {
+        out_load = in_load;
+    }
+    int out_wanted = in_load->valid_size ? in_load->valid_size : in_load->buf_length;
+    load_ret = esp_gmf_port_acquire_out(out_port, &out_load, out_wanted, ESP_GMF_MAX_DELAY);
+    ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, load_ret, out_len, {goto __bypass_release;});
+    if ((in_load->buf != out_load->buf) && (in_load->valid_size > 0) && (out_load->buf != NULL)) {
+        memcpy(out_load->buf, in_load->buf, in_load->valid_size);
+    }
+    out_load->valid_size = in_load->valid_size;
+    out_load->is_done = in_load->is_done;
+    out_load->pts = in_load->pts;
+    if (in_load->is_done) {
+        out_len = ESP_GMF_JOB_ERR_DONE;
+    }
+__bypass_release:
+    if (out_load != NULL) {
+        load_ret = esp_gmf_port_release_out(out_port, out_load, ESP_GMF_MAX_DELAY);
+        if ((load_ret < ESP_GMF_IO_OK) && (load_ret != ESP_GMF_IO_ABORT)) {
+            ESP_LOGE(TAG, "OUT port release error, ret:%d [%p-%s]", load_ret, el, OBJ_GET_TAG(el));
+            out_len = ESP_GMF_JOB_ERR_FAIL;
+        }
+    }
+    if (in_load != NULL) {
+        load_ret = esp_gmf_port_release_in(in_port, in_load, ESP_GMF_MAX_DELAY);
+        if ((load_ret < ESP_GMF_IO_OK) && (load_ret != ESP_GMF_IO_ABORT)) {
+            ESP_LOGE(TAG, "IN port release error, ret:%d [%p-%s]", load_ret, el, OBJ_GET_TAG(el));
+            out_len = ESP_GMF_JOB_ERR_FAIL;
+        }
+    }
+    return out_len;
+}
+
 esp_gmf_job_err_t esp_gmf_element_process_open(esp_gmf_element_handle_t handle, void *para)
 {
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
@@ -300,6 +357,9 @@ esp_gmf_job_err_t esp_gmf_element_process_running(esp_gmf_element_handle_t handl
     if ((el == NULL) || (el->ops.process == NULL)) {
         ESP_LOGE(TAG, "There is no process function [%p-%s]", handle, OBJ_GET_TAG(handle));
         return ESP_GMF_ERR_FAIL;
+    }
+    if ((el->bypass_policy == ESP_GMF_BYPASS_COMMON) && el->bypass) {
+        return esp_gmf_element_process_common_bypass(el);
     }
     return el->ops.process(el, NULL);
 }
@@ -533,6 +593,43 @@ esp_gmf_err_t esp_gmf_element_unlock(esp_gmf_element_handle_t handle)
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
     ESP_GMF_NULL_CHECK(TAG, el->lock, return ESP_GMF_ERR_INVALID_STATE);
     esp_gmf_oal_mutex_unlock(el->lock);
+    return ESP_GMF_ERR_OK;
+}
+
+esp_gmf_err_t esp_gmf_element_set_bypass(esp_gmf_element_handle_t handle, bool bypass_enable)
+{
+    ESP_LOGI(TAG, "handle:%p set_bypass: bypass_enable=%d", handle, bypass_enable);
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
+    if (el->lock) {
+        esp_gmf_oal_mutex_lock(el->lock);
+    }
+    if (el->bypass_policy == ESP_GMF_BYPASS_DISABLE) {
+        if (el->lock) {
+            esp_gmf_oal_mutex_unlock(el->lock);
+        }
+        ESP_LOGE(TAG, "Bypass is not supported, [%p-%s]", el, OBJ_GET_TAG(el));
+        return ESP_GMF_ERR_NOT_SUPPORT;
+    }
+    el->bypass = bypass_enable;
+    if (el->lock) {
+        esp_gmf_oal_mutex_unlock(el->lock);
+    }
+    return ESP_GMF_ERR_OK;
+}
+
+esp_gmf_err_t esp_gmf_element_get_bypass(esp_gmf_element_handle_t handle, bool *bypass_enable)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
+    ESP_GMF_NULL_CHECK(TAG, bypass_enable, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
+    if (el->lock) {
+        esp_gmf_oal_mutex_lock(el->lock);
+    }
+    *bypass_enable = el->bypass;
+    if (el->lock) {
+        esp_gmf_oal_mutex_unlock(el->lock);
+    }
     return ESP_GMF_ERR_OK;
 }
 

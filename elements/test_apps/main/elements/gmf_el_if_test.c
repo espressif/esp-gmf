@@ -73,6 +73,23 @@ static void check_runtime_method_pair(esp_gmf_element_handle_t handle, const cha
     TEST_ASSERT_NULL(getter->getter);
 }
 
+static void check_element_bypass(esp_gmf_element_handle_t handle)
+{
+    bool enable = true;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_INVALID_ARG, esp_gmf_element_set_bypass(NULL, true));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_INVALID_ARG, esp_gmf_element_get_bypass(NULL, &enable));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_INVALID_ARG, esp_gmf_element_get_bypass(handle, NULL));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_get_bypass(handle, &enable));
+    TEST_ASSERT_FALSE(enable);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_set_bypass(handle, true));
+    enable = false;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_get_bypass(handle, &enable));
+    TEST_ASSERT_TRUE(enable);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_set_bypass(handle, false));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_get_bypass(handle, &enable));
+    TEST_ASSERT_FALSE(enable);
+}
+
 void test_esp_gmf_alc_if()
 {
     esp_ae_alc_cfg_t config = DEFAULT_ESP_GMF_ALC_CONFIG();
@@ -111,6 +128,7 @@ void test_esp_gmf_alc_if()
     TEST_ASSERT_EQUAL(esp_gmf_alc_get_gain(NULL, 0, &gain), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_alc_get_gain(handle, 0, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_alc_get_gain(handle, config.channel + 1, &gain), ESP_GMF_ERR_INVALID_ARG);
+    check_element_bypass(handle);
     TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
@@ -226,6 +244,7 @@ void test_esp_gmf_eq_if()
     // Try to set a second high pass filter, should be rejected
     para.fc = 200;
     TEST_ASSERT_EQUAL(esp_gmf_eq_set_para(handle, 1, &para), ESP_GMF_ERR_OK);
+    check_element_bypass(handle);
     TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
@@ -307,6 +326,7 @@ void test_esp_gmf_drc_if()
     TEST_ASSERT_EQUAL(esp_gmf_drc_get_points(handle, out_points), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(points_valid[1].x, out_points[1].x);
     TEST_ASSERT_EQUAL(points_valid[1].y, out_points[1].y);
+    check_element_bypass(handle);
     TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
 
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
@@ -369,6 +389,7 @@ void test_esp_gmf_mbc_if()
     TEST_ASSERT_EQUAL(esp_gmf_mbc_get_para(handle, 2, &para_out), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_mbc_get_para(handle, 3, &para_out), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_mbc_get_para(handle, 4, &para_out), ESP_GMF_ERR_INVALID_ARG);
+    check_element_bypass(handle);
     TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
 
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
@@ -398,6 +419,7 @@ void test_esp_gmf_fade_if()
     // Reset function test
     TEST_ASSERT_EQUAL(esp_gmf_fade_reset(NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_fade_reset(handle), ESP_GMF_ERR_OK);
+    check_element_bypass(handle);
     TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
@@ -531,6 +553,7 @@ void test_esp_gmf_sonic_if()
     // Get pitch function test
     TEST_ASSERT_EQUAL(esp_gmf_sonic_get_pitch(NULL, &pitch), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_sonic_get_pitch(handle, &pitch), ESP_GMF_ERR_OK);
+    check_element_bypass(handle);
     TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
@@ -605,6 +628,7 @@ void test_esp_gmf_howl_if()
     // Initialize function test
     TEST_ASSERT_EQUAL(esp_gmf_howl_init(&config, NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_howl_init(&config, &handle), ESP_GMF_ERR_OK);
+    check_element_bypass(handle);
     // Deinitialize function test
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
     // Test for config is NULL, will create a default config
@@ -631,6 +655,7 @@ void test_esp_gmf_reverb_if()
     TEST_ASSERT_EQUAL(esp_gmf_reverb_get_wet_level(handle, &wet_level), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_reverb_reset(NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_reverb_reset(handle), ESP_GMF_ERR_OK);
+    check_element_bypass(handle);
     TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_reverb_init(NULL, &handle), ESP_GMF_ERR_OK);
@@ -650,12 +675,17 @@ void test_esp_gmf_delay_if()
     TEST_ASSERT_EQUAL(esp_gmf_delay_set_delay_time(NULL, 100), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_delay_get_delay_time(NULL, &delay_time_ms), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_delay_get_delay_time(handle, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_get_max_delay(NULL, &delay_time_ms), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_get_max_delay(handle, NULL), ESP_GMF_ERR_INVALID_ARG);
+    TEST_ASSERT_EQUAL(esp_gmf_delay_get_max_delay(handle, &delay_time_ms), ESP_GMF_ERR_OK);
+    TEST_ASSERT_EQUAL_UINT16(config.max_delay_ms, delay_time_ms);
     TEST_ASSERT_EQUAL(esp_gmf_delay_set_delay_time(handle, 150), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_delay_get_delay_time(handle, &delay_time_ms), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_delay_set_mix_ratio(handle, 0.5f), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_delay_get_mix_ratio(handle, &mix_ratio), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_delay_reset(NULL), ESP_GMF_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(esp_gmf_delay_reset(handle), ESP_GMF_ERR_OK);
+    check_element_bypass(handle);
     TEST_ASSERT_EQUAL(esp_gmf_element_process_close((esp_gmf_element_handle_t)handle, NULL), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_obj_delete(handle), ESP_GMF_ERR_OK);
     TEST_ASSERT_EQUAL(esp_gmf_delay_init(NULL, &handle), ESP_GMF_ERR_OK);
@@ -1179,6 +1209,8 @@ static void test_audio_space_effects_description(void)
     check_runtime_method_pair(handle, AMETHOD(DELAY, SET_DELAY_TIME), AMETHOD(DELAY, GET_DELAY_TIME));
     check_runtime_method_pair(handle, AMETHOD(DELAY, SET_MIX_RATIO), AMETHOD(DELAY, GET_MIX_RATIO));
     check_runtime_method_pair(handle, AMETHOD(DELAY, SET_FEEDBACK), AMETHOD(DELAY, GET_FEEDBACK));
+    TEST_ASSERT_TRUE(get_element_method(handle, AMETHOD(DELAY, GET_MAX_DELAY))->runtime_safe);
+    TEST_ASSERT_NULL(get_element_method(handle, AMETHOD(DELAY, GET_MAX_DELAY))->getter);
     TEST_ASSERT_FALSE(get_element_method(handle, AMETHOD(DELAY, RESET))->runtime_safe);
     const esp_gmf_method_t *delay_time_method =
         get_element_method(handle, AMETHOD(DELAY, SET_DELAY_TIME));
@@ -1201,6 +1233,11 @@ static void test_audio_space_effects_description(void)
                           handle, AMETHOD(DELAY, GET_DELAY_TIME),
                           (uint8_t *)&delay_time_ms, sizeof(delay_time_ms)));
     TEST_ASSERT_EQUAL_UINT16(120, delay_time_ms);
+    uint16_t max_delay_ms = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_element_exe_method(
+                          handle, AMETHOD(DELAY, GET_MAX_DELAY),
+                          (uint8_t *)&max_delay_ms, sizeof(max_delay_ms)));
+    TEST_ASSERT_EQUAL_UINT16(delay_config.max_delay_ms, max_delay_ms);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_obj_delete(handle));
 
     esp_ae_delay_cfg_t delay_a = DEFAULT_ESP_GMF_DELAY_CONFIG();
@@ -1211,6 +1248,10 @@ static void test_audio_space_effects_description(void)
     esp_gmf_obj_handle_t handle_b = NULL;
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_delay_init(&delay_a, &handle_a));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_delay_init(&delay_b, &handle_b));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_delay_get_max_delay(handle_a, &max_delay_ms));
+    TEST_ASSERT_EQUAL_UINT16(200, max_delay_ms);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_delay_get_max_delay(handle_b, &max_delay_ms));
+    TEST_ASSERT_EQUAL_UINT16(800, max_delay_ms);
     const esp_gmf_method_t *constraint_a =
         get_element_method(handle_a, AMETHOD(DELAY, SET_DELAY_TIME));
     const esp_gmf_method_t *constraint_b =
@@ -1222,6 +1263,8 @@ static void test_audio_space_effects_description(void)
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_delay_init(&delay_a, &handle_a));
     TEST_ASSERT_EQUAL_UINT64(1000, get_element_method(handle_a, AMETHOD(DELAY, SET_DELAY_TIME))
                                        ->args_desc->constraint->maximum.u64);
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_delay_get_max_delay(handle_a, &max_delay_ms));
+    TEST_ASSERT_EQUAL_UINT16(0, max_delay_ms);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_obj_delete(handle_a));
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_obj_delete(handle_b));
 
