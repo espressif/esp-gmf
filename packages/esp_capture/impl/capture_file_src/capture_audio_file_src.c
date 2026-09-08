@@ -6,14 +6,15 @@
  */
 
 #include "esp_capture_types.h"
-#include "esp_capture_audio_src_if.h"
+#include "esp_capture_file_src.h"
 #include "capture_os.h"
 #include <stdio.h>
 #include <string.h>
 #include "esp_log.h"
 
-#define TAG               "AUD_FILE_SRC"
-#define MAX_FILE_PATH_LEN 128
+#define TAG                        "AUD_FILE_SRC"
+#define MAX_FILE_PATH_LEN          128
+#define DEFAULT_FRAME_DURATION_MS  20
 
 typedef struct {
     esp_capture_audio_src_if_t base;
@@ -23,6 +24,8 @@ typedef struct {
     uint8_t                    is_open  : 1;
     uint8_t                    is_start : 1;
     uint8_t                    nego_ok  : 1;
+    int                        frame_duration_ms;
+    uint32_t                   frame_count;
 } audio_file_src_t;
 
 static esp_capture_err_t get_aud_info_by_name(audio_file_src_t *src)
@@ -107,6 +110,12 @@ static esp_capture_err_t audio_file_src_start(esp_capture_audio_src_if_t *h)
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     src->is_start = true;
+    src->frame_count = 0;
+    if (src->aud_info.format_id != ESP_CAPTURE_FMT_ID_PCM) {
+        if (src->frame_duration_ms == 0) {
+            src->frame_duration_ms = DEFAULT_FRAME_DURATION_MS;
+        }
+    }
     return ESP_CAPTURE_ERR_OK;
 }
 
@@ -120,6 +129,7 @@ static esp_capture_err_t audio_file_src_read_frame(esp_capture_audio_src_if_t *h
         int ret = fread(frame->data, 1, frame->size, src->fp);
         if (ret >= 0) {
             frame->size = ret;
+            src->frame_count++;
             return ESP_CAPTURE_ERR_OK;
         }
     } else if (src->aud_info.format_id == ESP_CAPTURE_FMT_ID_OPUS) {
@@ -128,6 +138,10 @@ static esp_capture_err_t audio_file_src_read_frame(esp_capture_audio_src_if_t *h
         if (payload_size && frame->size >= payload_size) {
             ret = fread(frame->data, 1, payload_size, src->fp);
             if (ret >= 0) {
+                if (src->frame_duration_ms) {
+                    frame->pts = src->frame_count * src->frame_duration_ms;
+                }
+                src->frame_count++;
                 frame->size = ret;
                 return ESP_CAPTURE_ERR_OK;
             }
@@ -147,13 +161,16 @@ static esp_capture_err_t audio_file_src_stop(esp_capture_audio_src_if_t *h)
     return ESP_CAPTURE_ERR_OK;
 }
 
-esp_capture_audio_src_if_t *esp_capture_new_audio_file_src(const char *file_name)
+esp_capture_audio_src_if_t *esp_capture_new_audio_file_src(esp_capture_audio_file_src_cfg_t *cfg)
 {
+    if (cfg == NULL || cfg->url == NULL) {
+        return NULL;
+    }
     audio_file_src_t *src = (audio_file_src_t *)capture_calloc(1, sizeof(audio_file_src_t));
     if (src == NULL) {
         return NULL;
     }
-    strncpy(src->file_path, file_name, sizeof(src->file_path) - 1);
+    strncpy(src->file_path, cfg->url, sizeof(src->file_path) - 1);
     src->base.open = audio_file_src_open;
     src->base.get_support_codecs = audio_file_src_get_codec;
     src->base.negotiate_caps = audio_file_src_nego;

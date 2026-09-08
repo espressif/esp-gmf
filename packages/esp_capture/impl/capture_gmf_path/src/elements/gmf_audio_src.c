@@ -34,6 +34,7 @@ typedef struct {
     uint32_t                    base_pts;
     esp_capture_audio_src_if_t *audio_src_if;
     esp_gmf_info_sound_t        aud_info;
+    esp_capture_format_id_t     src_format_id;
     msg_q_handle_t              audio_info_q;
     esp_gmf_data_queue_t       *audio_src_q;
     uint32_t                    audio_frame_samples;
@@ -44,6 +45,7 @@ typedef struct {
     uint8_t                     fetching_audio : 1;
     uint8_t                     is_open        : 1;
     uint8_t                     frame_reached  : 1;
+    uint8_t                     sync_read      : 1;
 } audio_src_t;
 
 static esp_gmf_err_io_t audio_src_acquire(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
@@ -91,65 +93,93 @@ static uint32_t calc_audio_pts(audio_src_t *audio_src, uint32_t frames)
     return (uint32_t)((uint64_t)frames * audio_src->audio_frame_samples * 1000 / audio_src->aud_info.sample_rates);
 }
 
+static esp_capture_err_t audio_src_fetch_frame(audio_src_t *audio_src)
+{
+    if (audio_src->aborted) {
+        return ESP_CAPTURE_ERR_INVALID_STATE;
+    }
+    int frame_size = sizeof(esp_capture_stream_frame_t) + audio_src->audio_frame_size;
+    void *data = NULL;
+    if (esp_gmf_data_queue_acquire_write(audio_src->audio_src_q, &data, frame_size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER) != 0 ||
+        data == NULL) {
+        if (audio_src->aborted) {
+            return ESP_CAPTURE_ERR_INVALID_STATE;
+        }
+        ESP_LOGE(TAG, "Failed to get buffer from audio src queue");
+        return ESP_CAPTURE_ERR_INTERNAL;
+    }
+    if (audio_src->frame_reached == false) {
+        CAPTURE_PERF_MON(0, "Audio Src Frame Reached", {});
+        if (audio_src->sync_handle) {
+            uint32_t cur_pts = 0;
+            esp_capture_sync_get_current(audio_src->sync_handle, &cur_pts);
+            if (cur_pts > CAPTURE_SYNC_TOLERANCE) {
+                audio_src->base_pts = cur_pts;
+            }
+        }
+        audio_src->frame_reached = true;
+    }
+    esp_capture_stream_frame_t *frame = (esp_capture_stream_frame_t *)data;
+    frame->stream_type = ESP_CAPTURE_STREAM_TYPE_AUDIO;
+    frame->data = (data + sizeof(esp_capture_stream_frame_t));
+    frame->size = audio_src->audio_frame_size;
+    int ret = audio_src->audio_src_if->read_frame(audio_src->audio_src_if, frame);
+    if (ret == ESP_CAPTURE_ERR_OK) {
+        if (audio_src->src_format_id == ESP_CAPTURE_FMT_ID_PCM) {
+            frame->pts = calc_audio_pts(audio_src, audio_src->audio_frames) + audio_src->base_pts;
+        } else {
+            frame->pts += audio_src->base_pts;
+        }
+    } else {
+        esp_gmf_data_queue_release_write(audio_src->audio_src_q, 0);
+        if (audio_src->aborted) {
+            return ESP_CAPTURE_ERR_INVALID_STATE;
+        }
+        if (ret == ESP_CAPTURE_ERR_TIMEOUT) {
+            return ESP_CAPTURE_ERR_TIMEOUT;
+        }
+        ESP_LOGE(TAG, "Failed to read audio frame ret %d", ret);
+        return ret;
+    }
+    if (audio_src->sync_handle) {
+        esp_capture_sync_audio_update(audio_src->sync_handle, frame->pts);
+        if (esp_capture_sync_get_mode(audio_src->sync_handle) != ESP_CAPTURE_SYNC_MODE_AUDIO) {
+            uint32_t cur_pts = 0;
+            esp_capture_sync_get_current(audio_src->sync_handle, &cur_pts);
+            if (frame->pts > cur_pts + CAPTURE_SYNC_TOLERANCE || frame->pts + CAPTURE_SYNC_TOLERANCE < cur_pts) {
+                frame->pts = cur_pts;
+            }
+        }
+    }
+    esp_gmf_data_queue_release_write(audio_src->audio_src_q, frame_size);
+    uint8_t *audio_data_info = (uint8_t *)data;
+    ret = msg_q_send(audio_src->audio_info_q, &audio_data_info, sizeof(uint8_t *));
+    if (ret != 0) {
+        return ESP_CAPTURE_ERR_INTERNAL;
+    }
+    audio_src->audio_frames++;
+    return ESP_CAPTURE_ERR_OK;
+}
+
 static void audio_src_thread(void *arg)
 {
     audio_src_t *audio_src = (audio_src_t *)arg;
     ESP_LOGI(TAG, "Start to fetch audio src data now");
     bool err_exit = false;
     while (audio_src->fetching_audio && !audio_src->aborted) {
-        // TODO how to calculate audio_frame_size
-        int frame_size = sizeof(esp_capture_stream_frame_t) + audio_src->audio_frame_size;
-        void *data = NULL;
-        if (esp_gmf_data_queue_acquire_write(audio_src->audio_src_q, &data, frame_size, ESP_GMF_DATA_QUEUE_WAIT_FOREVER) != 0 ||
-            data == NULL) {
-            ESP_LOGE(TAG, "Failed to get buffer from audio src queue");
-            break;
+        esp_capture_err_t ret = audio_src_fetch_frame(audio_src);
+        if (ret == ESP_CAPTURE_ERR_TIMEOUT) {
+            continue;
         }
-        if (audio_src->frame_reached == false) {
-            CAPTURE_PERF_MON(0, "Audio Src Frame Reached", {});
-            // Get base pts
-            if (audio_src->sync_handle) {
-                uint32_t cur_pts = 0;
-                esp_capture_sync_get_current(audio_src->sync_handle, &cur_pts);
-                if (cur_pts > CAPTURE_SYNC_TOLERANCE) {
-                    audio_src->base_pts = cur_pts;
-                }
-            }
-            audio_src->frame_reached = true;
-        }
-        esp_capture_stream_frame_t *frame = (esp_capture_stream_frame_t *)data;
-        frame->stream_type = ESP_CAPTURE_STREAM_TYPE_AUDIO;
-        frame->data = (data + sizeof(esp_capture_stream_frame_t));
-        frame->size = audio_src->audio_frame_size;
-        int ret = audio_src->audio_src_if->read_frame(audio_src->audio_src_if, frame);
-        frame->pts = calc_audio_pts(audio_src, audio_src->audio_frames) + audio_src->base_pts;
         if (ret != ESP_CAPTURE_ERR_OK) {
-            esp_gmf_data_queue_release_write(audio_src->audio_src_q, 0);
-            ESP_LOGE(TAG, "Failed to read audio frame ret %d", ret);
-            err_exit = true;
-            break;
-        }
-        if (audio_src->sync_handle) {
-            esp_capture_sync_audio_update(audio_src->sync_handle, frame->pts);
-            if (esp_capture_sync_get_mode(audio_src->sync_handle) != ESP_CAPTURE_SYNC_MODE_AUDIO) {
-                uint32_t cur_pts = 0;
-                esp_capture_sync_get_current(audio_src->sync_handle, &cur_pts);
-                if (frame->pts > cur_pts + CAPTURE_SYNC_TOLERANCE || frame->pts + CAPTURE_SYNC_TOLERANCE < cur_pts) {
-                    frame->pts = cur_pts;
-                }
+            if (audio_src->aborted || ret == ESP_CAPTURE_ERR_INVALID_STATE) {
+                break;
             }
-        }
-        esp_gmf_data_queue_release_write(audio_src->audio_src_q, frame_size);
-        uint8_t *audio_data_info = (uint8_t *)data;
-        ret = msg_q_send(audio_src->audio_info_q, &audio_data_info, sizeof(uint8_t *));
-        if (ret != 0) {
             err_exit = true;
             break;
         }
-        audio_src->audio_frames++;
     }
     audio_src->audio_frames = 0;
-    // Wakeup reader if read from device failed
     if (err_exit) {
         if (audio_src->audio_info_q) {
             msg_q_wakeup(audio_src->audio_info_q);
@@ -199,15 +229,19 @@ static esp_gmf_job_err_t audio_src_el_open(esp_gmf_audio_element_handle_t self, 
     CAPTURE_PERF_MON(0, "Audio Src Start", {audio_src->audio_src_if->start(audio_src->audio_src_if);
     });
     audio_src->frame_reached = false;
-    audio_src->fetching_audio = true;
     audio_src->aborted = false;
-    capture_thread_handle_t handle;
-    capture_event_group_create(&audio_src->event_group);
-    int ret = capture_thread_create_from_scheduler(&handle, "AUD_SRC", audio_src_thread, audio_src);
-    if (ret != 0) {
+    if (audio_src->sync_read) {
         audio_src->fetching_audio = false;
-        ESP_LOGE(TAG, "Failed to create audio src thread");
-        return ESP_GMF_JOB_ERR_FAIL;
+    } else {
+        audio_src->fetching_audio = true;
+        capture_thread_handle_t handle;
+        capture_event_group_create(&audio_src->event_group);
+        int ret = capture_thread_create_from_scheduler(&handle, "AUD_SRC", audio_src_thread, audio_src);
+        if (ret != 0) {
+            audio_src->fetching_audio = false;
+            ESP_LOGE(TAG, "Failed to create audio src thread");
+            return ESP_GMF_JOB_ERR_FAIL;
+        }
     }
     esp_gmf_element_notify_snd_info(self, &audio_src->aud_info);
     return ESP_GMF_JOB_ERR_OK;
@@ -215,12 +249,32 @@ static esp_gmf_job_err_t audio_src_el_open(esp_gmf_audio_element_handle_t self, 
 
 static esp_gmf_job_err_t audio_src_el_process(esp_gmf_audio_element_handle_t self, void *para)
 {
+    audio_src_t *audio_src = (audio_src_t *)self;
     esp_gmf_element_handle_t hd = (esp_gmf_element_handle_t)self;
     esp_gmf_port_t *in = ESP_GMF_ELEMENT_GET(hd)->in;
     esp_gmf_port_t *out = ESP_GMF_ELEMENT_GET(hd)->out;
     esp_gmf_payload_t *in_load = NULL;
     esp_gmf_payload_t *out_load = NULL;
 
+    if (audio_src->sync_read) {
+        if (audio_src->aborted) {
+            return ESP_GMF_JOB_ERR_ABORT;
+        }
+        esp_capture_err_t fetch_ret = audio_src_fetch_frame(audio_src);
+        if (fetch_ret == ESP_CAPTURE_ERR_TIMEOUT) {
+            return ESP_GMF_JOB_ERR_CONTINUE;
+        }
+        if (fetch_ret != ESP_CAPTURE_ERR_OK) {
+            if (audio_src->aborted || fetch_ret == ESP_CAPTURE_ERR_INVALID_STATE) {
+                return ESP_GMF_JOB_ERR_ABORT;
+            }
+            if (audio_src->audio_info_q) {
+                msg_q_wakeup(audio_src->audio_info_q);
+            }
+            esp_gmf_data_queue_wakeup(audio_src->audio_src_q);
+            return ESP_GMF_JOB_ERR_FAIL;
+        }
+    }
     int ret = esp_gmf_port_acquire_in(in, &in_load, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT, ESP_GMF_MAX_DELAY);
     if (ret < 0) {
         if (ret != ESP_GMF_IO_ABORT) {
@@ -257,7 +311,10 @@ static esp_gmf_job_err_t audio_src_el_close(esp_gmf_audio_element_handle_t self,
         esp_gmf_data_queue_consume_all(audio_src->audio_src_q);
         capture_event_group_wait_bits(audio_src->event_group, EVENT_GROUP_AUDIO_SRC_EXITED, 1000);
         capture_event_group_clr_bits(audio_src->event_group, EVENT_GROUP_AUDIO_SRC_EXITED);
+    } else if (audio_src->sync_read && audio_src->audio_src_q) {
+        esp_gmf_data_queue_consume_all(audio_src->audio_src_q);
     }
+    audio_src->audio_frames = 0;
     if (audio_src->audio_src_q) {
         esp_gmf_data_queue_destroy(audio_src->audio_src_q);
         audio_src->audio_src_q = NULL;
@@ -390,6 +447,20 @@ esp_gmf_err_t capture_audio_src_el_set_in_frame_samples(esp_gmf_element_handle_t
     return ESP_GMF_ERR_OK;
 }
 
+esp_gmf_err_t capture_audio_src_el_set_sync_read(esp_gmf_element_handle_t self, bool enable)
+{
+    ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);
+    esp_gmf_event_state_t state = ESP_GMF_EVENT_STATE_NONE;
+    esp_gmf_element_get_state(self, &state);
+    if (state >= ESP_GMF_EVENT_STATE_OPENING) {
+        ESP_LOGE(TAG, "Failed to set sync read due to invalid state: %s", esp_gmf_event_get_state_str(state));
+        return ESP_GMF_ERR_INVALID_STATE;
+    }
+    audio_src_t *audio_src = (audio_src_t *)self;
+    audio_src->sync_read = enable ? 1 : 0;
+    return ESP_GMF_ERR_OK;
+}
+
 esp_gmf_err_t capture_audio_src_el_abort(esp_gmf_element_handle_t handle)
 {
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
@@ -424,5 +495,8 @@ esp_gmf_err_t capture_audio_src_el_negotiate(esp_gmf_element_handle_t self, esp_
         audio_src->is_open = true;
     }
     int ret = audio_src->audio_src_if->negotiate_caps(audio_src->audio_src_if, nego_info, out_info);
+    if (ret == ESP_CAPTURE_ERR_OK) {
+        audio_src->src_format_id = out_info->format_id;
+    }
     return ret == ESP_CAPTURE_ERR_OK ? ESP_GMF_ERR_OK : ESP_GMF_ERR_FAIL;
 }

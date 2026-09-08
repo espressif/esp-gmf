@@ -6,7 +6,7 @@
  */
 
 #include "esp_capture_types.h"
-#include "esp_capture_video_src_if.h"
+#include "esp_capture_file_src.h"
 #include <stdio.h>
 #include <string.h>
 #include "esp_log.h"
@@ -385,13 +385,16 @@ static esp_capture_err_t video_file_src_stop(esp_capture_video_src_if_t *h)
     return ESP_CAPTURE_ERR_OK;
 }
 
-esp_capture_video_src_if_t *esp_capture_new_video_file_src(const char *file_name)
+esp_capture_video_src_if_t *esp_capture_new_video_file_src(esp_capture_video_file_src_cfg_t *cfg)
 {
+    if (cfg == NULL || cfg->url == NULL) {
+        return NULL;
+    }
     video_file_src_t *src = (video_file_src_t *)capture_calloc(1, sizeof(video_file_src_t));
     if (src == NULL) {
         return NULL;
     }
-    strncpy(src->file_path, file_name, sizeof(src->file_path) - 1);
+    strncpy(src->file_path, cfg->url, sizeof(src->file_path) - 1);
     src->base.open = video_file_src_open;
     src->base.get_support_codecs = video_file_src_get_support_codecs;
     src->base.negotiate_caps = video_file_src_negotiate_caps;

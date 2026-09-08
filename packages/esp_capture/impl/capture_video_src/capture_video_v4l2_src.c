@@ -461,6 +461,9 @@ static esp_capture_err_t v4l2_acquire_frame(esp_capture_video_src_if_t *src, esp
         .memory = V4L2_MEMORY_MMAP,
     };
     int ret = ioctl(v4l2->fd, VIDIOC_DQBUF, &buf);
+    if (ret == ESP_ERR_TIMEOUT) {
+        return ESP_CAPTURE_ERR_TIMEOUT;
+    }
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed to receive video frame ret %d", ret);
         return ESP_CAPTURE_ERR_INTERNAL;

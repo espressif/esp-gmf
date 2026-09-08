@@ -49,14 +49,15 @@ typedef struct {
  * @brief  Setting type for capture path manager
  */
 typedef enum {
-    ESP_CAPTURE_PATH_SET_TYPE_NONE             = 0,  /*!< Invalid set type */
-    ESP_CAPTURE_PATH_SET_TYPE_RUN_ONCE         = 1,  /*!< Set run only once */
-    ESP_CAPTURE_PATH_SET_TYPE_SYNC_HANDLE      = 2,  /*!< Set sync handle for audio or video source */
-    ESP_CAPTURE_PATH_SET_TYPE_AUDIO_BITRATE    = 3,  /*!< Set for audio bitrate */
-    ESP_CAPTURE_PATH_SET_TYPE_VIDEO_BITRATE    = 4,  /*!< Set for video bitrate */
-    ESP_CAPTURE_PATH_SET_TYPE_VIDEO_FPS        = 5,  /*!< Set for video frame per second */
-    ESP_CAPTURE_PATH_SET_TYPE_REGISTER_ELEMENT = 6,  /*!< Set for register element into internal pool */
-    ESP_CAPTURE_PATH_SET_TYPE_BUILD_PIPELINE   = 7,  /*!< Set for build pipeline */
+    ESP_CAPTURE_PATH_SET_TYPE_NONE                = 0,  /*!< Invalid set type */
+    ESP_CAPTURE_PATH_SET_TYPE_RUN_ONCE            = 1,  /*!< Set run only once */
+    ESP_CAPTURE_PATH_SET_TYPE_SYNC_HANDLE         = 2,  /*!< Set sync handle for audio or video source */
+    ESP_CAPTURE_PATH_SET_TYPE_AUDIO_BITRATE       = 3,  /*!< Set for audio bitrate */
+    ESP_CAPTURE_PATH_SET_TYPE_VIDEO_BITRATE       = 4,  /*!< Set for video bitrate */
+    ESP_CAPTURE_PATH_SET_TYPE_VIDEO_FPS           = 5,  /*!< Set for video frame per second */
+    ESP_CAPTURE_PATH_SET_TYPE_REGISTER_ELEMENT    = 6,  /*!< Set for register element into internal pool */
+    ESP_CAPTURE_PATH_SET_TYPE_BUILD_PIPELINE      = 7,  /*!< Set for build pipeline */
+    ESP_CAPTURE_PATH_SET_TYPE_AUDIO_SRC_SYNC_READ = 8,  /*!< Set audio source to read synchronously in process (no AUD_SRC task) */
 } esp_capture_path_set_type_t;
 
 /**

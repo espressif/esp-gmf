@@ -161,6 +161,11 @@ TEST_CASE("Template audio only capture for dual path", "[esp_capture]")
     TEST_ESP_OK(advance_audio_only_path_test(1000, true));
 }
 
+TEST_CASE("Audio src sync read capture dual sink", "[esp_capture]")
+{
+    TEST_ESP_OK(audio_src_sync_read_path_test(1000, true));
+}
+
 #ifdef TEST_WITH_VIDEO
 
 TEST_CASE("Auto video only capture for one path", "[esp_capture]")

@@ -347,6 +347,9 @@ static esp_capture_err_t venc_nego_for_input_format(uint8_t path_num, uint8_t se
         sel_path = 0xFF;
     }
     for (int i = 0; i < path_num; i++) {
+        if (sink_pipeline[i].pipeline == NULL) {
+            continue;
+        }
         // Check whether bypass if sink is same with src
         bool sink_bypass = false;
         if (sel_path == 0xFF || i != sel_path) {

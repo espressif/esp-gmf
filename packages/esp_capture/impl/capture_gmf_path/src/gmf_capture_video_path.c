@@ -341,9 +341,10 @@ static esp_capture_err_t video_path_stop(gmf_capture_path_res_t *mngr_res)
 static esp_capture_err_t video_path_release(gmf_capture_path_res_t *mngr_res)
 {
     video_path_res_t *res = (video_path_res_t *)mngr_res;
-    if (res->video_q) {
-        esp_gmf_data_queue_destroy(res->video_q);
-        res->video_q = NULL;
+    esp_gmf_data_queue_t *video_q = res->video_q;
+    res->video_q = NULL;
+    if (video_q) {
+        esp_gmf_data_queue_destroy(video_q);
     }
     if (res->sink_port) {
         esp_gmf_element_unregister_out_port(res->venc_el, res->sink_port);
@@ -536,6 +537,9 @@ esp_capture_err_t gmf_video_path_return_frame(esp_capture_path_mngr_if_t *p, uin
     if (res->video_share_raw) {
         capture_sema_unlock(res->raw_consume_sema);
         return ESP_CAPTURE_ERR_OK;
+    }
+    if (res->video_q == NULL || res->base.started == false || video_path->mngr.started == false) {
+        return ESP_CAPTURE_ERR_NOT_FOUND;
     }
     int ret = ESP_CAPTURE_ERR_OK;
     bool have_data = false;

@@ -181,7 +181,7 @@ static esp_capture_err_t prepare_pipeline(gmf_capture_path_mngr_t *mngr, uint8_t
         bool for_all = true;
         for (int i = 0; i < mngr->path_num; i++) {
             gmf_capture_path_res_t *each = gmf_capture_path_mngr_get_path(mngr, i);
-            if (each->negotiated) {
+            if (each && each->negotiated) {
                 for_all = false;
                 break;
             }

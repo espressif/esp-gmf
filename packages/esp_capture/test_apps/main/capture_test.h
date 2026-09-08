@@ -60,6 +60,8 @@ int test_capture_with_decode_all(void);
 
 int test_full_speed_decode_perf(void);
 
+int audio_src_sync_read_path_test(int timeout, bool dual);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

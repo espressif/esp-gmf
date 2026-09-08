@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.4
+
+### Bug Fixes
+
+- Fixed audio source negotiate with encoded format, PTS calculation error
+- Fixed audio restart fail to read data due abort flag not cleared
+
+### Changes
+
+- Add configurable `ESP_CAPTURE_MAX_SINK_NUM` to support more sinks
+- Added `ESP_CAPTURE_PATH_SET_TYPE_AUDIO_SRC_SYNC_READ` to control whether create extra task to read audio source data
+- Updated `esp_video` to version v2.4
+- Enhanced to treat `v4l2` DQBUF timeout as a normal case, continue to capture without stopping pipeline
+
 ## 1.0.3~1
 
 ### Changes
