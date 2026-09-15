@@ -57,6 +57,8 @@ typedef struct {
     uint8_t                    *src_buffer;
 } v4l2_src_t;
 
+static esp_capture_err_t v4l2_close(esp_capture_video_src_if_t *src);
+
 static esp_capture_format_id_t get_codec_type(uint32_t fmt)
 {
     switch (fmt) {
@@ -189,6 +191,83 @@ static bool v4l2_is_input_supported(v4l2_src_t *v4l2, esp_capture_format_id_t in
         }
     }
     return false;
+}
+
+static inline uint8_t v4l2_fract_to_fps(const struct v4l2_fract *fract)
+{
+    if (fract->numerator == 0) {
+        return 0;
+    }
+    uint32_t fps = (fract->denominator + (fract->numerator / 2)) / fract->numerator;
+    if (fps == 0) {
+        return 1;
+    }
+    return (uint8_t)fps;
+}
+
+static uint8_t v4l2_query_default_fps(v4l2_src_t *v4l2, uint32_t pixel_fmt, uint32_t width, uint32_t height)
+{
+    /* Current / initial interval: CSI/DVP via common get_parm, UVC via uvc_video_get_parm. */
+    struct v4l2_streamparm parm = {
+        .type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
+    };
+    if (ioctl(v4l2->fd, VIDIOC_G_PARM, &parm) == 0) {
+        uint8_t fps = v4l2_fract_to_fps(&parm.parm.capture.timeperframe);
+        if (fps) {
+            return fps;
+        }
+    }
+    struct v4l2_frmivalenum frmival = {
+        .index = 0,
+        .pixel_format = pixel_fmt,
+        .width = width,
+        .height = height,
+    };
+    if (ioctl(v4l2->fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) != 0) {
+        return 0;
+    }
+    if (frmival.type == V4L2_FRMIVAL_TYPE_DISCRETE) {
+        return v4l2_fract_to_fps(&frmival.discrete);
+    }
+    if (frmival.type == V4L2_FRMIVAL_TYPE_CONTINUOUS || frmival.type == V4L2_FRMIVAL_TYPE_STEPWISE) {
+        return v4l2_fract_to_fps(&frmival.stepwise.min);
+    }
+    return 0;
+}
+
+static esp_capture_err_t v4l2_get_default_format(esp_capture_video_src_if_t *src, esp_capture_video_info_t *default_format)
+{
+    v4l2_src_t *v4l2 = (v4l2_src_t *)src;
+    if (src == NULL || default_format == NULL) {
+        return ESP_CAPTURE_ERR_INVALID_ARG;
+    }
+    bool need_close = false;
+    if (v4l2->fd < 0) {
+        esp_capture_err_t ret = v4l2_open(src);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            return ret;
+        }
+        need_close = true;
+    }
+    struct v4l2_format init_format = {
+        .type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
+    };
+    esp_capture_err_t ret = ESP_CAPTURE_ERR_OK;
+    if (ioctl(v4l2->fd, VIDIOC_G_FMT, &init_format) != 0) {
+        ESP_LOGE(TAG, "Failed to get init format");
+        ret = ESP_CAPTURE_ERR_NOT_SUPPORTED;
+    } else {
+        memset(default_format, 0, sizeof(*default_format));
+        default_format->format_id = get_codec_type(init_format.fmt.pix.pixelformat);
+        default_format->width = init_format.fmt.pix.width;
+        default_format->height = init_format.fmt.pix.height;
+        default_format->fps = v4l2_query_default_fps(v4l2, init_format.fmt.pix.pixelformat,
+                                                    init_format.fmt.pix.width, init_format.fmt.pix.height);
+    }
+    if (need_close) {
+        v4l2_close(src);
+    }
+    return ret;
 }
 
 static esp_capture_err_t v4l2_set_fixed_caps(esp_capture_video_src_if_t *src, const esp_capture_video_info_t *fixed_caps)
@@ -557,6 +636,7 @@ esp_capture_video_src_if_t *esp_capture_new_video_v4l2_src(esp_capture_video_v4l
     v4l2->base.open = v4l2_open;
     v4l2->base.get_support_codecs = v4l2_get_support_codecs;
     v4l2->base.set_fixed_caps = v4l2_set_fixed_caps;
+    v4l2->base.get_default_format = v4l2_get_default_format;
     v4l2->base.negotiate_caps = v4l2_negotiate_caps;
     v4l2->base.start = v4l2_start;
     v4l2->base.acquire_frame = v4l2_acquire_frame;

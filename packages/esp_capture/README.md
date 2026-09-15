@@ -162,7 +162,10 @@ sequenceDiagram
     App->>Capture: esp_capture_stop(capture)
 ```
 
-For detailed examples, see [audio_capture](examples/audio_capture/README.md) and [video_capture](examples/video_capture/README.md)
+For detailed examples, see:
+- [audio_capture](examples/audio_capture/README.md)
+- [video_capture](examples/video_capture/README.md)
+- [capture_multiple_sink](examples/capture_multiple_sink/README.md)
 
 ## 🧩 Customizing Auto Pipelines
 

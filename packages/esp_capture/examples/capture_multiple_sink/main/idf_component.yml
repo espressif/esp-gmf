@@ -1,0 +1,22 @@
+## Multi-sink capture demo (streaming + JPEG snapshot + display preview)
+##
+## In-tree (esp-gmf): keep override_path for local packages.
+## Standalone copy: remove every override_path line.
+
+dependencies:
+  espressif/gmf_core:
+    version: "~1.0"
+    override_path: ../../../../../gmf_core
+  espressif/gmf_audio:
+    version: "~1.0"
+    override_path: ../../../../../elements/gmf_audio
+  espressif/gmf_video:
+    version: "~1.0"
+    override_path: ../../../../../elements/gmf_video
+  espressif/esp_capture:
+    version: "~1.0"
+    override_path: ../../../../esp_capture
+  espressif/esp_video_codec:
+    version: "~0.5"
+  espressif/esp_board_manager:
+    version: "~0.7"

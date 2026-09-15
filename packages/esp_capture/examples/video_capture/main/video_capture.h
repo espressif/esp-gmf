@@ -88,6 +88,22 @@ int video_capture_run_with_customized_process(int duration);
  */
 int video_capture_run_dual_path(int duration);
 
+/**
+ * @brief  Run hardware H264 dual-encode capture on one capture system
+ *
+ * @note  Only intended for ESP32-P4. Both sinks use H264 with the same GOP and FPS.
+ *        Default overlay pipeline is replaced by `vid_ppa -> vid_enc` so PPA can run async.
+ *        Frames are acquired one-by-one from the two sinks to verify NAL type alignment.
+ *
+ * @param[in]  duration     Capture duration (unit ms)
+ * @param[in]  full_ppa     true to enable PPA full-speed so scale/convert runs in parallel with encode
+ *
+ * @return
+ *       - 0       On success
+ *       - Others  Fail to run
+ */
+int video_capture_run_dual_encode(int duration, bool full_ppa);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

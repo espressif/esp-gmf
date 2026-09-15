@@ -163,7 +163,10 @@ sequenceDiagram
     App->>Capture: esp_capture_stop(capture)
 ```
 
-详细示例请参阅 [audio_capture](examples/audio_capture/README.md) 和 [video_capture](examples/video_capture/README.md)
+详细示例请参阅
+- [audio_capture](examples/audio_capture/README.md)
+- [video_capture](examples/video_capture/README.md)
+- [capture_multiple_sink](examples/capture_multiple_sink/README_CN.md)
 
 ## 🧩 自定义自动流水线
 

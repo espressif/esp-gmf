@@ -14,6 +14,7 @@
 - 将音视频流分片录制到 SD 卡 MP4 文件
 - 在视频流上动态添加文字叠加
 - 同时输出两路不同格式视频用于录制与预览等场景
+- 在 ESP32-P4 上验证硬件 H264 同一输入源下的双路编码
 
 ## 环境配置
 
@@ -125,6 +126,7 @@ flowchart LR
 4. `video_capture_run_with_muxer`（仅在 SD 卡挂载成功时执行）
 5. `video_capture_run_with_customized_process`
 6. `video_capture_run_dual_path`
+7. `video_capture_run_dual_encode`（仅 ESP32-P4）
 
 其他关键行为：
 
@@ -139,6 +141,9 @@ flowchart LR
 - 主音频输出：`AUDIO_SINK0_FMT`、`AUDIO_SINK0_SAMPLE_RATE`、`AUDIO_SINK0_CHANNEL`
 - 双路视频输出：`VIDEO_SINK1_FMT`、`VIDEO_SINK1_WIDTH`、`VIDEO_SINK1_HEIGHT`、`VIDEO_SINK1_FPS`
 - 可选第二路音频：`AUDIO_SINK1_FMT`、`AUDIO_SINK1_SAMPLE_RATE`、`AUDIO_SINK1_CHANNEL`
+- 双路编码（ESP32-P4）：`DUAL_ENCODE_SINK0_WIDTH/HEIGHT`、`DUAL_ENCODE_SINK1_WIDTH/HEIGHT`、`DUAL_ENCODE_FPS`、`DUAL_ENCODE_GOP`
+
+当前硬件双路编码要求两路 sink 使用相同 GOP 和输出帧率。
 
 ## 故障排除
 
