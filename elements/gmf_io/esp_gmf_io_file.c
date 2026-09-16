@@ -101,7 +101,7 @@ static esp_gmf_err_t _file_open(esp_gmf_io_handle_t io)
         ESP_LOGI(TAG, "File size: %d byte, file position: %lld", (int)sz.st_size, info.pos);
         if (info.pos > 0) {
             if (fseek(file_io->file, info.pos, SEEK_SET) != 0) {
-                ESP_LOGE(TAG, "Seek to %lld failed, err: %s", info.pos, strerror(errno));
+                ESP_LOGE(TAG, "Seek failed, err: %s, pos: %lld", strerror(errno), info.pos);
                 return ESP_GMF_ERR_FAIL;
             }
         }

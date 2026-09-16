@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.2
+
+### Bug Fixes
+
+- Fixed `ESP_LOG` using `%llu` before `%s` in `esp_gmf_io` crashing under newlib-nano format
+- Fixed async `esp_gmf_io_seek` hanging when the reader was blocked in the driver (e.g. HTTP `recv`)
+
 ## v1.0.1
 
 ### Changes
