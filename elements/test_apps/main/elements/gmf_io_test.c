@@ -24,7 +24,7 @@
 
 #define TEST_HTTP_URL1  "https://dl.espressif.com/dl/audio/ff-16b-1c-44100hz.mp3"
 #define TEST_HTTP_URL2  "https://dl.espressif.com/dl/audio/gs-16b-2c-44100hz.mp3"
-#define TEST_HTTP_URL3  "http://10.19.4.111:8000/v1/audio_files/ut/gmf_ut_test.mp3"
+#define TEST_HTTP_URL3  "http://192.168.8.31:8008/0_44100_2_265650_214.m4a"
 
 static esp_gmf_io_handle_t create_test_http_io(bool with_data_bus)
 {

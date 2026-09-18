@@ -32,7 +32,9 @@
 #include "esp_gmf_payload.h"
 #include "esp_fourcc.h"
 
-#define PIPELINE_BLOCK_BIT BIT(0)
+#define PIPELINE_BLOCK_BIT           BIT(0)
+#define PIPELINE_RUNNING_BIT         BIT(1)
+#define PIPELINE_RUNNING_TIMEOUT_MS  (15000)
 
 /**
  * @brief  Context structure for pipeline strategy test 1 (replay test)
@@ -283,7 +285,19 @@ static esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
             xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_BLOCK_BIT);
         }
     }
+    if (event->sub == ESP_GMF_EVENT_STATE_RUNNING) {
+        if (ctx) {
+            xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_RUNNING_BIT);
+        }
+    }
     return 0;
+}
+
+static void wait_pipeline_running(EventGroupHandle_t pipe_sync_evt)
+{
+    EventBits_t bits = xEventGroupWaitBits(pipe_sync_evt, PIPELINE_RUNNING_BIT, pdTRUE, pdFALSE,
+                                           PIPELINE_RUNNING_TIMEOUT_MS / portTICK_RATE_MS);
+    TEST_ASSERT_TRUE_MESSAGE((bits & PIPELINE_RUNNING_BIT) != 0, "Pipeline did not reach RUNNING in time");
 }
 
 TEST_CASE("Audio File Stream Play Same URL Without Close, One pipeline", "[ESP_GMF_POOL][leaks=1500]")
@@ -964,10 +978,12 @@ TEST_CASE("Audio Http Stream Play Different URL Without Close, Two pipeline", "[
     esp_gmf_task_set_strategy_func(effects_task, effects_pipeline_strategy_func, &strategy_ctx2);
 
     // Run pipelines
+    xEventGroupClearBits(pipe_sync_evt1, PIPELINE_RUNNING_BIT);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe));
+    // The effects elements register their jobs only after the decoder reports its sound info
+    wait_pipeline_running(pipe_sync_evt1);
     // Make sure the decoder has started outputting data
-    // HTTP decoder pipeline may take longer to report stream info
-    vTaskDelay(3000 / portTICK_RATE_MS);
+    vTaskDelay(1000 / portTICK_RATE_MS);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe_effects));
     xEventGroupWaitBits(pipe_sync_evt1, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
     xEventGroupWaitBits(pipe_sync_evt2, PIPELINE_BLOCK_BIT, pdTRUE, pdFALSE, portMAX_DELAY);

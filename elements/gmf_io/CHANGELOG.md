@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.2
+
+### Bug Fixes
+
+- Fixed HTTP IO treating status 200 as a successful Range seek, which caused FLAC playback to resync in a loop when the server does not support Range requests
+
 ## v1.0.1~1
 
 ### Changes

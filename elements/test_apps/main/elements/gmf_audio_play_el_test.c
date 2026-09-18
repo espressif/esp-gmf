@@ -30,13 +30,17 @@
 #include "media_lib_mem_trace.h"
 #endif  /* MEDIA_LIB_MEM_TEST */
 
-#define PIPELINE_BLOCK_BIT  BIT(0)
-#define PIPELINE_BLOCK_BIT2 BIT(1)
-#define PIPELINE_BLOCK_BIT3 BIT(2)
+#define PIPELINE_BLOCK_BIT           BIT(0)
+#define PIPELINE_BLOCK_BIT2          BIT(1)
+#define PIPELINE_BLOCK_BIT3          BIT(2)
+#define PIPELINE_RUNNING_BIT         BIT(3)
+#define PIPELINE_RUNNING_TIMEOUT_MS  (15000)
+
+#define ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT  (4096)
 
 static const char *TAG = "AUDIO_PLAY_ELEMENT_TEST";
 
-static const char *file_name  = "/sdcard/test.mp3";
+static const char *file_name = "/sdcard/test.mp3";
 static const char *file_name1 = "/sdcard/test_2.wav";
 
 static const char *wav_file_path[] = {
@@ -58,8 +62,6 @@ static const char *dec_file_path[] = {
     "/sdcard/test.ogg",
 };
 
-#define ESP_GMF_PORT_PAYLOAD_LEN_DEFAULT (4096)
-
 static esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
 {
     // The warning messages are used to make the content more noticeable.
@@ -71,6 +73,11 @@ static esp_err_t _pipeline_event(esp_gmf_event_pkt_t *event, void *ctx)
         || (event->sub == ESP_GMF_EVENT_STATE_ERROR)) {
         if (ctx) {
             xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_BLOCK_BIT);
+        }
+    }
+    if (event->sub == ESP_GMF_EVENT_STATE_RUNNING) {
+        if (ctx) {
+            xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_RUNNING_BIT);
         }
     }
     return 0;
@@ -106,6 +113,13 @@ static esp_err_t _pipeline_event3(esp_gmf_event_pkt_t *event, void *ctx)
         }
     }
     return 0;
+}
+
+static void wait_pipeline_running(EventGroupHandle_t pipe_sync_evt)
+{
+    EventBits_t bits = xEventGroupWaitBits(pipe_sync_evt, PIPELINE_RUNNING_BIT, pdTRUE, pdFALSE,
+                                           PIPELINE_RUNNING_TIMEOUT_MS / portTICK_RATE_MS);
+    TEST_ASSERT_TRUE_MESSAGE((bits & PIPELINE_RUNNING_BIT) != 0, "Pipeline did not reach RUNNING in time");
 }
 
 TEST_CASE("Create and destroy pipeline", "[ESP_GMF_POOL][leaks=1400]")
@@ -485,7 +499,7 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
     ESP_LOGI(TAG, "---- Test 1 for HTTP pipeline reset playing ----");
     // Create the new elements
     esp_gmf_pipeline_handle_t pipe = NULL;
-    const char *uri = "https://dl.espressif.com/dl/audio/gs-16b-2c-44100hz.mp3";
+    const char *uri = "http://192.168.8.31:8008/11_44100_2_32955_10.mp3";
     const char *name[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt"};
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_http", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe));
     TEST_ASSERT_NOT_NULL(pipe);
@@ -521,11 +535,13 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
 
         ESP_GMF_MEM_SHOW(TAG);
         esp_gmf_task_set_timeout(pipe->thread, 5000);
+        xEventGroupClearBits(pipe_sync_evt, PIPELINE_RUNNING_BIT);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe));
         esp_gmf_pipeline_list_el(pipe);
+        // Pausing is only valid once the pipeline is RUNNING
+        wait_pipeline_running(pipe_sync_evt);
         // Make sure the decoder has started outputting data
-        // HTTP decoder pipeline may take longer to report stream info
-        vTaskDelay(5000 / portTICK_RATE_MS);
+        vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_pause(pipe));
         vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_resume(pipe));
@@ -552,7 +568,7 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
 
         // Create the new elements
         esp_gmf_pipeline_handle_t pipe = NULL;
-        const char *uri = "https://dl.espressif.com/dl/audio/gs-16b-2c-44100hz.mp3";
+        const char *uri = "http://192.168.8.31:8008/11_44100_2_32955_10.mp3";
         const char *name[] = {"aud_dec", "aud_rate_cvt", "aud_ch_cvt"};
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_http", name, sizeof(name) / sizeof(char *), "io_codec_dev", &pipe));
         TEST_ASSERT_NOT_NULL(pipe);
@@ -578,11 +594,13 @@ TEST_CASE("Audio Play, One Pipe, [HTTP->dec->resample->IIS]", "[ESP_GMF_POOL][le
 
         ESP_GMF_MEM_SHOW(TAG);
         esp_gmf_task_set_timeout(pipe->thread, 5000);
+        xEventGroupClearBits(pipe_sync_evt, PIPELINE_RUNNING_BIT);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe));
         esp_gmf_pipeline_list_el(pipe);
+        // Pausing is only valid once the pipeline is RUNNING
+        wait_pipeline_running(pipe_sync_evt);
         // Make sure the decoder has started outputting data
-        // HTTP decoder pipeline may take longer to report stream info
-        vTaskDelay(5000 / portTICK_RATE_MS);
+        vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_pause(pipe));
         vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_resume(pipe));
@@ -635,7 +653,7 @@ TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_P
     // Create the new elements
     esp_gmf_pipeline_handle_t pipe_in = NULL;
     esp_gmf_pipeline_handle_t pipe_out = NULL;
-    const char *uri = "https://dl.espressif.com/dl/audio/ff-16b-2c-16000hz.mp3";
+    const char *uri = "http://192.168.8.31:8008/11_44100_2_32955_10.mp3";
     const char *name_in[] = {"aud_dec"};
     const char *name_out[] = {"aud_rate_cvt"};
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pool_new_pipeline(pool, "io_http", name_in, sizeof(name_in) / sizeof(char *), NULL, &pipe_in));
@@ -684,10 +702,10 @@ TEST_CASE("Audio Play, Two Pipe, [HTTP->dec]--RB-->[resample->IIS]", "[ESP_GMF_P
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_set_event(pipe_out, _pipeline_event2, pipe_sync_evt));
 
     ESP_GMF_MEM_SHOW(TAG);
+    xEventGroupClearBits(pipe_sync_evt, PIPELINE_RUNNING_BIT);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe_in));
-    // Make sure the decoder has started outputting data
-    // HTTP decoder pipeline may take longer to report stream info
-    vTaskDelay(3000 / portTICK_RATE_MS);
+    // The decoder only feeds the ring buffer once its pipeline is RUNNING
+    wait_pipeline_running(pipe_sync_evt);
     TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(pipe_out));
 
     vTaskDelay(2000 / portTICK_RATE_MS);
@@ -741,7 +759,7 @@ esp_err_t _loop_play_event(esp_gmf_event_pkt_t *event, void *ctx)
     if (event->sub == ESP_GMF_EVENT_STATE_FINISHED) {
         if (event->from == pipe_in1) {
             xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_BLOCK_BIT);
-        }  else if (event->from == pipe_in2) {
+        } else if (event->from == pipe_in2) {
             xEventGroupSetBits((EventGroupHandle_t)ctx, PIPELINE_BLOCK_BIT2);
         }
     }

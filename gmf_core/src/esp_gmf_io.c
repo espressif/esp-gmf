@@ -90,7 +90,13 @@ static esp_gmf_job_err_t io_process_read(esp_gmf_io_handle_t handle)
             }
         } else {
             esp_gmf_db_abort(io->data_bus);
-            job_err = ESP_GMF_JOB_ERR_FAIL;
+            /* A pending seek shuts down a blocking driver read (e.g. HTTP recv). Treat that
+             * as abort so the IO task can run the seek instead of stopping on FAIL. */
+            if (io->seek_pos != ESP_GMF_IO_SEEK_POS_INVALID) {
+                job_err = ESP_GMF_JOB_ERR_ABORT;
+            } else {
+                job_err = ESP_GMF_JOB_ERR_FAIL;
+            }
         }
         io->release_read(handle, &payload, portMAX_DELAY);
     } else {
@@ -161,7 +167,8 @@ static esp_gmf_err_t seek_in_cache(esp_gmf_io_t *io, uint64_t seek_pos)
                 esp_gmf_db_release_read(io->data_bus, &blk, portMAX_DELAY);
             }
             esp_gmf_io_set_pos(io, seek_pos);
-            ESP_LOGI(TAG, "Seek within buffer, drop %llu bytes, seek to %llu, [%p-%s]", drop_bytes, seek_pos, io, OBJ_GET_TAG(io));
+            ESP_LOGI(TAG, "Seek within buffer, [%p-%s], drop %llu bytes, seek to %llu",
+                     io, OBJ_GET_TAG(io), drop_bytes, seek_pos);
             return ESP_GMF_ERR_OK;
         }
     }
@@ -396,7 +403,8 @@ esp_gmf_err_t esp_gmf_io_seek(esp_gmf_io_handle_t handle, uint64_t seek_byte_pos
         return ESP_GMF_ERR_NOT_SUPPORT;
     }
     if (info.size > 0 && seek_byte_pos > info.size) {
-        ESP_LOGE(TAG, "The seek position is out of range, pos %llu > %llu, io: %p-%s", seek_byte_pos, info.size, io, OBJ_GET_TAG(io));
+        ESP_LOGE(TAG, "The seek position is out of range, io: %p-%s, pos %llu > %llu",
+                 io, OBJ_GET_TAG(io), seek_byte_pos, info.size);
         return ESP_GMF_ERR_OUT_OF_RANGE;
     }
     int ret = ESP_GMF_ERR_OK;
@@ -408,6 +416,10 @@ esp_gmf_err_t esp_gmf_io_seek(esp_gmf_io_handle_t handle, uint64_t seek_byte_pos
         /* Set position as subclasses might rely on the updated position to perform the seek (e.g., HTTP range header) */
         esp_gmf_io_set_pos(io, seek_byte_pos);
         esp_gmf_db_abort(io->data_bus);
+        /* Unblock a reader stuck in the driver (HTTP recv). Writer prev_close finishes a POST. */
+        if (io->dir == ESP_GMF_IO_DIR_READER && io->prev_close) {
+            io->prev_close(io);
+        }
         esp_gmf_event_state_t st;
         esp_gmf_task_get_state(io->task_hd, &st);
         if (st == ESP_GMF_EVENT_STATE_FINISHED || st == ESP_GMF_EVENT_STATE_STOPPED || st == ESP_GMF_EVENT_STATE_ERROR) {
@@ -416,9 +428,9 @@ esp_gmf_err_t esp_gmf_io_seek(esp_gmf_io_handle_t handle, uint64_t seek_byte_pos
             io_register_task(handle);
             esp_gmf_task_run(io->task_hd);
         }
-        ESP_LOGD(TAG, "Async seek requested to %llu, [%p-%s]", seek_byte_pos, io, OBJ_GET_TAG(io));
+        ESP_LOGD(TAG, "Async seek requested, [%p-%s], to %llu", io, OBJ_GET_TAG(io), seek_byte_pos);
         xEventGroupWaitBits((EventGroupHandle_t)io->evt_group, IO_EVT_TASK_SEEK_DONE_BIT, pdTRUE, pdFALSE, portMAX_DELAY);
-        ESP_LOGD(TAG, "Async seek done to %llu, [%p-%s]", seek_byte_pos, io, OBJ_GET_TAG(io));
+        ESP_LOGD(TAG, "Async seek done, [%p-%s], to %llu", io, OBJ_GET_TAG(io), seek_byte_pos);
     } else {
         /* Set position as subclasses might rely on the updated position to perform the seek (e.g., HTTP range header) */
         esp_gmf_io_set_pos(io, seek_byte_pos);

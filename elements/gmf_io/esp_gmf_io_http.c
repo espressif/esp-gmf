@@ -25,13 +25,15 @@
  * @brief  Http io context in GMF
  */
 typedef struct http_io {
-    esp_gmf_io_t              base;           /*!< The GMF http io handle */
-    bool                      is_open;        /*!< The flag of whether opened */
-    esp_http_client_handle_t  client;         /*!< The http client handle */
-    int                       _errno;         /*!< Errno code for http */
-    int                       connect_times;  /*!< Max reconnect times */
-    bool                      gzip_encoding;  /*!< Content is encoded */
-    gzip_miniz_handle_t       gzip;           /*!< GZIP instance */
+    esp_gmf_io_t              base;                 /*!< The GMF http io handle */
+    bool                      is_open;              /*!< The flag of whether opened */
+    esp_http_client_handle_t  client;               /*!< The http client handle */
+    int                       _errno;               /*!< Errno code for http */
+    int                       connect_times;        /*!< Max reconnect times */
+    bool                      gzip_encoding;        /*!< Content is encoded */
+    gzip_miniz_handle_t       gzip;                 /*!< GZIP instance */
+    bool                      range_not_supported;  /*!< Server ignored Range and returns 200 with the full body */
+    uint64_t                  skip_bytes;           /*!< Bytes still to drop before the body reaches the seek position */
 } http_stream_t;
 
 static const char *TAG = "ESP_GMF_HTTP";
@@ -93,6 +95,23 @@ static int _http_read_data(http_stream_t *http, char *buffer, int len)
     return gzip_miniz_read(http->gzip, (uint8_t *)buffer, len);
 }
 
+static esp_gmf_err_io_t _http_skip_bytes(http_stream_t *http, char *buffer, uint32_t buffer_size)
+{
+    while (http->skip_bytes > 0) {
+        if (http->base.seek_pos != UINT64_MAX) {
+            return ESP_GMF_IO_ABORT;
+        }
+        uint32_t want = (http->skip_bytes > buffer_size) ? buffer_size : (uint32_t)http->skip_bytes;
+        int rlen = _http_read_data(http, buffer, (int)want);
+        if (rlen <= 0) {
+            ESP_LOGE(TAG, "Failed to skip HTTP body to the seek position, ret: %d", rlen);
+            return ESP_GMF_IO_FAIL;
+        }
+        http->skip_bytes -= (uint64_t)rlen;
+    }
+    return ESP_GMF_IO_OK;
+}
+
 static esp_gmf_err_t _http_new(void *cfg, esp_gmf_obj_handle_t *io)
 {
     return esp_gmf_io_http_init(cfg, io);
@@ -116,6 +135,7 @@ static esp_gmf_err_t _http_open(esp_gmf_io_handle_t self)
         return ESP_GMF_ERR_OK;
     }
     http->_errno = 0;
+    http->skip_bytes = 0;
     esp_gmf_info_file_t info = {0};
     esp_gmf_io_get_info((esp_gmf_io_handle_t)http, &info);
     char *uri = (char *)info.uri;
@@ -150,7 +170,10 @@ static esp_gmf_err_t _http_open(esp_gmf_io_handle_t self)
         esp_http_client_set_url(http->client, uri);
     }
 
-    if (info.pos) {
+    if (info.pos == 0) {
+        http->range_not_supported = false;
+    }
+    if (info.pos && (http->range_not_supported == false)) {
         char rang_header[32];
         snprintf(rang_header, 32, "bytes=%d-", (int)info.pos);
         esp_http_client_set_header(http->client, "Range", rang_header);
@@ -216,9 +239,15 @@ _stream_redirect:
         esp_http_client_set_redirection(http->client);
         goto _stream_redirect;
     }
-    if (status_code != 200 && (esp_http_client_get_status_code(http->client) != 206)) {
+    if (status_code != 200 && status_code != 206) {
         ESP_LOGE(TAG, "Invalid HTTP stream, status code = %d", status_code);
         return ESP_GMF_ERR_FAIL;
+    }
+    if (info.pos > 0 && status_code == 200) {
+        http->range_not_supported = true;
+        http->skip_bytes = info.pos;
+        ESP_LOGW(TAG, "Server ignored HTTP Range (status 200), [%p-%s], skip %llu bytes on read",
+                 http, OBJ_GET_TAG(http), info.pos);
     }
     esp_gmf_io_set_size(self, info.size);
     http->is_open = true;
@@ -334,15 +363,20 @@ static esp_gmf_err_t _http_seek(esp_gmf_io_handle_t handle, uint64_t pos)
     http_stream_t *http = (http_stream_t *)handle;
     ESP_LOGD(TAG, "HTTP Seek to: %lld, %p", pos, http);
     _http_close(handle);
-    _http_open(handle);
-
-    return ESP_GMF_ERR_OK;
+    return _http_open(handle);
 }
 
 static esp_gmf_err_io_t _http_acquire_read(esp_gmf_io_handle_t handle, void *payload, uint32_t wanted_size, int block_ticks)
 {
     http_stream_t *http = (http_stream_t *)handle;
     esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
+    if (http->skip_bytes > 0) {
+        esp_gmf_err_io_t skip_ret = _http_skip_bytes(http, (char *)pload->buf, wanted_size);
+        if (skip_ret != ESP_GMF_IO_OK) {
+            pload->valid_size = 0;
+            return skip_ret;
+        }
+    }
     int rlen = _http_read(handle, (char *)pload->buf, wanted_size, block_ticks, NULL);
     ESP_LOGD(TAG, "Read len: %d-%ld", rlen, wanted_size);
     if (rlen > 0) {
@@ -354,6 +388,9 @@ static esp_gmf_err_io_t _http_acquire_read(esp_gmf_io_handle_t handle, void *pay
         ESP_LOGI(TAG, "No more data, ret: %d", rlen);
     } else {
         pload->valid_size = 0;
+        if (http->base.seek_pos != UINT64_MAX) {
+            return ESP_GMF_IO_ABORT;
+        }
         ESP_LOGE(TAG, "The error is happened in reading data, return value: %d, error msg: %s", rlen, strerror(http->_errno));
         if (http->connect_times > HTTP_MAX_CONNECT_TIMES) {
             ESP_LOGE(TAG, "Reconnect times more than %d, disconnect http stream", http->connect_times);
