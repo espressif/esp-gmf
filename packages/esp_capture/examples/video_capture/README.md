@@ -14,6 +14,7 @@
 - Record AV streams to SD card in MP4 slices
 - Add dynamic text overlay on video stream
 - Output two video paths simultaneously in different formats
+- Verify hardware H264 dual encode from same video source
 
 ## Environment Setup
 
@@ -125,6 +126,7 @@ flowchart LR
 4. `video_capture_run_with_muxer` (only when SD card mount succeeds)
 5. `video_capture_run_with_customized_process`
 6. `video_capture_run_dual_path`
+7. `video_capture_run_dual_encode` (ESP32-P4 only)
 
 Additional behavior:
 
@@ -139,6 +141,9 @@ Main configurable items are in `main/settings.h`:
 - Audio sink0: `AUDIO_SINK0_FMT`, `AUDIO_SINK0_SAMPLE_RATE`, `AUDIO_SINK0_CHANNEL`
 - Dual-path sink1: `VIDEO_SINK1_FMT`, `VIDEO_SINK1_WIDTH`, `VIDEO_SINK1_HEIGHT`, `VIDEO_SINK1_FPS`
 - Optional second audio path: `AUDIO_SINK1_FMT`, `AUDIO_SINK1_SAMPLE_RATE`, `AUDIO_SINK1_CHANNEL`
+- Dual encode (ESP32-P4): `DUAL_ENCODE_SINK0_WIDTH/HEIGHT`, `DUAL_ENCODE_SINK1_WIDTH/HEIGHT`, `DUAL_ENCODE_FPS`, `DUAL_ENCODE_GOP`
+
+Hardware dual encode currently requires both sinks to use the same GOP and output FPS.
 
 ## Troubleshooting
 

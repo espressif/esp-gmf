@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.5
+
+### Bug Fixes
+
+- Fixed video FB is not released if share queue release not in order
+
+### Features
+
+- Added multiple sink capture example for streaming, JPEG snapshot and display
+- Added hardware H264 dual-encode example on ESP32-P4 (`vid_ppa` + `vid_enc` per sink)
+- Added optional `get_default_format` on video source interface, implemented for V4L2 (initial format, resolution and fps)
+
 ## 1.0.4
 
 ### Bug Fixes

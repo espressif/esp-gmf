@@ -129,6 +129,10 @@ function setup_tools_and_idf_python_venv() {
 
   source ./export.sh
 
+  # Ensure CI uses a current esp-bmgr-assist (idf.py bmgr) in the IDF Python venv
+  pip install esp-bmgr-assist
+  pip install --upgrade esp-bmgr-assist
+
   # Custom OpenOCD
   if [[ ! -z "$OOCD_DISTRO_URL" && "$CI_JOB_STAGE" == "target_test" ]]; then
     echo "Using custom OpenOCD from ${OOCD_DISTRO_URL}"

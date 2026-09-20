@@ -267,29 +267,41 @@ int share_q_release(share_q_t *q, void *item)
     if (q == NULL || item == NULL) {
         return -1;
     }
+
     pthread_mutex_lock(&q->lock);
+
     // Find and decrement reference count
     int rp = q->rp;
     int wp = q->wp;
     void *frame_data = q->cfg.get_frame_data(item);
     bool need_notify = false;
+
     while (rp != wp) {
         share_item_t *q_item = &q->items[rp];
-        if (q_item->frame_data == frame_data) {
+        if (q_item->ref_count > 0 && q_item->frame_data == frame_data) {
             q_item->ref_count--;
             if (q_item->ref_count == 0) {
-                need_notify = true;
                 q->cfg.release_frame(item, q->cfg.ctx);
-                q->rp = (rp + 1) % q->cfg.q_count;
+                q_item->frame_data = NULL;
+                if (rp == q->rp) {
+                    // Forward rp if consecutively released
+                    while (q->rp != wp && q->items[q->rp].ref_count == 0) {
+                        q->rp = (q->rp + 1) % q->cfg.q_count;
+                    }
+                    need_notify = true;
+                }
             }
             break;
         }
-        rp = (rp + 1) % (q->cfg.q_count);
+        rp = (rp + 1) % q->cfg.q_count;
     }
+
     if (need_notify) {
         pthread_cond_signal(&q->cond);
     }
+
     pthread_mutex_unlock(&q->lock);
+
     // Maybe flushed for disabled, here return 0 directly
     return 0;
 }

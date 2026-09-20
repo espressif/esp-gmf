@@ -61,6 +61,22 @@ struct esp_capture_video_src_if_t {
     esp_capture_err_t (*set_fixed_caps)(esp_capture_video_src_if_t *src, const esp_capture_video_info_t *fixed_caps);
 
     /**
+     * @brief  Get the source default (initial) video format
+     *
+     * @note  Optional. Caller must check `get_default_format != NULL` before use.
+     *        Sources that cannot report a default leave this pointer unset.
+     *        For V4L2 this is `VIDIOC_G_FMT` plus the current frame interval.
+     *
+     * @param[in]   src             Pointer to the video source interface
+     * @param[out]  default_format  Initial format, resolution and fps
+     *
+     * @return
+     *       - ESP_CAPTURE_ERR_OK  On success
+     *       - Others              Failed to get default format
+     */
+    esp_capture_err_t (*get_default_format)(esp_capture_video_src_if_t *src, esp_capture_video_info_t *default_format);
+
+    /**
      * @brief  Negotiate capabilities between the source and the sink
      *
      * @param[in]   src       Pointer to the video source interface

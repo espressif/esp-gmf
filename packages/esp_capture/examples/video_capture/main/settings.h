@@ -37,6 +37,15 @@ extern "C" {
 #define VIDEO_SINK1_HEIGHT VIDEO_SINK0_HEIGHT
 #define VIDEO_SINK1_FPS    (VIDEO_SINK0_FPS / 2)
 
+#if CONFIG_IDF_TARGET_ESP32P4
+#define DUAL_ENCODE_SINK0_WIDTH   1280
+#define DUAL_ENCODE_SINK0_HEIGHT  720
+#define DUAL_ENCODE_SINK1_WIDTH   640
+#define DUAL_ENCODE_SINK1_HEIGHT  480
+#define DUAL_ENCODE_FPS           25
+#define DUAL_ENCODE_GOP           90
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 */
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

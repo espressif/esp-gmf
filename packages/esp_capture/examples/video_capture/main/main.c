@@ -90,6 +90,7 @@ void app_main(void)
     }
     RUN_CASE(video_capture_run_with_customized_process, 10000);
     RUN_CASE(video_capture_run_dual_path, 10000);
+    RUN_CASE(video_capture_run_dual_encode, 10000, false);;
 
     ESP_LOGI(TAG, "All case finished");
 }
