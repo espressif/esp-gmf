@@ -9,7 +9,7 @@ Feature List
 ------------
 
 - vid_dec: video decoding, supporting H.264 and MJPEG; output pixel format can be specified (e.g., YUV420P, RGB565LE)
-- vid_enc: video encoding, supporting H.264 and MJPEG; bitrate, GOP and QP range(H.264 only) can be adjusted at runtime
+- vid_enc: video encoding, supporting H.264 and MJPEG; bitrate, GOP, QP range, and one-shot force-IDR (H.264 only) can be adjusted at runtime
 - vid_ppa: ESP32-P4 pixel processing accelerator composite element, merging color conversion, scaling, cropping, and rotation into a single hardware pass
 - vid_fps_cvt: frame rate conversion, dropping frames by PTS to reduce input frame rate to a specified output frame rate
 - vid_overlay: overlay mixer, blending additional content (watermarks, UI, timestamps) onto the original video via alpha blending or transparent-color (colorkey) compositing
@@ -108,13 +108,14 @@ Use :cpp:func:`esp_gmf_video_dec_get_dst_formats` to query the list of available
 
 The normal workflow is for the element to obtain source info (``esp_gmf_info_video_t``) from upstream after startup, then auto-select the specific implementation based on the target codec specified by ``set_dst_codec`` and open. To query encoder capabilities before startup (e.g., query supported source pixel formats), first call :cpp:func:`esp_gmf_video_enc_preset` with the source info and target codec, then call :cpp:func:`esp_gmf_video_enc_get_src_formats` and :cpp:func:`esp_gmf_video_enc_get_out_size`.
 
-Three parameters can be adjusted at runtime (H.264 encoder additionally supports the last two):
+Bitrate can be adjusted at runtime. H.264 additionally supports GOP, QP range, and a one-shot force-IDR request:
 
 .. code:: c
 
     esp_gmf_video_enc_set_bitrate(enc, 2 * 1000 * 1000);  /* 2 Mbps */
     esp_gmf_video_enc_set_gop(enc, 30);                    /* I-frame every 30 frames */
     esp_gmf_video_enc_set_qp(enc, 20, 40);                 /* QP range */
+    esp_gmf_video_enc_set_force_idr(enc);                  /* Next frame is IDR while running */
 
 Output buffer size is estimated by :cpp:func:`esp_gmf_video_enc_get_out_size`, using a 10:1 compression ratio upper bound for MJPEG and 2:1 for H.264; the framework allocates output payloads at this size.
 

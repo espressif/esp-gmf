@@ -505,6 +505,20 @@ esp_gmf_err_t esp_gmf_video_enc_set_gop(esp_gmf_element_handle_t self, uint32_t 
     return ret;
 }
 
+esp_gmf_err_t esp_gmf_video_enc_set_force_idr(esp_gmf_element_handle_t self)
+{
+    ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);
+    venc_t *venc = (venc_t *)self;
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(((esp_gmf_video_element_t *)self)->lock);
+    if (venc->enc_handle) {
+        ret = (esp_video_enc_set_force_idr(venc->enc_handle) == ESP_VC_ERR_OK) ?
+              ESP_GMF_ERR_OK : ESP_GMF_ERR_NOT_SUPPORT;
+    }
+    esp_gmf_oal_mutex_unlock(((esp_gmf_video_element_t *)self)->lock);
+    return ret;
+}
+
 esp_gmf_err_t esp_gmf_video_enc_set_qp(esp_gmf_element_handle_t self, uint32_t min_qp, uint32_t max_qp)
 {
     ESP_GMF_NULL_CHECK(TAG, self, return ESP_GMF_ERR_INVALID_ARG);

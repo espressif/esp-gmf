@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.3
+
+### Features
+
+- Added `esp_gmf_video_enc_set_force_idr` for H.264 encoder
+  - Forces the next encoded frame to be an IDR frame and resets the GOP (one-shot)
+
+### Bug Fixes
+
+- Fixed `vid_ppa` exit wrongly as treat timeout as error
+- Fixed `vid_dec` not reset output size when decode error
+
 ## v1.0.2
 
 ### Features

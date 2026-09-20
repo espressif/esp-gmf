@@ -9,7 +9,7 @@ gmf_video 是 ESP-GMF 的视频处理组件，提供 9 个处理单元（element
 -------------------------------------
 
 - vid_dec：视频解码，支持 H.264 与 MJPEG，可指定输出像素格式（如 YUV420P、RGB565LE）
-- vid_enc：视频编码，支持 H.264 与 MJPEG，可运行中调整 bitrate、GOP、QP 范围（仅 H.264）
+- vid_enc：视频编码，支持 H.264 与 MJPEG，可运行中调整 bitrate、GOP、QP 范围，并可强制下一帧为 IDR（仅 H.264）
 - vid_ppa：ESP32-P4 像素加速器复合处理单元，把颜色转换、缩放、裁剪、旋转合并为一次硬件处理
 - vid_fps_cvt：帧率转换，按 PTS 丢帧把输入帧率降到指定输出帧率
 - vid_overlay：叠加混合器，把额外画面（水印、UI、时间戳）按 alpha 混合或透明色（colorkey）叠加到原始视频
@@ -108,13 +108,14 @@ vid_dec 与 vid_enc 是视频处理链的起点或终点处理单元，典型组
 
 正常工作流是处理单元启动后从上游获取源信息（\ ``esp_gmf_info_video_t``\ ），按 ``set_dst_codec`` 指定的目标 codec 自动选具体实现并 open。如果要在启动前查询编码器能力（例如查支持的源像素格式），先用 :cpp:func:`esp_gmf_video_enc_preset` 传入源信息与目标 codec，再调用 :cpp:func:`esp_gmf_video_enc_get_src_formats` 与 :cpp:func:`esp_gmf_video_enc_get_out_size`\ 。
 
-运行中可调三个参数（H.264 编码器额外支持后两个）：
+运行中可调 bitrate。H.264 额外支持 GOP、QP 范围，以及一次性强制下一帧为 IDR：
 
 .. code:: c
 
     esp_gmf_video_enc_set_bitrate(enc, 2 * 1000 * 1000);  /* 2 Mbps */
     esp_gmf_video_enc_set_gop(enc, 30);                    /* 每 30 帧一个 I 帧 */
     esp_gmf_video_enc_set_qp(enc, 20, 40);                 /* QP 区间 */
+    esp_gmf_video_enc_set_force_idr(enc);                  /* 运行中强制下一帧为 IDR */
 
 输出缓冲区大小按 :cpp:func:`esp_gmf_video_enc_get_out_size` 估算，MJPEG 按 10:1、H.264 按 2:1 的压缩比给上限，框架按此尺寸分配输出数据载体。
 
