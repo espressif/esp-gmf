@@ -769,6 +769,7 @@ static esp_gmf_err_t hw_mixer_blend_do(gmf_vid_overlay_t *mixer, esp_gmf_video_r
     ppa_srm_unlock();
     if (err != ESP_OK) {
         return ESP_GMF_ERR_FAIL;
+
     }
     if (desc->type == OVERLAY_DST_OUYY_EVYY) {
         return overlay_cache_sync_ouyy_frame(dst->data, src_info->width, src_info->height, ESP_CACHE_MSYNC_FLAG_DIR_M2C);
