@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.1.0
+
+### Changes
+
+- Updated `esp_image_effects` dependency to `~1.2.0`
+- Added `RGB888 -> OUVV_EVYY` converter for `vid_ppa`
+
 ## v1.0.3
 
 ### Features

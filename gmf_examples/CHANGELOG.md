@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## v1.1.0
 
 ### Features
 
 - Updated `pipeline_audio_effects` example to demonstrate Reverb and Delay effects
+
+### Changes
+
+- Updated all GMF dependencies to v1.1
 
 ## v1.0.1~1
 

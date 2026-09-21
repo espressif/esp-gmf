@@ -59,6 +59,7 @@ typedef enum {
     ESP_CAPTURE_FMT_ID_YUV420      = ESP_CAPTURE_4CC('Y', 'U', '1', '2'),  /*!< Video YUV420 progressive format */
     ESP_CAPTURE_FMT_ID_YUV422P     = ESP_CAPTURE_4CC('4', '2', '2', 'P'),  /*!< Video YUV422 progressive format */
     ESP_CAPTURE_FMT_ID_YUV422      = ESP_CAPTURE_4CC('Y', 'U', 'Y', 'V'),  /*!< Video YUV422 format */
+    ESP_CAPTURE_FMT_ID_UYVY422     = ESP_CAPTURE_4CC('U', 'Y', 'V', 'Y'),  /*!< Video UYVY YUV422 format */
     ESP_CAPTURE_FMT_ID_O_UYY_E_VYY = ESP_CAPTURE_4CC('O', 'U', 'E', 'V'),  /*!< Video format for repeat pattern
                                                                                 odd line uyyuyy... even line vyyvyy... */
     ESP_CAPTURE_FMT_ID_ANY         = 0xFFFF,                               /*!< Any video or audio format

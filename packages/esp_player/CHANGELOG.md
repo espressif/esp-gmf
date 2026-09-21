@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.0
+
+### Features
+
+- Added `disable_network_buffering` in `esp_player_buffer_config_t` to skip the network buffering gate
+
+### Changes
+
+- Updated all depended GMF components to v1.1
+
 ## v1.0.7
 
 ### Features

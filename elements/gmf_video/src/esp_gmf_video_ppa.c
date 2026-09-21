@@ -435,6 +435,7 @@ static bool check_ppa_supported_formats(gmf_video_ppa_t *vid_cvt, uint32_t src_f
     if ((src_fmt == ESP_FOURCC_RGB24 && dst_fmt == ESP_FOURCC_RGB16) ||
         (src_fmt == ESP_FOURCC_RGB16 && dst_fmt == ESP_FOURCC_RGB24) ||
         (src_fmt == ESP_FOURCC_RGB16 && dst_fmt == ESP_FOURCC_OUYY_EVYY) ||
+        (src_fmt == ESP_FOURCC_RGB24 && dst_fmt == ESP_FOURCC_OUYY_EVYY) ||
         (src_fmt == ESP_FOURCC_RGB24 && dst_fmt == ESP_FOURCC_BGR24) ||
         (src_fmt == ESP_FOURCC_BGR24 && dst_fmt == ESP_FOURCC_RGB24)) {
         vid_cvt->ppa_config.rgb_swap = 1;

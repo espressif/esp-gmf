@@ -497,7 +497,9 @@ static void start_playback(esp_player_stream_t *stream)
         player_transition_to_state(stream, ESP_PLAYER_STATE_ERROR);
         return;
     }
-    bool enable_network_buffering = ESP_PLAYER_DEFAULT_NETWORK_BUFFERING && _player_is_network_source_uri(stream);
+    bool enable_network_buffering = ESP_PLAYER_DEFAULT_NETWORK_BUFFERING
+                                    && _player_is_network_source_uri(stream)
+                                    && !(stream->buffer_cfg != NULL && stream->buffer_cfg->disable_network_buffering);
     if (enable_network_buffering) {
         if (stream->buffer_ctrl == NULL) {
             stream->buffer_ctrl = (player_buffer_ctrl_t *)calloc(1, sizeof(player_buffer_ctrl_t));

@@ -74,6 +74,8 @@ static esp_capture_format_id_t get_codec_type(uint32_t fmt)
             return ESP_CAPTURE_FMT_ID_RGB565_BE;
         case V4L2_PIX_FMT_YUYV:
             return ESP_CAPTURE_FMT_ID_YUV422;
+        case V4L2_PIX_FMT_UYVY:
+            return ESP_CAPTURE_FMT_ID_UYVY422;
         default:
             return ESP_CAPTURE_FMT_ID_NONE;
     }
@@ -93,6 +95,8 @@ static uint32_t get_v4l2_type(esp_capture_format_id_t codec)
             return V4L2_PIX_FMT_RGB565X;
         case ESP_CAPTURE_FMT_ID_YUV422:
             return V4L2_PIX_FMT_YUYV;
+        case ESP_CAPTURE_FMT_ID_UYVY422:
+            return V4L2_PIX_FMT_UYVY;
         default:
             return 0;
     }
