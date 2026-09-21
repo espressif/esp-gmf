@@ -45,7 +45,7 @@ static const char *TAG = "PPA_EL";
 #define PPA_FS_TASK_STACK       (4096)
 #define PPA_FS_TASK_PRIO        (5)
 #define PPA_FS_TASK_EXIT_BIT    (BIT0)
-#define PPA_FS_ACQUIRE_TIMEOUT  (50)
+#define PPA_FS_ACQUIRE_TIMEOUT  pdMS_TO_TICKS(50)
 
 /**
  * @brief  Per-frame header stored in full-speed data queue slot
@@ -975,6 +975,25 @@ static void close_dma2d(gmf_video_ppa_t *vid_cvt)
 }
 #endif  /* CONFIG_SOC_PPA_SUPPORTED */
 
+static inline uint32_t ppa_fs_wait_ticks_to_ms(int wait_ticks)
+{
+    if (wait_ticks < 0 || (uint32_t)wait_ticks == ESP_GMF_MAX_DELAY) {
+        return ESP_GMF_DATA_QUEUE_WAIT_FOREVER;
+    }
+    return (uint32_t)wait_ticks * portTICK_PERIOD_MS;
+}
+
+static esp_gmf_err_io_t ppa_fs_map_queue_ret(int qret, uint32_t timeout_ms)
+{
+    if (qret == 0) {
+        return ESP_GMF_IO_OK;
+    }
+    if (qret == ESP_GMF_IO_TIMEOUT || qret == ESP_GMF_IO_ABORT) {
+        return (esp_gmf_err_io_t)qret;
+    }
+    return (timeout_ms == 0) ? ESP_GMF_IO_TIMEOUT : ESP_GMF_IO_FAIL;
+}
+
 static esp_gmf_err_io_t ppa_fs_acquire_out(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
 {
     gmf_video_ppa_t *vid_cvt = (gmf_video_ppa_t *)handle;
@@ -983,11 +1002,10 @@ static esp_gmf_err_io_t ppa_fs_acquire_out(void *handle, esp_gmf_payload_t *load
         return ESP_GMF_IO_FAIL;
     }
     void *slot = NULL;
-    uint32_t timeout = (wait_ticks < 0 || (uint32_t)wait_ticks == ESP_GMF_MAX_DELAY) ?
-                       ESP_GMF_DATA_QUEUE_WAIT_FOREVER : (uint32_t)wait_ticks;
-    if (esp_gmf_data_queue_acquire_write(vid_cvt->fs_queue, &slot, (int)vid_cvt->fs_slot_size, timeout) != 0 ||
-        slot == NULL) {
-        return (timeout == 0) ? ESP_GMF_IO_TIMEOUT : ESP_GMF_IO_ABORT;
+    uint32_t timeout = ppa_fs_wait_ticks_to_ms(wait_ticks);
+    int qret = esp_gmf_data_queue_acquire_write(vid_cvt->fs_queue, &slot, (int)vid_cvt->fs_slot_size, timeout);
+    if (qret != 0 || slot == NULL) {
+        return ppa_fs_map_queue_ret(qret, timeout);
     }
     uint8_t align = ESP_GMF_ELEMENT_GET(vid_cvt)->out_attr.port.buf_addr_aligned;
     if (align == 0) {
@@ -1038,10 +1056,10 @@ static esp_gmf_err_io_t ppa_fs_acquire_in(void *handle, esp_gmf_payload_t *load,
     }
     void *slot = NULL;
     int size = 0;
-    uint32_t timeout = (wait_ticks < 0 || (uint32_t)wait_ticks == ESP_GMF_MAX_DELAY) ?
-                       ESP_GMF_DATA_QUEUE_WAIT_FOREVER : (uint32_t)wait_ticks;
-    if (esp_gmf_data_queue_acquire_read(vid_cvt->fs_queue, &slot, &size, timeout) != 0 || slot == NULL) {
-        return (timeout == 0) ? ESP_GMF_IO_TIMEOUT : ESP_GMF_IO_ABORT;
+    uint32_t timeout = ppa_fs_wait_ticks_to_ms(wait_ticks);
+    int qret = esp_gmf_data_queue_acquire_read(vid_cvt->fs_queue, &slot, &size, timeout);
+    if (qret != 0 || slot == NULL) {
+        return ppa_fs_map_queue_ret(qret, timeout);
     }
     ppa_fs_hdr_t *hdr = (ppa_fs_hdr_t *)slot;
     load->buf = (uint8_t *)slot + hdr->pixel_off;

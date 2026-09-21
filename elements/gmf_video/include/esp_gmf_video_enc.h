@@ -132,6 +132,23 @@ esp_gmf_err_t esp_gmf_video_enc_set_bitrate(esp_gmf_element_handle_t handle, uin
 esp_gmf_err_t esp_gmf_video_enc_set_gop(esp_gmf_element_handle_t handle, uint32_t gop);
 
 /**
+ * @brief  Force the next encoded frame to be an IDR (Instantaneous Decoder Refresh) frame
+ *
+ * @note  This setting applies specifically to the H.264 encoder
+ *        After calling this API, the next encoded frame is forced to be an IDR frame
+ *        This action resets the GOP and takes effect only once
+ *        The first encoded frame is always an IDR, so this API is only needed while the encoder is running
+ *        If the encoder handle is not created yet, this API returns success without caching the request
+ *
+ * @param[in]  handle  Handle to the video encoder element
+ *
+ * @return
+ *      - ESP_GMF_ERR_OK           On success
+ *      - ESP_GMF_ERR_INVALID_ARG  Invalid configuration provided
+ */
+esp_gmf_err_t esp_gmf_video_enc_set_force_idr(esp_gmf_element_handle_t handle);
+
+/**
  * @brief  Set the QP (Quantization Parameter) range for video encoder
  *
  * @note  This setting applies specifically to the H.264 encoder

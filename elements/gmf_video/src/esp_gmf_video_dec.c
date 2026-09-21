@@ -479,6 +479,7 @@ static esp_gmf_job_err_t vdec_el_process(esp_gmf_video_element_handle_t self, vo
             ret = (ret == ESP_GMF_IO_ABORT) ? ESP_GMF_JOB_ERR_OK : ESP_GMF_JOB_ERR_FAIL;
             break;
         }
+        out_load->valid_size = 0;
         decoded_frame.data = out_load->buf;
         decoded_frame.size = ESP_GMF_ELEMENT_GET(vdec)->out_attr.data_size;
         ret = esp_video_dec_process(vdec->dec_handle, &in_frame, &decoded_frame);
