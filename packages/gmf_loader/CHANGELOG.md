@@ -7,6 +7,10 @@
 - Added configurable audio reverb support in `gmf_loader_setup_audio_reverb`
 - Added configurable audio delay support in `gmf_loader_setup_audio_delay`
 
+### Changes
+
+- Changed default AEC, WN and AFE channel allocation from `RMNM` to `MRMN`
+
 ## v1.0.0~2
 
 ### Changes

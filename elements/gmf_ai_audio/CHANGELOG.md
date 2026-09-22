@@ -1,14 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- Relaxed `esp-sr` dependency version from `2.5.3` to `2.5.*`
+
 ## v1.0.2
 
 ### Features
 
 - Upgrade `esp-sr` to version v2.5.3
 
-### Changes
-
-- Increased the `aec_rec` example factory partition size from 2500k to 3M
 
 ## v1.0.2
 
