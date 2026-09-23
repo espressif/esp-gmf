@@ -86,9 +86,10 @@ typedef struct {
  *        - `prebuffer_resume_ms`, `rebuffer_enter_ms`, `rebuffer_resume_ms`, `rebuffer_grace_ms`,
  *           buffering gate thresholds (ms); 0 = built-in default per field
  *
- *        Gate is enabled when built-in `ESP_PLAYER_DEFAULT_NETWORK_BUFFERING` is non-zero. The
- *        player estimates per-track buffered duration from extractor queue depth and uses
- *        `effective_buffer_ms = MIN(audio_buffered_ms, video_buffered_ms)` among active tracks.
+ *        Gate is on when `ESP_PLAYER_DEFAULT_NETWORK_BUFFERING` is non-zero. Duration is the
+ *        master-clock PTS span (newest queued − newest consumed; AUDIO by default). A full
+ *        demux pool or end-of-stream releases the gate; a seek re-arms it. While PLAYING the
+ *        extractor will not keep filling video if the audio queue is empty.
  *
  *        Data path:
  *            network URL
@@ -231,7 +232,9 @@ esp_player_err_t esp_player_set_dec_cfg(esp_player_handle_t handle, esp_player_f
  *          track and are applied when the decoder pipeline is created.
  *          Codec-private options (e.g. AAC no_adts) use esp_player_set_dec_cfg()
  *          or fill/block URL query parameters.
- *        - VIDEO: copies `video_info`
+ *        - VIDEO: copies `video_info`. `format` is required. `width`/`height` are
+ *          metadata (render display / fps); the decoder→render frame pool is sized
+ *          from the decoder header (SPS etc.), so they may be 0 if unknown.
  *
  * @param[in]  handle  Player handle
  * @param[in]  info    Track info; `track_type` selects the union member;

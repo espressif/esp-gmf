@@ -535,7 +535,7 @@ esp_player_err_t esp_player_seek(esp_player_handle_t handle, uint64_t time_ms)
             .data = NULL,
             .data_len = 0,
         };
-        ESP_LOGD(ESP_PLAYER_TAG, "Seek done, time_ms: %" PRIu64 ", state: %s", time_ms, get_state_name(stream->main_state));
+        ESP_LOGD(ESP_PLAYER_TAG, "Seek done, state: %s, time_ms: %" PRIu64, get_state_name(stream->main_state), time_ms);
         player_send_event(stream, &event_msg);
         return ESP_PLAYER_ERR_OK;
     }

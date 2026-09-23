@@ -37,7 +37,8 @@ esp_gmf_err_t player_extractor_get_track_info(esp_gmf_element_handle_t handle, e
 esp_gmf_err_t player_extractor_trans_stream(esp_gmf_element_handle_t handle, esp_extractor_stream_type_t type, uint8_t selected_idx);
 esp_gmf_err_t player_extractor_track_active(esp_gmf_element_handle_t handle, esp_extractor_stream_type_t type, int8_t *stream_idx);
 esp_gmf_err_t player_extractor_get_last_pts(esp_gmf_element_handle_t handle, uint64_t *pts_ms);
-esp_gmf_err_t player_extractor_get_delta_pts(esp_gmf_element_handle_t handle, uint64_t *delta_ms);
+/* Consecutive WAITING_OUTPUT replies from a full demux pool; 0 after a successful read. */
+esp_gmf_err_t player_extractor_get_output_wait_count(esp_gmf_element_handle_t handle, uint8_t *count);
 esp_gmf_err_t player_extractor_set_raw_pcm_info(esp_gmf_element_handle_t handle, uint32_t sample_rate, uint8_t channels, uint8_t bits_per_sample);
 bool player_extractor_is_raw_source(esp_gmf_element_handle_t handle);
 

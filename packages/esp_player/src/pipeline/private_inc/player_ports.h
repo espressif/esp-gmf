@@ -42,9 +42,17 @@ esp_gmf_err_io_t decoder_video_in_release(void *handle, esp_gmf_payload_t *load,
 esp_gmf_err_io_t player_ports_push_bounded(esp_player_stream_t *stream, esp_gmf_data_queue_t *q,
                                            esp_gmf_payload_t *load, bool is_audio);
 esp_gmf_err_io_t player_ports_handle_stop_state(esp_player_stream_t *stream, esp_gmf_payload_t *load, const char *queue_name);
-void player_ports_buffer_gate_try_enter(esp_player_stream_t *stream, bool is_audio_path);
-bool player_ports_buffer_gate_try_leave(esp_player_stream_t *stream);
-void player_ports_buffer_note_extractor_frame(esp_player_stream_t *stream, bool is_audio);
+
+/* Buffer gate for one acquire. False: still closed, retry; the wait is already done. */
+bool player_ports_buffer_gate_wait(esp_player_stream_t *stream, bool is_audio_path);
+
+/* Report each frame the queues move; buffered duration is their PTS span. */
+void player_ports_buffer_note_queued(esp_player_stream_t *stream, bool is_audio, uint64_t pts_ms);
+void player_ports_buffer_note_consumed(esp_player_stream_t *stream, bool is_audio, uint64_t pts_ms);
+void player_ports_buffer_reset_tracking(esp_player_stream_t *stream);
+
+/* EOS is in a decoder queue: release the gate so FINISHED can fire. */
+void player_ports_buffer_note_source_eos(esp_player_stream_t *stream);
 
 #ifdef __cplusplus
 }

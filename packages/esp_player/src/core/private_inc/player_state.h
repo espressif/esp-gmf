@@ -66,6 +66,12 @@ esp_player_err_t handle_state_cmd(esp_player_stream_t *stream, esp_player_cmd_ms
 esp_player_err_t player_send_cmd(esp_player_stream_t *stream, esp_player_cmd_msg_t *cmd);
 
 /**
+ * @brief  Raise the error source and post ESP_PLAYER_CMD_ERROR to the state machine
+ */
+void player_report_error(esp_player_stream_t *stream, esp_player_error_source_t error_source,
+                         const char *reason);
+
+/**
  * @brief  Get state name
  */
 const char *get_state_name(esp_player_state_t state);

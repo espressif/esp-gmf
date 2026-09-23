@@ -3,6 +3,7 @@ variables:
 
 .update_source: &update_source
   - source ${CI_PROJECT_DIR}/tools/ci/utils.sh
+  - add_gitlab_local_dns
   - add_gitlab_ssh_keys
   - git submodule update --init --recursive --depth 1
   - git clone --depth 1 -b $IDF_VERSION_TAG $IDF_REPOSITORY $IDF_PATH
@@ -39,6 +40,7 @@ variables:
       policy: pull
   before_script:
     - source ${CI_PROJECT_DIR}/tools/ci/utils.sh
+    - add_gitlab_local_dns
     - add_gitlab_ssh_keys
     - git clone --depth 1 -b $IDF_VERSION_TAG $IDF_REPOSITORY $IDF_PATH
     - check_idf_version $IDF_VERSION_TAG

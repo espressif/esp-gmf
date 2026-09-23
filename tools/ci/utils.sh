@@ -11,6 +11,34 @@ function add_ssh_keys() {
   chmod 600 ~/.ssh/id_rsa
 }
 
+function add_gitlab_local_dns() {
+  local ip="${GITLAB_LOCAL_DNS_IP:-192.168.2.181}"
+  local host="${GITLAB_LOCAL_DNS_HOST:-gitlab.espressif.cn}"
+  local hosts_file="${GITLAB_HOSTS_FILE:-/etc/hosts}"
+
+  if grep -qE "^[[:space:]]*${ip}[[:space:]]+${host}([[:space:]]|$)" "${hosts_file}" 2>/dev/null; then
+    printf "Hosts file already has %s %s\n" "${ip}" "${host}"
+    return 0
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+  grep -vE "(^|[[:space:]])${host}([[:space:]]|$)" "${hosts_file}" >"${tmp}" || true
+  printf "%s %s\n" "${ip}" "${host}" >>"${tmp}"
+
+  if [[ -w "${hosts_file}" ]]; then
+    cat "${tmp}" >"${hosts_file}"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo cp "${tmp}" "${hosts_file}"
+  else
+    rm -f "${tmp}"
+    printf "Unable to update %s for %s\n" "${hosts_file}" "${host}" >&2
+    return 1
+  fi
+  rm -f "${tmp}"
+  printf "Updated %s: %s %s\n" "${hosts_file}" "${ip}" "${host}"
+}
+
 function add_gitlab_ssh_keys() {
   add_ssh_keys "${GITLAB_KEY}"
   echo -e "Host gitlab.espressif.cn\n\tStrictHostKeyChecking no\n" >>~/.ssh/config

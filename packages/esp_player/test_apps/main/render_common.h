@@ -26,6 +26,8 @@ esp_player_err_t audio_render_create_handle(esp_audio_render_stream_handle_t *st
                                             esp_audio_render_stream_id_t stream_id);
 
 void audio_render_destroy_handle(void);
+void audio_render_reset_write_bytes(void);
+uint32_t audio_render_get_write_bytes(void);
 
 void audio_render_set_max_stream_num(uint8_t max_stream_num);
 

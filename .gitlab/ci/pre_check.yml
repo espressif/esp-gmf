@@ -61,6 +61,8 @@ check_pre_commit:
     - .rules:ref:pre-check
     - .pre_check_template
   before_script:
+    - source ${CI_PROJECT_DIR}/tools/ci/utils.sh
+    - add_gitlab_local_dns
     - pip install pre-commit
   script:
     - |

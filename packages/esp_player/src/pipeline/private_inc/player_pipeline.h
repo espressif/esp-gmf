@@ -60,6 +60,8 @@ esp_player_err_t player_pl_run_create_video_decoder(esp_player_stream_t *stream)
 esp_player_err_t player_pl_create_audio_render(esp_player_stream_t *stream);
 esp_player_err_t player_pl_create_video_render(esp_player_stream_t *stream);
 
+uint32_t player_pl_video_decoded_frame_size(uint32_t width, uint32_t height, uint32_t format);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */

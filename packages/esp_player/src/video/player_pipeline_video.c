@@ -16,9 +16,12 @@
 #include "esp_gmf_video_dec.h"
 #include "esp_gmf_video_element.h"
 #include "esp_video_dec_h264.h"
-#include "esp_video_render_types.h"
+#include "esp_video_codec_types.h"
+#include "esp_video_codec_utils.h"
+#include "esp_video_render.h"
 #include "esp_gmf_info.h"
 #include "esp_gmf_obj.h"
+#include "esp_fourcc.h"
 
 #include "player_video_render.h"
 #include "player_submit_frame.h"
@@ -26,10 +29,47 @@
 #include "player_ports.h"
 #include "player_pipe_events.h"
 
-static const char *TAG = "ESP_PLAYER_PIPELINE";
-
 /** Minimum frame buffer estimate (320x240 YUV420) for decoder / render port sizing */
 #define VIDEO_MIN_FRAME_SIZE  ((uint32_t)(320 * 240 * 1.5))
+
+/* JPEG/H.264 code in 16x16 macroblocks, so decoders emit padded dimensions. */
+#define VIDEO_DIM_ALIGN        (16U)
+#define VIDEO_ALIGN_UP_DIM(v)  (((uint32_t)(v) + (VIDEO_DIM_ALIGN - 1U)) & ~(uint32_t)(VIDEO_DIM_ALIGN - 1U))
+
+static const char *TAG = "ESP_PLAYER_PIPELINE";
+
+static bool player_pl_fmt_supported(const uint32_t *fmts, uint8_t n, uint32_t fmt)
+{
+    for (uint8_t i = 0; i < n; i++) {
+        if (fmts[i] == fmt) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static uint32_t player_pl_pick_video_dst_format(esp_gmf_element_handle_t decoder_el,
+                                                uint32_t src_format,
+                                                uint32_t preferred)
+{
+    const uint32_t fallback = ESP_VIDEO_CODEC_PIXEL_FMT_RGB565_LE;
+    const uint32_t *fmts = NULL;
+    uint8_t n = 0;
+    if (esp_gmf_video_dec_get_dst_formats(decoder_el, src_format, &fmts, &n) != ESP_GMF_ERR_OK
+        || fmts == NULL || n == 0) {
+        return fallback;
+    }
+    if (preferred != 0 && player_pl_fmt_supported(fmts, n, preferred)) {
+        return preferred;
+    }
+    if (player_pl_fmt_supported(fmts, n, fallback)) {
+        return fallback;
+    }
+    if (player_pl_fmt_supported(fmts, n, ESP_VIDEO_CODEC_PIXEL_FMT_RGB888)) {
+        return ESP_VIDEO_CODEC_PIXEL_FMT_RGB888;
+    }
+    return fmts[0];
+}
 
 static esp_gmf_err_t player_video_decoder_report_stream_info(esp_player_stream_t *stream)
 {
@@ -115,11 +155,20 @@ esp_player_err_t player_pl_install_builtin_video_decoder(esp_player_stream_t *st
     if (esp_gmf_video_dec_init(&video_dec_cfg, decoder_el) != ESP_GMF_ERR_OK) {
         return ESP_PLAYER_ERR_NO_MEM;
     }
+    uint32_t preferred = 0;
     if (src_format == ESP_FOURCC_H264) {
-        esp_gmf_video_dec_set_dst_format(*decoder_el, ESP_VIDEO_CODEC_PIXEL_FMT_YUV420P);
-    } else {
-        esp_gmf_video_dec_set_dst_format(*decoder_el, ESP_VIDEO_CODEC_PIXEL_FMT_RGB888);
+        preferred = ESP_VIDEO_CODEC_PIXEL_FMT_YUV420P;
+    } else if (stream->video_render_hd != NULL) {
+        esp_video_render_disp_info_t disp = {0};
+        if (esp_video_render_get_display_info(
+                (esp_video_render_handle_t)stream->video_render_hd, &disp) == ESP_VIDEO_RENDER_ERR_OK &&
+            disp.format != ESP_VIDEO_RENDER_FORMAT_NONE) {
+            preferred = (uint32_t)disp.format;
+        }
     }
+    uint32_t dst = player_pl_pick_video_dst_format(*decoder_el, src_format, preferred);
+    ESP_LOGI(TAG, "Video decode dst format 0x%08" PRIx32, dst);
+    esp_gmf_video_dec_set_dst_format(*decoder_el, dst);
     esp_gmf_video_element_t *v_el = (esp_gmf_video_element_t *)*decoder_el;
     v_el->src_info.format_id = src_format;
     return ESP_PLAYER_ERR_OK;
@@ -155,8 +204,7 @@ esp_player_err_t player_pl_run_create_video_decoder(esp_player_stream_t *stream)
             return ESP_PLAYER_ERR_TIMEOUT;
         }
 
-        esp_gmf_db_handle_t vid_db = NULL;
-        bool db_owned_locally = false;
+        bool bus_owned_locally = false;
         ret = ESP_PLAYER_ERR_OK;
         do {
             decoder_inport = NEW_ESP_GMF_PORT_IN_BLOCK(decoder_video_in_acquire, decoder_video_in_release, NULL, stream, 0, ESP_GMF_MAX_DELAY);
@@ -165,40 +213,23 @@ esp_player_err_t player_pl_run_create_video_decoder(esp_player_stream_t *stream)
                 ret = ESP_PLAYER_ERR_NO_MEM;
                 break;
             }
-            uint32_t dec_rd_video_frame_size =
-                ((stream->video_side->track_info.video_info.width + 15) & (~0xf)) * ((stream->video_side->track_info.video_info.height + 15) & (~0xf));
-            if (stream->video_side->track_info.video_info.format == ESP_FOURCC_H264) {
-                dec_rd_video_frame_size = dec_rd_video_frame_size * 3 / 2;
-            } else {
-                dec_rd_video_frame_size = dec_rd_video_frame_size * 3;
-            }
-            if (dec_rd_video_frame_size == 0) {
-                dec_rd_video_frame_size = VIDEO_MIN_FRAME_SIZE;
-            }
-            if (esp_gmf_db_new_block(dec_rd_video_frame_size, ESP_PLAYER_VIDEO_BLOCK_NUM, &vid_db) != ESP_GMF_ERR_OK) {
-                player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_VIDEO_DECODER, "db_new_block");
+            /* Decode-output block is sized from the decoder's first reported frame
+             * (see VIDEO_INFO handler / acquire_write), not extractor or set_track_info. */
+            player_data_bus_release(&stream->video_side->data_bus);
+            stream->video_side->data_bus = player_data_bus_create(NULL, ESP_PLAYER_VIDEO_BLOCK_NUM * 2);
+            if (stream->video_side->data_bus == NULL) {
+                player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_VIDEO_DECODER, "data_bus_create");
                 ret = ESP_PLAYER_ERR_NO_MEM;
                 break;
             }
-            uint8_t align = esp_gmf_oal_get_spiram_cache_align();
-            if (esp_gmf_db_set_align(vid_db, align, align) != ESP_GMF_ERR_OK) {
-                player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_VIDEO_DECODER, "db_set_align");
+            bus_owned_locally = true;
+            if (player_data_bus_set_lazy_block(stream->video_side->data_bus, ESP_PLAYER_VIDEO_BLOCK_NUM) != ESP_GMF_ERR_OK) {
+                player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_VIDEO_DECODER, "data_bus_lazy_block");
                 ret = ESP_PLAYER_ERR_NO_MEM;
                 break;
             }
-            db_owned_locally = true;
-            if (stream->video_side->data_bus) {
-                player_data_bus_destroy(stream->video_side->data_bus);
-                stream->video_side->data_bus = NULL;
-            }
-            stream->video_side->data_bus = player_data_bus_create(vid_db, ESP_PLAYER_VIDEO_BLOCK_NUM * 2);
-            if (stream->video_side->data_bus) {
-                decoder_outport = NEW_ESP_GMF_PORT_OUT_BLOCK(player_data_bus_acquire_write, player_data_bus_release_write, NULL,
-                                                             (void *)stream->video_side->data_bus, 0, ESP_GMF_MAX_DELAY);
-            } else {
-                decoder_outport = NEW_ESP_GMF_PORT_OUT_BLOCK(esp_gmf_db_acquire_write, esp_gmf_db_release_write, NULL,
-                                                             (void *)vid_db, 0, ESP_GMF_MAX_DELAY);
-            }
+            decoder_outport = NEW_ESP_GMF_PORT_OUT_BLOCK(player_data_bus_acquire_write, player_data_bus_release_write, NULL,
+                                                         (void *)stream->video_side->data_bus, 0, ESP_GMF_MAX_DELAY);
             if (decoder_outport == NULL) {
                 player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_VIDEO_DECODER, "out-port alloc");
                 ret = ESP_PLAYER_ERR_NO_MEM;
@@ -212,22 +243,19 @@ esp_player_err_t player_pl_run_create_video_decoder(esp_player_stream_t *stream)
                 player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_VIDEO_DECODER, "config_decoder_pipeline");
                 break;
             }
-            db_owned_locally = false;
+            bus_owned_locally = false;
         } while (0);
 
         xSemaphoreGive(stream->lock_resource);
 
         if (ret != ESP_PLAYER_ERR_OK) {
-            if (db_owned_locally && vid_db) {
-                esp_gmf_db_deinit(vid_db);
-            }
-            if (db_owned_locally && stream->video_side->data_bus && player_data_bus_inner(stream->video_side->data_bus) == vid_db) {
-                player_data_bus_destroy(stream->video_side->data_bus);
-                stream->video_side->data_bus = NULL;
+            if (bus_owned_locally) {
+                player_data_bus_release(&stream->video_side->data_bus);
             }
             return ret;
         }
-        if (!(stream->expected_tasks & TASK_STATUS_EXTRACTOR_RUNNING)) {
+        if (!(stream->expected_tasks & TASK_STATUS_EXTRACTOR_RUNNING) &&
+            stream->video_side->track_info.video_info.fps > 0) {
             player_sync_set_video_fps(stream->sync_handle, stream->video_side->track_info.video_info.fps);
             player_sync_enable_video_fps_sync(stream->sync_handle, true);
         } else {
@@ -290,11 +318,13 @@ esp_player_err_t player_pl_create_video_render(esp_player_stream_t *stream)
                 break;
             }
             esp_gmf_pipeline_register_el(stream->video_side->render, video_render_el);
-            uint32_t vid_port_size = ((video_render_cfg.width + 15) & (~0xfU)) * ((video_render_cfg.height + 15) & (~0xfU));
-            if (video_render_cfg.decoded_format == ESP_VIDEO_CODEC_PIXEL_FMT_YUV420P) {
-                vid_port_size = vid_port_size * 3 / 2;
-            } else {
-                vid_port_size = vid_port_size * 3;
+            uint32_t vid_port_size = 0;
+            if (stream->video_side->data_bus) {
+                vid_port_size = player_data_bus_block_item_size(stream->video_side->data_bus);
+            }
+            if (vid_port_size == 0) {
+                vid_port_size = player_pl_video_decoded_frame_size(video_render_cfg.width, video_render_cfg.height,
+                                                                   video_render_cfg.decoded_format);
             }
             if (vid_port_size == 0) {
                 vid_port_size = VIDEO_MIN_FRAME_SIZE;
@@ -345,4 +375,16 @@ esp_player_err_t player_pl_create_video_render(esp_player_stream_t *stream)
     }
     return player_run_pipeline_with_timeout(stream, player_pipeline_task(stream->video_side->render), TASK_TIMEOUT_MS,
                                             stream->video_side->render, ESP_PLAYER_ERROR_SOURCE_VIDEO_RENDER);
+}
+
+uint32_t player_pl_video_decoded_frame_size(uint32_t width, uint32_t height, uint32_t format)
+{
+    if (width == 0 || height == 0) {
+        return 0;
+    }
+    esp_video_codec_resolution_t res = {
+        .width = VIDEO_ALIGN_UP_DIM(width),
+        .height = VIDEO_ALIGN_UP_DIM(height),
+    };
+    return esp_video_codec_get_image_size((esp_video_codec_pixel_fmt_t)format, &res);
 }

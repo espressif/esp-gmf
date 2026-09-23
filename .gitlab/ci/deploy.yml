@@ -14,6 +14,7 @@ push_to_github:
     - echo "skip default before_script"
   script:
     - source ${CI_PROJECT_DIR}/tools/ci/utils.sh
+    - add_gitlab_local_dns
     - add_github_ssh_keys
     - git fetch --unshallow
     - git remote remove github &>/dev/null || true

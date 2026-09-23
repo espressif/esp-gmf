@@ -75,6 +75,7 @@ static bool player_path_has_ext(const char *path, const char *ext)
     return pl >= el && strcasecmp(path + pl - el, ext) == 0;
 }
 
+#if CONFIG_ESP_PLAYER_ENABLE_HLS_IO
 static bool path_looks_like_hls(const char *path, const char *full)
 {
     if (path && strcasestr(path, ".m3u8") != NULL) {
@@ -82,6 +83,7 @@ static bool path_looks_like_hls(const char *path, const char *full)
     }
     return full && strcasestr(full, ".m3u8") != NULL;
 }
+#endif  /* CONFIG_ESP_PLAYER_ENABLE_HLS_IO */
 
 static bool player_query_get_ulong(const char *query, const char *key, unsigned long *out)
 {

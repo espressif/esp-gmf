@@ -298,13 +298,13 @@ esp_player_deinit(player);
 | ESP32-S31 | H264 | 640x480@13fps |
 | ESP32-P4 | H264 | 320x240@68fps |
 | ESP32-P4 | H264 | 640x480@18fps |
-| ESP32-S3 | MJPEG | 320x240@21fps |
+| ESP32-S3 | MJPEG | 320x240@28fps |
 | ESP32-S31 | MJPEG | 320x240@>120fps |
-| ESP32-S31 | MJPEG | 640x480@42fps |
-| ESP32-S31 | MJPEG | 1280x720@19fps |
+| ESP32-S31 | MJPEG | 640x480@66fps |
+| ESP32-S31 | MJPEG | 1280x720@32fps |
 | ESP32-P4 | MJPEG | 320x240@>120fps |
-| ESP32-P4 | MJPEG | 640x480@67fps |
-| ESP32-P4 | MJPEG | 1280x720@25fps |
+| ESP32-P4 | MJPEG | 640x480@91fps |
+| ESP32-P4 | MJPEG | 1280x720@30fps |
 
 说明：
 - H264 在上述芯片上均使用软件解码。

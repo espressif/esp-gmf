@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.0.7
+
+### Features
+
+- Deferred video decode-output block allocation until the decoder reports the real frame size
+- Selected JPEG decode output format from the display instead of always RGB888
+- Updated MJPEG maximum-performance figures in README after aligning JPEG decode output with the LCD pixel format
+
+### Bug Fixes
+
+- Fixed audio render reusing stale sample rate, bit depth, and channel count across stop/play on the same URL
+- Compiled the HLS path helper only when HLS IO is enabled
+- Fixed the network buffering gate stalling live HTTP/TS AV playback
+- Fixed `ESP_PLAYER_EVENT_FINISHED` not firing at the end of HTTP streams when the gate held the EOS frame
+
 ## v1.0.6
 
 ### Bug Fixes
