@@ -489,6 +489,31 @@ static void bytes_from_string(const char *str, uint8_t *out, size_t out_len)
     memset(out, 0, out_len);
     memcpy(out, str, strnlen(str, out_len));
 }
+
+static esp_bt_audio_le_bsrc_lc3_preset_t bsrc_lc3_preset(void)
+{
+#if CONFIG_GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_16K
+    return ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_16KHZ_10MS_40B_HQ;
+#elif CONFIG_GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_44_1K
+    return ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_44_1KHZ_10MS_130B_HQ;
+#else
+    return ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_10MS_100B_HQ;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_16K */
+}
+
+static const char *bsrc_sample_rate_str(esp_bt_audio_le_bsrc_lc3_preset_t preset)
+{
+    switch (preset) {
+        case ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_16KHZ_10MS_40B_HQ:
+            return "16000 Hz";
+        case ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_44_1KHZ_10MS_130B_HQ:
+            return "44100 Hz";
+        case ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_10MS_100B_HQ:
+            return "48000 Hz";
+        default:
+            return "unknown";
+    }
+}
 #endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 
@@ -583,6 +608,7 @@ static void setup_bt_audio_config_from_kconfig(esp_bt_audio_config_t *bt_config)
     bytes_from_string(CONFIG_GMF_EXAMPLE_LE_BSRC_CODE, bt_config->le.bsrc.broadcast_code,
                       sizeof(bt_config->le.bsrc.broadcast_code));
     bt_config->le.bsrc.stream_num = CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM;
+    bt_config->le.bsrc.lc3_preset = bsrc_lc3_preset();
 #if CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM > 1
     bt_config->le.bsrc.stream_locations[0] = ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT;
     bt_config->le.bsrc.stream_locations[1] = ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT;
@@ -1092,7 +1118,8 @@ void app_main()
     ESP_LOGI(TAG, "  PACS sink locations: %s", le_audio_locations_to_str(bt_config.le.pacs.sink_locations));
 #ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
     ESP_LOGI(TAG, "  Broadcast source name: %s", bt_config.le.bsrc.broadcast_name);
-    ESP_LOGI(TAG, "  Broadcast source: 1 BIG / %u BIS", bt_config.le.bsrc.stream_num);
+    ESP_LOGI(TAG, "  Broadcast source: 1 BIG / %u BIS, %s", bt_config.le.bsrc.stream_num,
+             bsrc_sample_rate_str(bt_config.le.bsrc.lc3_preset));
 #endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     ESP_ERROR_CHECK(esp_bt_audio_init(&bt_config));

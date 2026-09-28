@@ -189,6 +189,33 @@ menu "BT Audio Basic Example (GMF)"
                 stream. Initialization fails if this value exceeds
                 CONFIG_BT_BAP_BROADCAST_SRC_STREAM_COUNT.
 
+        choice GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE
+            prompt "LE Audio broadcast source sample rate"
+            depends on GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+            default GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_48K
+            help
+                LC3 sample rate used by every BIS in the broadcast, for both
+                the single mono stream and the two-stream stereo topology.
+                Decoded media is resampled to this rate before LC3 encoding.
+                Each option selects the matching 10 ms high-quality BAP preset.
+
+            config GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_16K
+                bool "16 kHz"
+                help
+                    16 kHz, 10 ms, 40-byte high-quality LC3 preset.
+
+            config GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_44_1K
+                bool "44.1 kHz"
+                help
+                    44.1 kHz, 10 ms, 130-byte high-quality LC3 preset.
+
+            config GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_48K
+                bool "48 kHz"
+                help
+                    48 kHz, 10 ms, 100-byte high-quality LC3 preset.
+
+        endchoice
+
         choice GMF_EXAMPLE_LE_LOCATION
             prompt "LE Audio location"
             default GMF_EXAMPLE_LE_LOCATION_FRONT_RIGHT
