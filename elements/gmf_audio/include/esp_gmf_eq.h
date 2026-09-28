@@ -82,6 +82,49 @@ esp_gmf_err_t esp_gmf_eq_get_para(esp_gmf_element_handle_t handle, uint8_t idx, 
  */
 esp_gmf_err_t esp_gmf_eq_enable_filter(esp_gmf_element_handle_t handle, uint8_t idx, bool is_enable);
 
+/**
+ * @brief  Get whether filter processing is enabled for a specific filter identified by 'idx' in the equalizer
+ *
+ * @param[in]   handle     The EQ handle
+ * @param[in]   idx        The index of a specific filter to be queried
+ * @param[out]  is_enable  The flag of whether band filter processing is enabled
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ */
+esp_gmf_err_t esp_gmf_eq_get_filter_enabled(esp_gmf_element_handle_t handle, uint8_t idx, bool *is_enable);
+
+/**
+ * @brief  Set the number of EQ filters and resize the parameter array
+ *
+ *         Increasing `filter_num` appends default peak filters; decreasing
+ *         truncates existing ones. Changing the count while the element is open
+ *         updates cfg and marks `need_reopen`; the next process cycle recreates
+ *         the AE handle with the new bank size.
+ *
+ * @param[in]  handle      The EQ handle
+ * @param[in]  filter_num  New filter count (must be > 0)
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_MEMORY_LACK  Failed to allocate resized array
+ */
+esp_gmf_err_t esp_gmf_eq_set_filter_num(esp_gmf_element_handle_t handle, uint8_t filter_num);
+
+/**
+ * @brief  Get the number of EQ filters
+ *
+ * @param[in]   handle      The EQ handle
+ * @param[out]  filter_num  Filter count
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ */
+esp_gmf_err_t esp_gmf_eq_get_filter_num(esp_gmf_element_handle_t handle, uint8_t *filter_num);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

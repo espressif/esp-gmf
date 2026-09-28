@@ -10,6 +10,7 @@
 #include "esp_audio_render.h"
 #include <esp_gmf_pool.h>
 #include <esp_gmf_element.h>
+#include "esp_gmf_pipeline_view.h"
 #include "esp_gmf_ch_cvt.h"
 #include "esp_gmf_bit_cvt.h"
 #include "esp_gmf_rate_cvt.h"
@@ -312,6 +313,248 @@ static int render_event_hdlr(esp_audio_render_event_type_t event_type, void *ctx
         res->is_open = true;
     } else if (event_type == ESP_AUDIO_RENDER_EVENT_TYPE_CLOSED) {
         res->is_close = true;
+    }
+    return 0;
+}
+
+#define PIPELINE_VIEW_MAX_STREAM_NUM (5)
+#define PIPELINE_VIEW_PCM_SAMPLES    (960)
+#define PIPELINE_VIEW_WRITE_COUNT    (8)
+
+static const esp_gmf_pipeline_view_item_t *find_view_pipeline(const esp_gmf_pipeline_view_t *view,
+                                                              const char *name)
+{
+    const void *iterator = NULL;
+    const esp_gmf_pipeline_view_item_t *item = NULL;
+    while (esp_gmf_pipeline_view_iterate_pipeline(view, &iterator, &item) == ESP_GMF_ERR_OK) {
+        if (strcmp(item->name, name) == 0) {
+            return item;
+        }
+    }
+    return NULL;
+}
+
+static int audio_render_pipeline_view_case(uint8_t stream_num)
+{
+    render_out_res_t res = {};
+    esp_audio_render_cfg_t cfg = {
+        .max_stream_num = stream_num,
+        .out_sample_info = {
+            .sample_rate = 48000,
+            .bits_per_sample = 16,
+            .channel = 2,
+        },
+        .out_writer = render_post_write_hdlr,
+        .out_ctx = &res,
+    };
+    if (create_default_pool((esp_gmf_pool_handle_t *)&cfg.pool) != 0) {
+        return -1;
+    }
+    esp_audio_render_handle_t render = NULL;
+    esp_audio_render_stream_handle_t streams[PIPELINE_VIEW_MAX_STREAM_NUM] = {};
+    const esp_gmf_pipeline_view_item_t *stream_items[PIPELINE_VIEW_MAX_STREAM_NUM] = {};
+    const esp_gmf_pipeline_view_connector_t *connector = NULL;
+    bool success = false;
+    do {
+        BREAK_ON_FAIL(esp_audio_render_create(&cfg, &render));
+
+        const void *connector_iterator = NULL;
+        const esp_gmf_pipeline_view_t *view = NULL;
+        while (esp_gmf_pipeline_view_iterate_connector(&connector_iterator, &connector) == ESP_GMF_ERR_OK) {
+            if (connector->get_view(&view) == ESP_GMF_ERR_OK) {
+                break;
+            }
+        }
+        BREAK_ON_FAIL(connector == NULL || view == NULL);
+
+        int pipeline_count = 0;
+        const void *pipeline_iterator = NULL;
+        const esp_gmf_pipeline_view_item_t *pipeline_item = NULL;
+        while (esp_gmf_pipeline_view_iterate_pipeline(view, &pipeline_iterator,
+                                                      &pipeline_item) == ESP_GMF_ERR_OK) {
+            pipeline_count++;
+        }
+        int expected_pipeline_count = stream_num == 1 ? 1 : stream_num + 1;
+        BREAK_ON_FAIL(pipeline_count != expected_pipeline_count);
+
+        bool items_valid = true;
+        char name[32];
+        for (int i = 0; i < stream_num; i++) {
+            snprintf(name, sizeof(name), "audio_render/stream-%d", i);
+            stream_items[i] = find_view_pipeline(view, name);
+            if (stream_items[i] == NULL || stream_items[i]->pipeline != NULL) {
+                items_valid = false;
+                break;
+            }
+        }
+        BREAK_ON_FAIL(items_valid == false);
+        const esp_gmf_pipeline_view_item_t *mixed = find_view_pipeline(view, "audio_render/mixed");
+        BREAK_ON_FAIL((stream_num == 1 && mixed != NULL)
+                      || (stream_num > 1 && (mixed == NULL || mixed->pipeline != NULL)));
+
+        int connection_count = 0;
+        bool connection_valid = true;
+        const void *connection_iterator = NULL;
+        const esp_gmf_pipeline_view_connection_t *connection = NULL;
+        while (esp_gmf_pipeline_view_iterate_connection(view, &connection_iterator,
+                                                        &connection) == ESP_GMF_ERR_OK) {
+            bool from_valid = false;
+            for (int i = 0; i < stream_num; i++) {
+                if (connection->from == stream_items[i]) {
+                    from_valid = true;
+                    break;
+                }
+            }
+            if (connection->to != mixed || from_valid == false) {
+                connection_valid = false;
+                break;
+            }
+            connection_count++;
+        }
+        int expected_connection_count = stream_num == 1 ? 0 : stream_num;
+        BREAK_ON_FAIL(connection_valid == false || connection_count != expected_connection_count);
+
+        bool streams_valid = true;
+        for (int i = 0; i < stream_num; i++) {
+            if (esp_audio_render_stream_get(render, i, &streams[i]) != ESP_AUDIO_RENDER_ERR_OK) {
+                streams_valid = false;
+                break;
+            }
+        }
+        BREAK_ON_FAIL(streams_valid == false);
+        esp_audio_render_sample_info_t sample_info = {
+            .sample_rate = 48000,
+            .bits_per_sample = 16,
+            .channel = 2,
+        };
+
+        // With matching sample information and no processor, Render is active without a GMF pipeline.
+        BREAK_ON_FAIL(esp_audio_render_stream_open(streams[0], &sample_info));
+        BREAK_ON_FAIL(stream_items[0]->pipeline != NULL || (mixed != NULL && mixed->pipeline != NULL));
+        int16_t pcm[PIPELINE_VIEW_PCM_SAMPLES];
+        for (int i = 0; i < PIPELINE_VIEW_PCM_SAMPLES; i++) {
+            pcm[i] = (i & 1) == 0 ? 1000 : -1000;
+        }
+        uint32_t direct_write_count = res.write_count;
+        bool write_valid = true;
+        for (int i = 0; i < PIPELINE_VIEW_WRITE_COUNT; i++) {
+            if (esp_audio_render_stream_write(streams[0], (uint8_t *)pcm, sizeof(pcm))
+                != ESP_AUDIO_RENDER_ERR_OK) {
+                write_valid = false;
+                break;
+            }
+        }
+        BREAK_ON_FAIL(write_valid == false);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        BREAK_ON_FAIL(res.write_count == direct_write_count);
+        BREAK_ON_FAIL(esp_audio_render_stream_close(streams[0]));
+
+        esp_audio_render_proc_type_t stream_proc = ESP_AUDIO_RENDER_PROC_ALC;
+        for (int i = 0; i < stream_num; i++) {
+            if (esp_audio_render_stream_add_proc(streams[i], &stream_proc, 1)
+                != ESP_AUDIO_RENDER_ERR_OK) {
+                streams_valid = false;
+                break;
+            }
+        }
+        BREAK_ON_FAIL(streams_valid == false);
+        if (stream_num > 1) {
+            esp_audio_render_proc_type_t mixed_proc = ESP_AUDIO_RENDER_PROC_EQ;
+            BREAK_ON_FAIL(esp_audio_render_add_mixed_proc(render, &mixed_proc, 1));
+        }
+
+        BREAK_ON_FAIL(esp_audio_render_stream_open(streams[0], &sample_info));
+        BREAK_ON_FAIL(stream_items[0]->pipeline == NULL || (mixed != NULL && mixed->pipeline == NULL));
+        for (int i = 1; i < stream_num; i++) {
+            if (stream_items[i]->pipeline != NULL) {
+                items_valid = false;
+                break;
+            }
+        }
+        BREAK_ON_FAIL(items_valid == false);
+
+        for (int i = 1; i < stream_num; i++) {
+            if (esp_audio_render_stream_open(streams[i], &sample_info) != ESP_AUDIO_RENDER_ERR_OK) {
+                streams_valid = false;
+                break;
+            }
+        }
+        BREAK_ON_FAIL(streams_valid == false);
+        for (int i = 0; i < stream_num; i++) {
+            if (stream_items[i]->pipeline == NULL) {
+                items_valid = false;
+                break;
+            }
+        }
+        BREAK_ON_FAIL(items_valid == false || (mixed != NULL && mixed->pipeline == NULL));
+
+        uint32_t processed_write_count = res.write_count;
+        write_valid = true;
+        for (int frame = 0; frame < PIPELINE_VIEW_WRITE_COUNT; frame++) {
+            for (int i = 0; i < stream_num; i++) {
+                if (esp_audio_render_stream_write(streams[i], (uint8_t *)pcm, sizeof(pcm))
+                    != ESP_AUDIO_RENDER_ERR_OK) {
+                    write_valid = false;
+                    break;
+                }
+            }
+            if (write_valid == false) {
+                break;
+            }
+        }
+        BREAK_ON_FAIL(write_valid == false);
+        vTaskDelay(pdMS_TO_TICKS(100));
+        BREAK_ON_FAIL(res.write_count == processed_write_count);
+
+        BREAK_ON_FAIL(esp_audio_render_stream_close(streams[0]));
+        BREAK_ON_FAIL(stream_items[0]->pipeline != NULL);
+        if (stream_num > 1) {
+            BREAK_ON_FAIL(mixed->pipeline == NULL);
+            for (int i = 1; i < stream_num; i++) {
+                if (stream_items[i]->pipeline == NULL) {
+                    items_valid = false;
+                    break;
+                }
+            }
+            BREAK_ON_FAIL(items_valid == false);
+        }
+        for (int i = 1; i < stream_num; i++) {
+            if (esp_audio_render_stream_close(streams[i]) != ESP_AUDIO_RENDER_ERR_OK) {
+                streams_valid = false;
+                break;
+            }
+        }
+        BREAK_ON_FAIL(streams_valid == false);
+        for (int i = 0; i < stream_num; i++) {
+            if (stream_items[i]->pipeline != NULL) {
+                items_valid = false;
+                break;
+            }
+        }
+        BREAK_ON_FAIL(items_valid == false || (mixed != NULL && mixed->pipeline != NULL));
+
+        BREAK_ON_FAIL(esp_audio_render_destroy(render));
+        render = NULL;
+        view = NULL;
+        BREAK_ON_FAIL(connector->get_view(&view) != ESP_GMF_ERR_NOT_FOUND || view != NULL);
+        success = true;
+    } while (0);
+    if (render != NULL) {
+        esp_audio_render_destroy(render);
+    }
+    destroy_default_pool((esp_gmf_pool_handle_t)cfg.pool);
+    ESP_LOGI(TAG, "Pipeline view case with %u stream(s): %s", stream_num,
+             success ? "PASS" : "FAIL");
+    return success ? 0 : -1;
+}
+
+int audio_render_pipeline_view_test(void)
+{
+    const uint8_t stream_count[] = {1, 2, 3, 5};
+    for (int i = 0; i < ELEMS(stream_count); i++) {
+        if (audio_render_pipeline_view_case(stream_count[i]) != 0) {
+            return -1;
+        }
     }
     return 0;
 }

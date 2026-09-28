@@ -16,27 +16,6 @@ esp_gmf_job.h:line: warning: Member top (variable) of class esp_gmf_job_stack_t 
 esp_gmf_alc.h:line: warning: argument 'ch_idx' of command @param is not found in the argument list of esp_gmf_alc_get_gain(esp_gmf_element_handle_t handle, uint8_t idx, int8_t *gain)
 esp_gmf_alc.h:line: warning: The following parameter of esp_gmf_alc_get_gain(esp_gmf_element_handle_t handle, uint8_t idx, int8_t *gain) is not documented:
   parameter 'idx'
-esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_dest_rate(esp_gmf_element_handle_t self, uint32_t dest_rate)
-esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_dest_rate(esp_gmf_element_handle_t self, uint32_t dest_rate) is not documented:
-  parameter 'self'
-esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_dest_bits(esp_gmf_element_handle_t self, uint8_t dest_bits)
-esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_dest_bits(esp_gmf_element_handle_t self, uint8_t dest_bits) is not documented:
-  parameter 'self'
-esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_dest_ch(esp_gmf_element_handle_t self, uint8_t dest_ch)
-esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_dest_ch(esp_gmf_element_handle_t self, uint8_t dest_ch) is not documented:
-  parameter 'self'
-esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_speed(esp_gmf_element_handle_t self, float speed)
-esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_speed(esp_gmf_element_handle_t self, float speed) is not documented:
-  parameter 'self'
-esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_pitch(esp_gmf_element_handle_t self, float pitch)
-esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_pitch(esp_gmf_element_handle_t self, float pitch) is not documented:
-  parameter 'self'
-esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_alc_channel_gain(esp_gmf_element_handle_t self, uint8_t ch_idx, float gain_db)
-esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_alc_channel_gain(esp_gmf_element_handle_t self, uint8_t ch_idx, float gain_db) is not documented:
-  parameter 'self'
-esp_gmf_audio_param.h:line: warning: argument 'handle' of command @param is not found in the argument list of esp_gmf_audio_param_set_fade(esp_gmf_element_handle_t self, bool is_fade_in)
-esp_gmf_audio_param.h:line: warning: The following parameter of esp_gmf_audio_param_set_fade(esp_gmf_element_handle_t self, bool is_fade_in) is not documented:
-  parameter 'self'
 esp_gmf_drc.h:line: warning: unable to resolve reference to 'esp_ae_drc_cfg_t' for \ref command
 esp_gmf_fade.h:line: warning: unable to resolve reference to 'esp_gmf_fade_reset' for \ref command
 esp_gmf_rate_cvt.h:line: warning: argument 'dest_ch' of command @param is not found in the argument list of esp_gmf_rate_cvt_set_dest_rate(esp_gmf_element_handle_t handle, uint32_t dest_rate)

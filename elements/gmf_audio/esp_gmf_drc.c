@@ -34,6 +34,36 @@ static const esp_ae_drc_curve_point esp_gmf_default_drc_points[] = {
     {.x = -100.0f, .y = -100.0f},
 };
 
+static const esp_gmf_arg_constraint_t s_drc_attack_release_constraint = {
+    .minimum.u64 = 0,
+    .maximum.u64 = 500,
+    .step.u64 = 1,
+};
+
+static const esp_gmf_arg_constraint_t s_drc_hold_constraint = {
+    .minimum.u64 = 0,
+    .maximum.u64 = 100,
+    .step.u64 = 1,
+};
+
+static const esp_gmf_arg_constraint_t s_drc_makeup_constraint = {
+    .minimum.f64 = -10.0,
+    .maximum.f64 = 10.0,
+    .step.f64 = 0.1,
+};
+
+static const esp_gmf_arg_constraint_t s_drc_knee_constraint = {
+    .minimum.f64 = 0.0,
+    .maximum.f64 = 10.0,
+    .step.f64 = 0.1,
+};
+
+static const esp_gmf_arg_constraint_t s_drc_point_num_constraint = {
+    .minimum.u64 = 2,
+    .maximum.u64 = 6,
+    .step.u64 = 1,
+};
+
 static inline esp_gmf_err_t dupl_esp_ae_drc_cfg(esp_ae_drc_cfg_t *config, esp_ae_drc_cfg_t **new_config)
 {
     esp_ae_drc_curve_point *points = NULL;
@@ -188,12 +218,12 @@ static esp_gmf_job_err_t gmf_drc_open(esp_gmf_element_handle_t self, void *para)
     ESP_GMF_NULL_CHECK(TAG, config, {return ESP_GMF_JOB_ERR_FAIL;});
     esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
     el->bytes_per_sample = (config->bits_per_sample >> 3) * config->channel;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     esp_ae_err_t ret = esp_ae_drc_open(config, &el->drc_hd);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __drc_open_exit;}, "Failed to create drc handle %d", ret);
     el->need_reopen = false;
 __drc_open_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (job_ret != ESP_GMF_JOB_ERR_OK) {
         return job_ret;
     }
@@ -206,12 +236,12 @@ static esp_gmf_job_err_t gmf_drc_close(esp_gmf_element_handle_t self, void *para
 {
     esp_gmf_drc_t *el = (esp_gmf_drc_t *)self;
     ESP_LOGD(TAG, "Closed, %p", self);
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     if (el->drc_hd) {
         esp_ae_drc_close(el->drc_hd);
         el->drc_hd = NULL;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     return ESP_GMF_ERR_OK;
 }
 
@@ -251,9 +281,9 @@ static esp_gmf_job_err_t gmf_drc_process(esp_gmf_element_handle_t self, void *pa
     load_ret = esp_gmf_port_acquire_out(out_port, &out_load, samples_num ? bytes : in_load->buf_length, ESP_GMF_MAX_DELAY);
     ESP_GMF_PORT_ACQUIRE_OUT_CHECK(TAG, load_ret, out_len, goto __release);
     if (samples_num > 0) {
-        esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+        esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
         esp_ae_err_t ret = esp_ae_drc_process(el->drc_hd, samples_num, in_load->buf, out_load->buf);
-        esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+        esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
         ESP_GMF_RET_ON_ERROR(TAG, ret, {out_len = ESP_GMF_JOB_ERR_FAIL; goto __release;}, "DRC process error %d", ret);
     }
     ESP_LOGV(TAG, "Samples: %d, IN-PLD: %p-%p-%d-%d-%d, OUT-PLD: %p-%p-%d-%d-%d",
@@ -302,10 +332,12 @@ static esp_gmf_err_t drc_received_event_handler(esp_gmf_event_pkt_t *evt, void *
     esp_ae_drc_cfg_t *config = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)self;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     drc->need_reopen = (config->sample_rate != info->sample_rates) || (info->channels != config->channel) || (config->bits_per_sample != info->bits);
     config->sample_rate = info->sample_rates;
     config->channel = info->channels;
     config->bits_per_sample = info->bits;
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     ESP_LOGD(TAG, "RECV element info, from: %s-%p, next: %p, self: %s-%p, type: %x, state: %s, rate: %d, ch: %d, bits: %d",
              OBJ_GET_TAG(el), el, esp_gmf_node_for_next((esp_gmf_node_t *)el), OBJ_GET_TAG(self), self, evt->type,
              esp_gmf_event_get_state_str(state), info->sample_rates, info->channels, info->bits);
@@ -332,85 +364,105 @@ static esp_gmf_err_t _load_drc_methods_func(esp_gmf_element_handle_t handle)
 {
     esp_gmf_method_t *method = NULL;
     esp_gmf_args_desc_t *args = NULL;
+    esp_gmf_args_desc_t *get_args = NULL;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
 
     // set/get attack
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, SET_ATTACK, ATTACK), ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
+    ret = esp_gmf_args_desc_append_with_constraint(&args, AMETHOD_ARG(DRC, SET_ATTACK, ATTACK),
+                                                   ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0,
+                                                   &s_drc_attack_release_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append ATTACK arg");
-    ret = esp_gmf_method_append(&method, AMETHOD(DRC, SET_ATTACK), __drc_set_attack, args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DRC, SET_ATTACK), __drc_set_attack,
+                                          args, AMETHOD(DRC, GET_ATTACK), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, SET_ATTACK));
-
-    args = NULL;
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, GET_ATTACK, ATTACK), ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append ATTACK arg");
-    ret = esp_gmf_method_append(&method, AMETHOD(DRC, GET_ATTACK), __drc_get_attack, args);
+    ret = esp_gmf_args_desc_copy(args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy ATTACK arg");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DRC, GET_ATTACK), __drc_get_attack,
+                                          get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, GET_ATTACK));
 
     // set/get release
     args = NULL;
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, SET_RELEASE, RELEASE), ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
+    get_args = NULL;
+    ret = esp_gmf_args_desc_append_with_constraint(&args, AMETHOD_ARG(DRC, SET_RELEASE, RELEASE),
+                                                   ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0,
+                                                   &s_drc_attack_release_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append RELEASE arg");
-    ret = esp_gmf_method_append(&method, AMETHOD(DRC, SET_RELEASE), __drc_set_release, args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DRC, SET_RELEASE), __drc_set_release,
+                                          args, AMETHOD(DRC, GET_RELEASE), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, SET_RELEASE));
-
-    args = NULL;
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, GET_RELEASE, RELEASE), ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append RELEASE arg");
-    ret = esp_gmf_method_append(&method, AMETHOD(DRC, GET_RELEASE), __drc_get_release, args);
+    ret = esp_gmf_args_desc_copy(args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy RELEASE arg");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DRC, GET_RELEASE), __drc_get_release,
+                                          get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, GET_RELEASE));
 
     // set/get hold
     args = NULL;
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, SET_HOLD, HOLD), ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
+    get_args = NULL;
+    ret = esp_gmf_args_desc_append_with_constraint(&args, AMETHOD_ARG(DRC, SET_HOLD, HOLD),
+                                                   ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0,
+                                                   &s_drc_hold_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append HOLD arg");
-    ret = esp_gmf_method_append(&method, AMETHOD(DRC, SET_HOLD), __drc_set_hold, args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DRC, SET_HOLD), __drc_set_hold,
+                                          args, AMETHOD(DRC, GET_HOLD), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, SET_HOLD));
-
-    args = NULL;
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, GET_HOLD, HOLD), ESP_GMF_ARGS_TYPE_UINT16, sizeof(uint16_t), 0);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append HOLD arg");
-    ret = esp_gmf_method_append(&method, AMETHOD(DRC, GET_HOLD), __drc_get_hold, args);
+    ret = esp_gmf_args_desc_copy(args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy HOLD arg");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DRC, GET_HOLD), __drc_get_hold,
+                                          get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, GET_HOLD));
 
     // set/get makeup
     args = NULL;
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, SET_MAKEUP, MAKEUP), ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0);
+    get_args = NULL;
+    ret = esp_gmf_args_desc_append_with_constraint(&args, AMETHOD_ARG(DRC, SET_MAKEUP, MAKEUP),
+                                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                   &s_drc_makeup_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append MAKEUP arg");
-    ret = esp_gmf_method_append(&method, AMETHOD(DRC, SET_MAKEUP), __drc_set_makeup, args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DRC, SET_MAKEUP), __drc_set_makeup,
+                                          args, AMETHOD(DRC, GET_MAKEUP), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, SET_MAKEUP));
-
-    args = NULL;
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, GET_MAKEUP, MAKEUP), ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append MAKEUP arg");
-    ret = esp_gmf_method_append(&method, AMETHOD(DRC, GET_MAKEUP), __drc_get_makeup, args);
+    ret = esp_gmf_args_desc_copy(args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy MAKEUP arg");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DRC, GET_MAKEUP), __drc_get_makeup,
+                                          get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, GET_MAKEUP));
 
     // set/get knee
     args = NULL;
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, SET_KNEE, KNEE), ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0);
+    get_args = NULL;
+    ret = esp_gmf_args_desc_append_with_constraint(&args, AMETHOD_ARG(DRC, SET_KNEE, KNEE),
+                                                   ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0,
+                                                   &s_drc_knee_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append KNEE arg");
-    ret = esp_gmf_method_append(&method, AMETHOD(DRC, SET_KNEE), __drc_set_knee, args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DRC, SET_KNEE), __drc_set_knee,
+                                          args, AMETHOD(DRC, GET_KNEE), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, SET_KNEE));
-
-    args = NULL;
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, GET_KNEE, KNEE), ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float), 0);
-    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append KNEE arg");
-    ret = esp_gmf_method_append(&method, AMETHOD(DRC, GET_KNEE), __drc_get_knee, args);
+    ret = esp_gmf_args_desc_copy(args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy KNEE arg");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DRC, GET_KNEE), __drc_get_knee,
+                                          get_args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, GET_KNEE));
 
     // set/get curve points
     args = NULL;
     ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, SET_POINTS, POINTS), ESP_GMF_ARGS_TYPE_INT32, sizeof(int32_t), 0);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append POINTS arg");
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, SET_POINTS, POINT_NUM), ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), sizeof(int32_t));
+    ret = esp_gmf_args_desc_append_with_constraint(&args, AMETHOD_ARG(DRC, SET_POINTS, POINT_NUM),
+                                                   ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), sizeof(int32_t),
+                                                   &s_drc_point_num_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append POINT_NUM arg");
     ret = esp_gmf_method_append(&method, AMETHOD(DRC, SET_POINTS), __drc_set_points, args);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, SET_POINTS));
 
     args = NULL;
-    ret = esp_gmf_args_desc_append(&args, AMETHOD_ARG(DRC, GET_POINT_NUM, POINT_NUM), ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), 0);
+    ret = esp_gmf_args_desc_append_with_constraint(&args, AMETHOD_ARG(DRC, GET_POINT_NUM, POINT_NUM),
+                                                   ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), 0,
+                                                   &s_drc_point_num_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append POINT_NUM arg");
-    ret = esp_gmf_method_append(&method, AMETHOD(DRC, GET_POINT_NUM), __drc_get_point_num, args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(DRC, GET_POINT_NUM), __drc_get_point_num,
+                                          args, NULL, true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, GET_POINT_NUM));
 
     args = NULL;
@@ -420,6 +472,7 @@ static esp_gmf_err_t _load_drc_methods_func(esp_gmf_element_handle_t handle)
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append POINT_NUM arg");
     ret = esp_gmf_method_append(&method, AMETHOD(DRC, GET_POINTS), __drc_get_points, args);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s", AMETHOD(DRC, GET_POINTS));
+
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
     el->method = method;
     return ESP_GMF_ERR_OK;
@@ -442,7 +495,7 @@ esp_gmf_err_t esp_gmf_drc_set_attack_time(esp_gmf_element_handle_t handle, uint1
     esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_set_attack_time(drc->drc_hd, attack);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -452,7 +505,7 @@ esp_gmf_err_t esp_gmf_drc_set_attack_time(esp_gmf_element_handle_t handle, uint1
     }
     cfg->drc_para.attack_time = attack;
 __drc_set_attack_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -462,7 +515,7 @@ esp_gmf_err_t esp_gmf_drc_get_attack_time(esp_gmf_element_handle_t handle, uint1
     ESP_GMF_NULL_CHECK(TAG, attack, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_get_attack_time(drc->drc_hd, attack);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -478,7 +531,7 @@ esp_gmf_err_t esp_gmf_drc_get_attack_time(esp_gmf_element_handle_t handle, uint1
         *attack = cfg->drc_para.attack_time;
     }
 __drc_get_attack_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -489,7 +542,7 @@ esp_gmf_err_t esp_gmf_drc_set_release_time(esp_gmf_element_handle_t handle, uint
     esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_set_release_time(drc->drc_hd, release);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -499,7 +552,7 @@ esp_gmf_err_t esp_gmf_drc_set_release_time(esp_gmf_element_handle_t handle, uint
     }
     cfg->drc_para.release_time = release;
 __drc_set_release_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -509,7 +562,7 @@ esp_gmf_err_t esp_gmf_drc_get_release_time(esp_gmf_element_handle_t handle, uint
     ESP_GMF_NULL_CHECK(TAG, release, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_get_release_time(drc->drc_hd, release);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -525,7 +578,7 @@ esp_gmf_err_t esp_gmf_drc_get_release_time(esp_gmf_element_handle_t handle, uint
         *release = cfg->drc_para.release_time;
     }
 __drc_get_release_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -536,7 +589,7 @@ esp_gmf_err_t esp_gmf_drc_set_hold_time(esp_gmf_element_handle_t handle, uint16_
     esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_set_hold_time(drc->drc_hd, hold);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -546,7 +599,7 @@ esp_gmf_err_t esp_gmf_drc_set_hold_time(esp_gmf_element_handle_t handle, uint16_
     }
     cfg->drc_para.hold_time = hold;
 __drc_set_hold_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -556,7 +609,7 @@ esp_gmf_err_t esp_gmf_drc_get_hold_time(esp_gmf_element_handle_t handle, uint16_
     ESP_GMF_NULL_CHECK(TAG, hold, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_get_hold_time(drc->drc_hd, hold);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -572,7 +625,7 @@ esp_gmf_err_t esp_gmf_drc_get_hold_time(esp_gmf_element_handle_t handle, uint16_
         *hold = cfg->drc_para.hold_time;
     }
 __drc_get_hold_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -583,7 +636,7 @@ esp_gmf_err_t esp_gmf_drc_set_makeup_gain(esp_gmf_element_handle_t handle, float
     esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_set_makeup_gain(drc->drc_hd, makeup);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -593,7 +646,7 @@ esp_gmf_err_t esp_gmf_drc_set_makeup_gain(esp_gmf_element_handle_t handle, float
     }
     cfg->drc_para.makeup_gain = makeup;
 __drc_set_makeup_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -603,7 +656,7 @@ esp_gmf_err_t esp_gmf_drc_get_makeup_gain(esp_gmf_element_handle_t handle, float
     ESP_GMF_NULL_CHECK(TAG, makeup, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_get_makeup_gain(drc->drc_hd, makeup);
         if (ae_ret != ESP_AE_ERR_OK) {
@@ -619,7 +672,7 @@ esp_gmf_err_t esp_gmf_drc_get_makeup_gain(esp_gmf_element_handle_t handle, float
         *makeup = cfg->drc_para.makeup_gain;
     }
 __drc_get_makeup_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -630,14 +683,14 @@ esp_gmf_err_t esp_gmf_drc_set_knee_width(esp_gmf_element_handle_t handle, float 
     esp_ae_drc_cfg_t *cfg = (esp_ae_drc_cfg_t *)OBJ_GET_CFG(handle);
     ESP_GMF_NULL_CHECK(TAG, cfg, return ESP_GMF_ERR_FAIL);
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_set_knee_width(drc->drc_hd, knee);
         ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __drc_set_knee_exit;}, "DRC set knee error %d", ae_ret);
     }
     cfg->drc_para.knee_width = knee;
 __drc_set_knee_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -647,7 +700,7 @@ esp_gmf_err_t esp_gmf_drc_get_knee_width(esp_gmf_element_handle_t handle, float 
     ESP_GMF_NULL_CHECK(TAG, knee, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_get_knee_width(drc->drc_hd, knee);
         ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __drc_get_knee_exit;}, "DRC get knee error %d", ae_ret);
@@ -660,7 +713,7 @@ esp_gmf_err_t esp_gmf_drc_get_knee_width(esp_gmf_element_handle_t handle, float 
         *knee = cfg->drc_para.knee_width;
     }
 __drc_get_knee_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -671,7 +724,7 @@ esp_gmf_err_t esp_gmf_drc_set_points(esp_gmf_element_handle_t handle, esp_ae_drc
     ESP_GMF_CHECK(TAG, point_num >= 2 && point_num <= 6, {return ESP_GMF_ERR_INVALID_ARG;}, "Invalid DRC point number");
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_set_curve_points(drc->drc_hd, points, point_num);
         ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __drc_set_points_exit;}, "DRC set points error %d", ae_ret);
@@ -691,7 +744,7 @@ esp_gmf_err_t esp_gmf_drc_set_points(esp_gmf_element_handle_t handle, esp_ae_drc
     cfg->drc_para.point = dup_points;
     cfg->drc_para.point_num = point_num;
 __drc_set_points_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -701,7 +754,7 @@ esp_gmf_err_t esp_gmf_drc_get_point_num(esp_gmf_element_handle_t handle, uint8_t
     ESP_GMF_NULL_CHECK(TAG, point_num, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_get_curve_point_num(drc->drc_hd, point_num);
         ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __drc_get_point_num_exit;}, "DRC get point num error %d", ae_ret);
@@ -714,7 +767,7 @@ esp_gmf_err_t esp_gmf_drc_get_point_num(esp_gmf_element_handle_t handle, uint8_t
         *point_num = cfg->drc_para.point_num;
     }
 __drc_get_point_num_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -724,7 +777,7 @@ esp_gmf_err_t esp_gmf_drc_get_points(esp_gmf_element_handle_t handle, esp_ae_drc
     ESP_GMF_NULL_CHECK(TAG, points, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_get_curve_points(drc->drc_hd, points);
         ESP_GMF_RET_ON_ERROR(TAG, ae_ret, {ret = ESP_GMF_ERR_FAIL; goto __drc_get_points_exit;}, "DRC get points error %d", ae_ret);
@@ -745,7 +798,7 @@ esp_gmf_err_t esp_gmf_drc_get_points(esp_gmf_element_handle_t handle, esp_ae_drc
         ret = ESP_GMF_ERR_FAIL;
     }
 __drc_get_points_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 
@@ -754,12 +807,12 @@ static esp_gmf_job_err_t esp_gmf_drc_reset(esp_gmf_element_handle_t handle, void
     ESP_GMF_NULL_CHECK(TAG, handle, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_drc_t *drc = (esp_gmf_drc_t *)handle;
     esp_gmf_job_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     if (drc->drc_hd) {
         esp_ae_err_t ae_ret = esp_ae_drc_reset(drc->drc_hd);
         ret = (ae_ret == ESP_AE_ERR_OK) ? ESP_GMF_ERR_OK : ESP_GMF_ERR_FAIL;
     }
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     ESP_LOGD(TAG, "DRC reset");
     return ret;
 }
@@ -799,6 +852,7 @@ esp_gmf_err_t esp_gmf_drc_init(esp_ae_drc_cfg_t *config, esp_gmf_element_handle_
     ESP_GMF_ELEMENT_OUT_PORT_ATTR_SET(el_cfg.out_attr, ESP_GMF_EL_PORT_CAP_SINGLE, 0, 0,
         ESP_GMF_PORT_TYPE_BLOCK | ESP_GMF_PORT_TYPE_BYTE, ESP_GMF_ELEMENT_PORT_DATA_SIZE_DEFAULT);
     el_cfg.dependency = true;
+    el_cfg.bypass_policy = ESP_GMF_BYPASS_COMMON;
     ret = esp_gmf_audio_el_init(drc, &el_cfg);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, goto DRC_INIT_FAIL, "Failed to initialize drc element");
     ESP_GMF_ELEMENT_GET(drc)->ops.open = gmf_drc_open;

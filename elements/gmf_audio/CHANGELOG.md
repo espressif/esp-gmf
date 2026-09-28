@@ -1,5 +1,35 @@
 # Changelog
 
+## v1.1.0
+
+### Break Change
+
+- Audio elements use the base-element mutex; `esp_gmf_audio_el_lock` / `unlock` and `esp_gmf_audio_element_t::lock` were removed
+- For ESP32-P4, only chip revision `v3.0.0` or later is supported
+- For ESP32-S31, due to PIE assembly optimization limitations, all `*_process()` APIs must be called from Core 1, if want to  remove this restriction, set `ESP_AUDIO_EFFECTS_S31_USE_ASM=n` and `ESP_AUDIO_CODEC_S31_USE_ASM=n` in menuconfig, at the cost of reduced performance
+
+### Features
+
+- Added `aud_reverb` element based on `esp_ae_reverb`
+- Added `aud_delay` element based on `esp_ae_delay`
+- Added delay `get_max_delay` to read `max_delay_ms` from the element configuration
+- Added `set_transit_time` / `get_transit_time` methods for `aud_alc`
+- Updated `esp_audio_codec` dependency to `~2.6`
+- Updated `esp_audio_effects` dependency to `~1.4`
+- Added getter methods, runtime-safe metadata, and argument constraints for configurable audio element parameters
+- Added public getter APIs for ASRC, bit converter, channel converter, rate converter, and mixer configurations
+- Added getter counterparts in `esp_gmf_audio_param` for dest rate/bits/ch, speed, pitch, ALC gain, and fade
+- `aud_alc`, `aud_delay`, `aud_drc`, `aud_eq`, `aud_fade`, `aud_reverb`, and `aud_mbc` use `ESP_GMF_BYPASS_COMMON`; `aud_howl` and `aud_sonic` use `ESP_GMF_BYPASS_CUSTOM`. Bypass is controlled by `esp_gmf_element_set_bypass` / `esp_gmf_element_get_bypass`
+- Sonic bypass reuses the identity passthrough path; leftover AE output after `TRUNCATE` is discarded so bypass takes effect immediately
+- Howl bypass stays in its own process so cache leftover after `TRUNCATE` continues to drain
+
+### Bug Fixes
+
+- Sonic leftover AE output after `TRUNCATE` no longer blocks bypass passthrough
+- Marked the Fade reset method unsafe during processing to match the underlying effect API concurrency requirement
+- Restored method-list cleanup on `_load_delay_methods_func` and `_load_reverb_methods_func` error paths
+- Stored delay `SET_DELAY_TIME` constraints per instance to avoid sharing `max_delay_ms` across elements
+
 ## v1.0.1~1
 
 ### Changes

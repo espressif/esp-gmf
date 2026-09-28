@@ -59,6 +59,19 @@ esp_gmf_err_t esp_gmf_asrc_init(esp_asrc_cfg_t *config, esp_gmf_element_handle_t
 esp_gmf_err_t esp_gmf_asrc_set_dest_rate(esp_gmf_element_handle_t handle, uint32_t dest_rate);
 
 /**
+ * @brief  Get destination sample rate from the ASRC element
+ *
+ * @param[in]   handle     ASRC element handle
+ * @param[out]  dest_rate  Destination sample rate
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_FAIL         Configuration is unavailable
+ */
+esp_gmf_err_t esp_gmf_asrc_get_dest_rate(esp_gmf_element_handle_t handle, uint32_t *dest_rate);
+
+/**
  * @brief  Set destination channel count in the ASRC element
  *
  * @param[in]  handle   The ASRC element handle
@@ -71,6 +84,19 @@ esp_gmf_err_t esp_gmf_asrc_set_dest_rate(esp_gmf_element_handle_t handle, uint32
 esp_gmf_err_t esp_gmf_asrc_set_dest_ch(esp_gmf_element_handle_t handle, uint8_t dest_ch);
 
 /**
+ * @brief  Get destination channel count from the ASRC element
+ *
+ * @param[in]   handle   ASRC element handle
+ * @param[out]  dest_ch  Destination channel count
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_FAIL         Configuration is unavailable
+ */
+esp_gmf_err_t esp_gmf_asrc_get_dest_ch(esp_gmf_element_handle_t handle, uint8_t *dest_ch);
+
+/**
  * @brief  Set destination bit depth in the ASRC element
  *
  * @param[in]  handle     The ASRC element handle
@@ -81,6 +107,19 @@ esp_gmf_err_t esp_gmf_asrc_set_dest_ch(esp_gmf_element_handle_t handle, uint8_t 
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
  */
 esp_gmf_err_t esp_gmf_asrc_set_dest_bits(esp_gmf_element_handle_t handle, uint8_t dest_bits);
+
+/**
+ * @brief  Get destination bit depth from the ASRC element
+ *
+ * @param[in]   handle     ASRC element handle
+ * @param[out]  dest_bits  Destination bit depth
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_FAIL         Configuration is unavailable
+ */
+esp_gmf_err_t esp_gmf_asrc_get_dest_bits(esp_gmf_element_handle_t handle, uint8_t *dest_bits);
 
 #ifdef __cplusplus
 }

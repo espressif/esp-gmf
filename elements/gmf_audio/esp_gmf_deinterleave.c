@@ -198,10 +198,12 @@ static esp_gmf_err_t deinterleave_received_event_handler(esp_gmf_event_pkt_t *ev
     esp_gmf_deinterleave_cfg *config = (esp_gmf_deinterleave_cfg *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_deinterleave_t *deinterleave = (esp_gmf_deinterleave_t *)self;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     deinterleave->need_reopen = (config->sample_rate != info->sample_rates) || (info->channels != config->channel) || (config->bits_per_sample != info->bits);
     config->sample_rate = info->sample_rates;
     config->channel = info->channels;
     config->bits_per_sample = info->bits;
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     ESP_LOGD(TAG, "RECV element info, from: %s-%p, next: %p, self: %s-%p, type: %x, state: %s, rate: %d, ch: %d, bits: %d",
              OBJ_GET_TAG(el), el, esp_gmf_node_for_next((esp_gmf_node_t *)el), OBJ_GET_TAG(self), self, evt->type,
              esp_gmf_event_get_state_str(state), info->sample_rates, info->channels, info->bits);

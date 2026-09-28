@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.1.0
+
+### Features
+
+- Added `esp_gmf_element_set_bypass` / `esp_gmf_element_get_bypass` with `bypass_policy` (`DISABLE` / `COMMON` / `CUSTOM`); COMMON passthrough runs in `esp_gmf_element_process_running`
+- Added capability `ESP_GMF_CAPS_AUDIO_REVERB` for audio reverb effects
+- Added capability `ESP_GMF_CAPS_AUDIO_DELAY` for audio delay effects
+- Added an optional mutex handle on the base element; audio element init creates it on demand and `esp_gmf_element_deinit` releases it
+- Added method metadata for getter associations and runtime-safe execution
+- Added type-aware method argument constraints for ranges and indexed cardinality
+- Added generic pipeline view APIs and linker-registered connectors for discovering named pipelines, handles, and directed connections
+- Added `REVERB` capability definition (`ESP_GMF_CAPS_AUDIO_REVERB`)
+- Added `DELAY` capability definition (`ESP_GMF_CAPS_AUDIO_DELAY`)
+
 ## v1.0.2
 
 ### Bug Fixes

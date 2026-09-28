@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include "esp_gmf_err.h"
 #include "esp_gmf_oal_mem.h"
 #include "esp_gmf_args_desc.h"
@@ -26,11 +27,13 @@ typedef esp_gmf_err_t (*esp_gmf_method_func)(void *handle, esp_gmf_args_desc_t *
  *         This structure defines a linked list node for storing GMF methods
  */
 typedef struct esp_gmf_method {
-    struct esp_gmf_method *next;       /*!< Pointer to the next method node */
-    const char            *name;       /*!< Name of the method */
-    esp_gmf_method_func    func;       /*!< Function pointer to the method implementation */
-    uint16_t               args_cnt;   /*!< Number of the argument description */
-    esp_gmf_args_desc_t   *args_desc;  /*!< A pointer to argument description structure */
+    struct esp_gmf_method *next;          /*!< Pointer to the next method node */
+    const char            *name;          /*!< Name of the method */
+    esp_gmf_method_func    func;          /*!< Function pointer to the method implementation */
+    uint16_t               args_cnt;      /*!< Number of the argument description */
+    bool                   runtime_safe;  /*!< Whether the method may execute while the element is running */
+    esp_gmf_args_desc_t   *args_desc;     /*!< A pointer to argument description structure */
+    const char            *getter;        /*!< Paired getter method name for a host to read back the current value, or NULL */
 } esp_gmf_method_t;
 
 /**
@@ -66,27 +69,32 @@ static inline esp_gmf_err_t esp_gmf_method_create(const char *name, esp_gmf_meth
 }
 
 /**
- * @brief  Append a new GMF method to the method list
- *         This function creates a new GMF method and appends it to the provided method list
+ * @brief  Append a described GMF method to the method list
  *
- * @note  The `name` argument must have global or static scope to ensure validity throughout the method's operation
+ * @note  The @p name and optional @p getter must have global or static scope.
  *
- * @param[in,out]  head  Pointer to the head of the method list
- * @param[in]      name  Name of the method
- * @param[in]      func  Function pointer to the method implementation
- * @param[in]      args  The arguments description list
+ * @param[in,out]  head          Pointer to the head of the method list
+ * @param[in]      name          Name of the method
+ * @param[in]      func          Function pointer to the method implementation
+ * @param[in]      args          The arguments description list
+ * @param[in]      getter        Getter providing the complete current value, or NULL
+ * @param[in]      runtime_safe  Whether the method may execute while the element is running
  *
  * @return
  *       - ESP_GMF_ERR_OK           Success
  *       - ESP_GMF_ERR_MEMORY_LACK  Memory allocation failure
  */
-static inline esp_gmf_err_t esp_gmf_method_append(esp_gmf_method_t **head, const char *name, esp_gmf_method_func func, esp_gmf_args_desc_t *args)
+static inline esp_gmf_err_t esp_gmf_method_append_with_info(esp_gmf_method_t **head, const char *name,
+                                                            esp_gmf_method_func func, esp_gmf_args_desc_t *args,
+                                                            const char *getter, bool runtime_safe)
 {
     esp_gmf_method_t *new_method = NULL;
     esp_gmf_method_create(name, func, args, &new_method);
     if (new_method == NULL) {
         return ESP_GMF_ERR_MEMORY_LACK;
     }
+    new_method->getter = getter;
+    new_method->runtime_safe = runtime_safe;
     if (*head == NULL) {
         *head = new_method;
     } else {
@@ -97,6 +105,27 @@ static inline esp_gmf_err_t esp_gmf_method_append(esp_gmf_method_t **head, const
         current->next = new_method;
     }
     return ESP_GMF_ERR_OK;
+}
+
+/**
+ * @brief  Append a new GMF method to the method list
+ *
+ *         The appended method has no getter and is not declared safe while the
+ *         element is running.
+ *
+ * @param[in,out]  head  Pointer to the head of the method list
+ * @param[in]      name  Name of the method
+ * @param[in]      func  Function pointer to the method implementation
+ * @param[in]      args  The arguments description list
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Success
+ *       - ESP_GMF_ERR_MEMORY_LACK  Memory allocation failure
+ */
+static inline esp_gmf_err_t esp_gmf_method_append(esp_gmf_method_t **head, const char *name,
+                                                  esp_gmf_method_func func, esp_gmf_args_desc_t *args)
+{
+    return esp_gmf_method_append_with_info(head, name, func, args, NULL, false);
 }
 
 /**

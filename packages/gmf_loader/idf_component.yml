@@ -1,4 +1,4 @@
-version: "1.0.0~2"
+version: "1.1.0"
 description: Espressif GMF Loader is a module that loads elements and I/O components for the GMF pipeline
 url: https://github.com/espressif/esp-gmf/tree/main/packages/gmf_loader
 documentation: "https://github.com/espressif/esp-gmf/blob/main/packages/gmf_loader/README.md"
@@ -14,27 +14,27 @@ dependencies:
     version: "~2.0.0-beta1"
   espressif/esp_audio_codec:
     require: "public"
-    version: "~2.5"
+    version: "~2.6"
   espressif/esp_video_codec:
     version: "~0.5.2"
     require: "public"
   espressif/gmf_core:
-    version: "~1.0"
+    version: "~1.1"
     require: "public"
   espressif/gmf_io:
-    version: "~1.0"
+    version: "~1.1"
     require: "public"
   espressif/gmf_audio:
-    version: "~1.0"
+    version: "~1.1"
     require: "public"
   espressif/gmf_ai_audio:
-    version: "~1.0"
+    version: "~1.1"
     require: "public"
   espressif/gmf_video:
-    version: "~1.0"
+    version: "~1.1"
     require: "public"
   espressif/gmf_misc:
-    version: "~1.0"
+    version: "~1.1"
     require: "public"
   espressif/esp_muxer:
     require: "public"

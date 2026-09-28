@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.0
+
+### Changes
+
+- Updated all depended GMF components to v1.1
+
 ## v1.0.0~1
 
 ### Changes

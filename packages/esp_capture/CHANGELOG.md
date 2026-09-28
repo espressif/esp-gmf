@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0
+
+### Changes
+
+- Updated `esp_video` to version v2.5
+- Added "YUV422 UYVY" format support for v4l2
+
 ## 1.0.5
 
 ### Bug Fixes

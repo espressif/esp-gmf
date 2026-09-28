@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.0
+
+### Changes
+
+- Relaxed `esp-sr` dependency version from `2.5.3` to `2.5.*`
+
 ## v1.0.2
 
 ### Features

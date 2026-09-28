@@ -48,6 +48,19 @@ esp_gmf_err_t esp_gmf_bit_cvt_init(esp_ae_bit_cvt_cfg_t *config, esp_gmf_element
  */
 esp_gmf_err_t esp_gmf_bit_cvt_set_dest_bits(esp_gmf_element_handle_t handle, uint8_t dest_bits);
 
+/**
+ * @brief  Get destination bits from the bit conversion element
+ *
+ * @param[in]   handle     Bit conversion element handle
+ * @param[out]  dest_bits  Destination bits
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Operation succeeded
+ *       - ESP_GMF_ERR_INVALID_ARG  Invalid input parameter
+ *       - ESP_GMF_ERR_FAIL         Configuration is unavailable
+ */
+esp_gmf_err_t esp_gmf_bit_cvt_get_dest_bits(esp_gmf_element_handle_t handle, uint8_t *dest_bits);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

@@ -9,8 +9,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
-
+#endif  /* __cplusplus */
 
 // Convert string to character code
 static inline uint64_t gmf_str_to_cc(const char *str, int max_len)
@@ -32,56 +31,58 @@ static inline void gmf_eightcc_to_str(uint64_t eightcc, char out[9])
 }
 
 // Macro to convert a string to an 8-byte identifier (EIGHTCC)
-#define STR_2_EIGHTCC(str) gmf_str_to_cc(str, 8)
+#define STR_2_EIGHTCC(str)  gmf_str_to_cc(str, 8)
 
 // Macro to convert a string to an 4-byte identifier (FOURCC)
-#define STR_2_FOURTCC(str) gmf_str_to_cc(str, 4)
+#define STR_2_FOURTCC(str)  gmf_str_to_cc(str, 4)
 
 // Macro to convert an EIGHTCC code to a string
-#define EIGHTCC_2_STR(eightcc) ({             \
-    static char eightcc_str[9];               \
-    gmf_eightcc_to_str(eightcc, eightcc_str); \
-    eightcc_str;                              \
-})
+#define EIGHTCC_2_STR(eightcc)  ({             \
+    static char eightcc_str[9];                \
+    gmf_eightcc_to_str(eightcc, eightcc_str);  \
+    eightcc_str;                               \
+    })
 
 /***************************************************************************/
 /*                      Definition of Audio Capabilities                   */
 /***************************************************************************/
-#define ESP_GMF_CAPS_AUDIO_DECODER              STR_2_EIGHTCC("AUDDEC")
-#define ESP_GMF_CAPS_AUDIO_ENCODER              STR_2_EIGHTCC("AUDENC")
-#define ESP_GMF_CAPS_AUDIO_ALC                  STR_2_EIGHTCC("AUDALC")
-#define ESP_GMF_CAPS_AUDIO_BIT_CONVERT          STR_2_EIGHTCC("AUDBTCVT")
-#define ESP_GMF_CAPS_AUDIO_CHANNEL_CONVERT      STR_2_EIGHTCC("AUDCHCVT")
-#define ESP_GMF_CAPS_AUDIO_RATE_CONVERT         STR_2_EIGHTCC("AUDRTCVT")
-#define ESP_GMF_CAPS_AUDIO_MIXER                STR_2_EIGHTCC("AUDMIXER")
-#define ESP_GMF_CAPS_AUDIO_EQUALIZER            STR_2_EIGHTCC("AUDEQ")
-#define ESP_GMF_CAPS_AUDIO_SONIC                STR_2_EIGHTCC("AUDSONIC")
-#define ESP_GMF_CAPS_AUDIO_FADE                 STR_2_EIGHTCC("AUDFADE")
-#define ESP_GMF_CAPS_AUDIO_DEINTERLEAVE         STR_2_EIGHTCC("AUDDITLV")
-#define ESP_GMF_CAPS_AUDIO_INTERLEAVE           STR_2_EIGHTCC("AUDINTLV")
-#define ESP_GMF_CAPS_AUDIO_AEC                  STR_2_EIGHTCC("AUDAEC")
-#define ESP_GMF_CAPS_AUDIO_NS                   STR_2_EIGHTCC("AUDNS")
-#define ESP_GMF_CAPS_AUDIO_AGC                  STR_2_EIGHTCC("AUDAGC")
-#define ESP_GMF_CAPS_AUDIO_VAD                  STR_2_EIGHTCC("AUDVAD")
-#define ESP_GMF_CAPS_AUDIO_DOA                  STR_2_EIGHTCC("AUDDOA")
-#define ESP_GMF_CAPS_AUDIO_WWE                  STR_2_EIGHTCC("AUDWWE")
-#define ESP_GMF_CAPS_AUDIO_VCMD                 STR_2_EIGHTCC("AUDVCMD")
-#define ESP_GMF_CAPS_AUDIO_DRC                  STR_2_EIGHTCC("AUDDRC")
-#define ESP_GMF_CAPS_AUDIO_MBC                  STR_2_EIGHTCC("AUDMBC")
-#define ESP_GMF_CAPS_AUDIO_MUXER                STR_2_EIGHTCC("AUDMUXER")
-#define ESP_GMF_CAPS_AUDIO_HOWL                 STR_2_EIGHTCC("AUDHOWL")
+#define ESP_GMF_CAPS_AUDIO_DECODER          STR_2_EIGHTCC("AUDDEC")
+#define ESP_GMF_CAPS_AUDIO_ENCODER          STR_2_EIGHTCC("AUDENC")
+#define ESP_GMF_CAPS_AUDIO_ALC              STR_2_EIGHTCC("AUDALC")
+#define ESP_GMF_CAPS_AUDIO_BIT_CONVERT      STR_2_EIGHTCC("AUDBTCVT")
+#define ESP_GMF_CAPS_AUDIO_CHANNEL_CONVERT  STR_2_EIGHTCC("AUDCHCVT")
+#define ESP_GMF_CAPS_AUDIO_RATE_CONVERT     STR_2_EIGHTCC("AUDRTCVT")
+#define ESP_GMF_CAPS_AUDIO_MIXER            STR_2_EIGHTCC("AUDMIXER")
+#define ESP_GMF_CAPS_AUDIO_EQUALIZER        STR_2_EIGHTCC("AUDEQ")
+#define ESP_GMF_CAPS_AUDIO_SONIC            STR_2_EIGHTCC("AUDSONIC")
+#define ESP_GMF_CAPS_AUDIO_FADE             STR_2_EIGHTCC("AUDFADE")
+#define ESP_GMF_CAPS_AUDIO_DEINTERLEAVE     STR_2_EIGHTCC("AUDDITLV")
+#define ESP_GMF_CAPS_AUDIO_INTERLEAVE       STR_2_EIGHTCC("AUDINTLV")
+#define ESP_GMF_CAPS_AUDIO_AEC              STR_2_EIGHTCC("AUDAEC")
+#define ESP_GMF_CAPS_AUDIO_NS               STR_2_EIGHTCC("AUDNS")
+#define ESP_GMF_CAPS_AUDIO_AGC              STR_2_EIGHTCC("AUDAGC")
+#define ESP_GMF_CAPS_AUDIO_VAD              STR_2_EIGHTCC("AUDVAD")
+#define ESP_GMF_CAPS_AUDIO_DOA              STR_2_EIGHTCC("AUDDOA")
+#define ESP_GMF_CAPS_AUDIO_WWE              STR_2_EIGHTCC("AUDWWE")
+#define ESP_GMF_CAPS_AUDIO_VCMD             STR_2_EIGHTCC("AUDVCMD")
+#define ESP_GMF_CAPS_AUDIO_DRC              STR_2_EIGHTCC("AUDDRC")
+#define ESP_GMF_CAPS_AUDIO_MBC              STR_2_EIGHTCC("AUDMBC")
+#define ESP_GMF_CAPS_AUDIO_MUXER            STR_2_EIGHTCC("AUDMUXER")
+#define ESP_GMF_CAPS_AUDIO_HOWL             STR_2_EIGHTCC("AUDHOWL")
+#define ESP_GMF_CAPS_AUDIO_REVERB           STR_2_EIGHTCC("AUDREVB")
+#define ESP_GMF_CAPS_AUDIO_DELAY            STR_2_EIGHTCC("AUDDELAY")
 
 /***************************************************************************/
 /*                      Definition of Video Capabilities                   */
 /***************************************************************************/
-#define ESP_GMF_CAPS_VIDEO_DECODER              STR_2_EIGHTCC("VIDDEC")
-#define ESP_GMF_CAPS_VIDEO_ENCODER              STR_2_EIGHTCC("VIDENC")
-#define ESP_GMF_CAPS_VIDEO_COLOR_CONVERT        STR_2_EIGHTCC("VIDCCVT")
-#define ESP_GMF_CAPS_VIDEO_CROP                 STR_2_EIGHTCC("VIDCROP")
-#define ESP_GMF_CAPS_VIDEO_ROTATE               STR_2_EIGHTCC("VIDRTATE")
-#define ESP_GMF_CAPS_VIDEO_SCALE                STR_2_EIGHTCC("VIDSCALE")
-#define ESP_GMF_CAPS_VIDEO_OVERLAY              STR_2_EIGHTCC("VIDOVLY")
-#define ESP_GMF_CAPS_VIDEO_FPS_CVT              STR_2_EIGHTCC("VIDFPS")
+#define ESP_GMF_CAPS_VIDEO_DECODER        STR_2_EIGHTCC("VIDDEC")
+#define ESP_GMF_CAPS_VIDEO_ENCODER        STR_2_EIGHTCC("VIDENC")
+#define ESP_GMF_CAPS_VIDEO_COLOR_CONVERT  STR_2_EIGHTCC("VIDCCVT")
+#define ESP_GMF_CAPS_VIDEO_CROP           STR_2_EIGHTCC("VIDCROP")
+#define ESP_GMF_CAPS_VIDEO_ROTATE         STR_2_EIGHTCC("VIDRTATE")
+#define ESP_GMF_CAPS_VIDEO_SCALE          STR_2_EIGHTCC("VIDSCALE")
+#define ESP_GMF_CAPS_VIDEO_OVERLAY        STR_2_EIGHTCC("VIDOVLY")
+#define ESP_GMF_CAPS_VIDEO_FPS_CVT        STR_2_EIGHTCC("VIDFPS")
 
 #ifdef __cplusplus
 }

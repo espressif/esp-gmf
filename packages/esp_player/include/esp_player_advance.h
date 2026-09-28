@@ -86,7 +86,10 @@ typedef struct {
  *        - `prebuffer_resume_ms`, `rebuffer_enter_ms`, `rebuffer_resume_ms`, `rebuffer_grace_ms`,
  *           buffering gate thresholds (ms); 0 = built-in default per field
  *
- *        Gate is on when `ESP_PLAYER_DEFAULT_NETWORK_BUFFERING` is non-zero. Duration is the
+ *        Gate is on for network URLs when `ESP_PLAYER_DEFAULT_NETWORK_BUFFERING` is non-zero
+ *        and `disable_network_buffering` is false. Set the flag in IDLE, STOPPED, or FINISHED
+ *        before the next run to skip the gate for that playback (for example a live stream)
+ *        while leaving HTTP read-ahead and demux pool sizes unchanged. Duration is the
  *        master-clock PTS span (newest queued − newest consumed; AUDIO by default). A full
  *        demux pool or end-of-stream releases the gate; a seek re-arms it. While PLAYING the
  *        extractor will not keep filling video if the audio queue is empty.
@@ -112,10 +115,11 @@ typedef struct {
     uint32_t  http_read_buf_size;  /*!< HTTP/HLS read-ahead (bytes); 0 = built-in default */
 
     /* Network — buffering gate */
-    uint32_t  prebuffer_resume_ms;  /*!< Startup: resume when effective >= threshold (ms); 0 = built-in default */
-    uint32_t  rebuffer_enter_ms;    /*!< Runtime: enter when effective <= threshold (ms); 0 = built-in default */
-    uint32_t  rebuffer_resume_ms;   /*!< Runtime: resume when effective >= threshold (ms); 0 = built-in default */
-    uint32_t  rebuffer_grace_ms;    /*!< Runtime: low-buffer duration before enter (ms); 0 = built-in default */
+    uint32_t  prebuffer_resume_ms;        /*!< Startup: resume when effective >= threshold (ms); 0 = built-in default */
+    uint32_t  rebuffer_enter_ms;          /*!< Runtime: enter when effective <= threshold (ms); 0 = built-in default */
+    uint32_t  rebuffer_resume_ms;         /*!< Runtime: resume when effective >= threshold (ms); 0 = built-in default */
+    uint32_t  rebuffer_grace_ms;          /*!< Runtime: low-buffer duration before enter (ms); 0 = built-in default */
+    bool      disable_network_buffering;  /*!< true: skip the network buffering gate for the next run; false: built-in default */
 } esp_player_buffer_config_t;
 
 /**

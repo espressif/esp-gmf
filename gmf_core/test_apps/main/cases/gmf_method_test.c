@@ -42,9 +42,15 @@ TEST_CASE("Method create and destroy test", "[ESP_GMF_METHOD]")
     esp_gmf_method_destroy(method);
     method = NULL;
 
-    esp_gmf_method_append(&method, "test1", esp_gmf_method_func1, NULL);
+    esp_gmf_method_append_with_info(&method, "test1", esp_gmf_method_func1, NULL,
+                                    "get_test1", true);
     esp_gmf_method_append(&method, "test2", esp_gmf_method_func2, NULL);
     esp_gmf_method_append(&method, "test3", esp_gmf_method_func3, NULL);
+
+    TEST_ASSERT_EQUAL_STRING("get_test1", method->getter);
+    TEST_ASSERT_TRUE(method->runtime_safe);
+    TEST_ASSERT_NULL(method->next->getter);
+    TEST_ASSERT_FALSE(method->next->runtime_safe);
 
     esp_gmf_args_desc_t *args_desc = NULL;
     esp_gmf_method_query_args(method, &args_desc);
@@ -73,6 +79,11 @@ TEST_CASE("Test basic arithmetic type arguments description", "[ESP_GMF_METHOD]"
     const esp_gmf_method_t *method_head = NULL;
     const esp_gmf_method_t *method1 = NULL;
     esp_gmf_element_get_method((esp_gmf_element_handle_t)dec, &method_head);
+    uint8_t missing_method_arg = 0;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_NOT_SUPPORT,
+                      esp_gmf_element_exe_method((esp_gmf_element_handle_t)dec,
+                                                 "missing", &missing_method_arg,
+                                                 sizeof(missing_method_arg)));
     esp_gmf_method_found(method_head, "set_info", &method1);
     size_t cnt = 0;
     esp_gmf_args_desc_get_total_size(method1->args_desc, &cnt);
@@ -285,4 +296,52 @@ TEST_CASE("Test structure description", "[ESP_GMF_METHOD]")
     esp_gmf_obj_delete(dec);
     esp_gmf_oal_free(buf);
     ESP_GMF_MEM_SHOW(TAG);
+}
+
+TEST_CASE("Test argument constraint metadata", "[ESP_GMF_METHOD]")
+{
+    static const esp_gmf_arg_constraint_t range = {
+        .minimum.u64 = 0,
+        .maximum.u64 = 1000,
+        .step.u64    = 1,
+    };
+    static const esp_gmf_arg_constraint_t indexed = {
+        .index_count_config_path = "channel",
+    };
+
+    esp_gmf_args_desc_t *args = NULL;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_args_desc_append_with_constraint(&args, "delay_time",
+                                                               ESP_GMF_ARGS_TYPE_UINT16,
+                                                               sizeof(uint16_t), 0, &range));
+    TEST_ASSERT_NOT_NULL(args);
+    TEST_ASSERT_EQUAL_PTR(&range, args->constraint);
+    TEST_ASSERT_EQUAL_UINT64(0, args->constraint->minimum.u64);
+    TEST_ASSERT_EQUAL_UINT64(1000, args->constraint->maximum.u64);
+    TEST_ASSERT_EQUAL_UINT64(1, args->constraint->step.u64);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_args_desc_append_with_constraint(&args, "index",
+                                                               ESP_GMF_ARGS_TYPE_UINT8,
+                                                               sizeof(uint8_t), sizeof(uint16_t),
+                                                               &indexed));
+    TEST_ASSERT_NOT_NULL(args->next->constraint);
+    TEST_ASSERT_EQUAL_STRING("channel", args->next->constraint->index_count_config_path);
+
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_args_desc_append_with_constraint(&args, "plain",
+                                                               ESP_GMF_ARGS_TYPE_FLOAT, sizeof(float),
+                                                               sizeof(uint16_t) + sizeof(uint8_t),
+                                                               NULL));
+    TEST_ASSERT_NULL(args->next->next->constraint);
+
+    esp_gmf_args_desc_t *copied = NULL;
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_args_desc_copy(args, &copied));
+    TEST_ASSERT_NOT_NULL(copied);
+    TEST_ASSERT_EQUAL_PTR(&range, copied->constraint);
+    TEST_ASSERT_EQUAL_PTR(&indexed, copied->next->constraint);
+    TEST_ASSERT_NULL(copied->next->next->constraint);
+
+    esp_gmf_args_desc_destroy(args);
+    esp_gmf_args_desc_destroy(copied);
 }

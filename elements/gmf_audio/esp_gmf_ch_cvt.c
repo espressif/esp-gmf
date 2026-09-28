@@ -33,6 +33,12 @@ typedef struct {
 
 static const char *TAG = "ESP_GMF_CH_CVT";
 
+static const esp_gmf_arg_constraint_t s_ch_cvt_channel_constraint = {
+    .minimum.u64 = 1,
+    .maximum.u64 = UINT8_MAX,
+    .step.u64 = 1,
+};
+
 static inline esp_gmf_err_t dupl_esp_ae_ch_cvt_cfg(esp_ae_ch_cvt_cfg_t *config, esp_ae_ch_cvt_cfg_t **new_config)
 {
     void *sub_cfg = NULL;
@@ -40,10 +46,11 @@ static inline esp_gmf_err_t dupl_esp_ae_ch_cvt_cfg(esp_ae_ch_cvt_cfg_t *config, 
     ESP_GMF_MEM_VERIFY(TAG, *new_config, {return ESP_GMF_ERR_MEMORY_LACK;}, "channel conversion configuration", sizeof(*config));
     memcpy(*new_config, config, sizeof(*config));
     if (config->weight && (config->weight_len > 0)) {
-        sub_cfg = esp_gmf_oal_calloc(1, config->weight_len);
+        size_t weight_size = config->weight_len * sizeof(float);
+        sub_cfg = esp_gmf_oal_calloc(1, weight_size);
         ESP_GMF_MEM_VERIFY(TAG, sub_cfg, {esp_gmf_oal_free(*new_config); return ESP_GMF_ERR_MEMORY_LACK;},
-                           "weight array", (int)config->weight_len);
-        memcpy(sub_cfg, config->weight, config->weight_len);
+                           "weight array", (int)weight_size);
+        memcpy(sub_cfg, config->weight, weight_size);
         (*new_config)->weight = sub_cfg;
     }
     return ESP_GMF_JOB_ERR_OK;
@@ -69,6 +76,13 @@ static esp_gmf_err_t __set_dest_ch(esp_gmf_element_handle_t handle, esp_gmf_args
     return esp_gmf_ch_cvt_set_dest_channel(handle, dest_ch);
 }
 
+static esp_gmf_err_t __get_dest_ch(esp_gmf_element_handle_t handle, esp_gmf_args_desc_t *arg_desc,
+                                   uint8_t *buf, int buf_len)
+{
+    ESP_GMF_NULL_CHECK(TAG, buf, {return ESP_GMF_ERR_INVALID_ARG;});
+    return esp_gmf_ch_cvt_get_dest_channel(handle, buf);
+}
+
 static esp_gmf_err_t esp_gmf_ch_cvt_new(void *cfg, esp_gmf_obj_handle_t *handle)
 {
     return esp_gmf_ch_cvt_init(cfg, (esp_gmf_element_handle_t *)handle);
@@ -80,7 +94,7 @@ static esp_gmf_job_err_t esp_gmf_ch_cvt_open(esp_gmf_element_handle_t self, void
     esp_ae_ch_cvt_cfg_t *ch_info = (esp_ae_ch_cvt_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, ch_info, {return ESP_GMF_JOB_ERR_FAIL;});
     esp_gmf_job_err_t job_ret = ESP_GMF_JOB_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
     esp_ae_ch_cvt_open(ch_info, &ch_cvt->ch_hd);
     ESP_GMF_CHECK(TAG, ch_cvt->ch_hd, {job_ret = ESP_GMF_JOB_ERR_FAIL; goto __ch_open_exit;}, "Failed to create channel conversion handle");
     ch_cvt->in_bytes_per_sample = (ch_info->bits_per_sample >> 3) * ch_info->src_ch;
@@ -90,7 +104,7 @@ static esp_gmf_job_err_t esp_gmf_ch_cvt_open(esp_gmf_element_handle_t self, void
     ch_cvt->need_reopen = false;
     ch_cvt->bypass = ch_info->src_ch == ch_info->dest_ch;
 __ch_open_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)self)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     GMF_AUDIO_UPDATE_SND_INFO(self, ch_info->sample_rate, ch_info->bits_per_sample, ch_info->dest_ch);
     return job_ret;
 }
@@ -195,10 +209,14 @@ static esp_gmf_err_t ch_cvt_received_event_handler(esp_gmf_event_pkt_t *evt, voi
     esp_ae_ch_cvt_cfg_t *config = (esp_ae_ch_cvt_cfg_t *)OBJ_GET_CFG(self);
     ESP_GMF_NULL_CHECK(TAG, config, return ESP_GMF_ERR_FAIL);
     esp_gmf_ch_cvt_t *ch_cvt = (esp_gmf_ch_cvt_t *)self;
-    ch_cvt->need_reopen = (config->sample_rate != info->sample_rates) || (info->channels != config->src_ch) || (config->bits_per_sample != info->bits);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(self)->lock);
+    ch_cvt->need_reopen = (config->sample_rate != info->sample_rates)
+                          || (info->channels != config->src_ch)
+                          || (config->bits_per_sample != info->bits);
     config->sample_rate = info->sample_rates;
     config->src_ch = info->channels;
     config->bits_per_sample = info->bits;
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(self)->lock);
     ESP_LOGD(TAG, "RECV info, from: %s-%p, next: %p, self: %s-%p, type: %x, state: %s, rate: %d, ch: %d, bits: %d",
              OBJ_GET_TAG(el), el, esp_gmf_node_for_next((esp_gmf_node_t *)el), OBJ_GET_TAG(self), self, evt->type,
              esp_gmf_event_get_state_str(state), info->sample_rates, info->channels, info->bits);
@@ -236,10 +254,21 @@ static esp_gmf_err_t _load_channel_cvt_methods_func(esp_gmf_element_handle_t han
 {
     esp_gmf_method_t *method = NULL;
     esp_gmf_args_desc_t *set_args = NULL;
-    esp_gmf_err_t ret = esp_gmf_args_desc_append(&set_args, AMETHOD_ARG(CH_CVT, SET_DEST_CH, CH), ESP_GMF_ARGS_TYPE_UINT8, sizeof(uint8_t), 0);
+    esp_gmf_args_desc_t *get_args = NULL;
+    esp_gmf_err_t ret = esp_gmf_args_desc_append_with_constraint(
+        &set_args, AMETHOD_ARG(CH_CVT, SET_DEST_CH, CH), ESP_GMF_ARGS_TYPE_UINT8,
+        sizeof(uint8_t), 0, &s_ch_cvt_channel_constraint);
     ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to append argument");
-    ret = esp_gmf_method_append(&method, AMETHOD(CH_CVT, SET_DEST_CH), __set_dest_ch, set_args);
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(CH_CVT, SET_DEST_CH),
+                                          __set_dest_ch, set_args,
+                                          AMETHOD(CH_CVT, GET_DEST_CH), true);
     ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(CH_CVT, SET_DEST_CH));
+
+    ret = esp_gmf_args_desc_copy(set_args, &get_args);
+    ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to copy argument");
+    ret = esp_gmf_method_append_with_info(&method, AMETHOD(CH_CVT, GET_DEST_CH),
+                                          __get_dest_ch, get_args, NULL, true);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, {return ret;}, "Failed to register %s method", AMETHOD(CH_CVT, GET_DEST_CH));
 
     esp_gmf_element_t *el = (esp_gmf_element_t *)handle;
     el->method = method;
@@ -250,7 +279,7 @@ esp_gmf_err_t esp_gmf_ch_cvt_set_dest_channel(esp_gmf_element_handle_t handle, u
 {
     ESP_GMF_NULL_CHECK(TAG, handle, { return ESP_GMF_ERR_INVALID_ARG;});
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-    esp_gmf_oal_mutex_lock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
     esp_ae_ch_cvt_cfg_t *cfg = (esp_ae_ch_cvt_cfg_t *)OBJ_GET_CFG(handle);
     if (cfg == NULL) {
         ESP_LOGE(TAG, "Failed to set dest channel, cfg is NULL");
@@ -264,7 +293,23 @@ esp_gmf_err_t esp_gmf_ch_cvt_set_dest_channel(esp_gmf_element_handle_t handle, u
     esp_gmf_ch_cvt_t *ch_cvt = (esp_gmf_ch_cvt_t *)handle;
     ch_cvt->need_reopen = true;
 __ch_set_dest_ch_exit:
-    esp_gmf_oal_mutex_unlock(((esp_gmf_audio_element_t *)handle)->lock);
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    return ret;
+}
+
+esp_gmf_err_t esp_gmf_ch_cvt_get_dest_channel(esp_gmf_element_handle_t handle, uint8_t *dest_ch)
+{
+    ESP_GMF_NULL_CHECK(TAG, handle, {return ESP_GMF_ERR_INVALID_ARG;});
+    ESP_GMF_NULL_CHECK(TAG, dest_ch, {return ESP_GMF_ERR_INVALID_ARG;});
+    esp_gmf_err_t ret = ESP_GMF_ERR_OK;
+    esp_gmf_oal_mutex_lock(ESP_GMF_ELEMENT_GET(handle)->lock);
+    esp_ae_ch_cvt_cfg_t *cfg = (esp_ae_ch_cvt_cfg_t *)OBJ_GET_CFG(handle);
+    if (cfg == NULL) {
+        ret = ESP_GMF_ERR_FAIL;
+    } else {
+        *dest_ch = cfg->dest_ch;
+    }
+    esp_gmf_oal_mutex_unlock(ESP_GMF_ELEMENT_GET(handle)->lock);
     return ret;
 }
 

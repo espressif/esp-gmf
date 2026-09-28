@@ -1,0 +1,13 @@
+[sections:esp_gmf_pipeline_view_connectors]
+entries:
+    .esp_gmf_pipeline_view_connectors
+
+[scheme:esp_gmf_pipeline_view_connectors_default]
+entries:
+    esp_gmf_pipeline_view_connectors -> flash_rodata
+
+[mapping:esp_gmf_pipeline_view_connectors]
+archive: *
+entries:
+    * (esp_gmf_pipeline_view_connectors_default);
+        esp_gmf_pipeline_view_connectors -> flash_rodata KEEP() SORT(name) SURROUND(esp_gmf_pipeline_view_connectors)

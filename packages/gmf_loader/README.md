@@ -40,6 +40,8 @@ The GMF Loader is a helper component that allows users to easily customize their
   - Dynamic Range Control (DRC)
   - Multi-band Compressor (MBC)
   - Howling Suppression (HOWL)
+  - Reverb (REVERB)
+  - Delay (DELAY)
 
 - AI Audio features configuration:
   - Audio Echo Cancellation (AEC) element
@@ -139,7 +141,9 @@ ESP GMF Loader
 │   │   ├── Fade In/Out [N]
 │   │   ├── Dynamic Range Control [N]
 │   │   ├── Multi-Band Compressor [N]
-│   │   └── Howling Suppression (HOWL) [N]
+│   │   ├── Howling Suppression (HOWL) [N]
+│   │   ├── Reverb (REVERB) [N]
+│   │   └── Delay (DELAY) [N]
 │   │
 │   ├── GMF AI Audio
 │   │   ├── Audio Echo Cancellation (AEC) [Y]

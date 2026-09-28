@@ -10,6 +10,7 @@
 #include "esp_audio_render_types.h"
 #include "esp_gmf_pool.h"
 #include "esp_gmf_element.h"
+#include "esp_gmf_pipeline.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -93,6 +94,17 @@ esp_audio_render_err_t audio_render_proc_open(audio_render_proc_handle_t proc,
  *       - Others  Audio processor element handle
  */
 esp_gmf_element_handle_t audio_render_proc_get_element(audio_render_proc_handle_t proc, esp_audio_render_proc_type_t type);
+
+/**
+ * @brief  Get pipeline handle from audio processor
+ *
+ * @param[in]  proc  Audio processor handle
+ *
+ * @return
+ *       - NULL    Pipeline is not created
+ *       - Others  Audio processor pipeline handle
+ */
+esp_gmf_pipeline_handle_t audio_render_proc_get_pipeline(audio_render_proc_handle_t proc);
 
 /**
  * @brief  Set output writer for audio processor

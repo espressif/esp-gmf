@@ -62,7 +62,7 @@ menu "GMF AI Audio"
 
         config GMF_AI_AUDIO_AEC_CH_ALLOCATION
             string "AEC Channel Allocation"
-            default "RMNM"
+            default "MRMN"
             help
                 Format string of the channel Allocation:
                 `M` to represent the microphone channel,
@@ -82,7 +82,7 @@ menu "GMF AI Audio"
 
         config GMF_AI_AUDIO_WN_CH_ALLOCATION
             string "WN Channel Allocation"
-            default "RMNM"
+            default "MRMN"
             help
                 Format string of the channel Allocation:
                 `M` to represent the microphone channel,
@@ -192,7 +192,7 @@ menu "GMF AI Audio"
 
         config GMF_AI_AUDIO_AFE_CH_ALLOCATION
             string "AFE Channel Allocation"
-            default "RMNM"
+            default "MRMN"
             help
                 Format string of the channel Allocation:
                 `M` to represent the microphone channel,

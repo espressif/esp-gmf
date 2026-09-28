@@ -42,6 +42,12 @@
 #if defined(CONFIG_GMF_AUDIO_EFFECT_INIT_MBC)
 #include "esp_gmf_mbc.h"
 #endif  /* defined(CONFIG_GMF_AUDIO_EFFECT_INIT_MBC) */
+#if defined(CONFIG_GMF_AUDIO_EFFECT_INIT_REVERB)
+#include "esp_gmf_reverb.h"
+#endif  /* defined(CONFIG_GMF_AUDIO_EFFECT_INIT_REVERB) */
+#if defined(CONFIG_GMF_AUDIO_EFFECT_INIT_DELAY)
+#include "esp_gmf_delay.h"
+#endif  /* defined(CONFIG_GMF_AUDIO_EFFECT_INIT_DELAY) */
 #if defined(CONFIG_GMF_AUDIO_EFFECT_INIT_MIXER)
 #include "esp_gmf_mixer.h"
 #endif  /* defined(CONFIG_GMF_AUDIO_EFFECT_INIT_MIXER) */
@@ -207,6 +213,22 @@ static void apply_effect_parameter(esp_gmf_element_handle_t effect_el, const cha
         }
     }
 #endif  /* defined(CONFIG_GMF_AUDIO_EFFECT_INIT_MBC) */
+#if defined(CONFIG_GMF_AUDIO_EFFECT_INIT_REVERB)
+    if (strcmp(effect_name, "aud_reverb") == 0) {
+        ret = esp_gmf_reverb_set_room_size(effect_el, 0.8f);
+        ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to set reverb room size");
+        ret = esp_gmf_reverb_set_wet_level(effect_el, -3.0f);
+        ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to set reverb wet level");
+    }
+#endif  /* defined(CONFIG_GMF_AUDIO_EFFECT_INIT_REVERB) */
+#if defined(CONFIG_GMF_AUDIO_EFFECT_INIT_DELAY)
+    if (strcmp(effect_name, "aud_delay") == 0) {
+        ret = esp_gmf_delay_set_delay_time(effect_el, 300);
+        ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to set delay time");
+        ret = esp_gmf_delay_set_mix_ratio(effect_el, 0.45f);
+        ESP_GMF_RET_ON_NOT_OK(TAG, ret, return, "Failed to set delay mix ratio");
+    }
+#endif  /* defined(CONFIG_GMF_AUDIO_EFFECT_INIT_DELAY) */
 }
 
 #if defined(CONFIG_GMF_AUDIO_EFFECT_INIT_MIXER)
@@ -458,6 +480,14 @@ void app_main(void)
 #if defined(CONFIG_GMF_AUDIO_EFFECT_INIT_MBC)
     run_single_effect_demo("aud_mbc");
 #endif  /* defined(CONFIG_GMF_AUDIO_EFFECT_INIT_MBC) */
+
+#if defined(CONFIG_GMF_AUDIO_EFFECT_INIT_REVERB)
+    run_single_effect_demo("aud_reverb");
+#endif  /* defined(CONFIG_GMF_AUDIO_EFFECT_INIT_REVERB) */
+
+#if defined(CONFIG_GMF_AUDIO_EFFECT_INIT_DELAY)
+    run_single_effect_demo("aud_delay");
+#endif  /* defined(CONFIG_GMF_AUDIO_EFFECT_INIT_DELAY) */
 
     playback_peripheral_deinit(playback_handle);
     ESP_LOGI(TAG, "Effect demo finished");
