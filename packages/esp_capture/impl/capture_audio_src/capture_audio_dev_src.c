@@ -5,6 +5,7 @@
  * See LICENSE file for details.
  */
 
+#include <stdatomic.h>
 #include <string.h>
 #include "esp_capture_types.h"
 #include "esp_capture_audio_src_if.h"
@@ -24,9 +25,9 @@ typedef struct {
     int                         read_block_size;
     uint64_t                    frames;
     bool                        use_fixed_caps;
-    uint8_t                     start : 1;
-    uint8_t                     open  : 1;
-    volatile int                abort;
+    atomic_bool                 start;
+    atomic_bool                 open;
+    atomic_bool                 abort;
 } audio_dev_src_t;
 
 static esp_capture_err_t audio_dev_src_open(esp_capture_audio_src_if_t *h)
@@ -36,7 +37,7 @@ static esp_capture_err_t audio_dev_src_open(esp_capture_audio_src_if_t *h)
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     src->frame_num = 0;
-    src->open = true;
+    atomic_store(&src->open, true);
     return ESP_CAPTURE_ERR_OK;
 }
 
@@ -54,10 +55,10 @@ static esp_capture_err_t audio_dev_src_set_fixed_caps(esp_capture_audio_src_if_t
         return ESP_CAPTURE_ERR_INVALID_ARG;
     }
     audio_dev_src_t *src = (audio_dev_src_t *)h;
-    if (src->start) {
+    if (atomic_load(&src->start)) {
         return ESP_CAPTURE_ERR_INVALID_STATE;
     }
-    src->abort = 0;
+    atomic_store(&src->abort, false);
     src->info = *fixed_caps;
     src->use_fixed_caps = (fixed_caps->format_id == ESP_CAPTURE_FMT_ID_PCM);
     return ESP_CAPTURE_ERR_OK;
@@ -101,8 +102,8 @@ static esp_capture_err_t audio_dev_src_start(esp_capture_audio_src_if_t *h)
     }
     int block_sample = fs.sample_rate * MIN_READ_BLOCK_DURATION / 1000;
     src->read_block_size = block_sample * fs.bits_per_sample / 8 * fs.channel;
-    src->start = true;
-    src->abort = 0;
+    atomic_store(&src->start, true);
+    atomic_store(&src->abort, false);
     src->frame_num = 0;
     src->frames = 0;
     return ESP_CAPTURE_ERR_OK;
@@ -111,12 +112,12 @@ static esp_capture_err_t audio_dev_src_start(esp_capture_audio_src_if_t *h)
 static esp_capture_err_t audio_dev_src_read_frame(esp_capture_audio_src_if_t *h, esp_capture_stream_frame_t *frame)
 {
     audio_dev_src_t *src = (audio_dev_src_t *)h;
-    if (src->start == false) {
+    if (atomic_load(&src->start) == false) {
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     int fill_size = 0;
     int ret = 0;
-    while (fill_size < frame->size && src->abort == 0) {
+    while (fill_size < frame->size && atomic_load(&src->abort) == false) {
         int to_read = frame->size - fill_size;
         to_read = to_read > src->read_block_size ? src->read_block_size : to_read;
         ret = esp_codec_dev_read(src->handle, frame->data + fill_size, to_read);
@@ -125,7 +126,7 @@ static esp_capture_err_t audio_dev_src_read_frame(esp_capture_audio_src_if_t *h,
         }
         fill_size += to_read;
     }
-    if (src->abort) {
+    if (atomic_load(&src->abort)) {
         return ESP_CAPTURE_ERR_NOT_SUPPORTED;
     }
     int samples = frame->size / (src->info.bits_per_sample / 8 * src->info.channel);
@@ -137,7 +138,7 @@ static esp_capture_err_t audio_dev_src_read_frame(esp_capture_audio_src_if_t *h,
 static esp_capture_err_t audio_dev_src_abort(esp_capture_audio_src_if_t *h)
 {
     audio_dev_src_t *src = (audio_dev_src_t *)h;
-    src->abort = 1;
+    atomic_store(&src->abort, true);
     return ESP_CAPTURE_ERR_OK;
 }
 
@@ -147,7 +148,7 @@ static esp_capture_err_t audio_dev_src_stop(esp_capture_audio_src_if_t *h)
     if (src->handle) {
         esp_codec_dev_close(src->handle);
     }
-    src->start = false;
+    atomic_store(&src->start, false);
     return ESP_CAPTURE_ERR_OK;
 }
 

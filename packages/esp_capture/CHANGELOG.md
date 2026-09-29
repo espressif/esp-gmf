@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.1
+
+### Changes
+
+- Updated `esp-sr` to version v2.5
+
+### Bug Fixes
+
+- Fixed racing condition of `codec_dev_src` status
+
 ## 1.1.0
 
 ### Changes
