@@ -14,43 +14,43 @@
 #include "esp_ble_audio_csip_api.h"
 #include "esp_ble_audio_defs.h"
 
-#include "bt_audio_le_csip.h"
+#include "bt_audio_le_csip_set_member.h"
 
 /**
  * @brief  Runtime context for the CSIP set member.
  */
 typedef struct {
-    esp_ble_audio_csip_set_member_svc_inst_t *inst;                              /*!< Registered CSIP set member instance */
+    esp_ble_audio_csip_set_member_svc_inst_t *inst;                              /*!< Registered CSIP instance */
     uint8_t                                   rsi[ESP_BLE_AUDIO_CSIP_RSI_SIZE];  /*!< Generated RSI value */
-} bt_audio_le_csip_ctx_t;
+} bt_audio_le_csip_set_member_ctx_t;
 
-static const char *TAG = "BT_AUD_LE_CSIP";
-static bt_audio_le_csip_ctx_t s_csip;
+static const char *TAG = "BT_AUD_LE_CSIP_MEMBER";
+static bt_audio_le_csip_set_member_ctx_t s_csip;
 
-static void bt_audio_le_csip_lock_changed(esp_ble_conn_t *conn,
-                                          esp_ble_audio_csip_set_member_svc_inst_t *inst,
-                                          bool locked)
+static void bt_audio_le_csip_set_member_lock_changed(esp_ble_conn_t *conn,
+                                                     esp_ble_audio_csip_set_member_svc_inst_t *inst,
+                                                     bool locked)
 {
     ESP_LOGI(TAG, "CSIP lock %s", locked ? "set" : "released");
 }
 
-static uint8_t bt_audio_le_csip_sirk_read_req(esp_ble_conn_t *conn,
-                                              esp_ble_audio_csip_set_member_svc_inst_t *inst)
+static uint8_t bt_audio_le_csip_set_member_sirk_read_req(esp_ble_conn_t *conn,
+                                                         esp_ble_audio_csip_set_member_svc_inst_t *inst)
 {
     ESP_LOGD(TAG, "CSIP SIRK read request");
     return ESP_BLE_AUDIO_CSIP_READ_SIRK_REQ_RSP_ACCEPT;
 }
 
-static esp_ble_audio_csip_set_member_cb_t s_csip_cbs = {
-    .lock_changed  = bt_audio_le_csip_lock_changed,
-    .sirk_read_req = bt_audio_le_csip_sirk_read_req,
+static const esp_ble_audio_csip_set_member_cb_t s_csip_cbs = {
+    .lock_changed = bt_audio_le_csip_set_member_lock_changed,
+    .sirk_read_req = bt_audio_le_csip_set_member_sirk_read_req,
 };
 
-esp_err_t bt_audio_le_csip_init(const esp_bt_audio_le_csip_cfg_t *cfg,
-                                esp_ble_audio_csip_set_member_svc_inst_t **inst,
-                                uint8_t *rsi,
-                                bool included_by_cas,
-                                bt_audio_le_adv_builder_t adv_builder)
+esp_err_t bt_audio_le_csip_set_member_init(const esp_bt_audio_le_csip_set_member_cfg_t *cfg,
+                                           esp_ble_audio_csip_set_member_svc_inst_t **inst,
+                                           uint8_t *rsi,
+                                           bool included_by_cas,
+                                           bt_audio_le_adv_builder_t adv_builder)
 {
     esp_err_t ret = ESP_OK;
     esp_ble_audio_csip_set_member_register_param_t param = {0};
@@ -67,7 +67,7 @@ esp_err_t bt_audio_le_csip_init(const esp_bt_audio_le_csip_cfg_t *cfg,
     param.set_size = cfg->coordinate_set_size;
     param.lockable = true;
     param.rank = rank;
-    param.cb = &s_csip_cbs;
+    param.cb = (esp_ble_audio_csip_set_member_cb_t *)&s_csip_cbs;
     memcpy(param.sirk, cfg->sirk, sizeof(param.sirk));
 
     if (included_by_cas) {
@@ -95,12 +95,12 @@ esp_err_t bt_audio_le_csip_init(const esp_bt_audio_le_csip_cfg_t *cfg,
     return ESP_OK;
 
 fail:
-    bt_audio_le_csip_deinit();
+    bt_audio_le_csip_set_member_deinit();
     ESP_LOGE(TAG, "Init CSIP failed: %s", esp_err_to_name(ret));
     return ret;
 }
 
-void bt_audio_le_csip_deinit(void)
+void bt_audio_le_csip_set_member_deinit(void)
 {
     if (!s_csip.inst) {
         return;

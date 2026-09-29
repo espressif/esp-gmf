@@ -145,6 +145,31 @@ menu "BT Audio Basic Example (GMF)"
             help
                 Enable the TMAP Unicast Media Receiver role.
 
+        config GMF_EXAMPLE_LE_TMAP_ROLE_UMS
+            bool "TMAP unicast media sender role"
+            depends on GMF_EXAMPLE_LE_USER_CASE_TMAP && BT_BAP_UNICAST_CLIENT && BT_CAP_INITIATOR
+            default n
+            help
+                Enable the TMAP Unicast Media Sender role. The example streams
+                local microSD media to a connected unicast sink.
+
+        config GMF_EXAMPLE_LE_UNICAST_AUTO_RECONNECT
+            bool "Automatically reconnect bonded unicast peers"
+            depends on GMF_EXAMPLE_LE_TMAP_ROLE_UMS
+            default y
+            help
+                Reconnect bonded unicast peers at startup. Remaining coordinated-set
+                members are connected through CSIP discovery.
+
+        config GMF_EXAMPLE_LE_UNICAST_MAX_MEMBERS
+            int "Max unicast group members"
+            depends on GMF_EXAMPLE_LE_TMAP_ROLE_UMS
+            default 2
+            range 1 2
+            help
+                Maximum coordinated-set members to reserve. Actual membership
+                comes from discovery. Set to 1 for a single device.
+
         config GMF_EXAMPLE_LE_TMAP_ROLE_BMR
             bool "TMAP broadcast media receiver role"
             depends on GMF_EXAMPLE_LE_USER_CASE_TMAP

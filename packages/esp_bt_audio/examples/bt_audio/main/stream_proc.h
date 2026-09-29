@@ -5,6 +5,9 @@
  */
 #pragma once
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "esp_err.h"
 #include "esp_gmf_pool.h"
 #include "esp_bt_audio_stream.h"
@@ -14,6 +17,8 @@
  */
 typedef struct {
     esp_gmf_pipeline_handle_t  pipe;  /*!< Pipeline handle */
+    bool                       shared_media;
+    uint8_t                    media_branch;
 } stream_user_data_t;
 
 /**

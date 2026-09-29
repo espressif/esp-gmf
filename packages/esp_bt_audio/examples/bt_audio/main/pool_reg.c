@@ -128,16 +128,13 @@ esp_gmf_err_t pool_reg(esp_gmf_pool_handle_t pool)
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register AEC");
     ESP_LOGI(TAG, "Registered: aud_aec");
 
-/* Audio Copier (copier), required by the multi-BIS broadcast source topology */
-#if defined(CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS) && (CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM > 1)
     esp_gmf_copier_cfg_t copier_cfg = {
-        .copy_num = CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM,
+        .copy_num = 2,
     };
     ret = esp_gmf_copier_init(&copier_cfg, &element);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init copier");
     ret = esp_gmf_pool_register_element(pool, element, NULL);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register copier");
-#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS && CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM > 1 */
 
     // 6. Audio ASRC (aud_asrc)
     esp_asrc_cfg_t asrc_cfg = DEFAULT_ESP_GMF_ASRC_CONFIG();

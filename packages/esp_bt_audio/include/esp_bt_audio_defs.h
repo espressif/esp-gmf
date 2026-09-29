@@ -76,6 +76,7 @@ typedef enum {
     ESP_BT_AUDIO_LE_ROLE_BROADCAST_SINK   = 0x0002,  /*!< LE Audio Broadcast Sink role */
     ESP_BT_AUDIO_LE_ROLE_BROADCAST_SOURCE = 0x0004,  /*!< LE Audio Broadcast Source role */
     ESP_BT_AUDIO_LE_ROLE_SCAN_DELEGATOR   = 0x0008,  /*!< LE Audio Scan Delegator role */
+    ESP_BT_AUDIO_LE_ROLE_UNICAST_CLIENT   = 0x0010,  /*!< LE Audio Unicast Client role */
 } esp_bt_audio_le_role_t;
 
 /**
@@ -107,7 +108,7 @@ typedef struct {
     uint8_t  coordinate_set_size;  /*!< Coordinated set size */
     uint8_t  rank;                 /*!< Set member rank, starting at 1 */
     uint8_t  sirk[16];             /*!< Set identity resolving key */
-} esp_bt_audio_le_csip_cfg_t;
+} esp_bt_audio_le_csip_set_member_cfg_t;
 
 /**
  * @brief  Structure for LE Audio VCP renderer configuration
@@ -180,11 +181,12 @@ typedef struct {
     uint32_t                        user_case;                 /*!< LE Audio use case, e.g. esp_bt_audio_le_user_case_t */
     uint8_t                         snk_cnt;                   /*!< Number of sink ASEs to register as unicast server */
     uint8_t                         src_cnt;                   /*!< Number of source ASEs to register as unicast server */
-    uint8_t                         src_send_task_core_id;     /*!< LE source send task core ID (0 or 1) */
+    uint8_t                         src_send_task_core_id;     /*!< Source send task core ID */
     uint8_t                         src_send_task_prio;        /*!< LE source send task priority. Must be less than 24 */
     uint32_t                        src_send_task_stack_size;  /*!< LE source send task stack size in bytes. Must be greater than 0 */
+    uint8_t                         max_unicast_members;       /*!< Unicast member slots; 0 means 2, >2 is clamped */
     esp_bt_audio_le_pacs_cfg_t      pacs;                      /*!< PACS configuration */
-    esp_bt_audio_le_csip_cfg_t      csip;                      /*!< CSIP set member configuration */
+    esp_bt_audio_le_csip_set_member_cfg_t  csip_set_member;    /*!< CSIP set member configuration */
     esp_bt_audio_le_vcp_rend_cfg_t  vcp_rend;                  /*!< VCP renderer configuration */
     esp_bt_audio_le_bsrc_cfg_t      bsrc;                      /*!< Broadcast source configuration */
 } esp_bt_audio_le_cfg_t;

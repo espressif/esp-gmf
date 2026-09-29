@@ -27,20 +27,21 @@ extern "C" {
  *
  * @return
  *       - ESP_OK                 On success
- *       - ESP_ERR_INVALID_ARG    If required pointers are NULL
+ *       - ESP_ERR_INVALID_ARG    If required pointers are NULL, set size is 0,
+ *                                or rank exceeds set size
  *       - ESP_ERR_INVALID_STATE  If already initialized
- *       - Other                  non-zero codes From CSIP registration APIs
+ *       - Others                 Failure codes from CSIP or CAP registration APIs
  */
-esp_err_t bt_audio_le_csip_init(const esp_bt_audio_le_csip_cfg_t *cfg,
-                                esp_ble_audio_csip_set_member_svc_inst_t **inst,
-                                uint8_t *rsi,
-                                bool included_by_cas,
-                                bt_audio_le_adv_builder_t adv_builder);
+esp_err_t bt_audio_le_csip_set_member_init(const esp_bt_audio_le_csip_set_member_cfg_t *cfg,
+                                           esp_ble_audio_csip_set_member_svc_inst_t **inst,
+                                           uint8_t *rsi,
+                                           bool included_by_cas,
+                                           bt_audio_le_adv_builder_t adv_builder);
 
 /**
  * @brief  Deinitialize CSIP set member state.
  */
-void bt_audio_le_csip_deinit(void);
+void bt_audio_le_csip_set_member_deinit(void);
 
 #ifdef __cplusplus
 }

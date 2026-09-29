@@ -50,7 +50,7 @@ typedef struct {
 static const char *TAG = "BT_AUD_HFP_HF";
 static hfp_hf_ctx_t *hfp_hf_ctx = NULL;
 
-const char *c_connection_state_str[] = {
+static const char * const c_connection_state_str[] = {
     "DISCONNECTED",
     "CONNECTING",
     "CONNECTED",
@@ -58,38 +58,38 @@ const char *c_connection_state_str[] = {
     "DISCONNECTING",
 };
 
-const char *c_audio_state_str[] = {
+static const char * const c_audio_state_str[] = {
     "DISCONNECTED",
     "CONNECTING",
     "CONNECTED",
     "CONNECTED_MSBC",
 };
 
-const char *c_vr_state_str[] = {
+static const char * const c_vr_state_str[] = {
     "DISABLED",
     "ENABLED",
 };
 
 // esp_hf_service_availability_status_t
-const char *c_service_availability_status_str[] = {
+static const char * const c_service_availability_status_str[] = {
     "UNAVAILABLE",
     "AVAILABLE",
 };
 
 // esp_hf_roaming_status_t
-const char *c_roaming_status_str[] = {
+static const char * const c_roaming_status_str[] = {
     "INACTIVE",
     "ACTIVE",
 };
 
 // esp_hf_client_call_state_t
-const char *c_call_str[] = {
+static const char * const c_call_str[] = {
     "NO CALL IN PROGRESS",
     "CALL IN PROGRESS",
 };
 
 // esp_hf_client_callsetup_t
-const char *c_call_setup_str[] = {
+static const char * const c_call_setup_str[] = {
     "NONE",
     "INCOMING",
     "OUTGOING_DIALING",
@@ -97,27 +97,27 @@ const char *c_call_setup_str[] = {
 };
 
 // esp_hf_client_callheld_t
-const char *c_call_held_str[] = {
+static const char * const c_call_held_str[] = {
     "NONE HELD",
     "HELD AND ACTIVE",
     "HELD",
 };
 
 // esp_hf_response_and_hold_status_t
-const char *c_resp_and_hold_str[] = {
+static const char * const c_resp_and_hold_str[] = {
     "HELD",
     "HELD ACCEPTED",
     "HELD REJECTED",
 };
 
 // esp_hf_client_call_direction_t
-const char *c_call_dir_str[] = {
+static const char * const c_call_dir_str[] = {
     "OUTGOING",
     "INCOMING",
 };
 
 // esp_hf_client_call_state_t
-const char *c_call_state_str[] = {
+static const char * const c_call_state_str[] = {
     "ACTIVE",
     "HELD",
     "DIALING",
@@ -128,19 +128,19 @@ const char *c_call_state_str[] = {
 };
 
 // esp_hf_current_call_mpty_type_t
-const char *c_call_mpty_type_str[] = {
+static const char * const c_call_mpty_type_str[] = {
     "SINGLE",
     "MULTI",
 };
 
 // esp_hf_volume_control_target_t
-const char *c_volume_control_target_str[] = {
+static const char * const c_volume_control_target_str[] = {
     "SPEAKER",
     "MICROPHONE",
 };
 
 // esp_hf_at_response_code_t
-const char *c_at_response_code_str[] = {
+__attribute__((unused)) static const char * const c_at_response_code_str[] = {
     "OK",
     "ERROR",
     "ERR_NO_CARRIER",
@@ -152,14 +152,14 @@ const char *c_at_response_code_str[] = {
 };
 
 // esp_hf_subscriber_service_type_t
-const char *c_subscriber_service_type_str[] = {
+static const char * const c_subscriber_service_type_str[] = {
     "UNKNOWN",
     "VOICE",
     "FAX",
 };
 
 // esp_hf_client_in_band_ring_state_t
-const char *c_inband_ring_state_str[] = {
+static const char * const c_inband_ring_state_str[] = {
     "NOT PROVIDED",
     "PROVIDED",
 };

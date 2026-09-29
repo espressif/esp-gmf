@@ -9,12 +9,13 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
-#include "freertos/task.h"
 
+#if CONFIG_ESP_BT_AUDIO_LE_STREAM_MONITOR
+#include "driver/gpio.h"
 #include "esp_bit_defs.h"
+#endif  /* CONFIG_ESP_BT_AUDIO_LE_STREAM_MONITOR */
 #include "esp_check.h"
 #include "esp_heap_caps.h"
 #include "esp_lc3_dec.h"
@@ -28,20 +29,11 @@
 
 #include "bt_audio_evt_dispatcher.h"
 #include "bt_audio_le_stream.h"
+#include "bt_audio_le_tx_group.h"
 
-#define BT_AUDIO_LE_STREAM_QUEUE_SIZE           20
-#define BT_AUDIO_LE_TX_TASK_STACK_SIZE_DEFAULT  4096
-#define BT_AUDIO_LE_TX_TASK_PRIO_DEFAULT        16
-#define BT_AUDIO_LE_TX_TASK_CORE_ID_DEFAULT     0
-#define BT_AUDIO_LE_TX_PRIME_PACKETS            3
-
-#define BT_AUDIO_LE_TX_EVT_TIMER       BIT0
-#define BT_AUDIO_LE_TX_EVT_EXIT        BIT1
-#define BT_AUDIO_LE_TX_EVT_EXITED      BIT2
+#define BT_AUDIO_LE_STREAM_QUEUE_SIZE  20
 
 static const char *TAG = "BT_AUD_LE_STREAM";
-
-static inline void bt_audio_le_stream_flush_queue(bt_audio_le_stream_t *stream);
 
 #if CONFIG_ESP_BT_AUDIO_LE_STREAM_MONITOR
 static bool monitor_io_initialized = false;
@@ -88,7 +80,33 @@ static inline void bt_audio_le_stream_monitor_io_low(void)
 }
 #endif  /* CONFIG_ESP_BT_AUDIO_LE_STREAM_MONITOR */
 
-static inline void bt_audio_le_stream_release_packet(esp_bt_audio_stream_packet_t *packet)
+esp_err_t bt_audio_le_stream_tx_send(bt_audio_le_stream_t *stream, const uint8_t *data,
+                                     uint16_t size, uint16_t seq, bool use_ts, uint32_t ts)
+{
+    ESP_RETURN_ON_FALSE(stream && data, ESP_ERR_INVALID_ARG, TAG, "TX send stream or data is NULL");
+
+    esp_err_t ret;
+    if (use_ts) {
+        ret = esp_ble_audio_bap_stream_send_ts(&stream->bap_stream, data, size, seq, ts);
+    } else {
+        ret = esp_ble_audio_bap_stream_send(&stream->bap_stream, data, size, seq);
+    }
+    if (ret == ESP_OK) {
+        stream->tx_last_seq = seq;
+    }
+    return ret;
+}
+
+void bt_audio_le_stream_tx_reset(bt_audio_le_stream_t *stream)
+{
+    if (!stream) {
+        return;
+    }
+    stream->tx_last_seq = 0;
+    stream->tx_need_burst = true;
+}
+
+void bt_audio_le_stream_release_packet(esp_bt_audio_stream_packet_t *packet)
 {
     if (packet->data_owner) {
         heap_caps_free(packet->data_owner);
@@ -100,192 +118,16 @@ static inline void bt_audio_le_stream_release_packet(esp_bt_audio_stream_packet_
     packet->is_done = false;
 }
 
-static void bt_audio_le_stream_tx_timer_cb(void *arg)
-{
-    bt_audio_le_stream_t *stream = (bt_audio_le_stream_t *)arg;
-    if (stream && stream->tx_events) {
-        xEventGroupSetBits(stream->tx_events, BT_AUDIO_LE_TX_EVT_TIMER);
-    }
-}
-
-static esp_err_t bt_audio_le_stream_tx_send_one(bt_audio_le_stream_t *stream)
-{
-    esp_bt_audio_stream_packet_t packet = {0};
-    if (xQueueReceive(stream->base.data_q, &packet, 0) != pdTRUE) {
-        /* An empty queue is an expected pacing result on this hot path. */
-        return ESP_ERR_NOT_FOUND;
-    }
-    if (!packet.data || packet.size == 0 || packet.size > UINT16_MAX) {
-        ESP_LOGW(TAG, "Discard invalid TX packet, data=%p, size=%" PRIu32, packet.data, packet.size);
-        bt_audio_le_stream_release_packet(&packet);
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    esp_err_t ret = esp_ble_audio_bap_stream_send(&stream->bap_stream, packet.data,
-                                                  (uint16_t)packet.size, stream->seq++);
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to send BAP stream packet: %s", esp_err_to_name(ret));
-    }
-    bt_audio_le_stream_release_packet(&packet);
-    if (ret == ESP_OK && stream->tx_prime_cnt < BT_AUDIO_LE_TX_PRIME_PACKETS) {
-        stream->tx_prime_cnt++;
-    }
-    return ret;
-}
-
-static void bt_audio_le_stream_tx_anchor(bt_audio_le_stream_t *stream)
-{
-    /* Exclude prefill burst duration from the steady-state timer phase */
-    stream->tx_anchored = true;
-    if (!stream->tx_timer || !stream->tx_interval_us) {
-        return;
-    }
-    esp_timer_stop(stream->tx_timer);
-    xEventGroupClearBits(stream->tx_events, BT_AUDIO_LE_TX_EVT_TIMER);
-    esp_err_t ret = esp_timer_start_periodic(stream->tx_timer, stream->tx_interval_us);
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to re-anchor TX pacing: %s", esp_err_to_name(ret));
-    }
-}
-
-static void bt_audio_le_stream_tx_task(void *arg)
-{
-    bt_audio_le_stream_t *stream = (bt_audio_le_stream_t *)arg;
-    /* Cache these because the task must not access stream after signalling EXITED. */
-    EventGroupHandle_t events = stream->tx_events;
-    bool ext_mem_stack = stream->tx_task_ext_mem;
-
-    while (stream && stream->tx_events) {
-        EventBits_t bits = xEventGroupWaitBits(stream->tx_events,
-                                               BT_AUDIO_LE_TX_EVT_TIMER | BT_AUDIO_LE_TX_EVT_EXIT,
-                                               pdTRUE, pdFALSE, portMAX_DELAY);
-        if (bits & BT_AUDIO_LE_TX_EVT_EXIT) {
-            break;
-        }
-        if (!(bits & BT_AUDIO_LE_TX_EVT_TIMER) || !stream->started || !stream->base.data_q) {
-            continue;
-        }
-
-        esp_err_t ret = bt_audio_le_stream_tx_send_one(stream);
-        if (ret != ESP_OK) {
-            continue;
-        }
-        /* Prefill packets cushion controller jitter and are sent back-to-back. */
-        while (stream->tx_prime_cnt < BT_AUDIO_LE_TX_PRIME_PACKETS && stream->started) {
-            ret = bt_audio_le_stream_tx_send_one(stream);
-            if (ret != ESP_OK) {
-                break;
-            }
-        }
-        if (!stream->tx_anchored && stream->tx_prime_cnt >= BT_AUDIO_LE_TX_PRIME_PACKETS) {
-            bt_audio_le_stream_tx_anchor(stream);
-        }
-    }
-
-    xEventGroupSetBits(events, BT_AUDIO_LE_TX_EVT_EXITED);
-    if (ext_mem_stack) {
-        vTaskDeleteWithCaps(NULL);
-    } else {
-        vTaskDelete(NULL);
-    }
-}
-
-static esp_err_t bt_audio_le_stream_tx_start(bt_audio_le_stream_t *stream)
-{
-    ESP_RETURN_ON_FALSE(stream, ESP_ERR_INVALID_ARG, TAG, "TX start stream is NULL");
-
-    stream->tx_interval_us = stream->sdu_interval_us ? stream->sdu_interval_us : stream->iso_interval;
-    ESP_RETURN_ON_FALSE(stream->tx_interval_us, ESP_ERR_INVALID_STATE, TAG, "TX interval is unavailable");
-
-    if (!stream->tx_events) {
-        stream->tx_events = xEventGroupCreate();
-        ESP_RETURN_ON_FALSE(stream->tx_events, ESP_ERR_NO_MEM, TAG, "Failed to create TX events");
-    }
-    if (!stream->tx_name[0]) {
-        snprintf(stream->tx_name, sizeof(stream->tx_name), "le_tx_%p", stream);
-    }
-    if (!stream->tx_task) {
-        xEventGroupClearBits(stream->tx_events,
-                             BT_AUDIO_LE_TX_EVT_TIMER | BT_AUDIO_LE_TX_EVT_EXIT | BT_AUDIO_LE_TX_EVT_EXITED);
-        BaseType_t task_ret;
-#if defined(CONFIG_SPIRAM_BOOT_INIT) && CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
-        stream->tx_task_ext_mem = true;
-        task_ret = xTaskCreatePinnedToCoreWithCaps(bt_audio_le_stream_tx_task, stream->tx_name,
-                                                   stream->tx_task_stack_size, stream,
-                                                   stream->tx_task_prio, &stream->tx_task,
-                                                   stream->tx_task_core_id,
-                                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-#else
-        stream->tx_task_ext_mem = false;
-        task_ret = xTaskCreatePinnedToCore(bt_audio_le_stream_tx_task, stream->tx_name,
-                                           stream->tx_task_stack_size, stream,
-                                           stream->tx_task_prio, &stream->tx_task,
-                                           stream->tx_task_core_id);
-#endif
-        ESP_RETURN_ON_FALSE(task_ret == pdPASS, ESP_ERR_NO_MEM, TAG, "Failed to create TX task");
-    }
-    if (!stream->tx_timer) {
-        esp_timer_create_args_t timer_args = {
-            .callback = bt_audio_le_stream_tx_timer_cb,
-            .arg = stream,
-            .name = stream->tx_name,
-        };
-        esp_err_t ret = esp_timer_create(&timer_args, &stream->tx_timer);
-        ESP_RETURN_ON_ERROR(ret, TAG, "Failed to create TX timer");
-    }
-
-    stream->tx_prime_cnt = 0;
-    stream->tx_anchored = false;
-
-    esp_timer_stop(stream->tx_timer);
-    xEventGroupClearBits(stream->tx_events, BT_AUDIO_LE_TX_EVT_TIMER);
-    return esp_timer_start_periodic(stream->tx_timer, stream->tx_interval_us);
-}
-
 static void bt_audio_le_stream_tx_stop(bt_audio_le_stream_t *stream)
 {
     if (!stream) {
         return;
     }
-    if (stream->tx_timer) {
-        esp_timer_stop(stream->tx_timer);
-    }
-    if (stream->tx_events) {
-        xEventGroupClearBits(stream->tx_events, BT_AUDIO_LE_TX_EVT_TIMER);
-    }
-    stream->tx_interval_us = 0;
-    stream->tx_prime_cnt = 0;
-    stream->tx_anchored = false;
-    bt_audio_le_stream_flush_queue(stream);
-}
-
-static void bt_audio_le_stream_tx_deinit(bt_audio_le_stream_t *stream)
-{
-    if (!stream) {
+    if (bt_audio_le_tx_group_member_stopped(stream)) {
         return;
     }
-    bt_audio_le_stream_tx_stop(stream);
-    if (stream->tx_timer) {
-        esp_err_t ret = esp_timer_stop_blocking(stream->tx_timer, portMAX_DELAY);
-        if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
-            ESP_LOGW(TAG, "Failed to wait for TX timer stop: %s", esp_err_to_name(ret));
-        }
-    }
-    if (stream->tx_task && stream->tx_events) {
-        xEventGroupClearBits(stream->tx_events, BT_AUDIO_LE_TX_EVT_EXITED);
-        xEventGroupSetBits(stream->tx_events, BT_AUDIO_LE_TX_EVT_EXIT);
-        xEventGroupWaitBits(stream->tx_events, BT_AUDIO_LE_TX_EVT_EXITED,
-                            pdTRUE, pdTRUE, portMAX_DELAY);
-        stream->tx_task = NULL;
-    }
-    if (stream->tx_timer) {
-        esp_timer_delete(stream->tx_timer);
-        stream->tx_timer = NULL;
-    }
-    if (stream->tx_events) {
-        vEventGroupDelete(stream->tx_events);
-        stream->tx_events = NULL;
-    }
+    bt_audio_le_stream_flush_queue(stream);
+    bt_audio_le_tx_group_credit_reset(stream);
 }
 
 static inline bool bt_audio_le_stream_send_packet(QueueHandle_t queue, esp_bt_audio_stream_packet_t *packet)
@@ -301,7 +143,7 @@ static inline bool bt_audio_le_stream_send_packet(QueueHandle_t queue, esp_bt_au
     return true;
 }
 
-static inline void bt_audio_le_stream_flush_queue(bt_audio_le_stream_t *stream)
+void bt_audio_le_stream_flush_queue(bt_audio_le_stream_t *stream)
 {
     if (!stream || !stream->base.data_q) {
         return;
@@ -328,8 +170,8 @@ static void bt_audio_le_stream_tx_sync_trigger(bt_audio_le_stream_t *stream, uin
 
     if (stream->first_packet) {
         ESP_LOGD(TAG, "TX sync trigger: time_stamp %" PRIu32 ", pd %" PRIu32, time_stamp, pd);
-        stream->tx_start_time = time_stamp + pd;
-        rc = r_ble_ll_iso_i2s_start_tx(stream->tx_start_time);
+        uint32_t tx_start = time_stamp + pd;
+        rc = r_ble_ll_iso_i2s_start_tx(tx_start);
         if (rc != 0) {
             ESP_LOGE(TAG, "Failed to start TX sync: %d, time_stamp %" PRIu32 ", pd %" PRIu32, rc, time_stamp, pd);
         } else {
@@ -408,7 +250,7 @@ static esp_err_t bt_audio_le_stream_release_write(esp_bt_audio_stream_handle_t h
     ESP_RETURN_ON_FALSE(stream && packet && packet->data, ESP_ERR_INVALID_ARG, TAG, "Invalid release write args");
     ESP_RETURN_ON_FALSE(stream->base.direction == ESP_BT_AUDIO_STREAM_DIR_SOURCE, ESP_ERR_INVALID_ARG, TAG,
                         "Invalid write direction");
-    if (!stream->started) {
+    if (stream->tx_state == BT_AUDIO_LE_TX_STATE_IDLE) {
         bt_audio_le_stream_release_packet(packet);
         ESP_LOGW(TAG, "Release write: stream is not started");
         return ESP_OK;
@@ -424,8 +266,14 @@ static esp_err_t bt_audio_le_stream_release_write(esp_bt_audio_stream_handle_t h
         return ESP_OK;
     }
 
+    if (bt_audio_le_tx_group_credit_take(stream, wait_ms) != ESP_OK) {
+        bt_audio_le_stream_release_packet(packet);
+        ESP_LOGW(TAG, "Release write: TX queue is full");
+        return ESP_ERR_TIMEOUT;
+    }
     /* Ownership moves to the pacing queue on success, so only clear the caller's view of the packet. */
-    if (xQueueSend(stream->base.data_q, packet, pdMS_TO_TICKS(wait_ms)) != pdTRUE) {
+    if (xQueueSend(stream->base.data_q, packet, 0) != pdTRUE) {
+        bt_audio_le_tx_group_credit_give(stream);
         bt_audio_le_stream_release_packet(packet);
         ESP_LOGW(TAG, "Release write: TX queue is full");
         return ESP_ERR_TIMEOUT;
@@ -434,9 +282,7 @@ static esp_err_t bt_audio_le_stream_release_write(esp_bt_audio_stream_handle_t h
     packet->size = 0;
     packet->data_owner = NULL;
     /* Don't make the prefill packets wait for a tick each, the pacing task drains them at once. */
-    if (stream->tx_prime_cnt < BT_AUDIO_LE_TX_PRIME_PACKETS && stream->tx_events) {
-        xEventGroupSetBits(stream->tx_events, BT_AUDIO_LE_TX_EVT_TIMER);
-    }
+    bt_audio_le_tx_group_kick(stream);
     return ESP_OK;
 }
 
@@ -534,7 +380,6 @@ static void bt_audio_le_stream_disabled(esp_ble_audio_bap_stream_t *bap_stream)
     bt_audio_le_stream_t *stream = NULL;
     bt_audio_le_stream_find_by_bap_stream(bap_stream, &stream);
     if (stream) {
-        stream->started = false;
         if (stream->base.direction == ESP_BT_AUDIO_STREAM_DIR_SOURCE) {
             bt_audio_le_stream_tx_stop(stream);
         }
@@ -569,12 +414,11 @@ static void bt_audio_le_stream_started(esp_ble_audio_bap_stream_t *bap_stream)
             }
         }
         bt_audio_le_stream_flush_queue(stream);
+        bt_audio_le_tx_group_credit_reset(stream);
         stream->first_packet = true;
-        stream->started = true;
         if (stream->base.direction == ESP_BT_AUDIO_STREAM_DIR_SOURCE) {
-            esp_err_t ret = bt_audio_le_stream_tx_start(stream);
+            esp_err_t ret = bt_audio_le_tx_group_member_started(stream);
             if (ret != ESP_OK) {
-                stream->started = false;
                 bt_audio_le_stream_tx_stop(stream);
                 ESP_LOGE(TAG, "Failed to start LE source pacing: %s", esp_err_to_name(ret));
                 bt_audio_le_stream_dispatch_state(stream, ESP_BT_AUDIO_STREAM_STATE_STOPPED);
@@ -595,12 +439,10 @@ static void bt_audio_le_stream_stopped(esp_ble_audio_bap_stream_t *bap_stream, u
             bt_audio_le_stream_monitor_io_low();
         }
 #endif  /* CONFIG_ESP_BT_AUDIO_LE_STREAM_MONITOR */
-        stream->started = false;
         if (stream->base.direction == ESP_BT_AUDIO_STREAM_DIR_SOURCE) {
             bt_audio_le_stream_tx_stop(stream);
         }
         stream->iso_interval = 0;
-        stream->tx_start_time = 0;
     }
 
     if (!stream || !stream->base.data_q) {
@@ -624,13 +466,15 @@ static void bt_audio_le_stream_released(esp_ble_audio_bap_stream_t *bap_stream)
     bt_audio_le_stream_t *stream = NULL;
     bt_audio_le_stream_find_by_bap_stream(bap_stream, &stream);
     if (stream) {
-        stream->started = false;
         if (stream->base.direction == ESP_BT_AUDIO_STREAM_DIR_SOURCE) {
             bt_audio_le_stream_tx_stop(stream);
         }
         stream->iso_interval = 0;
         stream->sdu_interval_us = 0;
         bt_audio_le_stream_dispatch_state(stream, ESP_BT_AUDIO_STREAM_STATE_RELEASED);
+        if (stream->released_cb) {
+            stream->released_cb(stream, stream->released_ctx);
+        }
     }
 }
 
@@ -638,8 +482,8 @@ static void bt_audio_le_stream_qos_set(esp_ble_audio_bap_stream_t *bap_stream)
 {
     bt_audio_le_stream_t *stream = NULL;
     bt_audio_le_stream_find_by_bap_stream(bap_stream, &stream);
-    ESP_LOGD(TAG, "QoS set");
     if (stream && bap_stream->qos) {
+        ESP_LOGD(TAG, "QoS set");
         stream->presentation_delay = bap_stream->qos->pd;
         stream->sdu_interval_us = bap_stream->qos->interval;
     }
@@ -653,7 +497,7 @@ static void bt_audio_le_stream_recv(esp_ble_audio_bap_stream_t *bap_stream,
     bt_audio_le_stream_t *stream = NULL;
     bt_audio_le_stream_find_by_bap_stream(bap_stream, &stream);
     if (!stream) {
-        ESP_LOGD(TAG, "Invalid LE stream, stream %p", stream);
+        ESP_LOGD(TAG, "Invalid LE stream");
         return;
     }
 
@@ -690,15 +534,37 @@ static void bt_audio_le_stream_recv(esp_ble_audio_bap_stream_t *bap_stream,
     }
 }
 
-static esp_ble_audio_bap_stream_ops_t s_bt_audio_le_stream_ops = {
-    .enabled  = bt_audio_le_stream_enabled,
-    .qos_set  = bt_audio_le_stream_qos_set,
+static const esp_ble_audio_bap_stream_ops_t s_bt_audio_le_stream_ops = {
+    .enabled = bt_audio_le_stream_enabled,
+    .qos_set = bt_audio_le_stream_qos_set,
     .disabled = bt_audio_le_stream_disabled,
     .released = bt_audio_le_stream_released,
-    .started  = bt_audio_le_stream_started,
-    .stopped  = bt_audio_le_stream_stopped,
-    .recv     = bt_audio_le_stream_recv,
+    .started = bt_audio_le_stream_started,
+    .stopped = bt_audio_le_stream_stopped,
+    .recv = bt_audio_le_stream_recv,
 };
+
+#if CONFIG_BT_CAP
+esp_err_t bt_audio_le_stream_register_cap_ops(bt_audio_le_stream_t *stream)
+{
+    ESP_RETURN_ON_FALSE(stream, ESP_ERR_INVALID_ARG, TAG, "Stream is NULL");
+    ESP_RETURN_ON_ERROR(esp_ble_audio_cap_stream_ops_register(&stream->cap_stream,
+                                                              (esp_ble_audio_bap_stream_ops_t *)&s_bt_audio_le_stream_ops),
+                        TAG, "Failed to register CAP stream ops");
+    return ESP_OK;
+}
+#endif  /* CONFIG_BT_CAP */
+
+void bt_audio_le_stream_set_released_cb(bt_audio_le_stream_t *stream,
+                                        bt_audio_le_stream_released_cb_t callback,
+                                        void *user_ctx)
+{
+    if (!stream) {
+        return;
+    }
+    stream->released_cb = callback;
+    stream->released_ctx = user_ctx;
+}
 
 void bt_audio_le_stream_dispatch_state(bt_audio_le_stream_t *stream, esp_bt_audio_stream_state_t state)
 {
@@ -749,14 +615,15 @@ esp_err_t bt_audio_le_stream_create(bt_audio_le_stream_t **out_stream)
     stream->base.ops.release_read = bt_audio_le_stream_release_read;
     stream->base.ops.acquire_write = bt_audio_le_stream_acquire_write;
     stream->base.ops.release_write = bt_audio_le_stream_release_write;
-    stream->seq = 1;
     stream->first_packet = true;
-    stream->started = false;
+    stream->tx_state = BT_AUDIO_LE_TX_STATE_IDLE;
     stream->tx_task_core_id = BT_AUDIO_LE_TX_TASK_CORE_ID_DEFAULT;
     stream->tx_task_prio = BT_AUDIO_LE_TX_TASK_PRIO_DEFAULT;
     stream->tx_task_stack_size = BT_AUDIO_LE_TX_TASK_STACK_SIZE_DEFAULT;
+    snprintf(stream->tx_name, sizeof(stream->tx_name), "le_tx_%p", stream);
 
-    esp_err_t ret = esp_ble_audio_bap_stream_cb_register(&stream->bap_stream, &s_bt_audio_le_stream_ops);
+    esp_err_t ret = esp_ble_audio_bap_stream_cb_register(&stream->bap_stream,
+                                                         (esp_ble_audio_bap_stream_ops_t *)&s_bt_audio_le_stream_ops);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to register stream callbacks");
         vQueueDelete(stream->base.data_q);
@@ -771,12 +638,16 @@ esp_err_t bt_audio_le_stream_create(bt_audio_le_stream_t **out_stream)
 esp_err_t bt_audio_le_stream_set_tx_task_cfg(bt_audio_le_stream_t *stream, uint8_t core_id, uint8_t prio, uint32_t stack_size)
 {
     ESP_RETURN_ON_FALSE(stream, ESP_ERR_INVALID_ARG, TAG, "TX task stream is NULL");
-    ESP_RETURN_ON_FALSE(core_id < 2, ESP_ERR_INVALID_ARG, TAG, "Invalid LE source send task core ID: %d", core_id);
+    ESP_RETURN_ON_FALSE(core_id < CONFIG_FREERTOS_NUMBER_OF_CORES, ESP_ERR_INVALID_ARG, TAG,
+                        "Invalid LE source send task core ID: %d", core_id);
     ESP_RETURN_ON_FALSE(prio < 24, ESP_ERR_INVALID_ARG, TAG, "Invalid LE source send task priority: %d", prio);
     ESP_RETURN_ON_FALSE(stack_size > 0, ESP_ERR_INVALID_ARG, TAG, "Invalid LE source send task stack size: %u", stack_size);
     stream->tx_task_core_id = core_id;
     stream->tx_task_prio = prio;
     stream->tx_task_stack_size = stack_size;
+    if (stream->tx_group) {
+        return bt_audio_le_tx_group_set_task_cfg(stream->tx_group, core_id, prio, stack_size);
+    }
     return ESP_OK;
 }
 
@@ -786,15 +657,14 @@ void bt_audio_le_stream_destroy(bt_audio_le_stream_t *stream)
         return;
     }
 
-    stream->started = false;
-    bt_audio_le_stream_tx_deinit(stream);
+    bt_audio_le_tx_group_member_detach(stream);
+    bt_audio_le_stream_flush_queue(stream);
     if (stream->base.data_q) {
         vQueueDelete(stream->base.data_q);
     }
     heap_caps_free(stream->base.codec_info.codec_cfg);
     stream->base.codec_info.codec_cfg = NULL;
     heap_caps_free(stream);
-    stream = NULL;
 }
 
 esp_err_t bt_audio_le_stream_find_by_bap_stream(esp_ble_audio_bap_stream_t *bap_stream,

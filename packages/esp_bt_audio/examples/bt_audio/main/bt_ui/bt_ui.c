@@ -35,6 +35,7 @@
 #define UI_COVER_TASK_STACK_SIZE  4096
 #define UI_COVER_TASK_PRIO        5
 #define UI_COVER_TASK_CORE_ID     1
+#define BT_UI_LOCK_TIMEOUT_MS     1000
 #define LVGL_DRAW_BUF_LINES       (BT_UI_HEIGHT / 2)
 
 #define BT_UI_FONT_TEXT        (BT_UI_FONT_CN_28 != NULL ? BT_UI_FONT_CN_28 : &lv_font_montserrat_28)
@@ -1152,7 +1153,9 @@ void bt_ui_set_connected(bt_ui_t *ui, bool connected, esp_bt_audio_tech_t tech)
     if (ui == NULL || ui->splash == NULL || ui->main == NULL) {
         return;
     }
-    lvgl_port_lock(0);
+    if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+        return;
+    }
     if (connected) {
         lv_obj_add_flag(ui->splash, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(ui->main, LV_OBJ_FLAG_HIDDEN);
@@ -1175,7 +1178,9 @@ void bt_ui_update_volume(bt_ui_t *ui, int volume)
     if (ui->volume_bar == NULL) {
         return;
     }
-    lvgl_port_lock(0);
+    if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+        return;
+    }
     bt_ui_volume_bar_set_level(ui->volume_bar, ui->volume);
     lvgl_port_unlock();
 }
@@ -1190,7 +1195,9 @@ void bt_ui_update_playback_status(bt_ui_t *ui, uint32_t play_status)
     if (ui == NULL || ui->media == NULL) {
         return;
     }
-    lvgl_port_lock(0);
+    if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+        return;
+    }
     bt_ui_media_set_playing(ui->media, play_status == ESP_BT_AUDIO_PLAYBACK_STATUS_PLAYING);
     lvgl_port_unlock();
 }
@@ -1203,7 +1210,9 @@ void bt_ui_update_track(bt_ui_t *ui, const char *title, const char *artist)
     if (ui->suppress_track_metadata) {
         return;
     }
-    lvgl_port_lock(0);
+    if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+        return;
+    }
     bt_ui_media_set_track(ui->media, title, artist);
     lvgl_port_unlock();
 }
@@ -1232,7 +1241,9 @@ void bt_ui_update_stream_state(bt_ui_t *ui, esp_bt_audio_stream_handle_t stream,
                                  dir == ESP_BT_AUDIO_STREAM_DIR_SOURCE);
         ui->suppress_track_metadata = broadcast_stream;
         ui->stream = stream;
-        lvgl_port_lock(0);
+        if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+            return;
+        }
         if (broadcast_source) {
             if (ui->splash != NULL) {
                 lv_obj_add_flag(ui->splash, LV_OBJ_FLAG_HIDDEN);
@@ -1264,7 +1275,9 @@ void bt_ui_update_stream_state(bt_ui_t *ui, esp_bt_audio_stream_handle_t stream,
                                             dir == ESP_BT_AUDIO_STREAM_DIR_SOURCE);
         ui->stream = NULL;
         ui->suppress_track_metadata = false;
-        lvgl_port_lock(0);
+        if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+            return;
+        }
         bt_ui_media_set_stream_type(ui->media, ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN);
         if (clear_broadcast_title) {
             bt_ui_media_set_track(ui->media, "", "");
@@ -1286,7 +1299,9 @@ void bt_ui_update_call_state(bt_ui_t *ui, int state, const char *number)
     if (ui == NULL || ui->dialer == NULL) {
         return;
     }
-    lvgl_port_lock(0);
+    if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+        return;
+    }
     bt_ui_dialer_set_call_state(ui->dialer, state, number);
     /* Switch to the dialer tab on any call activity; return to media when idle */
     if (ui->tabview != NULL) {

@@ -182,55 +182,24 @@ static int bt_audio_le_unicast_server_metadata_cb(esp_ble_audio_bap_stream_t *st
     return 0;
 }
 
-static int bt_audio_le_unicast_server_disable_cb(esp_ble_audio_bap_stream_t *stream,
-                                                 esp_ble_audio_bap_ascs_rsp_t *rsp)
+static int bt_audio_le_unicast_server_accept_cb(esp_ble_audio_bap_stream_t *stream,
+                                                esp_ble_audio_bap_ascs_rsp_t *rsp)
 {
-    bt_audio_le_stream_t *le_stream = NULL;
-    bt_audio_le_stream_find_by_bap_stream(stream, &le_stream);
-    if (le_stream) {
-        le_stream->started = false;
-    }
     *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_SUCCESS,
                                       ESP_BLE_AUDIO_BAP_ASCS_REASON_NONE);
     return 0;
 }
 
-static int bt_audio_le_unicast_server_stop_cb(esp_ble_audio_bap_stream_t *stream,
-                                              esp_ble_audio_bap_ascs_rsp_t *rsp)
-{
-    bt_audio_le_stream_t *le_stream = NULL;
-    bt_audio_le_stream_find_by_bap_stream(stream, &le_stream);
-    if (le_stream) {
-        le_stream->started = false;
-    }
-    *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_SUCCESS,
-                                      ESP_BLE_AUDIO_BAP_ASCS_REASON_NONE);
-    return 0;
-}
-
-static int bt_audio_le_unicast_server_release_cb(esp_ble_audio_bap_stream_t *stream,
-                                                 esp_ble_audio_bap_ascs_rsp_t *rsp)
-{
-    bt_audio_le_stream_t *le_stream = NULL;
-    bt_audio_le_stream_find_by_bap_stream(stream, &le_stream);
-    if (le_stream) {
-        le_stream->started = false;
-    }
-    *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_SUCCESS,
-                                      ESP_BLE_AUDIO_BAP_ASCS_REASON_NONE);
-    return 0;
-}
-
-static esp_ble_audio_bap_unicast_server_cb_t s_unicast_server_cb = {
+static const esp_ble_audio_bap_unicast_server_cb_t s_unicast_server_cb = {
     .config   = bt_audio_le_unicast_server_config_cb,
     .reconfig = bt_audio_le_unicast_server_reconfig_cb,
     .qos      = bt_audio_le_unicast_server_qos_cb,
     .enable   = bt_audio_le_unicast_server_enable_cb,
     .start    = bt_audio_le_unicast_server_start_cb,
     .metadata = bt_audio_le_unicast_server_metadata_cb,
-    .disable  = bt_audio_le_unicast_server_disable_cb,
-    .stop     = bt_audio_le_unicast_server_stop_cb,
-    .release  = bt_audio_le_unicast_server_release_cb,
+    .disable  = bt_audio_le_unicast_server_accept_cb,
+    .stop     = bt_audio_le_unicast_server_accept_cb,
+    .release  = bt_audio_le_unicast_server_accept_cb,
 };
 
 static inline esp_err_t bt_audio_le_unicast_server_create_streams(bt_audio_le_stream_t ***streams, uint8_t count)

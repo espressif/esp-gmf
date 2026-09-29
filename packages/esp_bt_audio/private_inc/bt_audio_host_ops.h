@@ -39,7 +39,6 @@ extern "C" {
 #define BT_AUDIO_ADV_ITVL_MS(t)             ((t) * 1000 / 625)
 #define BT_AUDIO_PERIODIC_ADV_ITVL_MS(t)    ((t) * 1000 / 1250)
 #define BT_AUDIO_OWN_ADDR_PUBLIC            0x00
-#define BT_AUDIO_HOST_EALREADY              2
 #define BT_AUDIO_ERR_REM_USER_CONN_TERM     0x13
 
 /**
@@ -103,14 +102,9 @@ typedef struct {
     uint16_t  itvl_max;             /*!< Maximum connection interval */
     uint16_t  latency;              /*!< Connection latency */
     uint16_t  supervision_timeout;  /*!< Supervision timeout */
+    uint16_t  min_ce_len;           /*!< Min connection event length (0.625 ms units) */
+    uint16_t  max_ce_len;           /*!< Max connection event length (0.625 ms units) */
 } bt_audio_conn_params_t;
-
-/**
- * @brief  Connection descriptor shared by host adapters.
- */
-typedef struct {
-    uint8_t  peer_id_addr[6];  /*!< Peer identity address bytes */
-} bt_audio_conn_desc_t;
 
 /**
  * @brief  Configure an extended advertising set.
@@ -201,6 +195,17 @@ typedef esp_err_t (*bt_audio_host_connect_t)(uint8_t own_addr_type, const bt_aud
                                              const bt_audio_conn_params_t *params, uint32_t timeout_ms);
 
 /**
+ * @brief  Cancel a pending LE ACL connection attempt.
+ *
+ * @param[in]  bt_dev_addr  Peer address of the outstanding attempt, or NULL
+ *
+ * @return
+ *       - ESP_OK  On success
+ *       - Other   Host adapter error code
+ */
+typedef esp_err_t (*bt_audio_host_connect_cancel_t)(const uint8_t *bt_dev_addr);
+
+/**
  * @brief  Close an LE ACL connection.
  *
  * @param[in]  conn_handle  Connection handle
@@ -211,18 +216,6 @@ typedef esp_err_t (*bt_audio_host_connect_t)(uint8_t own_addr_type, const bt_aud
  *       - Other   Host adapter error code
  */
 typedef esp_err_t (*bt_audio_host_disconnect_t)(uint16_t conn_handle, uint8_t reason);
-
-/**
- * @brief  Find LE connection details.
- *
- * @param[in]   conn_handle  Connection handle
- * @param[out]  desc         Connection descriptor
- *
- * @return
- *       - ESP_OK  On success
- *       - Other   Host adapter error code
- */
-typedef esp_err_t (*bt_audio_host_conn_find_t)(uint16_t conn_handle, bt_audio_conn_desc_t *desc);
 
 /**
  * @brief  Notify the active host that an LE ACL link is connected.
@@ -366,6 +359,16 @@ typedef esp_err_t (*bt_audio_host_pa_sync_receive_t)(uint16_t conn_handle,
 typedef esp_err_t (*bt_audio_host_id_infer_auto_t)(int privacy, uint8_t *out_addr_type);
 
 /**
+ * @brief  Get the number of persistently bonded LE peers.
+ */
+typedef size_t (*bt_audio_host_bond_count_t)(void);
+
+/**
+ * @brief  Check whether an LE address belongs to a persistently bonded peer.
+ */
+typedef bool (*bt_audio_host_bond_exists_t)(const bt_audio_addr_t *addr);
+
+/**
  * @brief  Get the GAP device name from the active host stack.
  *
  * @return
@@ -402,8 +405,8 @@ typedef struct {
     bt_audio_host_disc_t                        disc;                    /*!< Start discovery */
     bt_audio_host_disc_cancel_t                 disc_cancel;             /*!< Cancel discovery */
     bt_audio_host_connect_t                     connect;                 /*!< Open an ACL connection */
+    bt_audio_host_connect_cancel_t              connect_cancel;          /*!< Cancel a pending ACL connection */
     bt_audio_host_disconnect_t                  disconnect;              /*!< Close an ACL connection */
-    bt_audio_host_conn_find_t                   conn_find;               /*!< Find connection details */
     bt_audio_host_acl_connected_t               acl_connected;           /*!< Notify ACL connected */
     bt_audio_host_acl_disconnected_t            acl_disconnected;        /*!< Notify ACL disconnected */
     bt_audio_host_security_initiate_t           security_initiate;       /*!< Initiate security */
@@ -416,6 +419,8 @@ typedef struct {
     bt_audio_host_pa_sync_create_cancel_t       pa_sync_create_cancel;   /*!< Cancel pending PA sync */
     bt_audio_host_pa_sync_receive_t             pa_sync_receive;         /*!< Enable PAST receive */
     bt_audio_host_id_infer_auto_t               id_infer_auto;           /*!< Infer local address type */
+    bt_audio_host_bond_count_t                  bond_count;              /*!< Count bonded LE peers */
+    bt_audio_host_bond_exists_t                 bond_exists;             /*!< Match a bonded LE peer */
     bt_audio_host_svc_gap_device_name_t         svc_gap_device_name;     /*!< Get GAP device name */
     bt_audio_host_register_event_cb_t           register_event_cb;       /*!< Register host event callback */
     bt_audio_host_post_gap_event_t              post_gap_event;          /*!< Forward host GAP event */
@@ -526,6 +531,18 @@ esp_err_t bt_audio_host_connect(uint8_t own_addr_type, const bt_audio_addr_t *pe
                                 const bt_audio_conn_params_t *params, uint32_t timeout_ms);
 
 /**
+ * @brief  Cancel a pending LE ACL connection attempt.
+ *
+ * @param[in]  bt_dev_addr  Peer address of the outstanding attempt, or NULL
+ *
+ * @return
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_INVALID_STATE  If the host operation is not registered
+ *       - Other                  Host adapter error code
+ */
+esp_err_t bt_audio_host_connect_cancel(const uint8_t *bt_dev_addr);
+
+/**
  * @brief  Close an LE ACL connection.
  *
  * @param[in]  conn_handle  Connection handle
@@ -537,19 +554,6 @@ esp_err_t bt_audio_host_connect(uint8_t own_addr_type, const bt_audio_addr_t *pe
  *       - Other                  Host adapter error code
  */
 esp_err_t bt_audio_host_disconnect(uint16_t conn_handle, uint8_t reason);
-
-/**
- * @brief  Find LE connection details.
- *
- * @param[in]   conn_handle  Connection handle
- * @param[out]  desc         Connection descriptor
- *
- * @return
- *       - ESP_OK                 On success
- *       - ESP_ERR_INVALID_STATE  If the host operation is not registered
- *       - Other                  Host adapter error code
- */
-esp_err_t bt_audio_host_conn_find(uint16_t conn_handle, bt_audio_conn_desc_t *desc);
 
 /**
  * @brief  Notify the active host that an LE ACL link is connected.
@@ -702,6 +706,16 @@ esp_err_t bt_audio_host_pa_sync_receive(uint16_t conn_handle, const bt_audio_per
  *       - Other                  Host adapter error code
  */
 esp_err_t bt_audio_host_id_infer_auto(int privacy, uint8_t *out_addr_type);
+
+/**
+ * @brief  Get the number of persistently bonded LE peers.
+ */
+size_t bt_audio_host_bond_count(void);
+
+/**
+ * @brief  Check whether an LE address belongs to a persistently bonded peer.
+ */
+bool bt_audio_host_bond_exists(const bt_audio_addr_t *addr);
 
 /**
  * @brief  Get the GAP device name from the active host stack.

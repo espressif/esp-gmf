@@ -11,6 +11,7 @@
 #include "bt_audio_host_ops.h"
 #include "bt_audio_le_broadcast_source.h"
 #include "bt_audio_le_stream.h"
+#include "bt_audio_le_tx_group.h"
 
 #include "esp_check.h"
 #include "esp_heap_caps.h"
@@ -18,15 +19,13 @@
 #include "esp_random.h"
 
 #include "esp_ble_audio_bap_api.h"
-#include "esp_ble_audio_bap_lc3_preset_defs.h"
 #include "esp_ble_audio_codec_api.h"
 #include "esp_ble_audio_defs.h"
 #include "esp_ble_iso_common_api.h"
+#include "bt_audio_le_lc3_preset.h"
 
 /* net_buf_simple types are provided by esp_ble_iso through the Zephyr compatibility layer. */
 
-/* Broadcast Audio Announcement: Broadcast_Name AD type (assigned number 0x30) */
-#define BT_AUDIO_LE_ADV_TYPE_BROADCAST_NAME  0x30U
 #define BT_AUDIO_LE_BSRC_CC_LTV_MAX          8
 
 /**
@@ -35,6 +34,7 @@
 typedef struct {
     esp_ble_audio_bap_broadcast_source_t *source;                                               /*!< BLE Audio broadcast source instance */
     bt_audio_le_stream_t                **streams;                                              /*!< Source stream wrappers */
+    bt_audio_le_tx_group_t               *tx_group;                                             /*!< Shared BIG transmit pacer */
     esp_ble_audio_bap_lc3_preset_t        preset;                                               /*!< Active LC3 preset */
     uint8_t                               codec_data[CONFIG_BT_AUDIO_CODEC_CFG_MAX_DATA_SIZE];  /*!< Codec specific data buffer */
     uint8_t                               codec_meta[CONFIG_BT_AUDIO_CODEC_CFG_MAX_METADATA_SIZE]; /*!< Codec metadata buffer */
@@ -50,7 +50,7 @@ typedef struct {
 static const char *TAG = "BT_AUD_LE_BSRC";
 static bt_audio_le_broadcast_source_ctx_t *s_bsrc;
 
-/* Official BAP broadcast presets. Templates remain static; the active mutable copy is stored in the PSRAM context. */
+/* Official BAP broadcast presets. Templates are const; the active mutable copy is stored in the PSRAM context. */
 ESP_BLE_AUDIO_BAP_LC3_BROADCAST_PRESET_8_1_1_DEFINE(s_preset_8_1_1, ESP_BLE_AUDIO_LOCATION_MONO_AUDIO,
                                                     ESP_BLE_AUDIO_CONTEXT_TYPE_MEDIA);
 ESP_BLE_AUDIO_BAP_LC3_BROADCAST_PRESET_8_1_2_DEFINE(s_preset_8_1_2, ESP_BLE_AUDIO_LOCATION_MONO_AUDIO,
@@ -295,8 +295,6 @@ esp_err_t bt_audio_le_broadcast_source_init(const esp_bt_audio_le_cfg_t *cfg, bt
         configured_locations |= loc;
     }
 
-    uint32_t subgroup_loc = 0;
-
     s_bsrc = heap_caps_calloc_prefer(1, sizeof(*s_bsrc), 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
     ESP_RETURN_ON_FALSE(s_bsrc, ESP_ERR_NO_MEM, TAG, "No memory for broadcast source");
     ESP_GOTO_ON_ERROR(bt_audio_le_bsrc_init_preset(s_bsrc, preset_tmpl), fail, TAG,
@@ -305,6 +303,13 @@ esp_err_t bt_audio_le_broadcast_source_init(const esp_bt_audio_le_cfg_t *cfg, bt
     s_bsrc->streams = heap_caps_calloc_prefer(stream_count, sizeof(*s_bsrc->streams), 2,
                                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
     ESP_GOTO_ON_FALSE(s_bsrc->streams, ESP_ERR_NO_MEM, fail, TAG, "No memory for broadcast streams");
+    ESP_GOTO_ON_ERROR(bt_audio_le_tx_group_create("bsrc_tx", &s_bsrc->tx_group), fail, TAG,
+                      "Failed to create broadcast TX group");
+    ESP_GOTO_ON_ERROR(bt_audio_le_tx_group_set_task_cfg(s_bsrc->tx_group,
+                                                        cfg->src_send_task_core_id,
+                                                        cfg->src_send_task_prio,
+                                                        cfg->src_send_task_stack_size),
+                      fail, TAG, "Invalid LE source send task configuration");
 
     esp_ble_audio_bap_broadcast_source_stream_param_t stream_params[CONFIG_BT_BAP_BROADCAST_SRC_STREAM_COUNT];
     memset(stream_params, 0, sizeof(stream_params));
@@ -317,23 +322,20 @@ esp_err_t bt_audio_le_broadcast_source_init(const esp_bt_audio_le_cfg_t *cfg, bt
             ESP_BLE_AUDIO_CODEC_DATA(ESP_BLE_AUDIO_CODEC_CFG_CHAN_ALLOC, BT_BYTES_LIST_LE32(loc))
         };
         memcpy(stream_cc[i], loc_ltv, sizeof(loc_ltv));
-        subgroup_loc |= loc;
 
         ESP_GOTO_ON_ERROR(bt_audio_le_stream_create(&s_bsrc->streams[i]), fail, TAG,
                           "Failed to create broadcast stream");
-        ESP_GOTO_ON_ERROR(bt_audio_le_stream_set_tx_task_cfg(s_bsrc->streams[i],
-                                                              cfg->src_send_task_core_id,
-                                                              cfg->src_send_task_prio,
-                                                              cfg->src_send_task_stack_size),
-                          fail, TAG, "Invalid LE source send task configuration");
         s_bsrc->streams[i]->base.profile = ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST;
         s_bsrc->streams[i]->base.direction = ESP_BT_AUDIO_STREAM_DIR_SOURCE;
         s_bsrc->streams[i]->base.context = ESP_BT_AUDIO_STREAM_CONTEXT_MEDIA;
+        ESP_GOTO_ON_ERROR(bt_audio_le_tx_group_add(s_bsrc->tx_group, s_bsrc->streams[i]),
+                          fail, TAG, "Failed to add BIS stream to broadcast TX group");
         stream_params[i].stream = &s_bsrc->streams[i]->bap_stream;
         stream_params[i].data = stream_cc[i];
         stream_params[i].data_len = sizeof(loc_ltv);
     }
 
+    uint32_t subgroup_loc = configured_locations ? configured_locations : ESP_BLE_AUDIO_LOCATION_MONO_AUDIO;
     ESP_GOTO_ON_ERROR(esp_ble_audio_codec_cfg_set_chan_allocation(&s_bsrc->preset.codec_cfg, subgroup_loc),
                       fail, TAG, "Failed to set subgroup channel allocation");
 
@@ -368,7 +370,7 @@ esp_err_t bt_audio_le_broadcast_source_init(const esp_bt_audio_le_cfg_t *cfg, bt
                       fail, TAG, "Failed to add broadcast service data");
     if (cfg->bsrc.broadcast_name[0]) {
         size_t name_len = strnlen((const char *)cfg->bsrc.broadcast_name, sizeof(cfg->bsrc.broadcast_name));
-        ESP_GOTO_ON_ERROR(bt_audio_le_adv_builder_add_field(adv_builder, BT_AUDIO_LE_ADV_TYPE_BROADCAST_NAME,
+        ESP_GOTO_ON_ERROR(bt_audio_le_adv_builder_add_field(adv_builder, BT_AUDIO_AD_TYPE_BROADCAST_NAME,
                                                             cfg->bsrc.broadcast_name, name_len),
                           fail, TAG, "Failed to add broadcast name");
     }
@@ -390,6 +392,8 @@ void bt_audio_le_broadcast_source_deinit(void)
         esp_ble_audio_bap_broadcast_source_stop(s_bsrc->source);
         esp_ble_audio_bap_broadcast_source_delete(s_bsrc->source);
     }
+    bt_audio_le_tx_group_destroy(s_bsrc->tx_group);
+    s_bsrc->tx_group = NULL;
     for (uint8_t i = 0; i < s_bsrc->stream_count; i++) {
         bt_audio_le_stream_destroy(s_bsrc->streams ? s_bsrc->streams[i] : NULL);
     }

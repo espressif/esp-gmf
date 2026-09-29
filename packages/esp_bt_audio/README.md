@@ -27,9 +27,10 @@ In addition, `esp_bt_audio` provides flexible data access methods:
   - **PBAP Client Equipment**: fetch phonebook and call history from the phone
 - **LE Audio profiles and roles**
   - **BAP Unicast Server**: expose sink/source ASEs for LE unicast media or conversational audio
+  - **CAP Initiator / BAP Unicast Client**: discover remote Sink ASEs and stream mono or CSIP-coordinated stereo media as a TMAP UMS initiator
   - **BAP Broadcast Source/Sink**: send or receive LC3 broadcast audio streams
   - **Scan Delegator**: accept broadcast assistant requests for broadcast discovery and synchronization
-  - **TMAP support**: configure telephony and media role combinations, such as CT, UMR, BMR, and BMS
+  - **TMAP support**: configure telephony and media role combinations, such as CT, UMR, UMS, BMR, and BMS
   - **VCP/MCP/MICP/CCP/CSIP**: volume, media control, microphone, call control, and coordinated-set support
 - **Event callback model** (`esp_bt_audio_event_cb_t`)
   - connection/discovery state, device discovery
@@ -259,7 +260,7 @@ LE Audio support is compiled when NimBLE and ESP-IDF Bluetooth Audio/ISO options
 - `CONFIG_BT_AUDIO`
 - `CONFIG_BT_ISO`
 
-Optional LE profile switches use ESP-IDF Bluetooth Audio options, including `CONFIG_BT_BAP_UNICAST_SERVER`, `CONFIG_BT_BAP_BROADCAST_SOURCE`, `CONFIG_BT_BAP_BROADCAST_SINK`, `CONFIG_BT_BAP_SCAN_DELEGATOR`, `CONFIG_BT_VCP_VOL_REND`, `CONFIG_BT_MCC`, `CONFIG_BT_MICP_MIC_DEV`, `CONFIG_BT_TBS_CLIENT`, `CONFIG_BT_CSIP_SET_MEMBER`, and `CONFIG_BT_TMAP`.
+Optional LE profile switches use ESP-IDF Bluetooth Audio options, including `CONFIG_BT_BAP_UNICAST_SERVER`, `CONFIG_BT_BAP_UNICAST_CLIENT`, `CONFIG_BT_BAP_BROADCAST_SOURCE`, `CONFIG_BT_BAP_BROADCAST_SINK`, `CONFIG_BT_BAP_SCAN_DELEGATOR`, `CONFIG_BT_VCP_VOL_REND`, `CONFIG_BT_MCC`, `CONFIG_BT_MICP_MIC_DEV`, `CONFIG_BT_TBS_CLIENT`, `CONFIG_BT_CSIP_SET_MEMBER`, and `CONFIG_BT_TMAP`.
 
 For a BAP Broadcast Source, `esp_bt_audio_le_bsrc_cfg_t` requires `stream_num` streams in one BIG, from 1 to `CONFIG_BT_BAP_BROADCAST_SRC_STREAM_COUNT`. It also accepts optional per-stream `stream_locations[]` for the first `ESP_BT_AUDIO_LE_BSRC_STREAM_MAX` (2) BIS (`ESP_BT_AUDIO_AUDIO_LOC_*`, 0 = mono; additional BIS are mono), and an `lc3_preset` named by its sample rate, frame duration, frame size, and reliability (`HQ` / `HR`), for example `ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_16KHZ_10MS_40B_HQ`. A zero `lc3_preset` keeps the default 48 kHz, 10 ms, 100-byte HQ configuration.
 
