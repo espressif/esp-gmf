@@ -203,7 +203,7 @@ esp_gmf_err_t esp_gmf_afe_manager_create(esp_gmf_afe_manager_cfg_t *cfg, esp_gmf
                                              afe_manager,
                                              cfg->feed_task_setting.prio,
                                              cfg->feed_task_setting.core,
-                                             (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT),
+                                             (cfg->feed_task_setting.stack_in_internal ? MALLOC_CAP_INTERNAL : MALLOC_CAP_SPIRAM) | MALLOC_CAP_8BIT,
                                              &afe_manager->feed.task);
     ESP_GOTO_ON_FALSE(afe_manager->feed.task, ESP_GMF_ERR_MEMORY_LACK, __err, TAG, "Create afe feed task failed");
 
@@ -213,7 +213,7 @@ esp_gmf_err_t esp_gmf_afe_manager_create(esp_gmf_afe_manager_cfg_t *cfg, esp_gmf
                                              afe_manager,
                                              cfg->fetch_task_setting.prio,
                                              cfg->fetch_task_setting.core,
-                                             (MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT),
+                                             (cfg->fetch_task_setting.stack_in_internal ? MALLOC_CAP_INTERNAL : MALLOC_CAP_SPIRAM) | MALLOC_CAP_8BIT,
                                              &afe_manager->fetch.task);
     ESP_GOTO_ON_FALSE(afe_manager->fetch.task, ESP_GMF_ERR_MEMORY_LACK, __err, TAG, "Create afe fetch task failed");
 #else
