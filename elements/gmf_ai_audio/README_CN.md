@@ -19,6 +19,14 @@
 
 ## AFE 管理器 `esp_gmf_afe_manager`
 
+``feed_task_setting.stack_in_internal`` 和 ``fetch_task_setting.stack_in_internal`` 可分别设置为 `true`，使对应任务的栈使用内部 RAM。默认值 `false` 保持原有行为：启用 PSRAM 和静态分配时使用 PSRAM，否则使用内部 RAM。此选项不影响 AFE 模型、音频缓冲区或 ESP-SR 内部任务的内存分配。
+
+```c
+esp_gmf_afe_manager_cfg_t cfg = DEFAULT_GMF_AFE_MANAGER_CFG(afe_cfg, read_cb, read_ctx, result_cb, result_ctx);
+cfg.feed_task_setting.stack_in_internal = true;
+cfg.fetch_task_setting.stack_in_internal = true;
+```
+
 ### 功能
 
 - 管理音频前端（Audio Front-End, AFE）的数据通路与任务调度
