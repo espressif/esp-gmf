@@ -17,13 +17,11 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang"
     idf_build_set_property(CXX_COMPILE_OPTIONS "-Wno-error=non-c-typedef-for-linkage" APPEND)
 endif()
 
-if("${IDF_TARGET}" STREQUAL "esp32s31")
+if(CONFIG_EXAMPLE_BT_UI_ENABLE)
     set(BT_UI_ASSETS_SOURCE "${CMAKE_SOURCE_DIR}/assets/assets_image.bin")
     set(BT_UI_ASSETS_IMAGE "${CMAKE_BINARY_DIR}/assets_image.bin")
     if(NOT EXISTS "${BT_UI_ASSETS_SOURCE}")
-        message(FATAL_ERROR
-            "Missing ${BT_UI_ASSETS_SOURCE}. "
-            "Generate it with ~/esp/tools/bt_audio_assets/gen_assets.sh")
+        message(FATAL_ERROR "Missing ${BT_UI_ASSETS_SOURCE}")
     endif()
 
     add_custom_command(

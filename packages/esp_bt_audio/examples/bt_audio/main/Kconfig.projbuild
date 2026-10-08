@@ -237,7 +237,7 @@ menu "BT Audio Basic Example (GMF)"
             config GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_48K
                 bool "48 kHz"
                 help
-                    48 kHz, 10 ms, 100-byte high-quality LC3 preset.
+                    48 kHz, 10 ms, 155-byte high-quality LC3 preset.
 
         endchoice
 
