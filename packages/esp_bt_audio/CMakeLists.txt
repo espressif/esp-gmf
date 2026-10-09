@@ -49,14 +49,23 @@ if (CONFIG_BT_AUDIO AND CONFIG_BT_ISO)
     list(APPEND srcs
          "src/le/bt_audio_le.c"
          "src/le/le_stream/bt_audio_le_stream.c"
+         "src/le/le_stream/bt_audio_le_tx_group.c"
          "src/le/profiles/adv/bt_audio_le_adv_builder.c"
          "src/le/profiles/pacs/bt_audio_le_pacs.c")
     list(APPEND private_includes "private_inc/le")
     if (CONFIG_BT_BAP_UNICAST_SERVER)
         list(APPEND srcs "src/le/profiles/bap/bt_audio_le_unicast_server.c")
     endif()
+    if (CONFIG_BT_BAP_UNICAST_CLIENT AND CONFIG_BT_CAP_INITIATOR)
+        list(APPEND srcs "src/le/profiles/bap/bt_audio_le_unicast_client.c"
+                          "src/le/profiles/csip/bt_audio_le_csip_coordinator.c")
+    endif()
     if (CONFIG_BT_VCP_VOL_REND)
         list(APPEND srcs "src/le/profiles/vcp/bt_audio_le_vcp_rend.c")
+    endif()
+    if (CONFIG_BT_VCP_VOL_CTLR AND CONFIG_BT_CAP_COMMANDER AND
+            CONFIG_BT_BAP_UNICAST_CLIENT AND CONFIG_BT_CAP_INITIATOR)
+        list(APPEND srcs "src/le/profiles/vcp/bt_audio_le_vcp_ctlr.c")
     endif()
     if (CONFIG_BT_BAP_BROADCAST_SOURCE)
         list(APPEND srcs "src/le/profiles/bap/bt_audio_le_broadcast_source.c")
@@ -68,7 +77,7 @@ if (CONFIG_BT_AUDIO AND CONFIG_BT_ISO)
         list(APPEND srcs "src/le/profiles/bap/bt_audio_le_scan_delegator.c")
     endif()
     if (CONFIG_BT_CSIP_SET_MEMBER)
-        list(APPEND srcs "src/le/profiles/csip/bt_audio_le_csip.c")
+        list(APPEND srcs "src/le/profiles/csip/bt_audio_le_csip_set_member.c")
     endif()
     if (CONFIG_BT_MICP_MIC_DEV)
         list(APPEND srcs "src/le/profiles/micp/bt_audio_le_micp.c")

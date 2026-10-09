@@ -8,59 +8,93 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "esp_check.h"
-#include "esp_err.h"
-#include "esp_gmf_task.h"
-#include "esp_heap_caps.h"
-#include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
-#include "esp_bt_audio_defs.h"
-#include "esp_bt_audio_media.h"
-#include "esp_bt_audio_stream.h"
-#include "esp_gmf_audio_dec.h"
-#include "esp_gmf_audio_enc.h"
-#include "esp_gmf_element.h"
-#include "esp_gmf_err.h"
-#include "esp_gmf_pipeline.h"
-#include "esp_gmf_pool.h"
-#include "esp_gmf_io_bt.h"
-#include "esp_gmf_asrc.h"
+#include "sdkconfig.h"
+#include "esp_check.h"
+#include "esp_err.h"
+#include "esp_heap_caps.h"
+#include "esp_log.h"
 #if CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
 #include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
 #include "esp_board_periph.h"
 #include "esp_codec_dev.h"
 #include "dev_audio_codec.h"
-#include "esp_bt_audio_le_playback_sync.h"
 #endif  /* CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
 
-#include "stream_proc.h"
+#include "esp_bt_audio_defs.h"
+#include "esp_bt_audio_media.h"
+#include "esp_bt_audio_stream.h"
+#if CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
+#include "esp_bt_audio_le_playback_sync.h"
+#endif  /* CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
+#include "esp_gmf_asrc.h"
+#include "esp_gmf_audio_dec.h"
+#include "esp_gmf_audio_enc.h"
+#include "esp_gmf_element.h"
+#include "esp_gmf_err.h"
+#include "esp_gmf_io_bt.h"
+#include "esp_gmf_new_databus.h"
+#include "esp_gmf_obj.h"
+#include "esp_gmf_pipeline.h"
+#include "esp_gmf_pool.h"
+#include "esp_gmf_port.h"
+#include "esp_gmf_task.h"
+#include "esp_lc3_enc.h"
 #include "codec_defs.h"
+#include "stream_proc.h"
 
 #define STREAM_PROC_ASRC_MAX_CH          4
 #define STREAM_PROC_ASRC_MAX_WEIGHT_LEN  (STREAM_PROC_ASRC_MAX_CH * STREAM_PROC_ASRC_MAX_CH)
-#define STREAM_PROC_CMD_QUEUE_SIZE       12
+#define STREAM_PROC_CMD_QUEUE_SIZE       16
+#define STREAM_PROC_CMD_WAIT_TICKS       pdMS_TO_TICKS(200)
 #define STREAM_PROC_TASK_STACK_SIZE      4096
 #define STREAM_PROC_TASK_PRIO            20
 #define STREAM_PROC_TASK_CORE_ID         1
+#if defined(CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS) && (CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM > 1)
+#define STREAM_PROC_DUAL_BIS             1
+#define STREAM_PROC_DUAL_BIS_NUM         CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM
+#define STREAM_PROC_DUAL_BIS_RB_BLOCKS   4
+#define STREAM_PROC_DUAL_BIS_RB_SIZE     8192
+#define STREAM_PROC_DUAL_BIS_PORT_SIZE   4096
+#define STREAM_PROC_DUAL_BIS_WEIGHT_LEN  2
+#define STREAM_PROC_DUAL_BIS_SRC_CH      2
+#define STREAM_PROC_DUAL_BIS_SRC_BITS    16
+#else
+#define STREAM_PROC_DUAL_BIS             0
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS && CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM > 1 */
 
 typedef enum {
     STREAM_PROC_PIPELINE_PREPARE,
     STREAM_PROC_PIPELINE_RUN,
     STREAM_PROC_PIPELINE_STOP_RESET,
+    STREAM_PROC_PIPELINE_PLAY_NEXT,
+    STREAM_PROC_PIPELINE_START_SHARED,
+#if STREAM_PROC_DUAL_BIS
+    STREAM_PROC_BIS_LEG_CONFIG,
+#endif  /* STREAM_PROC_DUAL_BIS */
 } stream_proc_pipeline_action_t;
 
 typedef struct {
-    stream_proc_pipeline_action_t  action;
-    esp_gmf_pipeline_handle_t      pipe;
-    const char                    *uri;
-    bool                           report_codec_input_info;
+    stream_proc_pipeline_action_t  action;           /*!< Command action */
+    esp_gmf_pipeline_handle_t      pipe;             /*!< Target pipeline */
+    const char                    *uri;              /*!< Input URI, or NULL */
+    bool                           report_src_info;  /*!< Report source sound information */
+    esp_gmf_info_sound_t           src_info;         /*!< Source sound information */
+#if STREAM_PROC_DUAL_BIS
+    int                            leg;              /*!< Dual BIS leg index */
+#endif  /* STREAM_PROC_DUAL_BIS */
 } stream_proc_cmd_t;
 
 static const char *TAG = "STREAM_PROC";
+
+static const char *gmf_state_to_str(int state);
+#if STREAM_PROC_DUAL_BIS
+static void stream_proc_request_pipeline_stop_reset(esp_gmf_pipeline_handle_t pipe);
+#endif  /* STREAM_PROC_DUAL_BIS */
 
 /* Playlist configuration */
 static const char *playlist[] = {
@@ -69,25 +103,69 @@ static const char *playlist[] = {
     "file://sdcard/media2.mp3",
 };
 static const size_t playlist_len = sizeof(playlist) / sizeof(playlist[0]);
-static size_t playlist_cur_index = 0;
 
-/* Pipeline handles */
-static esp_gmf_task_handle_t bt2codec_task = NULL;
-static esp_gmf_pipeline_handle_t bt2codec_pipe = NULL;
+#if STREAM_PROC_DUAL_BIS
+enum {
+    STREAM_PROC_BIS_LEG_CONFIGURED = BIT(0),
+    STREAM_PROC_BIS_LEG_STARTED    = BIT(1),
+};
 
-static esp_gmf_task_handle_t codec2bt_task = NULL;
-static esp_gmf_pipeline_handle_t codec2bt_pipe = NULL;
+/**
+ * @brief  State for one leg of the dual BIS broadcast topology.
+ */
+typedef struct {
+    esp_gmf_pipeline_handle_t     pipe;                                                      /*!< Encoding pipeline */
+    esp_gmf_task_handle_t         task;                                                      /*!< Pipeline task */
+    esp_gmf_db_handle_t           rb;                                                        /*!< Copier ring buffer */
+    esp_bt_audio_stream_handle_t  stream;                                                    /*!< Bluetooth stream */
+    esp_gmf_info_sound_t          src_info;                                                  /*!< Source sound info */
+    float                         weight[STREAM_PROC_DUAL_BIS_WEIGHT_LEN];                   /*!< ASRC weights */
+    uint8_t                       flags;                                                     /*!< Leg preparation flags */
+    bool                          running;                                                   /*!< Pipeline running */
+} stream_proc_bis_leg_t;
+#endif  /* STREAM_PROC_DUAL_BIS */
 
-static esp_gmf_task_handle_t local2bt_task = NULL;
-static esp_gmf_pipeline_handle_t local2bt_pipe = NULL;
-static esp_bt_audio_stream_handle_t local2bt_stream = NULL;
+typedef struct {
+    size_t                        playlist_cur_index;
+    esp_gmf_task_handle_t         bt2codec_task;
+    esp_gmf_pipeline_handle_t     bt2codec_pipe;
+    esp_gmf_task_handle_t         codec2bt_task;
+    esp_gmf_pipeline_handle_t     codec2bt_pipe;
+    esp_gmf_task_handle_t         local2bt_task;
+    esp_gmf_pipeline_handle_t     local2bt_pipe;
+    esp_bt_audio_stream_handle_t  local2bt_stream;
+    QueueHandle_t                 cmd_queue;
+    float                         bt2codec_asrc_weight[STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
+    float                         codec2bt_input_asrc_weight[STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
+    float                         codec2bt_output_asrc_weight[STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
+    float                         local2bt_asrc_weight[STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
+    esp_gmf_task_handle_t         local2bt_source_task;
+    esp_gmf_pipeline_handle_t     local2bt_source_pipe;
+    esp_gmf_task_handle_t         local2bt_branch_task[2];
+    esp_gmf_pipeline_handle_t     local2bt_branch_pipe[2];
+    esp_gmf_db_handle_t           local2bt_branch_db[2];
+    esp_bt_audio_stream_handle_t  local2bt_shared_stream[2];
+    bool                          local2bt_stream_started[2];
+    bool                          local2bt_branch_running[2];
+    bool                          local2bt_source_running;
+    bool                          local2bt_shared_starting;
+    float                         local2bt_shared_asrc_weight[2][STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
+#if STREAM_PROC_DUAL_BIS
+    esp_gmf_pipeline_handle_t     local2bt_head_pipe;
+    esp_gmf_task_handle_t         local2bt_head_task;
+    stream_proc_bis_leg_t         local2bt_bis_legs[STREAM_PROC_DUAL_BIS_NUM];
+    bool                          local2bt_head_running;
+#endif  /* STREAM_PROC_DUAL_BIS */
+#if CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
+    esp_bt_audio_le_playback_sync_handle_t playback_sync;
+    esp_bt_audio_le_clk_sync_handle_t      clk_sync;
+    QueueHandle_t                          clk_sync_monitor_queue;
+    TaskHandle_t                           clk_sync_monitor_task;
+    volatile bool                          clk_sync_monitor_task_running;
+#endif  /* CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM */
+} stream_proc_ctx_t;
 
-static QueueHandle_t stream_proc_cmd_queue = NULL;
-
-static float bt2codec_asrc_weight[STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
-static float codec2bt_input_asrc_weight[STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
-static float codec2bt_output_asrc_weight[STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
-static float local2bt_asrc_weight[STREAM_PROC_ASRC_MAX_WEIGHT_LEN];
+static stream_proc_ctx_t *s_stream_proc;
 
 static inline esp_audio_type_t stream_proc_get_audio_type(esp_bt_audio_stream_codec_type_t codec_type)
 {
@@ -103,26 +181,36 @@ static inline esp_audio_type_t stream_proc_get_audio_type(esp_bt_audio_stream_co
     }
 }
 
-static inline bool stream_proc_post_cmd(const stream_proc_cmd_t *cmd)
+static inline bool stream_proc_post_cmd(const stream_proc_cmd_t *cmd, TickType_t wait)
 {
-    if (stream_proc_cmd_queue == NULL) {
+    if (s_stream_proc == NULL || s_stream_proc->cmd_queue == NULL) {
         ESP_LOGE(TAG, "Stream processor task is not initialized");
         return false;
     }
-    if (xQueueSend(stream_proc_cmd_queue, cmd, 0) != pdTRUE) {
+    if (xQueueSend(s_stream_proc->cmd_queue, cmd, wait) != pdTRUE) {
         ESP_LOGW(TAG, "Stream processor command queue full, drop action %d", cmd->action);
         return false;
     }
     return true;
 }
 
-static inline void stream_proc_post_pipeline_action(esp_gmf_pipeline_handle_t pipe, stream_proc_pipeline_action_t action)
+static inline bool stream_proc_post_pipeline_action(esp_gmf_pipeline_handle_t pipe,
+                                                    stream_proc_pipeline_action_t action,
+                                                    TickType_t wait)
 {
     stream_proc_cmd_t cmd = {
         .action = action,
         .pipe = pipe,
     };
-    stream_proc_post_cmd(&cmd);
+    return stream_proc_post_cmd(&cmd, wait);
+}
+
+static inline const char *stream_proc_pipeline_name(esp_gmf_pipeline_handle_t pipe)
+{
+    if (pipe == NULL) {
+        return "NULL";
+    }
+    return pipe->thread ? OBJ_GET_TAG(pipe->thread) : "unbound";
 }
 
 static esp_gmf_element_handle_t stream_proc_get_asrc(esp_gmf_pipeline_handle_t pipe, uint8_t index)
@@ -188,18 +276,717 @@ static void stream_proc_set_asrc_dest(esp_gmf_pipeline_handle_t pipe, uint8_t in
     }
 }
 
+#if STREAM_PROC_DUAL_BIS
+static bool stream_proc_dual_bis_legs_have(uint8_t flags)
+{
+    for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+        if ((s_stream_proc->local2bt_bis_legs[i].flags & flags) != flags) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static stream_proc_bis_leg_t *stream_proc_find_bis_leg(esp_bt_audio_stream_handle_t stream)
+{
+    for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+        if (s_stream_proc->local2bt_bis_legs[i].stream == stream) {
+            return &s_stream_proc->local2bt_bis_legs[i];
+        }
+    }
+    return NULL;
+}
+
+static void stream_proc_reset_bis_leg_rb(esp_gmf_pipeline_handle_t pipe)
+{
+    /* Pipeline reset does not clear the ring buffer's done flag or residual data */
+    for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+        if (s_stream_proc->local2bt_bis_legs[i].pipe == pipe && s_stream_proc->local2bt_bis_legs[i].rb) {
+            esp_gmf_db_reset(s_stream_proc->local2bt_bis_legs[i].rb);
+            return;
+        }
+    }
+}
+
+static esp_gmf_err_t stream_proc_dual_bis_prev_stop(void *event_ctx)
+{
+    stream_proc_ctx_t *stream_ctx = (stream_proc_ctx_t *)event_ctx;
+    /* The resampler reads and the copier writes with ESP_GMF_MAX_DELAY, so a task blocked on
+     * the ring buffer never observes the stop request until the buffer is aborted. Pipeline
+     * reset clears the abort flag again before the next run. */
+    for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+        if (stream_ctx->local2bt_bis_legs[i].rb) {
+            esp_gmf_db_abort(stream_ctx->local2bt_bis_legs[i].rb);
+        }
+    }
+    return ESP_GMF_ERR_OK;
+}
+
+static esp_err_t stream_proc_configure_bis_leg(stream_proc_bis_leg_t *leg, int slot)
+{
+    esp_gmf_element_handle_t asrc = stream_proc_get_asrc(leg->pipe, 0);
+    if (asrc == NULL) {
+        return ESP_ERR_NOT_FOUND;
+    }
+    esp_gmf_err_t ret = esp_gmf_asrc_set_dest_rate(asrc, leg->src_info.sample_rates);
+    if (ret != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to set BIS[%d] ASRC destination rate: %d", slot, ret);
+        return ESP_FAIL;
+    }
+    ret = esp_gmf_asrc_set_dest_ch(asrc, 1);
+    if (ret != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to set BIS[%d] ASRC destination channels: %d", slot, ret);
+        return ESP_FAIL;
+    }
+    esp_asrc_cfg_t *cfg = (esp_asrc_cfg_t *)OBJ_GET_CFG(asrc);
+    if (cfg == NULL) {
+        ESP_LOGE(TAG, "BIS[%d] ASRC configuration is unavailable", slot);
+        return ESP_ERR_INVALID_STATE;
+    }
+    cfg->weight = leg->weight;
+    cfg->weight_len = STREAM_PROC_DUAL_BIS_WEIGHT_LEN;
+    return ESP_OK;
+}
+
+static void stream_proc_dual_bis_stop(void)
+{
+    if (s_stream_proc->local2bt_head_running) {
+        stream_proc_request_pipeline_stop_reset(s_stream_proc->local2bt_head_pipe);
+        s_stream_proc->local2bt_head_running = false;
+    }
+    for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+        if (s_stream_proc->local2bt_bis_legs[i].running) {
+            stream_proc_request_pipeline_stop_reset(s_stream_proc->local2bt_bis_legs[i].pipe);
+            s_stream_proc->local2bt_bis_legs[i].running = false;
+        }
+        s_stream_proc->local2bt_bis_legs[i].flags = 0;
+        s_stream_proc->local2bt_bis_legs[i].stream = NULL;
+    }
+}
+
+static bool stream_proc_dual_bis_run(void)
+{
+    for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+        /* The leg head element stays uninitialized until it receives sound info, and an
+         * uninitialized element registers no job, so its pipeline would never run. The
+         * decoded PCM format reported over the copier link later reopens the resampler. */
+        stream_proc_cmd_t cmd = {
+            .action = STREAM_PROC_PIPELINE_PREPARE,
+            .pipe = s_stream_proc->local2bt_bis_legs[i].pipe,
+            .report_src_info = true,
+            .src_info = s_stream_proc->local2bt_bis_legs[i].src_info,
+        };
+        if (!stream_proc_post_cmd(&cmd, STREAM_PROC_CMD_WAIT_TICKS) ||
+            !stream_proc_post_pipeline_action(s_stream_proc->local2bt_bis_legs[i].pipe, STREAM_PROC_PIPELINE_RUN,
+                                              STREAM_PROC_CMD_WAIT_TICKS)) {
+            ESP_LOGE(TAG, "Failed to queue dual BIS[%d] start", i);
+            stream_proc_dual_bis_stop();
+            return false;
+        }
+        s_stream_proc->local2bt_bis_legs[i].running = true;
+    }
+    if (!stream_proc_post_pipeline_action(s_stream_proc->local2bt_head_pipe, STREAM_PROC_PIPELINE_RUN,
+                                          STREAM_PROC_CMD_WAIT_TICKS)) {
+        ESP_LOGE(TAG, "Failed to queue dual BIS head start");
+        stream_proc_dual_bis_stop();
+        return false;
+    }
+    s_stream_proc->local2bt_head_running = true;
+    return true;
+}
+
+static void stream_proc_dual_bis_try_run(void)
+{
+    if (!stream_proc_dual_bis_legs_have(STREAM_PROC_BIS_LEG_CONFIGURED |
+                                        STREAM_PROC_BIS_LEG_STARTED) ||
+        s_stream_proc->local2bt_head_running) {
+        return;
+    }
+    stream_proc_cmd_t cmd = {
+        .action = STREAM_PROC_PIPELINE_PREPARE,
+        .pipe = s_stream_proc->local2bt_head_pipe,
+        .uri = playlist[s_stream_proc->playlist_cur_index],
+    };
+    if (!stream_proc_post_cmd(&cmd, STREAM_PROC_CMD_WAIT_TICKS)) {
+        ESP_LOGE(TAG, "Failed to queue dual BIS head prepare");
+        return;
+    }
+    stream_proc_dual_bis_run();
+}
+
+static void stream_proc_dual_bis_config_leg(int slot)
+{
+    stream_proc_bis_leg_t *leg = &s_stream_proc->local2bt_bis_legs[slot];
+    if (leg->stream == NULL) {
+        ESP_LOGW(TAG, "BIS[%d] released before its configuration was applied", slot);
+        return;
+    }
+    esp_gmf_err_t gmf_err = esp_gmf_io_bt_set_stream(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(leg->pipe), leg->stream);
+    if (gmf_err != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to bind BIS[%d] stream to Bluetooth I/O: %d", slot, gmf_err);
+        goto fail;
+    }
+    if (stream_proc_configure_bis_leg(leg, slot) != ESP_OK) {
+        goto fail;
+    }
+    esp_bt_audio_stream_codec_info_t info = {0};
+    esp_err_t err = esp_bt_audio_stream_get_codec_info(leg->stream, &info);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get BIS[%d] codec info: %s", slot, esp_err_to_name(err));
+        goto fail;
+    }
+    esp_audio_enc_config_t enc_cfg = {
+        .type = stream_proc_get_audio_type(info.codec_type),
+        .cfg = info.codec_cfg,
+        .cfg_sz = info.cfg_size,
+    };
+    esp_gmf_element_handle_t encoder = NULL;
+    if (esp_gmf_pipeline_get_el_by_name(leg->pipe, "aud_enc", &encoder) != ESP_GMF_ERR_OK || encoder == NULL) {
+        ESP_LOGE(TAG, "aud_enc missing on BIS leg %d", slot);
+        goto fail;
+    }
+    gmf_err = esp_gmf_audio_enc_reconfig(encoder, &enc_cfg);
+    if (gmf_err != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to configure BIS[%d] encoder: %d", slot, gmf_err);
+        goto fail;
+    }
+    if (slot == 0) {
+        esp_audio_simple_dec_cfg_t dec_cfg = {
+            .dec_type = ESP_AUDIO_TYPE_MP3,
+            .dec_cfg = NULL,
+            .cfg_size = 0,
+        };
+        gmf_err = esp_gmf_audio_dec_reconfig(s_stream_proc->local2bt_head_pipe->head_el, &dec_cfg);
+        if (gmf_err != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to configure dual BIS media decoder: %d", gmf_err);
+            goto fail;
+        }
+    }
+    leg->flags |= STREAM_PROC_BIS_LEG_CONFIGURED;
+    stream_proc_dual_bis_try_run();
+    return;
+
+fail:
+    stream_proc_dual_bis_stop();
+}
+
+static esp_err_t stream_proc_dual_bis_prepare(esp_bt_audio_stream_handle_t stream, stream_user_data_t *user_d)
+{
+    int slot = -1;
+    for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+        if (s_stream_proc->local2bt_bis_legs[i].stream == NULL) {
+            slot = i;
+            break;
+        }
+    }
+    if (slot < 0) {
+        ESP_LOGE(TAG, "No free dual BIS slot");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_bt_audio_stream_codec_info_t info = {0};
+    esp_err_t err = esp_bt_audio_stream_get_codec_info(stream, &info);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get dual BIS codec info: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    stream_proc_bis_leg_t *leg = &s_stream_proc->local2bt_bis_legs[slot];
+    memset(leg->weight, 0, sizeof(leg->weight));
+    leg->weight[slot == 0 ? 0 : 1] = 1.0f;
+    leg->src_info.sample_rates = (int)info.sample_rate;
+    leg->src_info.channels = STREAM_PROC_DUAL_BIS_SRC_CH;
+    leg->src_info.bits = STREAM_PROC_DUAL_BIS_SRC_BITS;
+    leg->stream = stream;
+    user_d->pipe = leg->pipe;
+    /* Element configuration must observe the reset that a preceding stop queued, so it runs
+     * on the stream processor task rather than in this Bluetooth callback context. */
+    stream_proc_cmd_t cmd = {
+        .action = STREAM_PROC_BIS_LEG_CONFIG,
+        .leg = slot,
+    };
+    if (!stream_proc_post_cmd(&cmd, 0)) {
+        leg->stream = NULL;
+        return ESP_FAIL;
+    }
+
+    if (slot == 0) {
+        s_stream_proc->local2bt_stream = stream;
+        ESP_LOGI(TAG, "Set dual BIS media file: %s (index %d)", playlist[s_stream_proc->playlist_cur_index],
+                 s_stream_proc->playlist_cur_index);
+    }
+    ESP_LOGI(TAG, "Dual BIS[%d] prepared, 1 BIG / %d BIS, rate=%lu", slot, STREAM_PROC_DUAL_BIS_NUM,
+             (unsigned long)info.sample_rate);
+    return ESP_OK;
+}
+
+static esp_gmf_err_t local2bt_head_pipe_event_cb(esp_gmf_event_pkt_t *pkt, void *event_ctx)
+{
+    stream_proc_ctx_t *stream_ctx = (stream_proc_ctx_t *)event_ctx;
+    if (pkt == NULL) {
+        return ESP_GMF_ERR_OK;
+    }
+    if (pkt->type == ESP_GMF_EVT_TYPE_CHANGE_STATE) {
+        ESP_LOGI(TAG, "[local to dual BIS pipeline] state => %s(%d)", gmf_state_to_str(pkt->sub), pkt->sub);
+        if (pkt->sub == ESP_GMF_EVENT_STATE_FINISHED) {
+            ESP_LOGI(TAG, "Local to dual BIS media finished");
+            if (stream_ctx->local2bt_stream) {
+                /* This runs in the head GMF task thread; stopping and re-running that same
+                 * pipeline from here would stall until esp_gmf_task_run() times out. */
+                stream_proc_post_pipeline_action(NULL, STREAM_PROC_PIPELINE_PLAY_NEXT, 0);
+            }
+        } else if (pkt->sub == ESP_GMF_EVENT_STATE_ERROR) {
+            ESP_LOGE(TAG, "Local to dual BIS media error");
+        }
+    }
+    return ESP_GMF_ERR_OK;
+}
+
+static void cleanup_pipeline_local2bt_dual_bis(void)
+{
+    if (s_stream_proc->local2bt_head_task) {
+        esp_gmf_task_deinit(s_stream_proc->local2bt_head_task);
+        s_stream_proc->local2bt_head_task = NULL;
+    }
+    for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+        if (s_stream_proc->local2bt_bis_legs[i].task) {
+            esp_gmf_task_deinit(s_stream_proc->local2bt_bis_legs[i].task);
+            s_stream_proc->local2bt_bis_legs[i].task = NULL;
+        }
+    }
+    if (s_stream_proc->local2bt_head_pipe) {
+        esp_gmf_pipeline_destroy(s_stream_proc->local2bt_head_pipe);
+        s_stream_proc->local2bt_head_pipe = NULL;
+    }
+    for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+        if (s_stream_proc->local2bt_bis_legs[i].pipe) {
+            esp_gmf_pipeline_destroy(s_stream_proc->local2bt_bis_legs[i].pipe);
+            s_stream_proc->local2bt_bis_legs[i].pipe = NULL;
+        }
+        if (s_stream_proc->local2bt_bis_legs[i].rb) {
+            esp_gmf_db_deinit(s_stream_proc->local2bt_bis_legs[i].rb);
+            s_stream_proc->local2bt_bis_legs[i].rb = NULL;
+        }
+    }
+}
+
+static void setup_pipeline_local2bt_dual_bis(esp_gmf_pool_handle_t pool)
+{
+    const char *head_els[] = {"aud_dec", "copier"};
+    if (esp_gmf_pool_new_pipeline(pool, "io_file", head_els, sizeof(head_els) / sizeof(head_els[0]),
+                                  NULL, &s_stream_proc->local2bt_head_pipe) != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to create dual BIS head pipeline");
+        goto fail;
+    }
+    esp_gmf_pipeline_set_event(s_stream_proc->local2bt_head_pipe, local2bt_head_pipe_event_cb, s_stream_proc);
+
+    for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+        const char *leg_els[] = {"aud_asrc", "aud_enc"};
+        if (esp_gmf_pool_new_pipeline(pool, NULL, leg_els, sizeof(leg_els) / sizeof(leg_els[0]),
+                                      "io_bt", &s_stream_proc->local2bt_bis_legs[i].pipe) != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to create dual BIS leg %d", i);
+            goto fail;
+        }
+        if (esp_gmf_db_new_ringbuf(STREAM_PROC_DUAL_BIS_RB_BLOCKS, STREAM_PROC_DUAL_BIS_RB_SIZE,
+                                   &s_stream_proc->local2bt_bis_legs[i].rb) != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to create dual BIS ringbuf %d", i);
+            goto fail;
+        }
+        esp_gmf_port_handle_t out_port =
+            NEW_ESP_GMF_PORT_OUT_BYTE(esp_gmf_db_acquire_write, esp_gmf_db_release_write,
+                                      NULL, s_stream_proc->local2bt_bis_legs[i].rb,
+                                      STREAM_PROC_DUAL_BIS_PORT_SIZE, ESP_GMF_MAX_DELAY);
+        esp_gmf_port_handle_t in_port =
+            NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read,
+                                     NULL, s_stream_proc->local2bt_bis_legs[i].rb,
+                                     STREAM_PROC_DUAL_BIS_PORT_SIZE, 1);
+        if (out_port == NULL || in_port == NULL) {
+            ESP_LOGE(TAG, "Failed to create dual BIS ports %d", i);
+            if (out_port) {
+                esp_gmf_port_deinit(out_port);
+            }
+            if (in_port) {
+                esp_gmf_port_deinit(in_port);
+            }
+            goto fail;
+        }
+        if (esp_gmf_pipeline_connect_pipe(s_stream_proc->local2bt_head_pipe, "copier", out_port,
+                                          s_stream_proc->local2bt_bis_legs[i].pipe,
+                                          "aud_asrc", in_port) != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to connect dual BIS leg %d", i);
+            goto fail;
+        }
+        esp_gmf_pipeline_set_prev_stop_cb(s_stream_proc->local2bt_bis_legs[i].pipe,
+                                          stream_proc_dual_bis_prev_stop, s_stream_proc);
+    }
+    esp_gmf_pipeline_set_prev_stop_cb(s_stream_proc->local2bt_head_pipe,
+                                      stream_proc_dual_bis_prev_stop, s_stream_proc);
+
+    esp_gmf_task_cfg_t head_cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+    head_cfg.thread.core = 0;
+    head_cfg.thread.stack = 6144;
+    head_cfg.thread.prio = 14;
+    head_cfg.thread.stack_in_ext = true;
+    head_cfg.name = "local2bt_head";
+    if (esp_gmf_task_init(&head_cfg, &s_stream_proc->local2bt_head_task) != ESP_GMF_ERR_OK ||
+        esp_gmf_pipeline_bind_task(s_stream_proc->local2bt_head_pipe,
+                                   s_stream_proc->local2bt_head_task) != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to create or bind dual BIS head task");
+        goto fail;
+    }
+
+    for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+        esp_gmf_task_cfg_t leg_cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
+        leg_cfg.name = (i == 0) ? "bis_l" : "bis_r";
+        leg_cfg.thread.core = (i == 0) ? 1 : 0;
+        leg_cfg.thread.stack = 6144;
+        leg_cfg.thread.prio = 15;
+        leg_cfg.thread.stack_in_ext = true;
+        if (esp_gmf_task_init(&leg_cfg, &s_stream_proc->local2bt_bis_legs[i].task) != ESP_GMF_ERR_OK ||
+            esp_gmf_pipeline_bind_task(s_stream_proc->local2bt_bis_legs[i].pipe,
+                                       s_stream_proc->local2bt_bis_legs[i].task) != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to create or bind dual BIS leg task %d", i);
+            goto fail;
+        }
+    }
+    ESP_LOGI(TAG, "Dual BIS local-to-BT pipelines ready, 1 BIG / %d BIS", STREAM_PROC_DUAL_BIS_NUM);
+    return;
+
+fail:
+    cleanup_pipeline_local2bt_dual_bis();
+}
+#endif  /* STREAM_PROC_DUAL_BIS */
+
+static void stream_proc_apply_pipeline_stop_reset(esp_gmf_pipeline_handle_t pipe)
+{
+    if (pipe == NULL) {
+        return;
+    }
+    ESP_LOGI(TAG, "Reset pipeline %s-%p", stream_proc_pipeline_name(pipe), pipe);
+    esp_gmf_pipeline_stop(pipe);
+    esp_gmf_pipeline_reset(pipe);
+#if STREAM_PROC_DUAL_BIS
+    stream_proc_reset_bis_leg_rb(pipe);
+#endif  /* STREAM_PROC_DUAL_BIS */
+}
+
+#if STREAM_PROC_DUAL_BIS
+static void stream_proc_request_pipeline_stop_reset(esp_gmf_pipeline_handle_t pipe)
+{
+    if (stream_proc_post_pipeline_action(pipe, STREAM_PROC_PIPELINE_STOP_RESET, 0)) {
+        return;
+    }
+    /* The stream-processor task cannot wait on its own full queue. */
+    ESP_LOGW(TAG, "Stream processor queue full, stop pipeline %p inline", pipe);
+    stream_proc_apply_pipeline_stop_reset(pipe);
+}
+#endif  /* STREAM_PROC_DUAL_BIS */
+
+static void local2bt_seed_branch_sound_info(uint8_t branch, uint32_t sample_rate);
+
+static void local2bt_set_channel_weight(uint8_t branch, esp_bt_audio_stream_handle_t stream)
+{
+    stream_proc_ctx_t *ctx = s_stream_proc;
+    if (ctx == NULL || branch >= 2 || !ctx->local2bt_branch_pipe[branch]) {
+        return;
+    }
+    esp_gmf_element_handle_t asrc = stream_proc_get_asrc(ctx->local2bt_branch_pipe[branch], 0);
+    esp_asrc_cfg_t *cfg = asrc ? (esp_asrc_cfg_t *)OBJ_GET_CFG(asrc) : NULL;
+    if (!cfg) {
+        return;
+    }
+    float *weight = ctx->local2bt_shared_asrc_weight[branch];
+    memset(weight, 0, sizeof(ctx->local2bt_shared_asrc_weight[branch]));
+    uint8_t ch_idx = branch;
+    if (stream) {
+        esp_bt_audio_stream_codec_info_t info = {0};
+        if (esp_bt_audio_stream_get_codec_info(stream, &info) == ESP_OK) {
+            if ((info.channels & ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT) &&
+                !(info.channels & ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT)) {
+                ch_idx = 1;
+            } else if ((info.channels & ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT) &&
+                       !(info.channels & ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT)) {
+                ch_idx = 0;
+            }
+        }
+    }
+    weight[ch_idx] = 1.0f;
+    cfg->weight = weight;
+    cfg->weight_len = 2;
+}
+
+static void local2bt_bind_branch_out(uint8_t branch, esp_bt_audio_stream_handle_t stream)
+{
+    stream_proc_ctx_t *ctx = s_stream_proc;
+    if (ctx == NULL || branch >= 2 || !ctx->local2bt_branch_pipe[branch]) {
+        return;
+    }
+    esp_gmf_io_handle_t io = ESP_GMF_PIPELINE_GET_OUT_INSTANCE(ctx->local2bt_branch_pipe[branch]);
+    if (stream) {
+        esp_gmf_io_bt_set_stream(io, stream);
+        esp_gmf_io_bt_set_discard(io, false);
+    } else {
+        esp_gmf_io_bt_set_discard(io, true);
+    }
+}
+
+static uint32_t local2bt_codec_frame_us(const esp_bt_audio_stream_codec_info_t *codec_info)
+{
+    if (codec_info->codec_type != ESP_BT_AUDIO_STREAM_CODEC_LC3 || codec_info->codec_cfg == NULL ||
+        codec_info->cfg_size < sizeof(esp_lc3_enc_config_t)) {
+        return 0;
+    }
+    return ((const esp_lc3_enc_config_t *)codec_info->codec_cfg)->frame_dms * 100;
+}
+
+static void local2bt_align_branch_to_source(uint8_t branch)
+{
+    stream_proc_ctx_t *ctx = s_stream_proc;
+    esp_gmf_db_handle_t db;
+    uint32_t filled = 0;
+    uint32_t drop;
+    const uint32_t keep = 1024;
+
+    if (ctx == NULL || branch >= 2) {
+        return;
+    }
+    db = ctx->local2bt_branch_db[branch];
+    if (db == NULL || esp_gmf_db_get_filled_size(db, &filled) != ESP_GMF_ERR_OK || filled <= keep) {
+        return;
+    }
+    drop = (filled - keep) & ~3U;
+    if (drop == 0) {
+        return;
+    }
+    esp_gmf_data_bus_block_t blk = {
+        .buf = NULL,
+        .buf_length = 0,
+    };
+    esp_gmf_db_acquire_read(db, &blk, drop, 0);
+    esp_gmf_db_release_read(db, &blk, 0);
+    ESP_LOGI(TAG, "Aligned local→BT branch %u to the current source frame", (unsigned)branch);
+}
+
+static void local2bt_prepare_shared_branch(esp_bt_audio_stream_handle_t stream, uint8_t branch,
+                                           const esp_bt_audio_stream_codec_info_t *codec_info,
+                                           bool keep_timeline)
+{
+    stream_proc_ctx_t *ctx = s_stream_proc;
+    esp_gmf_pipeline_handle_t pipe = ctx->local2bt_branch_pipe[branch];
+    esp_gmf_pipeline_stop(pipe);
+    esp_gmf_pipeline_reset(pipe);
+    ctx->local2bt_branch_running[branch] = false;
+    if (ctx->local2bt_branch_db[branch]) {
+        if (keep_timeline) {
+            local2bt_align_branch_to_source(branch);
+        } else {
+            esp_gmf_db_reset(ctx->local2bt_branch_db[branch]);
+        }
+    }
+    local2bt_bind_branch_out(branch, stream);
+    esp_gmf_io_bt_set_discard_pace(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(pipe),
+                                   local2bt_codec_frame_us(codec_info));
+    unsigned dest_ch = __builtin_popcount(codec_info->channels);
+    if (dest_ch == 0) {
+        dest_ch = 1;
+    } else if (dest_ch > 2) {
+        dest_ch = 2;
+    }
+    stream_proc_set_asrc_dest(pipe, 0, codec_info->sample_rate, 2, (uint8_t)dest_ch,
+                              ctx->local2bt_shared_asrc_weight[branch], STREAM_PROC_ASRC_MAX_WEIGHT_LEN);
+    if (dest_ch == 1) {
+        local2bt_set_channel_weight(branch, stream);
+    }
+    esp_audio_enc_config_t enc_cfg = {
+        .type = stream_proc_get_audio_type(codec_info->codec_type),
+        .cfg = codec_info->codec_cfg,
+        .cfg_sz = codec_info->cfg_size,
+    };
+    esp_gmf_audio_enc_reconfig(pipe->last_el, &enc_cfg);
+}
+
+static bool local2bt_pick_shared_codec(esp_bt_audio_stream_codec_info_t *codec)
+{
+    stream_proc_ctx_t *ctx = s_stream_proc;
+    if (ctx == NULL || codec == NULL) {
+        return false;
+    }
+    for (size_t i = 0; i < 2; i++) {
+        if (ctx->local2bt_shared_stream[i] == NULL) {
+            continue;
+        }
+        memset(codec, 0, sizeof(*codec));
+        if (esp_bt_audio_stream_get_codec_info(ctx->local2bt_shared_stream[i], codec) == ESP_OK &&
+            codec->codec_cfg != NULL) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void local2bt_reset_shared_source_pipelines(stream_proc_ctx_t *ctx)
+{
+    esp_gmf_pipeline_stop(ctx->local2bt_pipe);
+    esp_gmf_pipeline_reset(ctx->local2bt_pipe);
+    esp_gmf_pipeline_stop(ctx->local2bt_source_pipe);
+    esp_gmf_pipeline_reset(ctx->local2bt_source_pipe);
+}
+
+static void local2bt_do_start_shared(const char *uri)
+{
+    stream_proc_ctx_t *ctx = s_stream_proc;
+    if (ctx == NULL || !ctx->local2bt_source_pipe) {
+        if (ctx) {
+            ctx->local2bt_shared_starting = false;
+        }
+        return;
+    }
+
+    esp_bt_audio_stream_codec_info_t codec = {0};
+    if (!local2bt_pick_shared_codec(&codec)) {
+        ESP_LOGE(TAG, "No codec for shared local→BT branches");
+        ctx->local2bt_shared_starting = false;
+        return;
+    }
+
+    if (ctx->local2bt_source_running) {
+        for (size_t i = 0; i < 2; i++) {
+            if (ctx->local2bt_shared_stream[i] == NULL || !ctx->local2bt_stream_started[i]) {
+                continue;
+            }
+            if (ctx->local2bt_branch_running[i]) {
+                local2bt_bind_branch_out(i, ctx->local2bt_shared_stream[i]);
+                ESP_LOGI(TAG, "Attached live CIS to running local→BT branch %u", (unsigned)i);
+                continue;
+            }
+            local2bt_prepare_shared_branch(ctx->local2bt_shared_stream[i], i, &codec, true);
+            local2bt_seed_branch_sound_info(i, codec.sample_rate ? codec.sample_rate : 48000);
+            esp_gmf_pipeline_loading_jobs(ctx->local2bt_branch_pipe[i]);
+            esp_gmf_pipeline_run(ctx->local2bt_branch_pipe[i]);
+            ctx->local2bt_branch_running[i] = true;
+        }
+        ctx->local2bt_shared_starting = false;
+        return;
+    }
+
+    local2bt_reset_shared_source_pipelines(ctx);
+
+    esp_audio_simple_dec_cfg_t simple_dec_cfg = {
+        .dec_type = ESP_AUDIO_TYPE_MP3,
+    };
+    esp_gmf_audio_dec_reconfig(ctx->local2bt_source_pipe->head_el, &simple_dec_cfg);
+    if (uri) {
+        esp_gmf_pipeline_set_in_uri(ctx->local2bt_source_pipe, uri);
+    }
+
+    for (size_t i = 0; i < 2; i++) {
+        local2bt_prepare_shared_branch(ctx->local2bt_shared_stream[i], i, &codec, false);
+        local2bt_seed_branch_sound_info(i, codec.sample_rate ? codec.sample_rate : 48000);
+        esp_gmf_pipeline_loading_jobs(ctx->local2bt_branch_pipe[i]);
+    }
+
+    esp_gmf_pipeline_loading_jobs(ctx->local2bt_source_pipe);
+
+    for (size_t i = 0; i < 2; i++) {
+        esp_gmf_pipeline_run(ctx->local2bt_branch_pipe[i]);
+        ctx->local2bt_branch_running[i] = true;
+    }
+    esp_gmf_pipeline_run(ctx->local2bt_source_pipe);
+    ctx->local2bt_source_running = true;
+    ctx->local2bt_shared_starting = false;
+    ESP_LOGI(TAG, "Shared local→BT media started (dual branch%s)",
+             (ctx->local2bt_shared_stream[0] && ctx->local2bt_shared_stream[1]) ? "" : ", missing CIS dropped");
+}
+
+static bool local2bt_shared_targets_streaming(void)
+{
+    stream_proc_ctx_t *ctx = s_stream_proc;
+    bool any = false;
+
+    if (ctx == NULL) {
+        return false;
+    }
+    for (size_t i = 0; i < 2; i++) {
+        if (ctx->local2bt_shared_stream[i] == NULL) {
+            continue;
+        }
+        any = true;
+        if (!ctx->local2bt_stream_started[i]) {
+            return false;
+        }
+    }
+    return any;
+}
+
+static void local2bt_request_start_shared(void)
+{
+    stream_proc_ctx_t *ctx = s_stream_proc;
+    if (ctx == NULL || ctx->local2bt_shared_starting) {
+        return;
+    }
+    ctx->local2bt_shared_starting = true;
+    stream_proc_cmd_t cmd = {
+        .action = STREAM_PROC_PIPELINE_START_SHARED,
+        .uri = playlist[ctx->playlist_cur_index],
+    };
+    if (!stream_proc_post_cmd(&cmd, 0)) {
+        ctx->local2bt_shared_starting = false;
+    }
+}
+
+static void local2bt_seed_branch_sound_info(uint8_t branch, uint32_t sample_rate)
+{
+    stream_proc_ctx_t *ctx = s_stream_proc;
+    if (ctx == NULL || !ctx->local2bt_branch_pipe[branch]) {
+        return;
+    }
+    esp_gmf_info_sound_t info = {
+        .sample_rates = sample_rate ? (int)sample_rate : 44100,
+        .channels = 2,
+        .bits = 16,
+    };
+    esp_gmf_pipeline_report_info(ctx->local2bt_branch_pipe[branch], ESP_GMF_INFO_SOUND, &info, sizeof(info));
+}
+
+static void local2bt_reset_shared_source_flags(void)
+{
+    stream_proc_ctx_t *ctx = s_stream_proc;
+    if (ctx == NULL) {
+        return;
+    }
+    ctx->local2bt_source_running = false;
+    ctx->local2bt_shared_starting = false;
+    for (size_t i = 0; i < 2; i++) {
+        ctx->local2bt_stream_started[i] = false;
+        ctx->local2bt_branch_running[i] = false;
+    }
+}
+
+static void local2bt_play_shared(const char *uri)
+{
+    stream_proc_ctx_t *ctx = s_stream_proc;
+    ESP_LOGI(TAG, "Local to BT shared media play: %s (index %d, dual branch)", uri,
+             ctx->playlist_cur_index);
+    local2bt_reset_shared_source_pipelines(ctx);
+    for (size_t i = 0; i < 2; i++) {
+        if (!ctx->local2bt_branch_pipe[i]) {
+            continue;
+        }
+        esp_gmf_pipeline_stop(ctx->local2bt_branch_pipe[i]);
+        esp_gmf_pipeline_reset(ctx->local2bt_branch_pipe[i]);
+        ctx->local2bt_branch_running[i] = false;
+    }
+    ctx->local2bt_source_running = false;
+    ctx->local2bt_shared_starting = false;
+    local2bt_do_start_shared(uri);
+}
+
 #if CONFIG_BT_AUDIO && CONFIG_BT_ISO && CONFIG_SOC_MODEM_SUPPORT_ETM
 #define STREAM_PROC_CLK_SYNC_DIFF_THRESHOLD  2
 #define STREAM_PROC_CLK_SYNC_MON_QUEUE_SIZE  10
 #define STREAM_PROC_CLK_SYNC_MON_TASK_STACK  4096
 #define STREAM_PROC_CLK_SYNC_MON_TASK_PRIO   5
 #define STREAM_PROC_CLK_SYNC_MON_TASK_CORE_ID  0
-
-static esp_bt_audio_le_playback_sync_handle_t playback_sync = NULL;
-static esp_bt_audio_le_clk_sync_handle_t clk_sync = NULL;
-static QueueHandle_t clk_sync_monitor_queue = NULL;
-static TaskHandle_t clk_sync_monitor_task = NULL;
-static volatile bool clk_sync_monitor_task_running = false;
 
 static inline esp_err_t stream_proc_open_dac(dev_audio_codec_handles_t *dac_handle)
 {
@@ -225,111 +1012,113 @@ static i2s_chan_handle_t get_i2s_chan_handle(const char *name)
 
 static void stream_proc_clk_sync_monitor_task(void *arg)
 {
+    stream_proc_ctx_t *stream_ctx = (stream_proc_ctx_t *)arg;
     esp_bt_audio_le_clk_sync_msg_t msg = {0};
 
-    while (clk_sync_monitor_task_running) {
-        if (xQueueReceive(clk_sync_monitor_queue, &msg, portMAX_DELAY) != pdTRUE) {
+    while (stream_ctx->clk_sync_monitor_task_running) {
+        if (xQueueReceive(stream_ctx->clk_sync_monitor_queue, &msg, portMAX_DELAY) != pdTRUE) {
             continue;
         }
-        if (!clk_sync_monitor_task_running) {
+        if (!stream_ctx->clk_sync_monitor_task_running) {
             break;
         }
         ESP_LOGW(TAG, "Clock sync monitor: diff=%ld, fifo=%" PRIu32 ", bck=%" PRIu32,
                  (long)msg.diff, msg.fifo_cnt, msg.bck_cnt);
     }
-    clk_sync_monitor_task = NULL;
+    stream_ctx->clk_sync_monitor_task = NULL;
     vTaskDeleteWithCaps(NULL);
 }
 
 static esp_err_t stream_proc_ensure_clk_sync_monitor(void)
 {
-    if (!clk_sync_monitor_queue) {
-        clk_sync_monitor_queue = xQueueCreate(STREAM_PROC_CLK_SYNC_MON_QUEUE_SIZE,
-                                              sizeof(esp_bt_audio_le_clk_sync_msg_t));
-        ESP_RETURN_ON_FALSE(clk_sync_monitor_queue, ESP_ERR_NO_MEM, TAG, "Create clock sync monitor queue failed");
+    if (!s_stream_proc->clk_sync_monitor_queue) {
+        s_stream_proc->clk_sync_monitor_queue = xQueueCreate(STREAM_PROC_CLK_SYNC_MON_QUEUE_SIZE,
+                                                             sizeof(esp_bt_audio_le_clk_sync_msg_t));
+        ESP_RETURN_ON_FALSE(s_stream_proc->clk_sync_monitor_queue, ESP_ERR_NO_MEM, TAG,
+                            "Create clock sync monitor queue failed");
     }
 
-    if (!clk_sync_monitor_task) {
-        clk_sync_monitor_task_running = true;
+    if (!s_stream_proc->clk_sync_monitor_task) {
+        s_stream_proc->clk_sync_monitor_task_running = true;
         BaseType_t ret = xTaskCreatePinnedToCoreWithCaps(stream_proc_clk_sync_monitor_task, "clk_sync_mon",
-                                                         STREAM_PROC_CLK_SYNC_MON_TASK_STACK, NULL,
+                                                         STREAM_PROC_CLK_SYNC_MON_TASK_STACK, s_stream_proc,
                                                          STREAM_PROC_CLK_SYNC_MON_TASK_PRIO,
-                                                         &clk_sync_monitor_task,
+                                                         &s_stream_proc->clk_sync_monitor_task,
                                                          STREAM_PROC_CLK_SYNC_MON_TASK_CORE_ID,
                                                          MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (ret != pdPASS) {
-            clk_sync_monitor_task_running = false;
+            s_stream_proc->clk_sync_monitor_task_running = false;
             ESP_LOGE(TAG, "Create clock sync monitor task failed");
             return ESP_ERR_NO_MEM;
         }
     }
 
-    xQueueReset(clk_sync_monitor_queue);
+    xQueueReset(s_stream_proc->clk_sync_monitor_queue);
     return ESP_OK;
 }
 
 static void stream_proc_deinit_clk_sync_monitor(void)
 {
-    if (clk_sync_monitor_task) {
+    if (s_stream_proc->clk_sync_monitor_task) {
         esp_bt_audio_le_clk_sync_msg_t msg = {0};
-        clk_sync_monitor_task_running = false;
-        if (clk_sync_monitor_queue) {
-            xQueueSend(clk_sync_monitor_queue, &msg, 0);
+        s_stream_proc->clk_sync_monitor_task_running = false;
+        if (s_stream_proc->clk_sync_monitor_queue) {
+            xQueueSend(s_stream_proc->clk_sync_monitor_queue, &msg, 0);
         }
-        for (uint8_t i = 0; i < 10 && clk_sync_monitor_task; i++) {
+        for (uint8_t i = 0; i < 10 && s_stream_proc->clk_sync_monitor_task; i++) {
             vTaskDelay(pdMS_TO_TICKS(10));
         }
-        if (clk_sync_monitor_task) {
-            vTaskDeleteWithCaps(clk_sync_monitor_task);
-            clk_sync_monitor_task = NULL;
+        if (s_stream_proc->clk_sync_monitor_task) {
+            vTaskDeleteWithCaps(s_stream_proc->clk_sync_monitor_task);
+            s_stream_proc->clk_sync_monitor_task = NULL;
         }
     }
 
-    if (clk_sync_monitor_queue) {
-        vQueueDelete(clk_sync_monitor_queue);
-        clk_sync_monitor_queue = NULL;
+    if (s_stream_proc->clk_sync_monitor_queue) {
+        vQueueDelete(s_stream_proc->clk_sync_monitor_queue);
+        s_stream_proc->clk_sync_monitor_queue = NULL;
     }
-    clk_sync_monitor_task_running = false;
+    s_stream_proc->clk_sync_monitor_task_running = false;
 }
 
 static void stream_proc_deinit_playback_sync(void)
 {
-    if (!playback_sync) {
+    if (!s_stream_proc->playback_sync) {
         return;
     }
 
-    esp_err_t ret = esp_bt_audio_le_playback_sync_disable(playback_sync);
+    esp_err_t ret = esp_bt_audio_le_playback_sync_disable(s_stream_proc->playback_sync);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Playback sync disable failed: %s", esp_err_to_name(ret));
     }
-    ret = esp_bt_audio_le_playback_sync_deinit(playback_sync);
+    ret = esp_bt_audio_le_playback_sync_deinit(s_stream_proc->playback_sync);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Playback sync deinit failed: %s", esp_err_to_name(ret));
     }
-    playback_sync = NULL;
+    s_stream_proc->playback_sync = NULL;
 }
 
 static void stream_proc_deinit_clk_sync(void)
 {
-    if (!clk_sync) {
+    if (!s_stream_proc->clk_sync) {
         return;
     }
 
-    esp_err_t ret = esp_bt_audio_le_clk_sync_disable(clk_sync);
+    esp_err_t ret = esp_bt_audio_le_clk_sync_disable(s_stream_proc->clk_sync);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Clock sync disable failed: %s", esp_err_to_name(ret));
     }
-    ret = esp_bt_audio_le_clk_sync_deinit(clk_sync);
+    ret = esp_bt_audio_le_clk_sync_deinit(s_stream_proc->clk_sync);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Clock sync deinit failed: %s", esp_err_to_name(ret));
     }
-    clk_sync = NULL;
+    s_stream_proc->clk_sync = NULL;
     stream_proc_deinit_clk_sync_monitor();
 }
 
 static void stream_proc_prepare_clk_sync()
 {
-    if (clk_sync) {
+    if (s_stream_proc->clk_sync) {
         return;
     }
     esp_err_t ret = ESP_OK;
@@ -345,23 +1134,24 @@ static void stream_proc_prepare_clk_sync()
         return;
     }
 
-    ret = esp_bt_audio_le_clk_sync_init(tx_handle, clk_sync_monitor_queue, &clk_sync);
+    ret = esp_bt_audio_le_clk_sync_init(tx_handle, s_stream_proc->clk_sync_monitor_queue,
+                                        &s_stream_proc->clk_sync);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Clock sync init failed: %s", esp_err_to_name(ret));
         return;
     }
 
-    ESP_LOGI(TAG, "Clock sync initialized, clk_sync=%p", clk_sync);
+    ESP_LOGI(TAG, "Clock sync initialized");
 }
 
 static void stream_proc_enable_clk_sync(esp_bt_audio_stream_handle_t stream)
 {
-    if (!clk_sync) {
+    if (!s_stream_proc->clk_sync) {
         ESP_LOGW(TAG, "Clock sync is not initialized, continue without clock sync");
         return;
     }
 
-    uint16_t iso_interval = 0;
+    uint32_t iso_interval = 0;
     esp_err_t ret = esp_bt_audio_stream_get_iso_interval(stream, &iso_interval);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Get ISO interval failed: %s", esp_err_to_name(ret));
@@ -375,7 +1165,7 @@ static void stream_proc_enable_clk_sync(esp_bt_audio_stream_handle_t stream)
         return;
     }
 
-    ret = esp_bt_audio_le_clk_sync_enable(clk_sync, (uint32_t)ideal_count,
+    ret = esp_bt_audio_le_clk_sync_enable(s_stream_proc->clk_sync, (uint32_t)ideal_count,
                                           STREAM_PROC_CLK_SYNC_DIFF_THRESHOLD);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "Clock sync enable failed: %s", esp_err_to_name(ret));
@@ -384,7 +1174,7 @@ static void stream_proc_enable_clk_sync(esp_bt_audio_stream_handle_t stream)
 
 static void stream_proc_prepare_playback_sync(void)
 {
-    if (playback_sync) {
+    if (s_stream_proc->playback_sync) {
         return;
     }
 
@@ -407,18 +1197,18 @@ static void stream_proc_prepare_playback_sync(void)
         stream_proc_open_dac(dac_handle);
         return;
     }
-    ret = esp_bt_audio_le_playback_sync_init(tx_handle, &playback_sync);
+    ret = esp_bt_audio_le_playback_sync_init(tx_handle, &s_stream_proc->playback_sync);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Playback sync init failed: %s", esp_err_to_name(ret));
         stream_proc_open_dac(dac_handle);
         return;
     }
 
-    ret = esp_bt_audio_le_playback_sync_enable(playback_sync);
+    ret = esp_bt_audio_le_playback_sync_enable(s_stream_proc->playback_sync);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Playback sync enable failed: %s", esp_err_to_name(ret));
-        esp_bt_audio_le_playback_sync_deinit(playback_sync);
-        playback_sync = NULL;
+        esp_bt_audio_le_playback_sync_deinit(s_stream_proc->playback_sync);
+        s_stream_proc->playback_sync = NULL;
         stream_proc_open_dac(dac_handle);
         return;
     }
@@ -481,46 +1271,83 @@ static const char *gmf_state_to_str(int state)
 
 static void local2bt_play(const char *uri)
 {
-    if (local2bt_pipe == NULL) {
+#if STREAM_PROC_DUAL_BIS
+    if (s_stream_proc->local2bt_head_pipe &&
+        stream_proc_dual_bis_legs_have(STREAM_PROC_BIS_LEG_CONFIGURED)) {
+        if (s_stream_proc->local2bt_head_running) {
+            stream_proc_request_pipeline_stop_reset(s_stream_proc->local2bt_head_pipe);
+            s_stream_proc->local2bt_head_running = false;
+        }
+        for (int i = 0; i < STREAM_PROC_DUAL_BIS_NUM; i++) {
+            if (s_stream_proc->local2bt_bis_legs[i].running) {
+                stream_proc_request_pipeline_stop_reset(s_stream_proc->local2bt_bis_legs[i].pipe);
+                s_stream_proc->local2bt_bis_legs[i].running = false;
+            }
+        }
+        stream_proc_cmd_t cmd = {
+            .action = STREAM_PROC_PIPELINE_PREPARE,
+            .pipe = s_stream_proc->local2bt_head_pipe,
+            .uri = uri,
+        };
+        if (!stream_proc_post_cmd(&cmd, STREAM_PROC_CMD_WAIT_TICKS) || !stream_proc_dual_bis_run()) {
+            ESP_LOGE(TAG, "Failed to restart dual BIS media");
+            return;
+        }
+        ESP_LOGI(TAG, "Local to dual BIS media play: %s (index %d)", uri, s_stream_proc->playlist_cur_index);
+        return;
+    }
+#endif  /* STREAM_PROC_DUAL_BIS */
+    if (s_stream_proc->local2bt_shared_stream[0] || s_stream_proc->local2bt_shared_stream[1]) {
+        local2bt_play_shared(uri);
+        return;
+    }
+    if (s_stream_proc->local2bt_pipe == NULL) {
         ESP_LOGE(TAG, "Local to BT pipeline is not initialized");
         return;
     }
-    if (local2bt_stream == NULL) {
+    if (s_stream_proc->local2bt_stream == NULL) {
         ESP_LOGE(TAG, "Local to BT stream is not initialized");
         return;
     }
-    esp_gmf_pipeline_stop(local2bt_pipe);
-    esp_gmf_pipeline_reset(local2bt_pipe);
-    esp_gmf_io_bt_set_stream(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(local2bt_pipe), local2bt_stream);
-    esp_gmf_pipeline_set_in_uri(local2bt_pipe, uri);
-    ESP_LOGI(TAG, "Local to BT media play: %s (index %d)", uri, playlist_cur_index);
-    esp_gmf_pipeline_loading_jobs(local2bt_pipe);
-    esp_gmf_pipeline_run(local2bt_pipe);
+    esp_gmf_pipeline_stop(s_stream_proc->local2bt_pipe);
+    esp_gmf_pipeline_reset(s_stream_proc->local2bt_pipe);
+    esp_gmf_io_bt_set_stream(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(s_stream_proc->local2bt_pipe),
+                             s_stream_proc->local2bt_stream);
+    esp_gmf_pipeline_set_in_uri(s_stream_proc->local2bt_pipe, uri);
+    ESP_LOGI(TAG, "Local to BT media play: %s (index %d)", uri, s_stream_proc->playlist_cur_index);
+    esp_gmf_pipeline_loading_jobs(s_stream_proc->local2bt_pipe);
+    esp_gmf_pipeline_run(s_stream_proc->local2bt_pipe);
 }
 
 void local2bt_play_next(void)
 {
-    if (local2bt_stream == NULL) {
+    if (s_stream_proc == NULL ||
+        (s_stream_proc->local2bt_stream == NULL &&
+         s_stream_proc->local2bt_shared_stream[0] == NULL &&
+         s_stream_proc->local2bt_shared_stream[1] == NULL)) {
         ESP_LOGE(TAG, "Local to BT stream is not initialized");
         return;
     }
-    playlist_cur_index = (playlist_cur_index + 1) % playlist_len;
-    local2bt_play(playlist[playlist_cur_index]);
+    s_stream_proc->playlist_cur_index = (s_stream_proc->playlist_cur_index + 1) % playlist_len;
+    local2bt_play(playlist[s_stream_proc->playlist_cur_index]);
 }
 
 void local2bt_play_prev(void)
 {
-    if (local2bt_stream == NULL) {
+    if (s_stream_proc == NULL ||
+        (s_stream_proc->local2bt_stream == NULL &&
+         s_stream_proc->local2bt_shared_stream[0] == NULL &&
+         s_stream_proc->local2bt_shared_stream[1] == NULL)) {
         ESP_LOGE(TAG, "Local to BT stream is not initialized");
         return;
     }
-    playlist_cur_index = (playlist_cur_index + playlist_len - 1) % playlist_len;
-    local2bt_play(playlist[playlist_cur_index]);
+    s_stream_proc->playlist_cur_index = (s_stream_proc->playlist_cur_index + playlist_len - 1) % playlist_len;
+    local2bt_play(playlist[s_stream_proc->playlist_cur_index]);
 }
 
 static void stream_proc_destroy(stream_user_data_t *user_d)
 {
-    ESP_LOGI(TAG, "stream_user_data_destroy %p", user_d);
+    ESP_LOGI(TAG, "Destroyed stream user data");
     if (user_d) {
         free(user_d);
     }
@@ -536,10 +1363,11 @@ static void stream_proc_prepare(esp_bt_audio_stream_handle_t stream, stream_user
     }
     esp_bt_audio_stream_codec_info_t codec_info = {0};
     esp_bt_audio_stream_get_codec_info(stream, &codec_info);
-    ESP_LOGI(TAG, "Codec Info: type=%d, bits=%d, channels=%d, sample_rate=%d, cfg_size=%d, codec_cfg=%p",
+    ESP_LOGI(TAG, "Codec Info: type=%d, bits=%d, channels=0x%x (%d ch), sample_rate=%d, cfg_size=%d, codec_cfg=%p",
              codec_info.codec_type,
              codec_info.bits,
              codec_info.channels,
+             __builtin_popcount(codec_info.channels),
              codec_info.sample_rate,
              codec_info.cfg_size,
              codec_info.codec_cfg);
@@ -554,7 +1382,7 @@ static void stream_proc_prepare(esp_bt_audio_stream_handle_t stream, stream_user
 
     if (dir == ESP_BT_AUDIO_STREAM_DIR_SINK) {
         ESP_LOGI(TAG, "Prepare bt to codec pipeline");
-        user_d->pipe = bt2codec_pipe;
+        user_d->pipe = s_stream_proc->bt2codec_pipe;
         esp_gmf_io_bt_set_stream(ESP_GMF_PIPELINE_GET_IN_INSTANCE(user_d->pipe), stream);
         esp_audio_simple_dec_cfg_t simple_dec_cfg = {
             .dec_type = stream_proc_get_audio_type(codec_info.codec_type),
@@ -565,7 +1393,8 @@ static void stream_proc_prepare(esp_bt_audio_stream_handle_t stream, stream_user
         esp_gmf_audio_dec_reconfig(user_d->pipe->head_el, &simple_dec_cfg);
 
         stream_proc_set_asrc_dest(user_d->pipe, 0, CODEC_DAC_SAMPLE_RATE, __builtin_popcount(codec_info.channels),
-                                  CODEC_DAC_CHANNELS, bt2codec_asrc_weight, STREAM_PROC_ASRC_MAX_WEIGHT_LEN);
+                                  CODEC_DAC_CHANNELS, s_stream_proc->bt2codec_asrc_weight,
+                                  STREAM_PROC_ASRC_MAX_WEIGHT_LEN);
 
         /* Playback sync is only needed for LE Audio streams */
         esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
@@ -574,54 +1403,123 @@ static void stream_proc_prepare(esp_bt_audio_stream_handle_t stream, stream_user
             profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
             stream_proc_prepare_playback_sync();
         }
-        stream_proc_post_pipeline_action(user_d->pipe, STREAM_PROC_PIPELINE_PREPARE);
+        stream_proc_post_pipeline_action(user_d->pipe, STREAM_PROC_PIPELINE_PREPARE, 0);
     } else {
         uint8_t output_asrc_index = 0;
         uint32_t context = 0;
-        bool report_codec_input_info = false;
+        bool report_src_info = false;
+        esp_gmf_info_sound_t src_info = {0};
         const char *uri = NULL;
         if (esp_bt_audio_stream_get_context(stream, &context) != ESP_OK) {
             ESP_LOGE(TAG, "Get stream context failed, stream=%p", stream);
         }
+#if STREAM_PROC_DUAL_BIS
+        {
+            esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+            esp_bt_audio_stream_get_profile(stream, &profile);
+            if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
+                if (stream_proc_dual_bis_prepare(stream, user_d) != ESP_OK) {
+                    free(user_d);
+                    *out = NULL;
+                    return;
+                }
+                *out = user_d;
+                return;
+            }
+        }
+#endif  /* STREAM_PROC_DUAL_BIS */
         if (context == ESP_BT_AUDIO_STREAM_CONTEXT_MEDIA) {
-            ESP_LOGI(TAG, "Prepare local to bt pipeline");
-            user_d->pipe = local2bt_pipe;
-            local2bt_stream = stream;
+            esp_bt_audio_stream_profile_t media_profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+            esp_bt_audio_stream_get_profile(stream, &media_profile);
+            if (media_profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_UNICAST) {
+                uint8_t branch = (__builtin_popcount(codec_info.channels) == 1 &&
+                                  (codec_info.channels & ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT)) ? 1 : 0;
+                if (s_stream_proc->local2bt_shared_stream[branch] != NULL &&
+                    s_stream_proc->local2bt_shared_stream[branch] != stream) {
+                    uint8_t fallback = branch ^ 1;
+                    if (s_stream_proc->local2bt_shared_stream[fallback] == NULL) {
+                        ESP_LOGW(TAG, "Channel location collision on branch %u; use free branch %u",
+                                 branch, fallback);
+                        branch = fallback;
+                    } else {
+                        ESP_LOGE(TAG, "No free local-to-BT branch for stream %p", stream);
+                        free(user_d);
+                        *out = NULL;
+                        return;
+                    }
+                }
+                uint8_t other = branch ^ 1;
+                bool stereo = s_stream_proc->local2bt_shared_stream[other] != NULL;
 
-            esp_audio_simple_dec_cfg_t simple_dec_cfg = {
-                .dec_type = ESP_AUDIO_TYPE_MP3,
-                .dec_cfg = NULL,
-                .cfg_size = 0,
-            };
-            esp_gmf_audio_dec_reconfig(user_d->pipe->head_el, &simple_dec_cfg);
-            uri = playlist[playlist_cur_index];
-            ESP_LOGI(TAG, "Set media file: %s (index %d)", playlist[playlist_cur_index], playlist_cur_index);
+                user_d->media_branch = branch;
+                user_d->shared_media = true;
+                user_d->pipe = s_stream_proc->local2bt_branch_pipe[branch];
+                s_stream_proc->local2bt_shared_stream[branch] = stream;
+                s_stream_proc->local2bt_stream_started[branch] = false;
+
+                if (stereo) {
+                    stream_user_data_t *other_data = NULL;
+                    esp_bt_audio_stream_get_local_data(s_stream_proc->local2bt_shared_stream[other],
+                                                       (void **)&other_data);
+                    if (other_data) {
+                        other_data->pipe = s_stream_proc->local2bt_branch_pipe[other];
+                        other_data->shared_media = true;
+                    }
+                }
+                ESP_LOGI(TAG, "Bound shared decoder %s branch; dual-branch pipeline, "
+                              "missing CIS is dropped",
+                         branch ? "right" : "left");
+                ESP_LOGI(TAG, "Set media file: %s (index %d)", playlist[s_stream_proc->playlist_cur_index],
+                         s_stream_proc->playlist_cur_index);
+            } else {
+                ESP_LOGI(TAG, "Prepare local to bt pipeline");
+                user_d->pipe = s_stream_proc->local2bt_pipe;
+                s_stream_proc->local2bt_stream = stream;
+
+                esp_audio_simple_dec_cfg_t simple_dec_cfg = {
+                    .dec_type = ESP_AUDIO_TYPE_MP3,
+                    .dec_cfg = NULL,
+                    .cfg_size = 0,
+                };
+                esp_gmf_audio_dec_reconfig(user_d->pipe->head_el, &simple_dec_cfg);
+                uri = playlist[s_stream_proc->playlist_cur_index];
+                ESP_LOGI(TAG, "Set media file: %s (index %d)", playlist[s_stream_proc->playlist_cur_index],
+                         s_stream_proc->playlist_cur_index);
+            }
         } else {
             ESP_LOGI(TAG, "Prepare codec to bt pipeline");
-            user_d->pipe = codec2bt_pipe;
+            user_d->pipe = s_stream_proc->codec2bt_pipe;
             output_asrc_index = 1;
-            report_codec_input_info = true;
+            report_src_info = true;
+            src_info.sample_rates = CODEC_ADC_SAMPLE_RATE;
+            src_info.channels = CODEC_ADC_CHANNELS;
+            src_info.bits = CODEC_ADC_BITS_PER_SAMPLE;
         }
-        esp_gmf_io_bt_set_stream(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(user_d->pipe), stream);
-        uint8_t output_src_ch = context == ESP_BT_AUDIO_STREAM_CONTEXT_MEDIA ? 2 : 1;
-        float *asrc_weight = context == ESP_BT_AUDIO_STREAM_CONTEXT_MEDIA ? local2bt_asrc_weight : codec2bt_output_asrc_weight;
-        stream_proc_set_asrc_dest(user_d->pipe, output_asrc_index, codec_info.sample_rate, output_src_ch,
-                                  __builtin_popcount(codec_info.channels), asrc_weight,
-                                  STREAM_PROC_ASRC_MAX_WEIGHT_LEN);
+        if (!user_d->shared_media) {
+            esp_gmf_io_bt_set_stream(ESP_GMF_PIPELINE_GET_OUT_INSTANCE(user_d->pipe), stream);
+            uint8_t output_src_ch = context == ESP_BT_AUDIO_STREAM_CONTEXT_MEDIA ? 2 : 1;
+            float *asrc_weight = context == ESP_BT_AUDIO_STREAM_CONTEXT_MEDIA ?
+                                     s_stream_proc->local2bt_asrc_weight :
+                                     s_stream_proc->codec2bt_output_asrc_weight;
+            stream_proc_set_asrc_dest(user_d->pipe, output_asrc_index, codec_info.sample_rate, output_src_ch,
+                                      __builtin_popcount(codec_info.channels), asrc_weight,
+                                      STREAM_PROC_ASRC_MAX_WEIGHT_LEN);
 
-        esp_audio_enc_config_t enc_cfg = {
-            .type = stream_proc_get_audio_type(codec_info.codec_type),
-            .cfg = codec_info.codec_cfg,
-            .cfg_sz = codec_info.cfg_size,
-        };
-        esp_gmf_audio_enc_reconfig(user_d->pipe->last_el, &enc_cfg);
-        stream_proc_cmd_t cmd = {
-            .action = STREAM_PROC_PIPELINE_PREPARE,
-            .pipe = user_d->pipe,
-            .uri = uri,
-            .report_codec_input_info = report_codec_input_info,
-        };
-        stream_proc_post_cmd(&cmd);
+            esp_audio_enc_config_t enc_cfg = {
+                .type = stream_proc_get_audio_type(codec_info.codec_type),
+                .cfg = codec_info.codec_cfg,
+                .cfg_sz = codec_info.cfg_size,
+            };
+            esp_gmf_audio_enc_reconfig(user_d->pipe->last_el, &enc_cfg);
+            stream_proc_cmd_t cmd = {
+                .action = STREAM_PROC_PIPELINE_PREPARE,
+                .pipe = user_d->pipe,
+                .uri = uri,
+                .report_src_info = report_src_info,
+                .src_info = src_info,
+            };
+            stream_proc_post_cmd(&cmd, 0);
+        }
     }
     *out = user_d;
 }
@@ -631,7 +1529,7 @@ void stream_proc_state_chg(esp_bt_audio_stream_handle_t stream, esp_bt_audio_str
     const char *state_str[] = {"ALLOCATED", "STARTED", "STOPPED", "RELEASED"};
     esp_bt_audio_stream_dir_t dir = ESP_BT_AUDIO_STREAM_DIR_UNKNOWN;
     esp_bt_audio_stream_get_dir(stream, &dir);
-    ESP_LOGI(TAG, "Stream state changed: stream %p, dir %d, state %s", stream, dir, state_str[state]);
+    ESP_LOGI(TAG, "Stream state changed: dir %d, state %s", dir, state_str[state]);
     switch (state) {
         case ESP_BT_AUDIO_STREAM_STATE_ALLOCATED: {
             stream_user_data_t *user_dat = NULL;
@@ -658,18 +1556,91 @@ void stream_proc_state_chg(esp_bt_audio_stream_handle_t stream, esp_bt_audio_str
                         stream_proc_enable_clk_sync(stream);
                     }
                 }
-                stream_proc_post_pipeline_action(user_d->pipe, STREAM_PROC_PIPELINE_RUN);
+#if STREAM_PROC_DUAL_BIS
+                if (dir == ESP_BT_AUDIO_STREAM_DIR_SOURCE) {
+                    esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+                    esp_bt_audio_stream_get_profile(stream, &profile);
+                    if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
+                        stream_proc_bis_leg_t *leg = stream_proc_find_bis_leg(stream);
+                        if (leg) {
+                            leg->flags |= STREAM_PROC_BIS_LEG_STARTED;
+                        }
+                        stream_proc_dual_bis_try_run();
+                        break;
+                    }
+                }
+#endif  /* STREAM_PROC_DUAL_BIS */
+                if (user_d->shared_media) {
+                    uint8_t branch = user_d->media_branch;
+                    if (branch < 2) {
+                        s_stream_proc->local2bt_stream_started[branch] = true;
+                    }
+                    if (local2bt_shared_targets_streaming()) {
+                        local2bt_request_start_shared();
+                    } else {
+                        ESP_LOGI(TAG, "Holding shared media until every targeted CIS is streaming");
+                    }
+                } else {
+                    stream_proc_post_pipeline_action(user_d->pipe, STREAM_PROC_PIPELINE_RUN, 0);
+                }
             } else {
                 ESP_LOGE(TAG, "Stream user data not prepared for stream %p", stream);
             }
             break;
         }
         case ESP_BT_AUDIO_STREAM_STATE_STOPPED: {
+#if STREAM_PROC_DUAL_BIS
+            if (dir == ESP_BT_AUDIO_STREAM_DIR_SOURCE) {
+                esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+                esp_bt_audio_stream_get_profile(stream, &profile);
+                if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
+                    stream_proc_dual_bis_stop();
+                    break;
+                }
+            }
+#endif  /* STREAM_PROC_DUAL_BIS */
             stream_user_data_t *user_d = NULL;
             esp_bt_audio_stream_get_local_data(stream, (void **)&user_d);
             if (user_d && user_d->pipe) {
-                ESP_LOGI(TAG, "Schedule reset pipeline %p", user_d->pipe);
-                stream_proc_post_pipeline_action(user_d->pipe, STREAM_PROC_PIPELINE_STOP_RESET);
+                if (user_d->shared_media) {
+                    uint8_t stopped_branch = user_d->media_branch;
+                    uint8_t surviving_branch = stopped_branch ^ 1;
+                    bool surviving_started = surviving_branch < 2 &&
+                                             s_stream_proc->local2bt_shared_stream[surviving_branch] != NULL &&
+                                             s_stream_proc->local2bt_stream_started[surviving_branch];
+
+                    if (stopped_branch < 2) {
+                        if (s_stream_proc->local2bt_shared_stream[stopped_branch] == stream) {
+                            s_stream_proc->local2bt_shared_stream[stopped_branch] = NULL;
+                        }
+                        s_stream_proc->local2bt_stream_started[stopped_branch] = false;
+                        local2bt_bind_branch_out(stopped_branch, NULL);
+                    }
+
+                    if (surviving_started) {
+                        ESP_LOGI(TAG, "Branch %u lost its CIS; discarding its output, branch %u plays on",
+                                 stopped_branch, surviving_branch);
+                    } else {
+                        ESP_LOGI(TAG, "Schedule reset shared media pipelines");
+                        stream_proc_post_pipeline_action(user_d->pipe, STREAM_PROC_PIPELINE_STOP_RESET, 0);
+                        for (size_t i = 0; i < 2; i++) {
+                            if (s_stream_proc->local2bt_branch_pipe[i] &&
+                                s_stream_proc->local2bt_branch_pipe[i] != user_d->pipe) {
+                                stream_proc_post_pipeline_action(s_stream_proc->local2bt_branch_pipe[i],
+                                                                 STREAM_PROC_PIPELINE_STOP_RESET, 0);
+                            }
+                        }
+                        stream_proc_post_pipeline_action(s_stream_proc->local2bt_source_pipe,
+                                                         STREAM_PROC_PIPELINE_STOP_RESET, 0);
+                        stream_proc_post_pipeline_action(s_stream_proc->local2bt_pipe,
+                                                         STREAM_PROC_PIPELINE_STOP_RESET, 0);
+                        local2bt_reset_shared_source_flags();
+                    }
+                } else {
+                    ESP_LOGI(TAG, "Schedule reset pipeline %s",
+                             stream_proc_pipeline_name(user_d->pipe));
+                    stream_proc_post_pipeline_action(user_d->pipe, STREAM_PROC_PIPELINE_STOP_RESET, 0);
+                }
             }
             if (dir == ESP_BT_AUDIO_STREAM_DIR_SINK) {
                 esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
@@ -694,12 +1665,30 @@ void stream_proc_state_chg(esp_bt_audio_stream_handle_t stream, esp_bt_audio_str
                     stream_proc_deinit_playback_sync();
                 }
             }
+#if STREAM_PROC_DUAL_BIS
+            if (dir == ESP_BT_AUDIO_STREAM_DIR_SOURCE) {
+                esp_bt_audio_stream_profile_t profile = ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN;
+                esp_bt_audio_stream_get_profile(stream, &profile);
+                if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
+                    stream_proc_dual_bis_stop();
+                }
+            }
+#endif  /* STREAM_PROC_DUAL_BIS */
             if (user_d) {
                 stream_proc_destroy(user_d);
                 esp_bt_audio_stream_set_local_data(stream, NULL);
             }
-            if (local2bt_stream == stream) {
-                local2bt_stream = NULL;
+            if (s_stream_proc->local2bt_stream == stream) {
+                s_stream_proc->local2bt_stream = NULL;
+            }
+            for (size_t i = 0; i < 2; i++) {
+                if (s_stream_proc->local2bt_shared_stream[i] == stream) {
+                    s_stream_proc->local2bt_shared_stream[i] = NULL;
+                }
+            }
+            if (s_stream_proc->local2bt_shared_stream[0] == NULL &&
+                s_stream_proc->local2bt_shared_stream[1] == NULL) {
+                local2bt_reset_shared_source_flags();
             }
             break;
         }
@@ -708,7 +1697,7 @@ void stream_proc_state_chg(esp_bt_audio_stream_handle_t stream, esp_bt_audio_str
     }
 }
 
-static esp_gmf_err_t bt2codec_pipe_event_cb(esp_gmf_event_pkt_t *pkt, void *ctx)
+static esp_gmf_err_t bt2codec_pipe_event_cb(esp_gmf_event_pkt_t *pkt, void *event_ctx)
 {
     if (pkt == NULL) {
         return ESP_GMF_ERR_OK;
@@ -719,7 +1708,7 @@ static esp_gmf_err_t bt2codec_pipe_event_cb(esp_gmf_event_pkt_t *pkt, void *ctx)
     return ESP_GMF_ERR_OK;
 }
 
-static esp_gmf_err_t codec2bt_pipe_event_cb(esp_gmf_event_pkt_t *pkt, void *ctx)
+static esp_gmf_err_t codec2bt_pipe_event_cb(esp_gmf_event_pkt_t *pkt, void *event_ctx)
 {
     if (pkt == NULL) {
         return ESP_GMF_ERR_OK;
@@ -730,17 +1719,23 @@ static esp_gmf_err_t codec2bt_pipe_event_cb(esp_gmf_event_pkt_t *pkt, void *ctx)
     return ESP_GMF_ERR_OK;
 }
 
-static esp_gmf_err_t local2bt_pipe_event_cb(esp_gmf_event_pkt_t *pkt, void *ctx)
+static esp_gmf_err_t local2bt_pipe_event_cb(esp_gmf_event_pkt_t *pkt, void *event_ctx)
 {
+    stream_proc_ctx_t *stream_ctx = (stream_proc_ctx_t *)event_ctx;
     if (pkt == NULL) {
         return ESP_GMF_ERR_OK;
     }
     if (pkt->type == ESP_GMF_EVT_TYPE_CHANGE_STATE) {
         ESP_LOGI(TAG, "[local to bt media pipeline] state => %s(%d)", gmf_state_to_str(pkt->sub), pkt->sub);
         if (pkt->sub == ESP_GMF_EVENT_STATE_FINISHED) {
+            if (event_ctx == (void *)(uintptr_t)1 || event_ctx == (void *)(uintptr_t)2) {
+                return ESP_GMF_ERR_OK;
+            }
             ESP_LOGI(TAG, "Local to BT media finished");
-            if (local2bt_stream) {
-                local2bt_play_next();
+            if (stream_ctx && (stream_ctx->local2bt_stream ||
+                               stream_ctx->local2bt_shared_stream[0] ||
+                               stream_ctx->local2bt_shared_stream[1])) {
+                stream_proc_post_pipeline_action(NULL, STREAM_PROC_PIPELINE_PLAY_NEXT, 0);
             }
         } else if (pkt->sub == ESP_GMF_EVENT_STATE_ERROR) {
             ESP_LOGE(TAG, "Local to BT media error");
@@ -755,8 +1750,9 @@ static esp_gmf_err_t local2bt_pipe_event_cb(esp_gmf_event_pkt_t *pkt, void *ctx)
 static void setup_pipeline_bt2codec(esp_gmf_pool_handle_t pool)
 {
     const char *name[] = {"aud_dec", "aud_asrc"};
-    esp_gmf_pool_new_pipeline(pool, "io_bt", name, sizeof(name) / sizeof(char *), "io_codec_dev", &bt2codec_pipe);
-    esp_gmf_pipeline_set_event(bt2codec_pipe, bt2codec_pipe_event_cb, NULL);
+    esp_gmf_pool_new_pipeline(pool, "io_bt", name, sizeof(name) / sizeof(char *), "io_codec_dev",
+                              &s_stream_proc->bt2codec_pipe);
+    esp_gmf_pipeline_set_event(s_stream_proc->bt2codec_pipe, bt2codec_pipe_event_cb, s_stream_proc);
 
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.thread.core = 0;
@@ -764,16 +1760,17 @@ static void setup_pipeline_bt2codec(esp_gmf_pool_handle_t pool)
     cfg.thread.prio = 15;
     cfg.thread.stack_in_ext = true;
     cfg.name = "bt2codec_task";
-    esp_gmf_task_init(&cfg, &bt2codec_task);
+    esp_gmf_task_init(&cfg, &s_stream_proc->bt2codec_task);
 
-    esp_gmf_pipeline_bind_task(bt2codec_pipe, bt2codec_task);
+    esp_gmf_pipeline_bind_task(s_stream_proc->bt2codec_pipe, s_stream_proc->bt2codec_task);
 }
 
 static void setup_pipeline_codec2bt(esp_gmf_pool_handle_t pool)
 {
     const char *name[] = {"aud_asrc", "ai_aec", "aud_asrc", "aud_enc"};
-    esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), "io_bt", &codec2bt_pipe);
-    esp_gmf_pipeline_set_event(codec2bt_pipe, codec2bt_pipe_event_cb, NULL);
+    esp_gmf_pool_new_pipeline(pool, "io_codec_dev", name, sizeof(name) / sizeof(char *), "io_bt",
+                              &s_stream_proc->codec2bt_pipe);
+    esp_gmf_pipeline_set_event(s_stream_proc->codec2bt_pipe, codec2bt_pipe_event_cb, s_stream_proc);
 
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.thread.core = 1;
@@ -781,19 +1778,59 @@ static void setup_pipeline_codec2bt(esp_gmf_pool_handle_t pool)
     cfg.thread.prio = 15;
     cfg.thread.stack_in_ext = true;
     cfg.name = "codec2bt_task";
-    esp_gmf_task_init(&cfg, &codec2bt_task);
+    esp_gmf_task_init(&cfg, &s_stream_proc->codec2bt_task);
 
-    stream_proc_set_asrc_dest(codec2bt_pipe, 0, 8000, CODEC_ADC_CHANNELS, CODEC_ADC_CHANNELS,
-                              codec2bt_input_asrc_weight, STREAM_PROC_ASRC_MAX_WEIGHT_LEN);
+    stream_proc_set_asrc_dest(s_stream_proc->codec2bt_pipe, 0, 8000, CODEC_ADC_CHANNELS, CODEC_ADC_CHANNELS,
+                              s_stream_proc->codec2bt_input_asrc_weight, STREAM_PROC_ASRC_MAX_WEIGHT_LEN);
 
-    esp_gmf_pipeline_bind_task(codec2bt_pipe, codec2bt_task);
+    esp_gmf_pipeline_bind_task(s_stream_proc->codec2bt_pipe, s_stream_proc->codec2bt_task);
+}
+
+static void cleanup_pipeline_local2bt(void)
+{
+    if (s_stream_proc->local2bt_task) {
+        esp_gmf_task_deinit(s_stream_proc->local2bt_task);
+        s_stream_proc->local2bt_task = NULL;
+    }
+    if (s_stream_proc->local2bt_source_task) {
+        esp_gmf_task_deinit(s_stream_proc->local2bt_source_task);
+        s_stream_proc->local2bt_source_task = NULL;
+    }
+    for (size_t i = 0; i < 2; i++) {
+        if (s_stream_proc->local2bt_branch_task[i]) {
+            esp_gmf_task_deinit(s_stream_proc->local2bt_branch_task[i]);
+            s_stream_proc->local2bt_branch_task[i] = NULL;
+        }
+    }
+    if (s_stream_proc->local2bt_pipe) {
+        esp_gmf_pipeline_destroy(s_stream_proc->local2bt_pipe);
+        s_stream_proc->local2bt_pipe = NULL;
+    }
+    if (s_stream_proc->local2bt_source_pipe) {
+        esp_gmf_pipeline_destroy(s_stream_proc->local2bt_source_pipe);
+        s_stream_proc->local2bt_source_pipe = NULL;
+    }
+    for (size_t i = 0; i < 2; i++) {
+        if (s_stream_proc->local2bt_branch_pipe[i]) {
+            esp_gmf_pipeline_destroy(s_stream_proc->local2bt_branch_pipe[i]);
+            s_stream_proc->local2bt_branch_pipe[i] = NULL;
+        }
+        if (s_stream_proc->local2bt_branch_db[i]) {
+            esp_gmf_db_deinit(s_stream_proc->local2bt_branch_db[i]);
+            s_stream_proc->local2bt_branch_db[i] = NULL;
+        }
+    }
 }
 
 static void setup_pipeline_local2bt(esp_gmf_pool_handle_t pool)
 {
     const char *name[] = {"aud_dec", "aud_asrc", "aud_enc"};
-    esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), "io_bt", &local2bt_pipe);
-    esp_gmf_pipeline_set_event(local2bt_pipe, local2bt_pipe_event_cb, NULL);
+    if (esp_gmf_pool_new_pipeline(pool, "io_file", name, sizeof(name) / sizeof(char *), "io_bt",
+                                  &s_stream_proc->local2bt_pipe) != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to create local2bt pipeline");
+        goto fail;
+    }
+    esp_gmf_pipeline_set_event(s_stream_proc->local2bt_pipe, local2bt_pipe_event_cb, s_stream_proc);
 
     esp_gmf_task_cfg_t cfg = DEFAULT_ESP_GMF_TASK_CONFIG();
     cfg.thread.core = 1;
@@ -801,33 +1838,109 @@ static void setup_pipeline_local2bt(esp_gmf_pool_handle_t pool)
     cfg.thread.prio = 15;
     cfg.thread.stack_in_ext = true;
     cfg.name = "local2bt_task";
-    esp_gmf_task_init(&cfg, &local2bt_task);
+    if (esp_gmf_task_init(&cfg, &s_stream_proc->local2bt_task) != ESP_GMF_ERR_OK ||
+        esp_gmf_pipeline_bind_task(s_stream_proc->local2bt_pipe,
+                                   s_stream_proc->local2bt_task) != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to create or bind local2bt task");
+        goto fail;
+    }
 
-    esp_gmf_pipeline_bind_task(local2bt_pipe, local2bt_task);
+    const char *source_name[] = {"aud_dec", "copier"};
+    if (esp_gmf_pool_new_pipeline(pool, "io_file", source_name,
+                                  sizeof(source_name) / sizeof(source_name[0]), NULL,
+                                  &s_stream_proc->local2bt_source_pipe) != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to create local2bt source pipeline");
+        goto fail;
+    }
+    esp_gmf_pipeline_set_event(s_stream_proc->local2bt_source_pipe, local2bt_pipe_event_cb, s_stream_proc);
+
+    cfg = (esp_gmf_task_cfg_t)DEFAULT_ESP_GMF_TASK_CONFIG();
+    cfg.thread.core = 1;
+    cfg.thread.stack = 5120;
+    cfg.thread.prio = 15;
+    cfg.thread.stack_in_ext = true;
+    cfg.name = "local_src";
+    if (esp_gmf_task_init(&cfg, &s_stream_proc->local2bt_source_task) != ESP_GMF_ERR_OK ||
+        esp_gmf_pipeline_bind_task(s_stream_proc->local2bt_source_pipe,
+                                   s_stream_proc->local2bt_source_task) != ESP_GMF_ERR_OK) {
+        ESP_LOGE(TAG, "Failed to create or bind local2bt source task");
+        goto fail;
+    }
+
+    for (size_t i = 0; i < 2; i++) {
+        const char *branch_name[] = {"aud_asrc", "aud_enc"};
+        if (esp_gmf_pool_new_pipeline(pool, NULL, branch_name,
+                                      sizeof(branch_name) / sizeof(branch_name[0]), "io_bt",
+                                      &s_stream_proc->local2bt_branch_pipe[i]) != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to create local2bt branch %u", (unsigned)i);
+            goto fail;
+        }
+        esp_gmf_pipeline_set_event(s_stream_proc->local2bt_branch_pipe[i], local2bt_pipe_event_cb,
+                                   (void *)(uintptr_t)(i + 1));
+
+        if (esp_gmf_db_new_ringbuf(12, 1024, &s_stream_proc->local2bt_branch_db[i]) != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to create local2bt branch ringbuf %u", (unsigned)i);
+            goto fail;
+        }
+        esp_gmf_port_handle_t out_port =
+            NEW_ESP_GMF_PORT_OUT_BYTE(esp_gmf_db_acquire_write, esp_gmf_db_release_write,
+                                      NULL, s_stream_proc->local2bt_branch_db[i], 1024, 3000);
+        esp_gmf_port_handle_t in_port =
+            NEW_ESP_GMF_PORT_IN_BYTE(esp_gmf_db_acquire_read, esp_gmf_db_release_read,
+                                     NULL, s_stream_proc->local2bt_branch_db[i],
+                                     1024, 3000);
+        if (out_port == NULL || in_port == NULL) {
+            ESP_LOGE(TAG, "Failed to create local2bt branch ports %u", (unsigned)i);
+            if (out_port) {
+                esp_gmf_port_deinit(out_port);
+            }
+            if (in_port) {
+                esp_gmf_port_deinit(in_port);
+            }
+            goto fail;
+        }
+        if (esp_gmf_pipeline_connect_pipe(s_stream_proc->local2bt_source_pipe, "copier", out_port,
+                                          s_stream_proc->local2bt_branch_pipe[i], "aud_asrc",
+                                          in_port) != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to connect local2bt branch %u", (unsigned)i);
+            goto fail;
+        }
+
+        cfg.name = i == 0 ? "local_left" : "local_right";
+        if (esp_gmf_task_init(&cfg, &s_stream_proc->local2bt_branch_task[i]) != ESP_GMF_ERR_OK ||
+            esp_gmf_pipeline_bind_task(s_stream_proc->local2bt_branch_pipe[i],
+                                       s_stream_proc->local2bt_branch_task[i]) != ESP_GMF_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to create or bind local2bt branch task %u", (unsigned)i);
+            goto fail;
+        }
+    }
+    return;
+
+fail:
+    cleanup_pipeline_local2bt();
 }
 
 static void stream_proc_task(void *arg)
 {
+    stream_proc_ctx_t *stream_ctx = (stream_proc_ctx_t *)arg;
     stream_proc_cmd_t cmd = {0};
 
     while (true) {
-        if (xQueueReceive(stream_proc_cmd_queue, &cmd, portMAX_DELAY) != pdTRUE) {
+        if (xQueueReceive(stream_ctx->cmd_queue, &cmd, portMAX_DELAY) != pdTRUE) {
             continue;
         }
 
         switch (cmd.action) {
             case STREAM_PROC_PIPELINE_PREPARE: {
-                if (cmd.report_codec_input_info) {
-                    esp_gmf_info_sound_t info = {
-                        .sample_rates = CODEC_ADC_SAMPLE_RATE,
-                        .channels = CODEC_ADC_CHANNELS,
-                        .bits = CODEC_ADC_BITS_PER_SAMPLE,
-                    };
-                    esp_gmf_pipeline_report_info(cmd.pipe, ESP_GMF_INFO_SOUND, &info, sizeof(info));
+                if (cmd.report_src_info) {
+                    esp_gmf_pipeline_report_info(cmd.pipe, ESP_GMF_INFO_SOUND, &cmd.src_info, sizeof(cmd.src_info));
                 }
                 if (cmd.uri) {
                     esp_gmf_pipeline_set_in_uri(cmd.pipe, cmd.uri);
                 }
+#if STREAM_PROC_DUAL_BIS
+                stream_proc_reset_bis_leg_rb(cmd.pipe);
+#endif  /* STREAM_PROC_DUAL_BIS */
                 esp_gmf_pipeline_loading_jobs(cmd.pipe);
                 break;
             }
@@ -835,10 +1948,19 @@ static void stream_proc_task(void *arg)
                 esp_gmf_pipeline_run(cmd.pipe);
                 break;
             case STREAM_PROC_PIPELINE_STOP_RESET:
-                ESP_LOGI(TAG, "Reset pipeline %p", cmd.pipe);
-                esp_gmf_pipeline_stop(cmd.pipe);
-                esp_gmf_pipeline_reset(cmd.pipe);
+                stream_proc_apply_pipeline_stop_reset(cmd.pipe);
                 break;
+            case STREAM_PROC_PIPELINE_START_SHARED:
+                local2bt_do_start_shared(cmd.uri);
+                break;
+            case STREAM_PROC_PIPELINE_PLAY_NEXT:
+                local2bt_play_next();
+                break;
+#if STREAM_PROC_DUAL_BIS
+            case STREAM_PROC_BIS_LEG_CONFIG:
+                stream_proc_dual_bis_config_leg(cmd.leg);
+                break;
+#endif  /* STREAM_PROC_DUAL_BIS */
             default:
                 ESP_LOGW(TAG, "Unknown stream processor action %d", cmd.action);
                 break;
@@ -848,31 +1970,44 @@ static void stream_proc_task(void *arg)
 
 static void setup_stream_proc_task(void)
 {
-    if (stream_proc_cmd_queue) {
+    if (s_stream_proc->cmd_queue) {
         return;
     }
 
-    stream_proc_cmd_queue = xQueueCreate(STREAM_PROC_CMD_QUEUE_SIZE, sizeof(stream_proc_cmd_t));
-    if (stream_proc_cmd_queue == NULL) {
+    s_stream_proc->cmd_queue = xQueueCreate(STREAM_PROC_CMD_QUEUE_SIZE, sizeof(stream_proc_cmd_t));
+    if (s_stream_proc->cmd_queue == NULL) {
         ESP_LOGE(TAG, "Create stream processor command queue failed");
         return;
     }
 
     BaseType_t ret = xTaskCreatePinnedToCoreWithCaps(stream_proc_task, "stream_proc_task",
-                                                     STREAM_PROC_TASK_STACK_SIZE, NULL, STREAM_PROC_TASK_PRIO,
+                                                     STREAM_PROC_TASK_STACK_SIZE, s_stream_proc,
+                                                     STREAM_PROC_TASK_PRIO,
                                                      NULL, STREAM_PROC_TASK_CORE_ID,
                                                      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Create stream processor task failed");
-        vQueueDelete(stream_proc_cmd_queue);
-        stream_proc_cmd_queue = NULL;
+        vQueueDelete(s_stream_proc->cmd_queue);
+        s_stream_proc->cmd_queue = NULL;
     }
 }
 
 void stream_proc_init(esp_gmf_pool_handle_t pool)
 {
+    if (s_stream_proc) {
+        return;
+    }
+    s_stream_proc = heap_caps_calloc(1, sizeof(*s_stream_proc), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (s_stream_proc == NULL) {
+        ESP_LOGE(TAG, "Allocate stream processor context from PSRAM failed");
+        return;
+    }
+
     setup_pipeline_bt2codec(pool);
     setup_pipeline_codec2bt(pool);
     setup_pipeline_local2bt(pool);
+#if STREAM_PROC_DUAL_BIS
+    setup_pipeline_local2bt_dual_bis(pool);
+#endif  /* STREAM_PROC_DUAL_BIS */
     setup_stream_proc_task();
 }

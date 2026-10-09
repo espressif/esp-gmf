@@ -9,7 +9,9 @@
 
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 
 #include "esp_gmf_err.h"
 #include "esp_gmf_oal_mem.h"
@@ -18,11 +20,97 @@
 #include "esp_bt_audio_stream.h"
 
 typedef struct {
-    esp_gmf_io_t                  base;    /*!< The GMF bluetooth io handle */
-    esp_bt_audio_stream_packet_t  packet;  /*!< The packet of Bluetooth stream */
+    esp_gmf_io_t                  base;         /*!< The GMF bluetooth io handle */
+    esp_bt_audio_stream_packet_t  packet;       /*!< Stream packet; data/size also hold discard scratch */
+    bool                          discard;      /*!< Discard writes instead of sending to stream */
+    uint32_t                      pace_us;      /*!< Discard pace period in us, 0 to run free */
+    int64_t                       pace_next_us; /*!< Time the next discarded frame is due */
 } bt_io_stream_t;
 
 static const char *TAG = "ESP_GMF_IO_BT";
+
+static bool _bt_owns_packet_data(const bt_io_stream_t *bt_io)
+{
+    return bt_io->packet.data != NULL && bt_io->packet.data_owner == (void *)bt_io;
+}
+
+static void _bt_free_owned_packet_data(bt_io_stream_t *bt_io)
+{
+    if (_bt_owns_packet_data(bt_io)) {
+        esp_gmf_oal_free(bt_io->packet.data);
+    }
+    memset(&bt_io->packet, 0, sizeof(bt_io->packet));
+}
+
+static void _bt_clear_payload(esp_gmf_payload_t *pload)
+{
+    pload->buf = NULL;
+    pload->buf_length = 0;
+    pload->valid_size = 0;
+}
+
+static esp_gmf_err_io_t _bt_acquire_discard_packet(bt_io_stream_t *bt_io,
+                                                   esp_gmf_payload_t *pload,
+                                                   uint32_t wanted_size)
+{
+    uint32_t n = wanted_size ? wanted_size : 1;
+    if (n > bt_io->packet.size || bt_io->packet.data == NULL) {
+        uint8_t *p = (uint8_t *)esp_gmf_oal_realloc(bt_io->packet.data, n);
+        if (p == NULL) {
+            ESP_LOGE(TAG, "Error acquire discard write, realloc %lu failed", (unsigned long)n);
+            _bt_clear_payload(pload);
+            return ESP_GMF_IO_FAIL;
+        }
+        bt_io->packet.data = p;
+        bt_io->packet.size = n;
+        bt_io->packet.data_owner = bt_io;
+    }
+    pload->buf = bt_io->packet.data;
+    pload->buf_length = bt_io->packet.size;
+    pload->valid_size = 0;
+    return ESP_GMF_IO_OK;
+}
+
+static void _bt_pace_discard(bt_io_stream_t *bt_io)
+{
+    if (bt_io->pace_us == 0) {
+        return;
+    }
+    int64_t now = esp_timer_get_time();
+    if (bt_io->pace_next_us == 0 || now - bt_io->pace_next_us > (int64_t)bt_io->pace_us * 4) {
+        bt_io->pace_next_us = now;
+    }
+    bt_io->pace_next_us += bt_io->pace_us;
+
+    int64_t wait_us = bt_io->pace_next_us - now;
+    if (wait_us <= 0) {
+        return;
+    }
+    TickType_t ticks = pdMS_TO_TICKS((wait_us + 999) / 1000);
+    vTaskDelay(ticks ? ticks : 1);
+}
+
+static esp_gmf_err_t _bt_writer_io(esp_gmf_io_handle_t io, const char *action,
+                                   bt_io_stream_t **out)
+{
+    *out = NULL;
+    if (io == NULL || strcmp(OBJ_GET_TAG(io), "io_bt") != 0) {
+        ESP_LOGE(TAG, "%s failed: not a Bluetooth writer I/O", action);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+
+    bt_io_cfg_t *cfg = (bt_io_cfg_t *)OBJ_GET_CFG(io);
+    if (cfg == NULL) {
+        ESP_LOGE(TAG, "%s failed: Bluetooth I/O configuration is missing", action);
+        return ESP_GMF_ERR_INVALID_STATE;
+    }
+    if (cfg->dir != ESP_GMF_IO_DIR_WRITER) {
+        ESP_LOGE(TAG, "%s failed: not a Bluetooth writer I/O", action);
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    *out = (bt_io_stream_t *)io;
+    return ESP_GMF_ERR_OK;
+}
 
 static esp_gmf_err_t _bt_new(void *cfg, esp_gmf_obj_handle_t *io)
 {
@@ -37,6 +125,7 @@ static esp_gmf_err_t _bt_delete(esp_gmf_obj_handle_t io)
     if (cfg) {
         esp_gmf_oal_free(cfg);
     }
+    _bt_free_owned_packet_data(bt_io);
     esp_gmf_io_deinit(io);
     esp_gmf_oal_free(bt_io);
     return ESP_GMF_ERR_OK;
@@ -45,7 +134,12 @@ static esp_gmf_err_t _bt_delete(esp_gmf_obj_handle_t io)
 static esp_gmf_err_t _bt_open(esp_gmf_io_handle_t io)
 {
     ESP_LOGD(TAG, "Open, %s-%p", OBJ_GET_TAG(io), io);
+    bt_io_stream_t *bt_io = (bt_io_stream_t *)io;
     bt_io_cfg_t *cfg = (bt_io_cfg_t *)OBJ_GET_CFG(io);
+    bt_io->pace_next_us = 0;
+    if (bt_io->discard) {
+        return ESP_GMF_ERR_OK;
+    }
     if (cfg->stream == NULL) {
         ESP_LOGE(TAG, "Error open Bluetooth I/O, stream = NULL");
         return ESP_GMF_ERR_FAIL;
@@ -55,8 +149,7 @@ static esp_gmf_err_t _bt_open(esp_gmf_io_handle_t io)
 
 static esp_gmf_err_t _bt_close(esp_gmf_io_handle_t io)
 {
-    bt_io_stream_t *bt_io = (bt_io_stream_t *)io;
-    memset(&bt_io->packet, 0, sizeof(esp_bt_audio_stream_packet_t));
+    _bt_free_owned_packet_data((bt_io_stream_t *)io);
     return ESP_GMF_ERR_OK;
 }
 
@@ -103,20 +196,19 @@ static esp_gmf_err_io_t _bt_release_read(esp_gmf_io_handle_t handle, void *paylo
 static esp_gmf_err_io_t _bt_acquire_write(esp_gmf_io_handle_t handle, void *payload, uint32_t wanted_size, int block_ticks)
 {
     bt_io_cfg_t *cfg = (bt_io_cfg_t *)OBJ_GET_CFG(handle);
-    if (cfg->stream == NULL) {
-        ESP_LOGE(TAG, "Error acquire write bt io, stream = NULL");
-        return ESP_GMF_IO_FAIL;
-    }
     esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
     bt_io_stream_t *bt_io = (bt_io_stream_t *)handle;
+    if (bt_io->discard) {
+        return _bt_acquire_discard_packet(bt_io, pload, wanted_size);
+    }
+    if (_bt_owns_packet_data(bt_io)) {
+        _bt_free_owned_packet_data(bt_io);
+    }
     memset(&bt_io->packet, 0, sizeof(esp_bt_audio_stream_packet_t));
     esp_err_t ret = esp_bt_audio_stream_acquire_write(cfg->stream, &bt_io->packet, wanted_size);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Error acquire write bt io, ret=%d", ret);
-        pload->buf = NULL;
-        pload->buf_length = 0;
-        pload->valid_size = 0;
-        return ESP_GMF_IO_FAIL;
+        ESP_LOGW(TAG, "Stream %p refused a write (ret=%d)", cfg->stream, ret);
+        return _bt_acquire_discard_packet(bt_io, pload, wanted_size);
     }
     pload->buf = bt_io->packet.data;
     pload->buf_length = bt_io->packet.size;
@@ -129,16 +221,21 @@ static esp_gmf_err_io_t _bt_release_write(esp_gmf_io_handle_t handle, void *payl
     bt_io_cfg_t *cfg = (bt_io_cfg_t *)OBJ_GET_CFG(handle);
     esp_gmf_payload_t *pload = (esp_gmf_payload_t *)payload;
     bt_io_stream_t *bt_io = (bt_io_stream_t *)handle;
+    if (_bt_owns_packet_data(bt_io) || bt_io->packet.data == NULL) {
+        _bt_clear_payload(pload);
+        _bt_pace_discard(bt_io);
+        return ESP_GMF_IO_OK;
+    }
     bt_io->packet.size = pload->valid_size;
     bt_io->packet.bad_frame = pload->meta_flag & ESP_GMF_META_FLAG_AUD_RECOVERY_PLC;
     bt_io->packet.is_done = pload->is_done;
     esp_err_t ret = esp_bt_audio_stream_release_write(cfg->stream, &bt_io->packet, pdTICKS_TO_MS(block_ticks));
-    ret = ret == ESP_OK ? ESP_GMF_IO_OK : ESP_GMF_IO_FAIL;
-    pload->buf = NULL;
-    pload->buf_length = 0;
-    pload->valid_size = 0;
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Stream %p dropped a payload (ret=%d)", cfg->stream, ret);
+    }
+    _bt_clear_payload(pload);
     memset(&bt_io->packet, 0, sizeof(esp_bt_audio_stream_packet_t));
-    return ret;
+    return ESP_GMF_IO_OK;
 }
 
 esp_gmf_err_t esp_gmf_io_bt_init(bt_io_cfg_t *config, esp_gmf_io_handle_t *io)
@@ -210,5 +307,35 @@ esp_gmf_err_t esp_gmf_io_bt_set_stream(esp_gmf_io_handle_t io, esp_bt_audio_stre
         return ESP_GMF_ERR_FAIL;
     }
 
+    return ESP_GMF_ERR_OK;
+}
+
+esp_gmf_err_t esp_gmf_io_bt_set_discard(esp_gmf_io_handle_t io, bool enable)
+{
+    bt_io_stream_t *bt_io = NULL;
+    esp_gmf_err_t ret = _bt_writer_io(io, "Set discard", &bt_io);
+    if (ret != ESP_GMF_ERR_OK) {
+        return ret;
+    }
+    bt_io_cfg_t *cfg = (bt_io_cfg_t *)OBJ_GET_CFG(io);
+    if (!enable && cfg->stream == NULL) {
+        ESP_LOGE(TAG, "Set discard failed: no bound stream");
+        return ESP_GMF_ERR_INVALID_STATE;
+    }
+
+    bt_io->discard = enable;
+    bt_io->pace_next_us = 0;
+    return ESP_GMF_ERR_OK;
+}
+
+esp_gmf_err_t esp_gmf_io_bt_set_discard_pace(esp_gmf_io_handle_t io, uint32_t frame_us)
+{
+    bt_io_stream_t *bt_io = NULL;
+    esp_gmf_err_t ret = _bt_writer_io(io, "Set discard pace", &bt_io);
+    if (ret != ESP_GMF_ERR_OK) {
+        return ret;
+    }
+    bt_io->pace_us = frame_us;
+    bt_io->pace_next_us = 0;
     return ESP_GMF_ERR_OK;
 }

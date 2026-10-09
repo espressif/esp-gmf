@@ -145,6 +145,31 @@ menu "BT Audio Basic Example (GMF)"
             help
                 Enable the TMAP Unicast Media Receiver role.
 
+        config GMF_EXAMPLE_LE_TMAP_ROLE_UMS
+            bool "TMAP unicast media sender role"
+            depends on GMF_EXAMPLE_LE_USER_CASE_TMAP && BT_BAP_UNICAST_CLIENT && BT_CAP_INITIATOR
+            default n
+            help
+                Enable the TMAP Unicast Media Sender role. The example streams
+                local microSD media to a connected unicast sink.
+
+        config GMF_EXAMPLE_LE_UNICAST_AUTO_RECONNECT
+            bool "Automatically reconnect bonded unicast peers"
+            depends on GMF_EXAMPLE_LE_TMAP_ROLE_UMS
+            default y
+            help
+                Reconnect bonded unicast peers at startup. Remaining coordinated-set
+                members are connected through CSIP discovery.
+
+        config GMF_EXAMPLE_LE_UNICAST_MAX_MEMBERS
+            int "Max unicast group members"
+            depends on GMF_EXAMPLE_LE_TMAP_ROLE_UMS
+            default 2
+            range 1 2
+            help
+                Maximum coordinated-set members to reserve. Actual membership
+                comes from discovery. Set to 1 for a single device.
+
         config GMF_EXAMPLE_LE_TMAP_ROLE_BMR
             bool "TMAP broadcast media receiver role"
             depends on GMF_EXAMPLE_LE_USER_CASE_TMAP
@@ -183,9 +208,38 @@ menu "BT Audio Basic Example (GMF)"
             default 1
             range 1 2
             help
-                Set the number of BIS source streams requested by the example.
-                The esp_bt_audio component clamps this value to the ESP-IDF
-                CONFIG_BT_BAP_BROADCAST_SRC_STREAM_COUNT limit.
+                Number of BIS streams in one BIG. 1 broadcasts a single mono
+                BIS. 2 broadcasts one BIG carrying two BIS streams, with the
+                decoded stereo media split into a front left and a front right
+                stream. Initialization fails if this value exceeds
+                CONFIG_BT_BAP_BROADCAST_SRC_STREAM_COUNT.
+
+        choice GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE
+            prompt "LE Audio broadcast source sample rate"
+            depends on GMF_EXAMPLE_LE_TMAP_ROLE_BMS
+            default GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_48K
+            help
+                LC3 sample rate used by every BIS in the broadcast, for both
+                the single mono stream and the two-stream stereo topology.
+                Decoded media is resampled to this rate before LC3 encoding.
+                Each option selects the matching 10 ms high-quality BAP preset.
+
+            config GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_16K
+                bool "16 kHz"
+                help
+                    16 kHz, 10 ms, 40-byte high-quality LC3 preset.
+
+            config GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_44_1K
+                bool "44.1 kHz"
+                help
+                    44.1 kHz, 10 ms, 130-byte high-quality LC3 preset.
+
+            config GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_48K
+                bool "48 kHz"
+                help
+                    48 kHz, 10 ms, 155-byte high-quality LC3 preset.
+
+        endchoice
 
         choice GMF_EXAMPLE_LE_LOCATION
             prompt "LE Audio location"
@@ -216,10 +270,12 @@ menu "BT Audio Basic Example (GMF)"
 
         config GMF_EXAMPLE_LE_COORDINATE_SET_SIZE
             int "LE Audio coordinate set size"
+            default 1 if GMF_EXAMPLE_LE_TMAP_ROLE_BMS && !GMF_EXAMPLE_LE_TMAP_ROLE_CT && !GMF_EXAMPLE_LE_TMAP_ROLE_UMR && !GMF_EXAMPLE_LE_TMAP_ROLE_BMR
             default 2
             range 0 2
             help
                 Set the CSIP coordinated set size advertised by the LE Audio example.
+                Source-only BMS builds default to 1 so CSIP set-member linkage is not pulled in.
 
         config GMF_EXAMPLE_LE_COORDINATE_SET_RANK
             int

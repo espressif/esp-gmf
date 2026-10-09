@@ -4,30 +4,34 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "esp_gmf_pool.h"
-#include "esp_gmf_err.h"
+#include "sdkconfig.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 
-// GMF Audio Elements
-#include "esp_audio_enc_default.h"
+/* Vendor components */
 #include "esp_audio_dec_default.h"
+#include "esp_audio_enc_default.h"
 #include "esp_audio_simple_dec_default.h"
-#include "esp_gmf_audio_dec.h"
-#include "esp_gmf_audio_enc.h"
-#include "esp_gmf_rate_cvt.h"
-#include "esp_gmf_ch_cvt.h"
-#include "esp_gmf_asrc.h"
-#include "esp_gmf_bit_cvt.h"
-#include "esp_gmf_aec.h"
-
-// GMF IO Types
-#include "esp_gmf_io_codec_dev.h"
-#include "esp_gmf_io_file.h"
-#include "esp_gmf_io_bt.h"
-
-#include "dev_audio_codec.h"
 #include "esp_board_manager.h"
 #include "esp_board_manager_defs.h"
+#include "dev_audio_codec.h"
+
+/* GMF audio elements */
+#include "esp_gmf_aec.h"
+#include "esp_gmf_asrc.h"
+#include "esp_gmf_audio_dec.h"
+#include "esp_gmf_audio_enc.h"
+#include "esp_gmf_bit_cvt.h"
+#include "esp_gmf_ch_cvt.h"
+#include "esp_gmf_copier.h"
+#include "esp_gmf_err.h"
+#include "esp_gmf_pool.h"
+#include "esp_gmf_rate_cvt.h"
+
+/* GMF I/O types */
+#include "esp_gmf_io_bt.h"
+#include "esp_gmf_io_codec_dev.h"
+#include "esp_gmf_io_file.h"
 
 static const char *TAG = "POOL_INIT";
 
@@ -124,6 +128,14 @@ esp_gmf_err_t pool_reg(esp_gmf_pool_handle_t pool)
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register AEC");
     ESP_LOGI(TAG, "Registered: aud_aec");
 
+    esp_gmf_copier_cfg_t copier_cfg = {
+        .copy_num = 2,
+    };
+    ret = esp_gmf_copier_init(&copier_cfg, &element);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init copier");
+    ret = esp_gmf_pool_register_element(pool, element, NULL);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register copier");
+
     // 6. Audio ASRC (aud_asrc)
     esp_asrc_cfg_t asrc_cfg = DEFAULT_ESP_GMF_ASRC_CONFIG();
     asrc_cfg.weight = asrc_stereo_weight;
@@ -163,6 +175,13 @@ esp_gmf_err_t pool_reg(esp_gmf_pool_handle_t pool)
     // 3. File IO - Reader
     file_io_cfg_t file_rx_cfg = FILE_IO_CFG_DEFAULT();
     file_rx_cfg.dir = ESP_GMF_IO_DIR_READER;
+    /* An aligned, DMA-capable read cache avoids per-read bounce buffers on the SD data path */
+    file_rx_cfg.cache_size = 4096;
+#if CONFIG_SOC_SDMMC_PSRAM_DMA_CAPABLE
+    file_rx_cfg.cache_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_CACHE_ALIGNED;
+#else
+    file_rx_cfg.cache_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA;
+#endif  /* CONFIG_SOC_SDMMC_PSRAM_DMA_CAPABLE */
     ret = esp_gmf_io_file_init(&file_rx_cfg, &io);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init file reader");
     ret = esp_gmf_pool_register_io(pool, io, NULL);

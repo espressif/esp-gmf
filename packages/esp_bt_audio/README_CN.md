@@ -27,9 +27,10 @@
   - **PBAP Client Equipment**：拉取手机通讯录与通话记录
 - **LE Audio 协议与角色**
   - **BAP Unicast Server**：暴露 sink/source ASE，用于 LE 单播媒体或通话音频
+  - **CAP Initiator / BAP Unicast Client**：发现远端 Sink ASE，并以 TMAP UMS initiator 推送单耳或 CSIP 协调立体声媒体
   - **BAP Broadcast Source/Sink**：发送或接收 LC3 广播音频流
   - **Scan Delegator**：接收 Broadcast Assistant 的广播发现与同步请求
-  - **TMAP 支持**：配置 CT、UMR、BMR、BMS 等电话与媒体角色组合
+  - **TMAP 支持**：配置 CT、UMR、UMS、BMR、BMS 等电话与媒体角色组合
   - **VCP/MCP/MICP/CCP/CSIP**：支持音量、媒体控制、麦克风、通话控制与协同组能力
 - **事件回调模型**（`esp_bt_audio_event_cb_t`）
   - 连接/发现状态、设备发现
@@ -259,7 +260,9 @@ LE Audio 相关源码会在 NimBLE 以及 ESP-IDF Bluetooth Audio / ISO 选项�
 - `CONFIG_BT_AUDIO`
 - `CONFIG_BT_ISO`
 
-可选 LE profile 开关使用 ESP-IDF Bluetooth Audio 配置，包括 `CONFIG_BT_BAP_UNICAST_SERVER`、`CONFIG_BT_BAP_BROADCAST_SOURCE`、`CONFIG_BT_BAP_BROADCAST_SINK`、`CONFIG_BT_BAP_SCAN_DELEGATOR`、`CONFIG_BT_VCP_VOL_REND`、`CONFIG_BT_MCC`、`CONFIG_BT_MICP_MIC_DEV`、`CONFIG_BT_TBS_CLIENT`、`CONFIG_BT_CSIP_SET_MEMBER` 与 `CONFIG_BT_TMAP`。
+可选 LE profile 开关使用 ESP-IDF Bluetooth Audio 配置，包括 `CONFIG_BT_BAP_UNICAST_SERVER`、`CONFIG_BT_BAP_UNICAST_CLIENT`、`CONFIG_BT_BAP_BROADCAST_SOURCE`、`CONFIG_BT_BAP_BROADCAST_SINK`、`CONFIG_BT_BAP_SCAN_DELEGATOR`、`CONFIG_BT_VCP_VOL_REND`、`CONFIG_BT_MCC`、`CONFIG_BT_MICP_MIC_DEV`、`CONFIG_BT_TBS_CLIENT`、`CONFIG_BT_CSIP_SET_MEMBER` 与 `CONFIG_BT_TMAP`。
+
+BAP Broadcast Source 可通过 `esp_bt_audio_le_bsrc_cfg_t` 配置同一 BIG 内的 `stream_num` 条 BIS，取值范围为 1 到 `CONFIG_BT_BAP_BROADCAST_SRC_STREAM_COUNT`。此外还可配置前 `ESP_BT_AUDIO_LE_BSRC_STREAM_MAX`（2）条流的 `stream_locations[]`（`ESP_BT_AUDIO_AUDIO_LOC_*`，0 表示 mono，超出部分保持 mono），以及按采样率、帧时长、帧大小和可靠性（`HQ` / `HR`）命名的 `lc3_preset`，例如 `ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_16KHZ_10MS_40B_HQ`。`lc3_preset` 为 0 时使用默认的 48 kHz、10 ms、100 字节高质量配置。
 
 #### 开启 GMF I/O 适配层（可选）
 
@@ -408,7 +411,7 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
 1. **注册与创建**：在 GMF Pool 中按方向注册 `io_bt`（reader 和/或 writer），初始化时 `stream` 可填 `NULL`。
 2. **绑定 stream**：在事件回调中收到 `ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG` 且 `state == ESP_BT_AUDIO_STREAM_STATE_ALLOCATED` 时，根据 stream 方向调用 `esp_gmf_io_bt_set_stream(io_handle, stream_handle)`，将当前蓝牙 stream 绑定到对应 pipeline 的 IN 或 OUT。
 3. **方向对应**：Bluetooth **sink** stream（下行，接收）→ 作为 pipeline 的 **IN**，使用 `io_bt` 的 **reader**；Bluetooth **source** stream（上行，发送）→ 作为 pipeline 的 **OUT**，使用 `io_bt` 的 **writer**。
-4. **启停**：在 stream 的 STARTED/STOPPED 等状态变化时，对已绑定该 stream 的 pipeline 执行 run/stop 等控制。
+4. **启停**：在 stream 的 STARTED/STOPPED 等状态变化时，对已绑定该 stream 的 pipeline 执行 run/stop 等控制。LE source packet 由 `io_bt` 入队，再由 stream 层按协商的 SDU 间隔定时通过 BAP stream API 提交；底层调度与流控仍由 `esp_ble_audio` 和 controller 处理。
 
 #### 典型 pipeline 组合
 

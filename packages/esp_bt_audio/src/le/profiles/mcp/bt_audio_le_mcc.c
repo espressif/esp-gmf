@@ -31,6 +31,7 @@
 #define BT_AUDIO_LE_MCC_DURATION_STR_LEN             16
 #define BT_AUDIO_LE_MCC_OP_TIMEOUT_MS                3000
 #define BT_AUDIO_LE_MCC_OP_TIMEOUT_US                (BT_AUDIO_LE_MCC_OP_TIMEOUT_MS * 1000)
+#define BT_AUDIO_LE_MCC_OP_KICK_DELAY_US             1000
 #if CONFIG_BT_MCC_OTS
 #define BT_AUDIO_LE_MCC_METADATA_SUPPORTED_MASK     \
     (ESP_BT_AUDIO_PLAYBACK_METADATA_TITLE |         \
@@ -85,6 +86,8 @@ typedef struct {
     bt_audio_le_mcc_op_node_t *op_tail;                                         /*!< Pending MCC operation list tail */
     SemaphoreHandle_t          op_lock;                                         /*!< Protects the pending MCC operation list */
     esp_timer_handle_t         op_timer;                                        /*!< Watchdog timer for active MCC operation */
+    esp_timer_handle_t         op_kick_timer;                                   /*!< Defers the next operation outside the caller's context */
+    bool                       no_track_obj_id;                                 /*!< Peer's MCS has no Current Track Object ID */
     char                       duration_str[BT_AUDIO_LE_MCC_DURATION_STR_LEN];  /*!< Cached duration string */
 } bt_audio_le_mcc_ctx_t;
 
@@ -237,6 +240,13 @@ static esp_err_t bt_audio_le_mcc_execute_op(const bt_audio_le_mcc_op_node_t *op)
     }
 
     if (ret != ESP_OK) {
+#if CONFIG_BT_MCC_OTS
+        if (op->type == BT_AUDIO_LE_MCC_OP_READ_CURRENT_TRACK_OBJECT_ID && s_mcc) {
+            s_mcc->no_track_obj_id = true;
+            ESP_LOGI(TAG, "Peer has no Current Track Object ID, cover art unavailable");
+            return ret;
+        }
+#endif  /* CONFIG_BT_MCC_OTS */
         ESP_LOGE(TAG, "MCC operation failed: type %d, opcode %u, err %s",
                  op->type, op->opcode, esp_err_to_name(ret));
     }
@@ -271,6 +281,12 @@ static void bt_audio_le_mcc_release_context(bool stop_timer)
         }
         esp_timer_delete(s_mcc->op_timer);
     }
+    if (s_mcc->op_kick_timer) {
+        if (stop_timer) {
+            esp_timer_stop(s_mcc->op_kick_timer);
+        }
+        esp_timer_delete(s_mcc->op_kick_timer);
+    }
     if (s_mcc->op_lock) {
         vSemaphoreDelete(s_mcc->op_lock);
     }
@@ -298,8 +314,6 @@ static inline void bt_audio_le_mcc_reset_active_op(void)
     s_mcc->active_op_opcode = 0;
     s_mcc->active_op_started_us = 0;
 }
-
-static void bt_audio_le_mcc_try_execute_next(void);
 
 static inline void bt_audio_le_mcc_start_op_timer(bt_audio_le_mcc_op_type_t type, uint16_t conn_handle, uint8_t opcode)
 {
@@ -331,6 +345,19 @@ static inline void bt_audio_le_mcc_stop_op_timer(void)
 {
     if (s_mcc && s_mcc->op_timer) {
         esp_timer_stop(s_mcc->op_timer);
+    }
+}
+
+static inline void bt_audio_le_mcc_schedule_next(void)
+{
+    if (!s_mcc || !s_mcc->op_kick_timer) {
+        return;
+    }
+
+    esp_timer_stop(s_mcc->op_kick_timer);
+    esp_err_t ret = esp_timer_start_once(s_mcc->op_kick_timer, BT_AUDIO_LE_MCC_OP_KICK_DELAY_US);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Schedule next MCC operation failed: %s", esp_err_to_name(ret));
     }
 }
 
@@ -401,7 +428,7 @@ static void bt_audio_le_mcc_complete_op(bt_audio_le_mcc_op_type_t type)
     xSemaphoreGive(s_mcc->op_lock);
 
     bt_audio_le_mcc_stop_op_timer();
-    bt_audio_le_mcc_try_execute_next();
+    bt_audio_le_mcc_schedule_next();
 }
 
 static void bt_audio_le_mcc_op_timer_cb(void *arg)
@@ -424,6 +451,11 @@ static void bt_audio_le_mcc_op_timer_cb(void *arg)
     }
     xSemaphoreGive(s_mcc->op_lock);
 
+    bt_audio_le_mcc_schedule_next();
+}
+
+static void bt_audio_le_mcc_kick_timer_cb(void *arg)
+{
     bt_audio_le_mcc_try_execute_next();
 }
 
@@ -450,7 +482,7 @@ static esp_err_t bt_audio_le_mcc_queue_op(bt_audio_le_mcc_op_type_t type, uint16
     bt_audio_le_mcc_insert_pending_op(node);
     xSemaphoreGive(s_mcc->op_lock);
 
-    bt_audio_le_mcc_try_execute_next();
+    bt_audio_le_mcc_schedule_next();
     return ESP_OK;
 }
 
@@ -515,8 +547,10 @@ static esp_err_t bt_audio_le_mcc_request_metadata(uint32_t mask)
     ret = bt_audio_le_mcc_request_metadata_read(ret, mask, ESP_BT_AUDIO_PLAYBACK_METADATA_PLAYING_TIME,
                                                 BT_AUDIO_LE_MCC_OP_READ_TRACK_DURATION, &requested);
 #if CONFIG_BT_MCC_OTS
-    ret = bt_audio_le_mcc_request_metadata_read(ret, mask, ESP_BT_AUDIO_PLAYBACK_METADATA_COVER_ART,
-                                                BT_AUDIO_LE_MCC_OP_READ_CURRENT_TRACK_OBJECT_ID, &requested);
+    if (!s_mcc->no_track_obj_id) {
+        ret = bt_audio_le_mcc_request_metadata_read(ret, mask, ESP_BT_AUDIO_PLAYBACK_METADATA_COVER_ART,
+                                                    BT_AUDIO_LE_MCC_OP_READ_CURRENT_TRACK_OBJECT_ID, &requested);
+    }
 #endif  /* CONFIG_BT_MCC_OTS */
 
     uint32_t unsupported = mask & ~BT_AUDIO_LE_MCC_METADATA_SUPPORTED_MASK;
@@ -567,6 +601,7 @@ static void bt_audio_le_mcc_discover_mcs_cb(esp_ble_conn_t *conn, int err)
 
     if (err == 0) {
         s_mcc->conn_handle = conn->handle;
+        s_mcc->no_track_obj_id = false;
         bt_audio_le_mcc_queue_read_op(BT_AUDIO_LE_MCC_OP_READ_OPCODES_SUPPORTED, conn->handle);
         bt_audio_le_mcc_queue_read_op(BT_AUDIO_LE_MCC_OP_READ_TRACK_TITLE, conn->handle);
         bt_audio_le_mcc_queue_read_op(BT_AUDIO_LE_MCC_OP_READ_TRACK_DURATION, conn->handle);
@@ -856,10 +891,30 @@ static void bt_audio_le_mcc_content_control_id_cb(esp_ble_conn_t *conn, int err,
     bt_audio_le_mcc_complete_op(BT_AUDIO_LE_MCC_OP_READ_CONTENT_CONTROL_ID);
 }
 
+static const esp_ble_audio_mcc_cb_t s_mcc_cbs = {
+    .discover_mcs = bt_audio_le_mcc_discover_mcs_cb,
+    .send_cmd = bt_audio_le_mcc_send_cmd_cb,
+    .cmd_ntf = bt_audio_le_mcc_cmd_ntf,
+    .track_changed_ntf = bt_audio_le_mcc_track_changed_ntf,
+    .read_player_name = bt_audio_le_mcc_read_player_name_cb,
+    .read_track_title = bt_audio_le_mcc_read_track_title_cb,
+    .read_track_duration = bt_audio_le_mcc_read_track_duration_cb,
+    .read_track_position = bt_audio_le_mcc_read_track_position_cb,
+    .read_playback_speed = bt_audio_le_mcc_read_playback_speed_cb,
+    .read_seeking_speed = bt_audio_le_mcc_read_seeking_speed_cb,
+    .read_playing_order = bt_audio_le_mcc_read_playing_order_cb,
+    .read_playing_orders_supported = bt_audio_le_mcc_read_playing_orders_supported_cb,
+    .read_media_state = bt_audio_le_mcc_read_media_state_cb,
+    .read_opcodes_supported = bt_audio_le_mcc_opcodes_supported_cb,
+    .read_content_control_id = bt_audio_le_mcc_content_control_id_cb,
+#if CONFIG_BT_MCC_OTS
+    .read_current_track_obj_id = bt_audio_le_mcc_read_current_track_obj_id_cb,
+    .otc_current_track_object = bt_audio_le_mcc_otc_current_track_object,
+#endif  /* CONFIG_BT_MCC_OTS */
+};
+
 esp_err_t bt_audio_le_mcc_init(void)
 {
-    static esp_ble_audio_mcc_cb_t mcc_cbs;
-
     ESP_RETURN_ON_FALSE(!s_mcc, ESP_ERR_INVALID_STATE, TAG, "MCC already initialized");
 
     s_mcc = heap_caps_calloc_prefer(1, sizeof(*s_mcc), 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
@@ -883,28 +938,18 @@ esp_err_t bt_audio_le_mcc_init(void)
         return ret;
     }
 
-    memset(&mcc_cbs, 0, sizeof(mcc_cbs));
-    mcc_cbs.discover_mcs = bt_audio_le_mcc_discover_mcs_cb;
-    mcc_cbs.send_cmd = bt_audio_le_mcc_send_cmd_cb;
-    mcc_cbs.cmd_ntf = bt_audio_le_mcc_cmd_ntf;
-    mcc_cbs.track_changed_ntf = bt_audio_le_mcc_track_changed_ntf;
-    mcc_cbs.read_player_name = bt_audio_le_mcc_read_player_name_cb;
-    mcc_cbs.read_track_title = bt_audio_le_mcc_read_track_title_cb;
-    mcc_cbs.read_track_duration = bt_audio_le_mcc_read_track_duration_cb;
-    mcc_cbs.read_track_position = bt_audio_le_mcc_read_track_position_cb;
-    mcc_cbs.read_playback_speed = bt_audio_le_mcc_read_playback_speed_cb;
-    mcc_cbs.read_seeking_speed = bt_audio_le_mcc_read_seeking_speed_cb;
-    mcc_cbs.read_playing_order = bt_audio_le_mcc_read_playing_order_cb;
-    mcc_cbs.read_playing_orders_supported = bt_audio_le_mcc_read_playing_orders_supported_cb;
-    mcc_cbs.read_media_state = bt_audio_le_mcc_read_media_state_cb;
-    mcc_cbs.read_opcodes_supported = bt_audio_le_mcc_opcodes_supported_cb;
-    mcc_cbs.read_content_control_id = bt_audio_le_mcc_content_control_id_cb;
-#if CONFIG_BT_MCC_OTS
-    mcc_cbs.read_current_track_obj_id = bt_audio_le_mcc_read_current_track_obj_id_cb;
-    mcc_cbs.otc_current_track_object = bt_audio_le_mcc_otc_current_track_object;
-#endif  /* CONFIG_BT_MCC_OTS */
+    esp_timer_create_args_t kick_timer_args = {
+        .callback = bt_audio_le_mcc_kick_timer_cb,
+        .name = "mcc_op_kick",
+    };
+    ret = esp_timer_create(&kick_timer_args, &s_mcc->op_kick_timer);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Create MCC operation kick timer failed: %s", esp_err_to_name(ret));
+        bt_audio_le_mcc_release_context(false);
+        return ret;
+    }
 
-    ret = esp_ble_audio_mcc_init(&mcc_cbs);
+    ret = esp_ble_audio_mcc_init((esp_ble_audio_mcc_cb_t *)&s_mcc_cbs);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Init MCC failed: %s", esp_err_to_name(ret));
         bt_audio_le_mcc_release_context(false);
@@ -935,6 +980,9 @@ void bt_audio_le_mcc_on_disconnect(void)
 
     bt_audio_ops_set_playback(NULL);
     bt_audio_le_mcc_stop_op_timer();
+    if (s_mcc->op_kick_timer) {
+        esp_timer_stop(s_mcc->op_kick_timer);
+    }
     if (s_mcc->op_lock && xSemaphoreTake(s_mcc->op_lock, portMAX_DELAY) == pdTRUE) {
         bt_audio_le_mcc_clear_pending_ops();
         bt_audio_le_mcc_reset_active_op();

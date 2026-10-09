@@ -741,10 +741,20 @@ static void bt_audio_le_ccp_termination_reason_cb(esp_ble_conn_t *conn, int err,
     bt_audio_le_ccp_dispatch_inactive(resolved_idx, "termination reason notified");
 }
 
+static esp_ble_audio_tbs_client_cb_t s_ccp_cbs = {
+    .discover = bt_audio_le_ccp_discover_cb,
+    .ccid = bt_audio_le_ccp_ccid_cb,
+    .uri_list = bt_audio_le_ccp_uri_list_cb,
+    .originate_call = bt_audio_le_ccp_originate_cb,
+    .terminate_call = bt_audio_le_ccp_terminate_cb,
+    .accept_call = bt_audio_le_ccp_cp_cb,
+    .call_state = bt_audio_le_ccp_read_call_states_cb,
+    .current_calls = bt_audio_le_ccp_current_calls_cb,
+    .termination_reason = bt_audio_le_ccp_termination_reason_cb,
+};
+
 esp_err_t bt_audio_le_ccp_init(bt_audio_le_ccp_ready_cb_t ready_cb, void *user_ctx)
 {
-    static esp_ble_audio_tbs_client_cb_t ccp_cbs;
-
     ESP_RETURN_ON_FALSE(!s_ccp, ESP_ERR_INVALID_STATE, TAG, "CCP already initialized");
 
     s_ccp = heap_caps_calloc_prefer(1, sizeof(*s_ccp), 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT, MALLOC_CAP_DEFAULT);
@@ -782,19 +792,7 @@ esp_err_t bt_audio_le_ccp_init(bt_audio_le_ccp_ready_cb_t ready_cb, void *user_c
         return ret;
     }
 
-    ccp_cbs = (esp_ble_audio_tbs_client_cb_t) {
-        .discover = bt_audio_le_ccp_discover_cb,
-        .ccid = bt_audio_le_ccp_ccid_cb,
-        .uri_list = bt_audio_le_ccp_uri_list_cb,
-        .originate_call = bt_audio_le_ccp_originate_cb,
-        .terminate_call = bt_audio_le_ccp_terminate_cb,
-        .accept_call = bt_audio_le_ccp_cp_cb,
-        .call_state = bt_audio_le_ccp_read_call_states_cb,
-        .current_calls = bt_audio_le_ccp_current_calls_cb,
-        .termination_reason = bt_audio_le_ccp_termination_reason_cb,
-    };
-
-    ret = esp_ble_audio_tbs_client_register_cb(&ccp_cbs);
+    ret = esp_ble_audio_tbs_client_register_cb(&s_ccp_cbs);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Init CCP failed: register callbacks error %s", esp_err_to_name(ret));
         bt_audio_le_ccp_release_context(false);

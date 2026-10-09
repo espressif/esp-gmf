@@ -43,7 +43,7 @@ static const char *TAG = "BT_AUD_HFP_AG";
 static hfp_ag_ctx_t *hfp_ag_ctx = NULL;
 static char c_unknown_call_number[] = "";
 
-static const char *c_connection_state_str[] = {
+static const char * const c_connection_state_str[] = {
     "DISCONNECTED",
     "CONNECTING",
     "CONNECTED",
@@ -51,7 +51,7 @@ static const char *c_connection_state_str[] = {
     "DISCONNECTING",
 };
 
-static const char *c_audio_state_str[] = {
+static const char * const c_audio_state_str[] = {
     "DISCONNECTED",
     "CONNECTING",
     "CONNECTED",
@@ -339,7 +339,6 @@ static void bt_audio_hfp_ag_cb(esp_hf_cb_event_t event, esp_hf_cb_param_t *param
 #if CONFIG_BT_HFP_AUDIO_DATA_PATH_HCI
 static void bt_audio_hfp_ag_audio_data_cb(esp_hf_sync_conn_hdl_t sync_conn_hdl, esp_hf_audio_buff_t *audio_buf, bool is_bad_frame)
 {
-    (void)sync_conn_hdl;
     bt_audio_classic_stream_t *stream = hfp_ag_ctx ? hfp_ag_ctx->snk_stream : NULL;
     if (!stream) {
         esp_hf_ag_audio_buff_free(audio_buf);

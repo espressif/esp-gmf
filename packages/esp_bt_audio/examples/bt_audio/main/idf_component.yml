@@ -18,7 +18,7 @@ dependencies:
     require: "public"
     version: "~0.7"
   espressif/esp_bt_audio:
-    version: "~1.1"
+    version: "~1.2"
     override_path: "../../../../esp_bt_audio"
   espressif/esp_lvgl_port:
     version: "~2.9"

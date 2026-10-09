@@ -19,6 +19,7 @@ extern "C" {
  */
 typedef enum {
     ESP_BT_AUDIO_EVENT_CONNECTION_STATE_CHG,  /*!< Connection state changed event, the event data is esp_bt_audio_event_connection_st_t */
+    ESP_BT_AUDIO_EVENT_CONNECTION_FAILED,     /*!< Connection attempt failed event, the event data is esp_bt_audio_event_connection_failed_t */
     ESP_BT_AUDIO_EVENT_DISCOVERY_STATE_CHG,   /*!< Discovery state changed event, the event data is esp_bt_audio_event_discovery_st_t */
     ESP_BT_AUDIO_EVENT_DEVICE_DISCOVERED,     /*!< Device discovered event, the event data is esp_bt_audio_event_device_discovered_t */
     ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG,      /*!< Stream state changed event, the event data is esp_bt_audio_event_stream_st_t */
@@ -34,16 +35,42 @@ typedef enum {
     ESP_BT_AUDIO_EVENT_PHONEBOOK_HISTORY,     /*!< Phonebook history event, the event data is esp_bt_audio_pb_history_t */
     ESP_BT_AUDIO_EVENT_BIG_SYNC_LOST,         /*!< LE Audio BIG sync lost event */
     ESP_BT_AUDIO_EVENT_PA_SYNC_LOST,          /*!< LE Audio PA sync lost event */
+    ESP_BT_AUDIO_EVENT_UNICAST_REJECTED,      /*!< Unicast rejected an acceptor, the event data is esp_bt_audio_event_unicast_rejected_t */
 } esp_bt_audio_event_t;
+
+/**
+ * @brief  Why a unicast acceptor was left out of the start
+ */
+typedef enum {
+    ESP_BT_AUDIO_UNICAST_REJECT_CONTEXT_UNKNOWN = 0, /*!< Available or Supported Audio Contexts were not discovered */
+    ESP_BT_AUDIO_UNICAST_REJECT_CONTEXT_UNAVAILABLE, /*!< The use-case context is supported but not currently available */
+    ESP_BT_AUDIO_UNICAST_REJECT_CODEC,               /*!< No sink PAC record contains the codec configuration that will be applied */
+    ESP_BT_AUDIO_UNICAST_REJECT_LOCATION,            /*!< Sink Audio Locations do not include a channel this acceptor would carry */
+} esp_bt_audio_unicast_reject_reason_t;
 
 /**
  * @brief  Connection state changed event data
  */
 typedef struct {
-    esp_bt_audio_tech_t  tech;       /*!< Bluetooth technology (Classic/LE) */
-    bool                 connected;  /*!< Connection state */
-    uint8_t              addr[6];    /*!< Remote device Bluetooth address */
+    esp_bt_audio_tech_t  tech;          /*!< Bluetooth technology (Classic/LE) */
+    bool                 connected;     /*!< Connection state */
+    uint8_t              addr[6];       /*!< Remote device Bluetooth address */
+    uint16_t             conn_handle;   /*!< LE ACL handle; zero for Classic events */
 } esp_bt_audio_event_connection_st_t;
+
+/**
+ * @brief  Connection attempt failed event data
+ *
+ *         Posted when an LE connection attempt fails before the peer is
+ *         reported as connected. Distinct from
+ *         `ESP_BT_AUDIO_EVENT_CONNECTION_STATE_CHG` with `connected == false`,
+ *         which means an established connection was later dropped.
+ */
+typedef struct {
+    esp_bt_audio_tech_t  tech;     /*!< Bluetooth technology; currently LE only */
+    uint8_t              addr[6];  /*!< Remote device Bluetooth address */
+    uint8_t              reason;   /*!< Host/controller failure status or disconnect reason */
+} esp_bt_audio_event_connection_failed_t;
 
 /**
  * @brief  Discovery state changed event data
@@ -72,6 +99,9 @@ typedef struct {
             uint32_t  broadcast_id;        /*!< LE broadcast ID if present, otherwise 0 */
             bool      bass_included;       /*!< True if BASS service is advertised */
             bool      pacs_included;       /*!< True if PACS service is advertised */
+            bool      connectable;         /*!< True if the advertising event is connectable */
+            bool      bonded;              /*!< True if the peer is present in the local bond database */
+            uint16_t  tmap_role;           /*!< Advertised TMAP role bitmap, or 0 if absent */
         } le;                              /*!< LE specific discovery data */
     } disc_data;                           /*!< Discovery data union */
 } esp_bt_audio_event_device_discovered_t;
@@ -127,6 +157,18 @@ typedef struct {
     esp_bt_audio_stream_context_t  context;  /*!< Audio context */
     bool                           up_down;  /*!< Volume up/down direction: true: up, false: down */
 } esp_bt_audio_event_vol_relative_t;
+
+/**
+ * @brief  Unicast rejected one acceptor
+ *
+ *         Posted when CAP admission fails for a connected acceptor. The start
+ *         continues with any acceptor that did pass. When none pass, the
+ *         start is aborted.
+ */
+typedef struct {
+    uint16_t                              conn_handle;  /*!< LE ACL handle of the rejected acceptor */
+    esp_bt_audio_unicast_reject_reason_t  reason;       /*!< Why this acceptor was rejected */
+} esp_bt_audio_event_unicast_rejected_t;
 
 /**
  * @brief  Callback function type for Bluetooth events

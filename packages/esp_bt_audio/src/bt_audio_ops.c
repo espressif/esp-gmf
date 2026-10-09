@@ -295,19 +295,16 @@ esp_err_t bt_audio_host_connect(uint8_t own_addr_type, const bt_audio_addr_t *pe
     return bt_ops->host_ops.connect(own_addr_type, peer, params, timeout_ms);
 }
 
+esp_err_t bt_audio_host_connect_cancel(const uint8_t *bt_dev_addr)
+{
+    BT_AUDIO_HOST_RETURN_ON_NO_OP(connect_cancel);
+    return bt_ops->host_ops.connect_cancel(bt_dev_addr);
+}
+
 esp_err_t bt_audio_host_disconnect(uint16_t conn_handle, uint8_t reason)
 {
     BT_AUDIO_HOST_RETURN_ON_NO_OP(disconnect);
     return bt_ops->host_ops.disconnect(conn_handle, reason);
-}
-
-esp_err_t bt_audio_host_conn_find(uint16_t conn_handle, bt_audio_conn_desc_t *desc)
-{
-    BT_AUDIO_HOST_RETURN_ON_NO_OP(conn_find);
-    if (!desc) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    return bt_ops->host_ops.conn_find(conn_handle, desc);
 }
 
 esp_err_t bt_audio_host_acl_connected(uint16_t conn_handle, const bt_audio_addr_t *peer)
@@ -383,27 +380,28 @@ esp_err_t bt_audio_host_id_infer_auto(int privacy, uint8_t *out_addr_type)
     return bt_ops->host_ops.id_infer_auto(privacy, out_addr_type);
 }
 
+size_t bt_audio_host_bond_count(void)
+{
+    if (!bt_ops || !bt_ops->host_ops.bond_count) {
+        return 0;
+    }
+    return bt_ops->host_ops.bond_count();
+}
+
+bool bt_audio_host_bond_exists(const bt_audio_addr_t *addr)
+{
+    if (!bt_ops || !bt_ops->host_ops.bond_exists) {
+        return false;
+    }
+    return bt_ops->host_ops.bond_exists(addr);
+}
+
 const char *bt_audio_host_svc_gap_device_name(void)
 {
     if (!bt_ops || !bt_ops->host_ops.svc_gap_device_name) {
         return NULL;
     }
     return bt_ops->host_ops.svc_gap_device_name();
-}
-
-uint16_t bt_audio_host_iso_free_buf_num_get(uint16_t conn_handle)
-{
-    if (!bt_ops || !bt_ops->host_ops.iso_free_buf_num_get) {
-        return 0;
-    }
-    return bt_ops->host_ops.iso_free_buf_num_get(conn_handle);
-}
-
-esp_err_t bt_audio_host_hci_iso_tx(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                                   bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num)
-{
-    BT_AUDIO_HOST_RETURN_ON_NO_OP(hci_iso_tx);
-    return bt_ops->host_ops.hci_iso_tx(conn_handle, sdu, sdu_len, ts_flag, time_stamp, pkt_seq_num);
 }
 
 esp_err_t bt_audio_host_register_event_cb(void)
@@ -594,6 +592,12 @@ esp_err_t esp_bt_audio_le_connect(uint8_t addr_type, const uint8_t *bt_dev_addr,
     return bt_ops->le_ops.connect(addr_type, bt_dev_addr, timeout_ms);
 }
 
+esp_err_t esp_bt_audio_le_connect_cancel(void)
+{
+    BT_AUDIO_RETURN_ON_NO_OP(le_ops, connect_cancel);
+    return bt_ops->le_ops.connect_cancel();
+}
+
 esp_err_t esp_bt_audio_le_disconnect(void)
 {
     return esp_bt_audio_le_disconnect_peer(NULL);
@@ -628,6 +632,18 @@ esp_err_t esp_bt_audio_le_pa_sync_terminate(void)
 {
     BT_AUDIO_RETURN_ON_NO_OP(le_ops, pa_sync_terminate);
     return bt_ops->le_ops.pa_sync_terminate();
+}
+
+esp_err_t esp_bt_audio_le_unicast_start(void)
+{
+    BT_AUDIO_RETURN_ON_NO_OP(le_ops, unicast_start);
+    return bt_ops->le_ops.unicast_start();
+}
+
+esp_err_t esp_bt_audio_le_unicast_stop(void)
+{
+    BT_AUDIO_RETURN_ON_NO_OP(le_ops, unicast_stop);
+    return bt_ops->le_ops.unicast_stop();
 }
 #endif  /* CONFIG_BT_AUDIO && CONFIG_BT_ISO */
 

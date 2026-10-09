@@ -124,18 +124,18 @@ static void bt_audio_le_aics_description_cb(esp_ble_audio_aics_t *inst, int err,
     }
 }
 
-static esp_ble_audio_vcp_vol_rend_cb_t s_vcp_rend_cbs = {
+static const esp_ble_audio_vcp_vol_rend_cb_t s_vcp_rend_cbs = {
     .state = bt_audio_le_vcp_rend_state_cb,
     .flags = bt_audio_le_vcp_rend_flags_cb,
 };
 
-static esp_ble_audio_vocs_cb_t s_vocs_cbs = {
+static const esp_ble_audio_vocs_cb_t s_vocs_cbs = {
     .state       = bt_audio_le_vocs_state_cb,
     .location    = bt_audio_le_vocs_location_cb,
     .description = bt_audio_le_vocs_description_cb,
 };
 
-static esp_ble_audio_aics_cb_t s_aics_cbs = {
+static const esp_ble_audio_aics_cb_t s_aics_cbs = {
     .state        = bt_audio_le_aics_state_cb,
     .gain_setting = bt_audio_le_aics_gain_setting_cb,
     .type         = bt_audio_le_aics_type_cb,
@@ -164,7 +164,7 @@ esp_err_t bt_audio_le_vcp_rend_init(const esp_bt_audio_le_vcp_rend_cfg_t *cfg,
         s_vocs_param[i].desc_writable = true;
         snprintf(s_vocs_desc[i], sizeof(s_vocs_desc[i]), "Output %u", (unsigned)(i + 1));
         s_vocs_param[i].output_desc = s_vocs_desc[i];
-        s_vocs_param[i].cb = &s_vocs_cbs;
+        s_vocs_param[i].cb = (esp_ble_audio_vocs_cb_t *)&s_vocs_cbs;
     }
     param.vocs_param = s_vocs_param;
 #endif  /* CONFIG_BT_VCP_VOL_REND_VOCS_INSTANCE_COUNT > 0 */
@@ -189,7 +189,7 @@ esp_err_t bt_audio_le_vcp_rend_init(const esp_bt_audio_le_vcp_rend_cfg_t *cfg,
         s_aics_param[i].desc_writable = true;
         snprintf(s_aics_desc[i], sizeof(s_aics_desc[i]), "Input %u", (unsigned)(i + 1));
         s_aics_param[i].description = s_aics_desc[i];
-        s_aics_param[i].cb = &s_aics_cbs;
+        s_aics_param[i].cb = (esp_ble_audio_aics_cb_t *)&s_aics_cbs;
     }
     param.aics_param = s_aics_param;
 #endif  /* CONFIG_BT_VCP_VOL_REND_AICS_INSTANCE_COUNT > 0 */
@@ -197,7 +197,7 @@ esp_err_t bt_audio_le_vcp_rend_init(const esp_bt_audio_le_vcp_rend_cfg_t *cfg,
     param.step = cfg ? cfg->step : 1;
     param.mute = cfg ? cfg->mute : ESP_BLE_AUDIO_VCP_STATE_UNMUTED;
     param.volume = cfg ? cfg->volume : 10;
-    param.cb = &s_vcp_rend_cbs;
+    param.cb = (esp_ble_audio_vcp_vol_rend_cb_t *)&s_vcp_rend_cbs;
 
     if (adv_builder) {
         ESP_GOTO_ON_ERROR(bt_audio_le_adv_builder_add_service_uuid16(adv_builder, ESP_BLE_AUDIO_UUID_VCS_VAL),

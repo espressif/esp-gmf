@@ -6,6 +6,18 @@ config ESP_BT_AUDIO_GMF_IO_SUPPORT
     help
         Enable GMF IO support for ESP Bluetooth Audio.
 
+config ESP_BT_AUDIO_LE_TX_QUEUE_DEPTH
+    int "LE source TX queue depth"
+    depends on BT_AUDIO && BT_ISO
+    range 2 20
+    default 10
+    help
+        Number of SDUs each LE source stream keeps in its host TX queue.
+        Credits hold every member of a CIG or BIG at this depth, so they share
+        the same host transmit latency (this many SDU intervals). Raise it if
+        the encoder cannot keep up and underruns are heard, lower it for less
+        latency.
+
 menuconfig ESP_BT_AUDIO_MONITOR
     bool "Enable ESP Bluetooth Audio monitor features"
     default n

@@ -36,6 +36,10 @@ static char target_device_name[32] = {0};
 static const char *TAG = "CMD_REG";
 #endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE) */
 
+#if CONFIG_GMF_EXAMPLE_A2DP_SOURCE || defined(CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMS)
+#define CMD_VOLUME_REMOTE_CTRL 1
+#endif
+
 static int cmd_playback_play(int argc, char **argv)
 {
     esp_err_t ret = esp_bt_audio_playback_play();
@@ -129,14 +133,14 @@ static int cmd_volume_set(int argc, char **argv)
         printf("Volume must be between 0 and 100\n");
         return 1;
     }
-#if CONFIG_GMF_EXAMPLE_A2DP_SOURCE
+#ifdef CMD_VOLUME_REMOTE_CTRL
     esp_err_t ret = esp_bt_audio_vol_set_absolute((uint32_t)volume);
     if (ret == ESP_OK) {
         printf("Volume set to %d\n", volume);
     } else {
         printf("Failed to set volume: %s\n", esp_err_to_name(ret));
     }
-#else   /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#else   /* CMD_VOLUME_REMOTE_CTRL */
     dev_audio_codec_handles_t *codec_handle = NULL;
     esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&codec_handle);
     esp_codec_dev_set_out_vol(codec_handle->codec_dev, volume);
@@ -147,20 +151,20 @@ static int cmd_volume_set(int argc, char **argv)
     } else {
         printf("Failed to set volume: %s\n", esp_err_to_name(ret));
     }
-#endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#endif  /* CMD_VOLUME_REMOTE_CTRL */
     return 0;
 }
 
 static int cmd_volume_up(int argc, char **argv)
 {
-#if CONFIG_GMF_EXAMPLE_A2DP_SOURCE
+#ifdef CMD_VOLUME_REMOTE_CTRL
     esp_err_t ret = esp_bt_audio_vol_set_relative(true);
     if (ret == ESP_OK) {
         printf("Volume up\n");
     } else {
         printf("Failed to increase volume: %s\n", esp_err_to_name(ret));
     }
-#else   /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#else   /* CMD_VOLUME_REMOTE_CTRL */
     int current_volume = 0;
     dev_audio_codec_handles_t *codec_handle = NULL;
     esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&codec_handle);
@@ -174,20 +178,20 @@ static int cmd_volume_up(int argc, char **argv)
     } else {
         printf("Failed to increase volume: %s\n", esp_err_to_name(ret));
     }
-#endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#endif  /* CMD_VOLUME_REMOTE_CTRL */
     return 0;
 }
 
 static int cmd_volume_down(int argc, char **argv)
 {
-#if CONFIG_GMF_EXAMPLE_A2DP_SOURCE
+#ifdef CMD_VOLUME_REMOTE_CTRL
     esp_err_t ret = esp_bt_audio_vol_set_relative(false);
     if (ret == ESP_OK) {
         printf("Volume down\n");
     } else {
         printf("Failed to decrease volume: %s\n", esp_err_to_name(ret));
     }
-#else   /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#else   /* CMD_VOLUME_REMOTE_CTRL */
     int current_volume = 0;
     dev_audio_codec_handles_t *codec_handle = NULL;
     esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_DAC, (void **)&codec_handle);
@@ -201,7 +205,7 @@ static int cmd_volume_down(int argc, char **argv)
     } else {
         printf("Failed to decrease volume: %s\n", esp_err_to_name(ret));
     }
-#endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
+#endif  /* CMD_VOLUME_REMOTE_CTRL */
     return 0;
 }
 
@@ -344,8 +348,6 @@ static int cmd_ag_connect(int argc, char **argv)
 
 static int cmd_ag_disconnect(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
     if (is_target_bda_empty()) {
         printf("No device is currently connected.\n");
         return 1;
@@ -504,13 +506,16 @@ static int cmd_le_connect(int argc, char **argv)
     if (argc >= 4) {
         timeout_ms = (uint32_t)strtoul(argv[3], NULL, 0);
     }
+    esp_bt_audio_le_scan_stop();
+    esp_bt_audio_le_set_advertising(false);
     esp_err_t ret = esp_bt_audio_le_connect(addr_type, bda, timeout_ms);
     if (ret == ESP_OK) {
         printf("LE connect started (%s)\n", argv[2]);
-    } else {
-        printf("Failed to start LE connect: %s\n", esp_err_to_name(ret));
+        return 0;
     }
-    return ret == ESP_OK ? 0 : 1;
+    esp_bt_audio_le_set_advertising(true);
+    printf("Failed to start LE connect: %s\n", esp_err_to_name(ret));
+    return 1;
 }
 
 static int cmd_le_disconnect(int argc, char **argv)
@@ -527,26 +532,68 @@ static int cmd_le_disconnect(int argc, char **argv)
 #ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
 static int cmd_bms_start(int argc, char **argv)
 {
-    esp_err_t ret = esp_bt_audio_le_broadcast_source_start();
+    bool adv_was_running = esp_bt_audio_le_is_advertising();
+    esp_err_t ret = esp_bt_audio_le_set_advertising(true);
+    if (ret != ESP_OK) {
+        printf("Failed to start BMS advertising: %s\n", esp_err_to_name(ret));
+        return 1;
+    }
+    ret = esp_bt_audio_le_broadcast_source_start();
     if (ret == ESP_OK) {
         printf("BMS stream started\n");
-    } else {
-        printf("Failed to start BMS stream: %s\n", esp_err_to_name(ret));
+        return 0;
     }
-    return ret == ESP_OK ? 0 : 1;
+    printf("Failed to start BMS stream: %s\n", esp_err_to_name(ret));
+    if (!adv_was_running) {
+        esp_err_t adv_ret = esp_bt_audio_le_set_advertising(false);
+        if (adv_ret != ESP_OK) {
+            printf("Failed to restore BMS advertising: %s\n", esp_err_to_name(adv_ret));
+        }
+    }
+    return 1;
 }
 
 static int cmd_bms_stop(int argc, char **argv)
 {
     esp_err_t ret = esp_bt_audio_le_broadcast_source_stop();
-    if (ret == ESP_OK) {
-        printf("BMS stream stopped\n");
-    } else {
+    if (ret != ESP_OK) {
         printf("Failed to stop BMS stream: %s\n", esp_err_to_name(ret));
+        return 1;
+    }
+    ret = esp_bt_audio_le_set_advertising(false);
+    if (ret != ESP_OK) {
+        printf("Failed to stop BMS advertising: %s\n", esp_err_to_name(ret));
+        return 1;
+    }
+    printf("BMS stream stopped\n");
+    return 0;
+}
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
+
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMS
+static int cmd_ums_start(int argc, char **argv)
+{
+    esp_err_t ret = esp_bt_audio_le_unicast_start();
+    if (ret == ESP_OK) {
+        printf("UMS start requested on ASE-ready members "
+               "(CSIP set search runs automatically after connect/CSIS).\n");
+    } else {
+        printf("Failed to start UMS stream: %s\n", esp_err_to_name(ret));
     }
     return ret == ESP_OK ? 0 : 1;
 }
-#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
+
+static int cmd_ums_stop(int argc, char **argv)
+{
+    esp_err_t ret = esp_bt_audio_le_unicast_stop();
+    if (ret == ESP_OK) {
+        printf("UMS unicast stopped\n");
+    } else {
+        printf("Failed to stop UMS stream: %s\n", esp_err_to_name(ret));
+    }
+    return ret == ESP_OK ? 0 : 1;
+}
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 
 #if CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SOURCE)
@@ -883,6 +930,28 @@ void cli_register_bt(void)
         ESP_ERROR_CHECK(esp_console_cmd_register(&bms_stop_cmd));
     }
 #endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
+
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMS
+    {
+        const esp_console_cmd_t ums_start_cmd = {
+            .command = "ums_start",
+            .help = "Start UMS on ASE-ready members (set search is automatic after CSIS)",
+            .hint = NULL,
+            .func = &cmd_ums_start,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&ums_start_cmd));
+    }
+
+    {
+        const esp_console_cmd_t ums_stop_cmd = {
+            .command = "ums_stop",
+            .help = "Stop UMS unicast client stream",
+            .hint = NULL,
+            .func = &cmd_ums_stop,
+        };
+        ESP_ERROR_CHECK(esp_console_cmd_register(&ums_stop_cmd));
+    }
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 }
 

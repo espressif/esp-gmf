@@ -22,6 +22,7 @@ extern "C" {
 
 #define ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT   (0x01)
 #define ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT  (0x02)
+#define ESP_BT_AUDIO_LE_BSRC_STREAM_MAX     (2)
 
 /**
  * @brief  Enumeration for Bluetooth audio technologies
@@ -75,6 +76,7 @@ typedef enum {
     ESP_BT_AUDIO_LE_ROLE_BROADCAST_SINK   = 0x0002,  /*!< LE Audio Broadcast Sink role */
     ESP_BT_AUDIO_LE_ROLE_BROADCAST_SOURCE = 0x0004,  /*!< LE Audio Broadcast Source role */
     ESP_BT_AUDIO_LE_ROLE_SCAN_DELEGATOR   = 0x0008,  /*!< LE Audio Scan Delegator role */
+    ESP_BT_AUDIO_LE_ROLE_UNICAST_CLIENT   = 0x0010,  /*!< LE Audio Unicast Client role */
 } esp_bt_audio_le_role_t;
 
 /**
@@ -106,7 +108,7 @@ typedef struct {
     uint8_t  coordinate_set_size;  /*!< Coordinated set size */
     uint8_t  rank;                 /*!< Set member rank, starting at 1 */
     uint8_t  sirk[16];             /*!< Set identity resolving key */
-} esp_bt_audio_le_csip_cfg_t;
+} esp_bt_audio_le_csip_set_member_cfg_t;
 
 /**
  * @brief  Structure for LE Audio VCP renderer configuration
@@ -118,26 +120,75 @@ typedef struct {
 } esp_bt_audio_le_vcp_rend_cfg_t;
 
 /**
+ * @brief  BAP LC3 broadcast source presets
+ *
+ *         Presets are ordered by sample rate, frame duration, frame size, and
+ *         reliability (`HQ` / `HR`). `DEFAULT` preserves the historical 48 kHz,
+ *         10 ms, 100-byte high-quality configuration.
+ */
+typedef enum {
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_DEFAULT = 0,                  /*!< 48 kHz, 10 ms, 100 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_8KHZ_7_5MS_26B_HQ,            /*!< 8 kHz, 7.5 ms, 26 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_8KHZ_7_5MS_26B_HR,            /*!< 8 kHz, 7.5 ms, 26 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_8KHZ_10MS_30B_HQ,             /*!< 8 kHz, 10 ms, 30 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_8KHZ_10MS_30B_HR,             /*!< 8 kHz, 10 ms, 30 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_16KHZ_7_5MS_30B_HQ,           /*!< 16 kHz, 7.5 ms, 30 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_16KHZ_7_5MS_30B_HR,           /*!< 16 kHz, 7.5 ms, 30 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_16KHZ_10MS_40B_HQ,            /*!< 16 kHz, 10 ms, 40 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_16KHZ_10MS_40B_HR,            /*!< 16 kHz, 10 ms, 40 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_24KHZ_7_5MS_45B_HQ,           /*!< 24 kHz, 7.5 ms, 45 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_24KHZ_7_5MS_45B_HR,           /*!< 24 kHz, 7.5 ms, 45 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_24KHZ_10MS_60B_HQ,            /*!< 24 kHz, 10 ms, 60 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_24KHZ_10MS_60B_HR,            /*!< 24 kHz, 10 ms, 60 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_32KHZ_7_5MS_60B_HQ,           /*!< 32 kHz, 7.5 ms, 60 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_32KHZ_7_5MS_60B_HR,           /*!< 32 kHz, 7.5 ms, 60 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_32KHZ_10MS_80B_HQ,            /*!< 32 kHz, 10 ms, 80 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_32KHZ_10MS_80B_HR,            /*!< 32 kHz, 10 ms, 80 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_44_1KHZ_7_5MS_97B_HQ,         /*!< 44.1 kHz, 7.5 ms, 97 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_44_1KHZ_7_5MS_97B_HR,         /*!< 44.1 kHz, 7.5 ms, 97 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_44_1KHZ_10MS_130B_HQ,         /*!< 44.1 kHz, 10 ms, 130 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_44_1KHZ_10MS_130B_HR,         /*!< 44.1 kHz, 10 ms, 130 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_7_5MS_75B_HQ,           /*!< 48 kHz, 7.5 ms, 75 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_7_5MS_75B_HR,           /*!< 48 kHz, 7.5 ms, 75 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_7_5MS_90B_HQ,           /*!< 48 kHz, 7.5 ms, 90 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_7_5MS_90B_HR,           /*!< 48 kHz, 7.5 ms, 90 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_7_5MS_117B_HQ,          /*!< 48 kHz, 7.5 ms, 117 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_7_5MS_117B_HR,          /*!< 48 kHz, 7.5 ms, 117 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_10MS_100B_HQ,           /*!< 48 kHz, 10 ms, 100 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_10MS_100B_HR,           /*!< 48 kHz, 10 ms, 100 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_10MS_120B_HQ,           /*!< 48 kHz, 10 ms, 120 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_10MS_120B_HR,           /*!< 48 kHz, 10 ms, 120 bytes, high reliability */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_10MS_155B_HQ,           /*!< 48 kHz, 10 ms, 155 bytes, high quality */
+    ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_10MS_155B_HR,           /*!< 48 kHz, 10 ms, 155 bytes, high reliability */
+} esp_bt_audio_le_bsrc_lc3_preset_t;
+
+/**
  * @brief  Structure for LE Audio Broadcast Source configuration
  */
 typedef struct {
-    uint8_t  broadcast_code[16];  /*!< Broadcast code string bytes, zero-padded */
-    uint8_t  broadcast_name[32];  /*!< Broadcast name */
-    uint8_t  stream_num;          /*!< Number of streams */
+    uint8_t                            broadcast_code[16];                                 /*!< Broadcast code string bytes, zero-padded */
+    uint8_t                            broadcast_name[32];                                 /*!< Broadcast name */
+    uint8_t                            stream_num;                                         /*!< Number of BIS streams in one BIG, from 1 to CONFIG_BT_BAP_BROADCAST_SRC_STREAM_COUNT. 0 is rejected */
+    uint32_t                           stream_locations[ESP_BT_AUDIO_LE_BSRC_STREAM_MAX];  /*!< Unique single location for the first ESP_BT_AUDIO_LE_BSRC_STREAM_MAX BIS (ESP_BT_AUDIO_AUDIO_LOC_*). 0, and any extra BIS, use mono */
+    esp_bt_audio_le_bsrc_lc3_preset_t  lc3_preset;                                         /*!< LC3 broadcast preset. 0 uses 48 kHz, 10 ms, 100-byte HQ */
 } esp_bt_audio_le_bsrc_cfg_t;
 
 /**
  * @brief  Structure for LE Audio configuration
  */
 typedef struct {
-    uint32_t                        roles;      /*!< LE roles for the selected user case, e.g. ESP_BLE_AUDIO_TMAP_ROLE_* for TMAP */
-    uint32_t                        user_case;  /*!< LE Audio use case, e.g. esp_bt_audio_le_user_case_t */
-    uint8_t                         snk_cnt;    /*!< Number of sink ASEs to register as unicast server */
-    uint8_t                         src_cnt;    /*!< Number of source ASEs to register as unicast server */
-    esp_bt_audio_le_pacs_cfg_t      pacs;       /*!< PACS configuration */
-    esp_bt_audio_le_csip_cfg_t      csip;       /*!< CSIP set member configuration */
-    esp_bt_audio_le_vcp_rend_cfg_t  vcp_rend;   /*!< VCP renderer configuration */
-    esp_bt_audio_le_bsrc_cfg_t      bsrc;       /*!< Broadcast source configuration */
+    uint32_t                        roles;                     /*!< LE roles for the selected user case, e.g. ESP_BLE_AUDIO_TMAP_ROLE_* for TMAP */
+    uint32_t                        user_case;                 /*!< LE Audio use case, e.g. esp_bt_audio_le_user_case_t */
+    uint8_t                         snk_cnt;                   /*!< Number of sink ASEs to register as unicast server */
+    uint8_t                         src_cnt;                   /*!< Number of source ASEs to register as unicast server */
+    uint8_t                         src_send_task_core_id;     /*!< Source send task core ID */
+    uint8_t                         src_send_task_prio;        /*!< LE source send task priority. Must be less than 24 */
+    uint32_t                        src_send_task_stack_size;  /*!< LE source send task stack size in bytes. Must be greater than 0 */
+    uint8_t                         max_unicast_members;       /*!< Unicast member slots; 0 means 2, >2 is clamped */
+    esp_bt_audio_le_pacs_cfg_t      pacs;                      /*!< PACS configuration */
+    esp_bt_audio_le_csip_set_member_cfg_t  csip_set_member;    /*!< CSIP set member configuration */
+    esp_bt_audio_le_vcp_rend_cfg_t  vcp_rend;                  /*!< VCP renderer configuration */
+    esp_bt_audio_le_bsrc_cfg_t      bsrc;                      /*!< Broadcast source configuration */
 } esp_bt_audio_le_cfg_t;
 
 #ifdef __cplusplus

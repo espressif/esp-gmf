@@ -136,7 +136,7 @@ typedef struct {
                                                       */
     uint32_t                          cfg_size;     /*!< Size of the codec configuration */
     uint32_t                          sample_rate;  /*!< Sample rate in Hz */
-    uint32_t                          channels;     /*!< Number of channels */
+    uint32_t                          channels;     /*!< Audio channel location bit mask (ESP_BT_AUDIO_AUDIO_LOC_*) */
     uint32_t                          bits;         /*!< Bit width per sample */
     uint32_t                          frame_size;   /*!< Frame size in bytes */
 } esp_bt_audio_stream_codec_info_t;
@@ -239,8 +239,10 @@ void *esp_bt_audio_stream_set_local_data(esp_bt_audio_stream_handle_t handle, vo
  * @param[in]  wanted_size  Wanted buffer size in bytes
  *
  * @return
- *       - ESP_OK  On success
- *       - Others  On failure
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_INVALID_ARG    If an argument is invalid
+ *       - ESP_ERR_INVALID_STATE  If the stream cannot provide a write buffer
+ *       - ESP_ERR_NO_MEM         If packet buffer allocation fails
  */
 esp_err_t esp_bt_audio_stream_acquire_write(esp_bt_audio_stream_handle_t handle, esp_bt_audio_stream_packet_t *packet, uint32_t wanted_size);
 
@@ -252,8 +254,12 @@ esp_err_t esp_bt_audio_stream_acquire_write(esp_bt_audio_stream_handle_t handle,
  * @param[in]  wait_ms  Wait time in milliseconds
  *
  * @return
- *       - ESP_OK  On success
- *       - Others  On failure
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_INVALID_ARG    If an argument is invalid
+ *       - ESP_ERR_INVALID_STATE  If the stream cannot accept a write packet
+ *       - ESP_ERR_INVALID_SIZE   If the packet exceeds the supported size
+ *       - ESP_ERR_TIMEOUT        If the packet cannot be queued within @p wait_ms
+ *       - Other                  Profile-specific transport errors
  */
 esp_err_t esp_bt_audio_stream_release_write(esp_bt_audio_stream_handle_t handle, esp_bt_audio_stream_packet_t *packet, uint32_t wait_ms);
 
@@ -293,7 +299,7 @@ esp_err_t esp_bt_audio_stream_release_read(esp_bt_audio_stream_handle_t handle, 
  *       - ESP_ERR_INVALID_ARG    Invalid argument
  *       - ESP_ERR_INVALID_STATE  Invalid stream state
  */
-esp_err_t esp_bt_audio_stream_get_iso_interval(esp_bt_audio_stream_handle_t handle, uint16_t *iso_interval);
+esp_err_t esp_bt_audio_stream_get_iso_interval(esp_bt_audio_stream_handle_t handle, uint32_t *iso_interval);
 
 #ifdef __cplusplus
 }

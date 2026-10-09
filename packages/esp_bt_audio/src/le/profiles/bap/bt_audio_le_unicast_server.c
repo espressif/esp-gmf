@@ -108,7 +108,6 @@ static int bt_audio_le_unicast_server_qos_cb(esp_ble_audio_bap_stream_t *stream,
     }
     ESP_LOGI(TAG, "QoS config: presentation delay %u, max SDU %u", qos->pd, qos->sdu);
     le_stream->presentation_delay = qos->pd;
-    le_stream->max_sdu = qos->sdu;
     *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_SUCCESS,
                                       ESP_BLE_AUDIO_BAP_ASCS_REASON_NONE);
     return 0;
@@ -183,55 +182,24 @@ static int bt_audio_le_unicast_server_metadata_cb(esp_ble_audio_bap_stream_t *st
     return 0;
 }
 
-static int bt_audio_le_unicast_server_disable_cb(esp_ble_audio_bap_stream_t *stream,
-                                                 esp_ble_audio_bap_ascs_rsp_t *rsp)
+static int bt_audio_le_unicast_server_accept_cb(esp_ble_audio_bap_stream_t *stream,
+                                                esp_ble_audio_bap_ascs_rsp_t *rsp)
 {
-    bt_audio_le_stream_t *le_stream = NULL;
-    bt_audio_le_stream_find_by_bap_stream(stream, &le_stream);
-    if (le_stream) {
-        le_stream->started = false;
-    }
     *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_SUCCESS,
                                       ESP_BLE_AUDIO_BAP_ASCS_REASON_NONE);
     return 0;
 }
 
-static int bt_audio_le_unicast_server_stop_cb(esp_ble_audio_bap_stream_t *stream,
-                                              esp_ble_audio_bap_ascs_rsp_t *rsp)
-{
-    bt_audio_le_stream_t *le_stream = NULL;
-    bt_audio_le_stream_find_by_bap_stream(stream, &le_stream);
-    if (le_stream) {
-        le_stream->started = false;
-    }
-    *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_SUCCESS,
-                                      ESP_BLE_AUDIO_BAP_ASCS_REASON_NONE);
-    return 0;
-}
-
-static int bt_audio_le_unicast_server_release_cb(esp_ble_audio_bap_stream_t *stream,
-                                                 esp_ble_audio_bap_ascs_rsp_t *rsp)
-{
-    bt_audio_le_stream_t *le_stream = NULL;
-    bt_audio_le_stream_find_by_bap_stream(stream, &le_stream);
-    if (le_stream) {
-        le_stream->started = false;
-    }
-    *rsp = ESP_BLE_AUDIO_BAP_ASCS_RSP(ESP_BLE_AUDIO_BAP_ASCS_RSP_CODE_SUCCESS,
-                                      ESP_BLE_AUDIO_BAP_ASCS_REASON_NONE);
-    return 0;
-}
-
-static esp_ble_audio_bap_unicast_server_cb_t s_unicast_server_cb = {
+static const esp_ble_audio_bap_unicast_server_cb_t s_unicast_server_cb = {
     .config   = bt_audio_le_unicast_server_config_cb,
     .reconfig = bt_audio_le_unicast_server_reconfig_cb,
     .qos      = bt_audio_le_unicast_server_qos_cb,
     .enable   = bt_audio_le_unicast_server_enable_cb,
     .start    = bt_audio_le_unicast_server_start_cb,
     .metadata = bt_audio_le_unicast_server_metadata_cb,
-    .disable  = bt_audio_le_unicast_server_disable_cb,
-    .stop     = bt_audio_le_unicast_server_stop_cb,
-    .release  = bt_audio_le_unicast_server_release_cb,
+    .disable  = bt_audio_le_unicast_server_accept_cb,
+    .stop     = bt_audio_le_unicast_server_accept_cb,
+    .release  = bt_audio_le_unicast_server_accept_cb,
 };
 
 static inline esp_err_t bt_audio_le_unicast_server_create_streams(bt_audio_le_stream_t ***streams, uint8_t count)
@@ -283,6 +251,13 @@ esp_err_t bt_audio_le_unicast_server_init(const esp_bt_audio_le_cfg_t *cfg, bt_a
                       "Failed to create sink streams");
     ESP_GOTO_ON_ERROR(bt_audio_le_unicast_server_create_streams(&s_us->source_streams, s_us->source_count), fail, TAG,
                       "Failed to create source streams");
+    for (uint8_t i = 0; i < s_us->source_count; i++) {
+        ESP_GOTO_ON_ERROR(bt_audio_le_stream_set_tx_task_cfg(s_us->source_streams[i],
+                                                              cfg->src_send_task_core_id,
+                                                              cfg->src_send_task_prio,
+                                                              cfg->src_send_task_stack_size),
+                          fail, TAG, "Invalid LE source send task configuration");
+    }
 
     if (adv_builder) {
         bt_audio_le_adv_builder_add_service_uuid16(adv_builder, ESP_BLE_AUDIO_UUID_ASCS_VAL);

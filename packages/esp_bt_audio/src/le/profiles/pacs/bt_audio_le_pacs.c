@@ -8,40 +8,44 @@
 #include "esp_check.h"
 #include "esp_log.h"
 
+#include "bt_audio_le_pacs.h"
+
+static const char *TAG = "BT_AUD_LE_PACS";
+
+#if CONFIG_BT_PACS
+
 #include "esp_ble_iso_common_api.h"
 #include "esp_ble_audio_codec_api.h"
 #include "esp_ble_audio_defs.h"
 #include "esp_ble_audio_lc3_defs.h"
 #include "esp_ble_audio_pacs_api.h"
 
-#include "bt_audio_le_pacs.h"
-
-static const char *TAG = "BT_AUD_LE_PACS";
-
 static const uint16_t s_sink_ctx_mask = ESP_BLE_AUDIO_CONTEXT_TYPE_ANY;
 static const uint16_t s_source_ctx_mask = ESP_BLE_AUDIO_CONTEXT_TYPE_ANY;
 
-static uint8_t s_sink_codec_data[] = ESP_BLE_AUDIO_CODEC_CAP_LC3_DATA(
+static const uint8_t s_sink_codec_data[] = ESP_BLE_AUDIO_CODEC_CAP_LC3_DATA(
     ESP_BLE_AUDIO_CODEC_CAP_FREQ_ANY,
     ESP_BLE_AUDIO_CODEC_CAP_DURATION_10 | ESP_BLE_AUDIO_CODEC_CAP_DURATION_7_5,
     ESP_BLE_AUDIO_CODEC_CAP_CHAN_COUNT_1 | ESP_BLE_AUDIO_CODEC_CAP_CHAN_COUNT_2,
     26,
     155,
     1);
-static uint8_t s_sink_codec_meta[] = ESP_BLE_AUDIO_CODEC_CAP_LC3_META(s_sink_ctx_mask);
+static const uint8_t s_sink_codec_meta[] = ESP_BLE_AUDIO_CODEC_CAP_LC3_META(s_sink_ctx_mask);
 static const esp_ble_audio_codec_cap_t s_sink_codec_cap =
-    ESP_BLE_AUDIO_CODEC_CAP_LC3(s_sink_codec_data, s_sink_codec_meta);
+    ESP_BLE_AUDIO_CODEC_CAP_LC3_LEN((uint8_t *)s_sink_codec_data, sizeof(s_sink_codec_data),
+                                    (uint8_t *)s_sink_codec_meta, sizeof(s_sink_codec_meta));
 
-static uint8_t s_source_codec_data[] = ESP_BLE_AUDIO_CODEC_CAP_LC3_DATA(
+static const uint8_t s_source_codec_data[] = ESP_BLE_AUDIO_CODEC_CAP_LC3_DATA(
     ESP_BLE_AUDIO_CODEC_CAP_FREQ_ANY,
     ESP_BLE_AUDIO_CODEC_CAP_DURATION_10 | ESP_BLE_AUDIO_CODEC_CAP_DURATION_7_5,
     ESP_BLE_AUDIO_CODEC_CAP_CHAN_COUNT_1 | ESP_BLE_AUDIO_CODEC_CAP_CHAN_COUNT_2,
     26,
     155,
     1);
-static uint8_t s_source_codec_meta[] = ESP_BLE_AUDIO_CODEC_CAP_LC3_META(s_source_ctx_mask);
+static const uint8_t s_source_codec_meta[] = ESP_BLE_AUDIO_CODEC_CAP_LC3_META(s_source_ctx_mask);
 static const esp_ble_audio_codec_cap_t s_source_codec_cap =
-    ESP_BLE_AUDIO_CODEC_CAP_LC3(s_source_codec_data, s_source_codec_meta);
+    ESP_BLE_AUDIO_CODEC_CAP_LC3_LEN((uint8_t *)s_source_codec_data, sizeof(s_source_codec_data),
+                                    (uint8_t *)s_source_codec_meta, sizeof(s_source_codec_meta));
 
 static esp_ble_audio_pacs_cap_t s_sink_cap = {
     .codec_cap = &s_sink_codec_cap,
@@ -126,3 +130,18 @@ void bt_audio_le_pacs_unregister(void)
         s_pacs_registered = false;
     }
 }
+
+#else  /* !CONFIG_BT_PACS */
+
+esp_err_t bt_audio_le_pacs_register(const esp_bt_audio_le_pacs_cfg_t *cfg)
+{
+    ESP_RETURN_ON_FALSE(cfg, ESP_ERR_INVALID_ARG, TAG, "PACS config is NULL");
+    ESP_LOGE(TAG, "PACS requested but CONFIG_BT_PACS is disabled (enable BT_PAC_SNK and/or BT_PAC_SRC)");
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+void bt_audio_le_pacs_unregister(void)
+{
+}
+
+#endif  /* CONFIG_BT_PACS */

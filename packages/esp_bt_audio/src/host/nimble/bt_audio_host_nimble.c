@@ -13,6 +13,7 @@
 #include "host/ble_hs.h"
 #include "host/ble_gap.h"
 #include "host/ble_hs_adv.h"
+#include "host/ble_store.h"
 #include "os/os_mbuf.h"
 #include "services/gap/ble_svc_gap.h"
 
@@ -32,10 +33,6 @@
 typedef struct {
     SemaphoreHandle_t host_exit_sem;                                  /*!< Signals completion of the NimBLE host task */
 } bt_audio_host_nimble_t;
-
-extern uint16_t r_ble_ll_iso_free_buf_num_get(uint16_t conn_handle);
-extern int ble_hs_hci_iso_tx(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                             bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num);
 
 static const char *TAG = "BT_AUD_HOST_NIMBLE";
 static bt_audio_host_nimble_t *s_host;
@@ -156,11 +153,23 @@ static esp_err_t nimble_connect(uint8_t own_addr_type, const bt_audio_addr_t *pe
     cp.itvl_max = params->itvl_max;
     cp.latency = params->latency;
     cp.supervision_timeout = params->supervision_timeout;
+    cp.min_ce_len = params->min_ce_len;
+    cp.max_ce_len = params->max_ce_len;
 
     int rc = ble_gap_connect(own_addr_type, &p, (int32_t)timeout_ms, &cp,
                              nimble_gap_cb, NULL);
     if (rc != 0) {
         ESP_LOGE(TAG, "Connect failed: %d", rc);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
+static esp_err_t nimble_connect_cancel(const uint8_t *bt_dev_addr)
+{
+    int rc = ble_gap_conn_cancel();
+    if (rc != 0 && rc != BLE_HS_EALREADY) {
+        ESP_LOGE(TAG, "Cancel connect failed: %d", rc);
         return ESP_FAIL;
     }
     return ESP_OK;
@@ -173,23 +182,6 @@ static esp_err_t nimble_disconnect(uint16_t conn_handle, uint8_t reason)
         ESP_LOGE(TAG, "Disconnect failed: conn_handle %u, error %d", conn_handle, rc);
         return ESP_FAIL;
     }
-    return ESP_OK;
-}
-
-static esp_err_t nimble_conn_find(uint16_t conn_handle, bt_audio_conn_desc_t *desc)
-{
-    struct ble_gap_conn_desc d = {0};
-
-    if (!desc) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    int rc = ble_gap_conn_find(conn_handle, &d);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Find connection failed: conn_handle %u, error %d", conn_handle, rc);
-        return ESP_ERR_NOT_FOUND;
-    }
-    memcpy(desc->peer_id_addr, d.peer_id_addr.val, sizeof(desc->peer_id_addr));
     return ESP_OK;
 }
 
@@ -336,25 +328,69 @@ static esp_err_t nimble_id_infer_auto(int privacy, uint8_t *out_addr_type)
     return ESP_OK;
 }
 
+static size_t nimble_bond_count(void)
+{
+    const int max_bonds = MYNEWT_VAL(BLE_STORE_MAX_BONDS);
+    ble_addr_t *peers = NULL;
+    int count = 0;
+
+    if (max_bonds <= 0) {
+        return 0;
+    }
+    peers = heap_caps_calloc(max_bonds, sizeof(*peers), MALLOC_CAP_DEFAULT);
+    if (!peers) {
+        return 0;
+    }
+    if (ble_store_util_bonded_peers(peers, &count, max_bonds) != 0) {
+        count = 0;
+    }
+    heap_caps_free(peers);
+    return count > 0 ? (size_t)count : 0;
+}
+
+static bool nimble_bond_exists(const bt_audio_addr_t *addr)
+{
+    const int max_bonds = MYNEWT_VAL(BLE_STORE_MAX_BONDS);
+    ble_addr_t *peers = NULL;
+    bool found = false;
+    int count = 0;
+    uint8_t rpa[6];
+    uint8_t identity[6];
+    uint8_t identity_type = 0;
+    uint8_t match_type;
+    const uint8_t *match_addr;
+
+    if (!addr || max_bonds <= 0) {
+        return false;
+    }
+    match_addr = addr->val;
+    match_type = addr->type;
+    memcpy(rpa, addr->val, sizeof(rpa));
+    if (addr->type == BLE_ADDR_RANDOM &&
+        ble_gap_rpa_resolve(rpa, identity, &identity_type)) {
+        match_addr = identity;
+        match_type = identity_type;
+    }
+    peers = heap_caps_calloc(max_bonds, sizeof(*peers), MALLOC_CAP_DEFAULT);
+    if (!peers) {
+        return false;
+    }
+    if (ble_store_util_bonded_peers(peers, &count, max_bonds) == 0) {
+        for (int i = 0; i < count; i++) {
+            if (memcmp(peers[i].val, match_addr, sizeof(addr->val)) == 0 &&
+                peers[i].type == match_type) {
+                found = true;
+                break;
+            }
+        }
+    }
+    heap_caps_free(peers);
+    return found;
+}
+
 static const char *nimble_svc_gap_device_name(void)
 {
     return ble_svc_gap_device_name();
-}
-
-static uint16_t nimble_iso_free_buf_num_get(uint16_t conn_handle)
-{
-    return r_ble_ll_iso_free_buf_num_get(conn_handle);
-}
-
-static esp_err_t nimble_hci_iso_tx(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                                   bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num)
-{
-    int rc = ble_hs_hci_iso_tx(conn_handle, sdu, sdu_len, ts_flag, time_stamp, pkt_seq_num);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Send HCI ISO data failed: conn_handle %u, error %d", conn_handle, rc);
-        return ESP_FAIL;
-    }
-    return ESP_OK;
 }
 
 static esp_err_t nimble_register_event_cb(void)
@@ -400,8 +436,8 @@ static esp_err_t bt_audio_host_nimble_init(void)
         .disc = nimble_disc,
         .disc_cancel = nimble_disc_cancel,
         .connect = nimble_connect,
+        .connect_cancel = nimble_connect_cancel,
         .disconnect = nimble_disconnect,
-        .conn_find = nimble_conn_find,
         .acl_connected = nimble_acl_connected,
         .acl_disconnected = nimble_acl_disconnected,
         .security_initiate = nimble_security_initiate,
@@ -414,9 +450,9 @@ static esp_err_t bt_audio_host_nimble_init(void)
         .pa_sync_create_cancel = nimble_pa_sync_create_cancel,
         .pa_sync_receive = nimble_pa_sync_receive,
         .id_infer_auto = nimble_id_infer_auto,
+        .bond_count = nimble_bond_count,
+        .bond_exists = nimble_bond_exists,
         .svc_gap_device_name = nimble_svc_gap_device_name,
-        .iso_free_buf_num_get = nimble_iso_free_buf_num_get,
-        .hci_iso_tx = nimble_hci_iso_tx,
         .register_event_cb = nimble_register_event_cb,
         .post_gap_event = nimble_post_gap_event,
     };

@@ -25,7 +25,7 @@ static void bt_audio_le_micp_mute_cb(uint8_t mute_value)
 
 esp_err_t bt_audio_le_micp_init(bt_audio_le_adv_builder_t adv_builder)
 {
-    static esp_ble_audio_micp_mic_dev_cb_t micp_cbs = {
+    static const esp_ble_audio_micp_mic_dev_cb_t micp_cbs = {
         .mute = bt_audio_le_micp_mute_cb,
     };
     static esp_ble_audio_aics_register_param_t aics_param[CONFIG_BT_MICP_MIC_DEV_AICS_INSTANCE_COUNT];
@@ -34,7 +34,7 @@ esp_err_t bt_audio_le_micp_init(bt_audio_le_adv_builder_t adv_builder)
 
     memset(aics_param, 0, sizeof(aics_param));
     micp_param.aics_param = aics_param;
-    micp_param.cb = &micp_cbs;
+    micp_param.cb = (esp_ble_audio_micp_mic_dev_cb_t *)&micp_cbs;
     for (size_t i = 0; i < CONFIG_BT_MICP_MIC_DEV_AICS_INSTANCE_COUNT; i++) {
         aics_param[i].gain_mode = ESP_BLE_AUDIO_AICS_MODE_MANUAL;
         aics_param[i].units = 1;

@@ -24,6 +24,7 @@
 #include "dev_display_lcd.h"
 #include "dev_lcd_touch.h"
 #include "bt_ui.h"
+#include "assets/bt_ui_assets.h"
 #include "lvgl.h"
 #include "jpeg_decoder.h"
 #include "esp_bt_audio_defs.h"
@@ -34,9 +35,10 @@
 #define UI_COVER_TASK_STACK_SIZE  4096
 #define UI_COVER_TASK_PRIO        5
 #define UI_COVER_TASK_CORE_ID     1
+#define BT_UI_LOCK_TIMEOUT_MS     1000
 #define LVGL_DRAW_BUF_LINES       (BT_UI_HEIGHT / 2)
 
-#define BT_UI_FONT_TEXT        (&lv_font_notosanssc_regular_28)
+#define BT_UI_FONT_TEXT        (BT_UI_FONT_CN_28 != NULL ? BT_UI_FONT_CN_28 : &lv_font_montserrat_28)
 #define BT_UI_FONT_ICON        (&lv_font_montserrat_28)
 #define BT_UI_FONT_COVER_ICON  (&lv_font_montserrat_32)
 
@@ -144,13 +146,6 @@ typedef struct {
     void (*next_cb)(void *ctx);                        /*!< Next-track callback */
     void *prev_next_ctx;                               /*!< Context passed to prev_cb and next_cb */
 } bt_ui_media_refs_t;
-
-LV_FONT_DECLARE(lv_font_notosanssc_regular_28)
-
-#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
-LV_IMAGE_DECLARE(cis_stream_icon);
-LV_IMAGE_DECLARE(bis_stream_icon);
-#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 
 static char dialer_number_buf[DIALER_BUF_SIZE];
 static lv_obj_t *dialer_number_label;
@@ -441,9 +436,9 @@ static void bt_ui_media_set_stream_type(lv_obj_t *media_root, esp_bt_audio_strea
     const lv_image_dsc_t *icon = NULL;
 #if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
     if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_UNICAST) {
-        icon = &cis_stream_icon;
+        icon = bt_ui_image(BT_UI_IMAGE_CIS_STREAM);
     } else if (profile == ESP_BT_AUDIO_STREAM_PROFILE_LE_BROADCAST) {
-        icon = &bis_stream_icon;
+        icon = bt_ui_image(BT_UI_IMAGE_BIS_STREAM);
     }
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     if (icon != NULL && refs->cover_type_img != NULL) {
@@ -1018,8 +1013,11 @@ esp_err_t bt_ui_init(void)
         return ret == ESP_OK ? ESP_ERR_INVALID_STATE : ret;
     }
 
-    const lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    lvgl_cfg.task_stack = 10240;
+    lvgl_cfg.task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     ESP_RETURN_ON_ERROR(lvgl_port_init(&lvgl_cfg), TAG, "LVGL port init failed");
+    ESP_RETURN_ON_ERROR(bt_ui_assets_init(), TAG, "UI assets init failed");
 
     lvgl_port_display_cfg_t disp_cfg = {
         .io_handle = lcd_handles->io_handle,
@@ -1155,7 +1153,9 @@ void bt_ui_set_connected(bt_ui_t *ui, bool connected, esp_bt_audio_tech_t tech)
     if (ui == NULL || ui->splash == NULL || ui->main == NULL) {
         return;
     }
-    lvgl_port_lock(0);
+    if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+        return;
+    }
     if (connected) {
         lv_obj_add_flag(ui->splash, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(ui->main, LV_OBJ_FLAG_HIDDEN);
@@ -1178,7 +1178,9 @@ void bt_ui_update_volume(bt_ui_t *ui, int volume)
     if (ui->volume_bar == NULL) {
         return;
     }
-    lvgl_port_lock(0);
+    if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+        return;
+    }
     bt_ui_volume_bar_set_level(ui->volume_bar, ui->volume);
     lvgl_port_unlock();
 }
@@ -1193,7 +1195,9 @@ void bt_ui_update_playback_status(bt_ui_t *ui, uint32_t play_status)
     if (ui == NULL || ui->media == NULL) {
         return;
     }
-    lvgl_port_lock(0);
+    if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+        return;
+    }
     bt_ui_media_set_playing(ui->media, play_status == ESP_BT_AUDIO_PLAYBACK_STATUS_PLAYING);
     lvgl_port_unlock();
 }
@@ -1206,7 +1210,9 @@ void bt_ui_update_track(bt_ui_t *ui, const char *title, const char *artist)
     if (ui->suppress_track_metadata) {
         return;
     }
-    lvgl_port_lock(0);
+    if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+        return;
+    }
     bt_ui_media_set_track(ui->media, title, artist);
     lvgl_port_unlock();
 }
@@ -1235,7 +1241,9 @@ void bt_ui_update_stream_state(bt_ui_t *ui, esp_bt_audio_stream_handle_t stream,
                                  dir == ESP_BT_AUDIO_STREAM_DIR_SOURCE);
         ui->suppress_track_metadata = broadcast_stream;
         ui->stream = stream;
-        lvgl_port_lock(0);
+        if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+            return;
+        }
         if (broadcast_source) {
             if (ui->splash != NULL) {
                 lv_obj_add_flag(ui->splash, LV_OBJ_FLAG_HIDDEN);
@@ -1267,7 +1275,9 @@ void bt_ui_update_stream_state(bt_ui_t *ui, esp_bt_audio_stream_handle_t stream,
                                             dir == ESP_BT_AUDIO_STREAM_DIR_SOURCE);
         ui->stream = NULL;
         ui->suppress_track_metadata = false;
-        lvgl_port_lock(0);
+        if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+            return;
+        }
         bt_ui_media_set_stream_type(ui->media, ESP_BT_AUDIO_STREAM_PROFILE_UNKNOWN);
         if (clear_broadcast_title) {
             bt_ui_media_set_track(ui->media, "", "");
@@ -1289,7 +1299,9 @@ void bt_ui_update_call_state(bt_ui_t *ui, int state, const char *number)
     if (ui == NULL || ui->dialer == NULL) {
         return;
     }
-    lvgl_port_lock(0);
+    if (!lvgl_port_lock(BT_UI_LOCK_TIMEOUT_MS)) {
+        return;
+    }
     bt_ui_dialer_set_call_state(ui->dialer, state, number);
     /* Switch to the dialer tab on any call activity; return to media when idle */
     if (ui->tabview != NULL) {

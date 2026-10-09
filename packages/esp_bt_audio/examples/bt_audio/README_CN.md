@@ -154,7 +154,8 @@ idf.py menuconfig
 - `BT Audio Basic Example (GMF)` → `Classic Audio Roles Configuration` → 选择 HFP 角色（None / HFP Handsfree / HFP Audio Gateway）
 - `BT Audio Basic Example (GMF)` → `Enable LE Audio` → 在目标芯片支持时开启 LE Audio 例程流程
 - 可选：`BT UI Configuration` → `Enable LVGL UI` → 开启本地触屏界面（需要 LCD 与触摸面板）
-- 可选：`LE Audio Configuration` → 选择 LE Audio user case 和 TMAP roles，再配置 LE audio location、source capability、coordinated set size 以及 BIS source name/code/stream count
+- 可选：`LE Audio Configuration` → 选择 LE Audio user case 和 TMAP roles，再配置 LE audio location、source capability、coordinated set size 以及 BIS source name/code/stream count/sample rate
+- 默认启用 `Automatically reconnect bonded unicast peers`：启动时若存在 LE bond，例程会扫描并自动连接第一个广播 PACS 的已绑定设备；双耳的另一成员随后由 CSIP 流程连接。
 - 若为 A2DP Source 或 BIS Source，确保 microSD 相关配置正确，且卡内已放置 `media0.mp3`、`media1.mp3`、`media2.mp3`
 
 > 配置完成后按 `s` 保存，然后按 `Esc` 退出。
@@ -186,7 +187,8 @@ idf.py -p PORT flash monitor
 - **HFP AG**：通过 `start_discovery` 与 `ag_connect <mac>` 发现并连接蓝牙 HF 设备（如耳机）；使用 `call_dial`、`call_answer`、`call_reject` 模拟通话状态变化并打开/关闭 HFP 音频流；使用 `ag_disconnect` 断开连接
 - **PBAP Client**: 通过 `pb_fetch` 指令获取通讯录和通话记录
 - **LE Audio**：使用 `le_scan_start [timeout_ms]` 与 `le_scan_stop` 发现 LE Audio 设备，使用 `le_connect <addr_type> <mac_address> [timeout_ms]` 连接 peer，使用 `le_disconnect` 断开当前 LE ACL 链路。媒体、音量、通话与 stream 事件通过同一套 `esp_bt_audio` 事件路径上报
-- **BIS Source**：使用 `sdkconfig.defaults.esp32s31.nimble` 或 `sdkconfig.defaults.esp32s31.bluedroid` 等 LE Audio defaults 编译，并开启 `GMF_EXAMPLE_LE_TMAP_ROLE_BMS`。启动后例程会使用 `GMF_EXAMPLE_LE_BSRC_NAME` 广播 BIS；执行 `bms_start` 后才会启动 broadcast source stream，执行 `bms_stop` 可停止该 stream。stream 启动期间，共用的 local-to-BT media pipeline 会循环发送 microSD 卡中的 `media0.mp3`、`media1.mp3`、`media2.mp3`。可使用另一块运行 BMR 角色的开发板，或兼容的 LE Audio 广播接收设备同步该广播
+- **TMAP UMS / 协调双耳**：使用 `le_connect` 连接 LE Audio sink，再执行 `ums_start` 推流，`ums_stop` 停止。协调双耳可先连接任意一只，CSIP 会发现另一只，立体声按对端上报的声道位置分配。音量命令作用于整个协调集。
+- **BIS Source**：使用 `sdkconfig.defaults.esp32s31.nimble` 或 `sdkconfig.defaults.esp32s31.bluedroid` 等 LE Audio defaults 编译，并开启 `GMF_EXAMPLE_LE_TMAP_ROLE_BMS`。启动后例程会使用 `GMF_EXAMPLE_LE_BSRC_NAME` 广播 BIS；执行 `bms_start` 后才会启动 broadcast source stream，执行 `bms_stop` 可停止该 stream。`GMF_EXAMPLE_LE_BSRC_STREAM_NUM` 用于选择广播拓扑：取 `1` 时广播 1 个 BIG、其中包含 1 路单声道 BIS；取 `2` 时广播 1 个 BIG、其中包含 2 路 BIS。`GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE` 用于选择两种拓扑共用的 LC3 采样率：16 kHz、44.1 kHz 或 48 kHz。使用 2 路 BIS 时，媒体文件只解码一次并由 copier 复制分路，每一路分别提取一个声道（前左或前右），重采样到所选 BIS 采样率后编码为 LC3。单路 BIS 同样会先把解码后的媒体重采样到该采样率，再编码为 LC3。stream 启动期间会将 microSD 卡中的 `media0.mp3`、`media1.mp3`、`media2.mp3` 编码为 LC3 并循环发送。可使用另一块运行 BMR 角色的开发板，或兼容的 LE Audio 广播接收设备同步该广播
 - **LVGL 触屏 UI**（需 `CONFIG_EXAMPLE_BT_UI_ENABLE=y`）：本地触屏界面在蓝牙连接前显示启动画面，连接后切换到包含两个标签页的主界面——**媒体播放器**（封面显示、曲目标题/艺术家、播放/暂停/上一曲/下一曲控件、CIS/BIS 流类型指示）与**拨号盘**（数字键盘、拨打/挂断、来电/通话状态显示）。音量变化时弹出自动隐藏的**音量条**
 - **配合设备**：A2DP Sink 需手机或其它 A2DP Source；A2DP Source 需蓝牙耳机或音响；HFP HF 需支持 HFP AG 的手机；HFP AG 需蓝牙耳机或其它 HFP HF 设备；LE Audio 单播需兼容的 LE Audio peer；BIS Source/BMR 需兼容的 LE Audio 广播接收/发送设备
 

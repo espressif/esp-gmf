@@ -1,5 +1,7 @@
 # Name,   Type, SubType, Offset,  Size, Flags
 # Note: if you change the phy_init or app partition offset, make sure to change the offset in Kconfig.projbuild
+# 16MB flash: nvs/phy, factory 8M, assets 3M (SCMA mmap: Chinese UI font + stream icons)
 nvs,      data, nvs,     0xB000,  0x4000,
 phy_init, data, phy,     0xf000,  0x1000,
 factory,  app,  factory, 0x10000, 0x800000,
+assets,   data, 0x40,           , 0x300000,

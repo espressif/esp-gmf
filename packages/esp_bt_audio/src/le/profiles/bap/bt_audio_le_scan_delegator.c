@@ -97,7 +97,7 @@ static void bt_audio_le_scan_delegator_scanning_state(struct bt_conn *conn, bool
     ESP_LOGI(TAG, "Broadcast assistant scanning %s", is_scanning ? "started" : "stopped");
 }
 
-static esp_ble_audio_bap_scan_delegator_cb_t s_scan_delegator_cbs = {
+static const esp_ble_audio_bap_scan_delegator_cb_t s_scan_delegator_cbs = {
     .recv_state_updated = bt_audio_le_scan_delegator_recv_state_updated,
     .pa_sync_req        = bt_audio_le_scan_delegator_pa_sync_req,
     .pa_sync_term_req   = bt_audio_le_scan_delegator_pa_sync_term_req,
@@ -112,7 +112,8 @@ esp_err_t bt_audio_le_scan_delegator_init(bt_audio_le_adv_builder_t adv_builder)
     if (adv_builder) {
         bt_audio_le_adv_builder_add_service_uuid16(adv_builder, ESP_BLE_AUDIO_UUID_BASS_VAL);
     }
-    ESP_RETURN_ON_ERROR(esp_ble_audio_bap_scan_delegator_register(&s_scan_delegator_cbs), TAG,
+    ESP_RETURN_ON_ERROR(esp_ble_audio_bap_scan_delegator_register(
+                            (esp_ble_audio_bap_scan_delegator_cb_t *)&s_scan_delegator_cbs), TAG,
                         "Failed to register scan delegator callback");
     s_initialized = true;
     return ESP_OK;

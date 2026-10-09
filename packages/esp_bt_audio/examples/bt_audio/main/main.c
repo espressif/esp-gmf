@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
+
 #include "esp_bt_audio_stream.h"
 #include "sdkconfig.h"
 #include "esp_check.h"
@@ -16,9 +20,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_mac.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
-#include "freertos/task.h"
+#include "esp_timer.h"
 #if CONFIG_BT_ENABLED
 #include "esp_bt.h"
 #endif  /* CONFIG_BT_ENABLED */
@@ -64,11 +66,27 @@
 #define A2DP_SRC_SEND_TASK_STACK_SIZE  4096
 #endif  /* CONFIG_GMF_EXAMPLE_A2DP_SOURCE */
 
+#ifdef CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+#define LE_SRC_SEND_TASK_CORE_ID        0
+#define LE_SRC_SEND_TASK_PRIO           16
+#define LE_SRC_SEND_TASK_STACK_SIZE     4096
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+
 #define PHONEBOOK_ENTRY_LOG_BUF_SIZE  512
 #define APP_CTRL_QUEUE_SIZE           12
 #define APP_CTRL_TASK_STACK_SIZE      3072
 #define APP_CTRL_TASK_PRIO            5
 #define APP_CTRL_TASK_CORE_ID         0
+
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE && defined(CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMS) && \
+    defined(CONFIG_GMF_EXAMPLE_LE_UNICAST_AUTO_RECONNECT)
+#define APP_LE_AUTO_RECONNECT_ENABLED  1
+#define APP_LE_RECONNECT_RETRY_MS      3000
+#define APP_LE_CONNECT_TIMEOUT_MS      10000
+#define APP_LE_SCAN_TIMEOUT_MS         20000
+#else
+#define APP_LE_AUTO_RECONNECT_ENABLED  0
+#endif
 
 static const char *TAG = "BT_AUD_EXAMPLE";
 static const char *media_ctrl_cmd_str[] = {
@@ -132,6 +150,12 @@ static esp_gmf_pool_handle_t pool = NULL;
 static QueueHandle_t app_ctrl_queue = NULL;
 static bool phone_connected = false;
 static esp_bt_audio_tech_t active_connected_tech = ESP_BT_AUDIO_TECH_CLASSIC;
+#if APP_LE_AUTO_RECONNECT_ENABLED
+static esp_timer_handle_t le_reconnect_timer;
+static bool le_reconnect_connecting;
+static uint8_t le_connection_count;
+static uint8_t le_reconnect_target[6];
+#endif
 
 typedef enum {
     VOLUME_CTRL_CMD_ABSOLUTE,
@@ -150,11 +174,29 @@ typedef enum {
     APP_CTRL_MSG_VOLUME,
     APP_CTRL_MSG_CONNECTABLE_RESTORE,
     APP_CTRL_MSG_CONNECTABLE_DISABLE_PEER,
+#if APP_LE_AUTO_RECONNECT_ENABLED
+    APP_CTRL_MSG_LE_RECONNECT_SCAN,
+    APP_CTRL_MSG_LE_RECONNECT_CONNECT,
+    APP_CTRL_MSG_LE_RECONNECT_FAILED,
+    APP_CTRL_MSG_LE_CONNECTION_STATE,
+#endif
 } app_ctrl_msg_id_t;
+
+#if APP_LE_AUTO_RECONNECT_ENABLED
+typedef struct {
+    uint8_t  addr[6];
+    uint8_t  addr_type;
+} app_le_reconnect_candidate_t;
+#endif
 
 typedef union {
     volume_ctrl_cmd_t    volume;
     esp_bt_audio_tech_t  tech;
+#if APP_LE_AUTO_RECONNECT_ENABLED
+    app_le_reconnect_candidate_t           le_candidate;
+    esp_bt_audio_event_connection_st_t     le_connection;
+    esp_bt_audio_event_connection_failed_t le_failure;
+#endif
 } app_ctrl_msg_data_t;
 
 typedef struct {
@@ -297,6 +339,110 @@ static void app_ctrl_handle_volume(const volume_ctrl_cmd_t *cmd)
     }
 }
 
+#if APP_LE_AUTO_RECONNECT_ENABLED
+static void app_le_reconnect_timer_cb(void *arg)
+{
+    app_ctrl_send_cmd(APP_CTRL_MSG_LE_RECONNECT_SCAN, NULL);
+}
+
+static void app_le_reconnect_schedule(uint32_t delay_ms)
+{
+    if (!le_reconnect_timer) {
+        return;
+    }
+    esp_timer_stop(le_reconnect_timer);
+    esp_err_t ret = esp_timer_start_once(le_reconnect_timer, (uint64_t)delay_ms * 1000ULL);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Schedule LE reconnect failed: %s", esp_err_to_name(ret));
+    }
+}
+
+static void app_le_reconnect_scan(void)
+{
+    if (le_connection_count > 0) {
+        return;
+    }
+    if (esp_bt_audio_le_get_bond_count() == 0) {
+        ESP_LOGI(TAG, "No bonded LE Audio peer to reconnect");
+        return;
+    }
+    if (le_reconnect_connecting) {
+        ESP_LOGW(TAG, "LE reconnect attempt timed out");
+        esp_bt_audio_le_connect_cancel();
+        le_reconnect_connecting = false;
+    }
+
+    esp_bt_audio_le_set_advertising(true);
+    esp_err_t ret = esp_bt_audio_le_scan_start(APP_LE_SCAN_TIMEOUT_MS);
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "Scanning for bonded LE Audio peers");
+    } else {
+        ESP_LOGW(TAG, "Start bonded-peer scan failed: %s", esp_err_to_name(ret));
+        app_le_reconnect_schedule(APP_LE_RECONNECT_RETRY_MS);
+    }
+}
+
+static void app_le_reconnect_connect(const app_le_reconnect_candidate_t *candidate)
+{
+    if (le_connection_count > 0 || le_reconnect_connecting) {
+        return;
+    }
+
+    le_reconnect_connecting = true;
+    memcpy(le_reconnect_target, candidate->addr, sizeof(le_reconnect_target));
+    esp_bt_audio_le_scan_stop();
+    esp_bt_audio_le_set_advertising(false);
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    ESP_LOGI(TAG, "Reconnect bonded LE Audio peer %02x:%02x:%02x:%02x:%02x:%02x",
+             candidate->addr[0], candidate->addr[1], candidate->addr[2],
+             candidate->addr[3], candidate->addr[4], candidate->addr[5]);
+    esp_err_t ret = esp_bt_audio_le_connect(candidate->addr_type, candidate->addr,
+                                            APP_LE_CONNECT_TIMEOUT_MS);
+    if (ret == ESP_OK) {
+        app_le_reconnect_schedule(APP_LE_CONNECT_TIMEOUT_MS);
+        return;
+    }
+
+    ESP_LOGW(TAG, "Reconnect API failed: %s", esp_err_to_name(ret));
+    le_reconnect_connecting = false;
+    esp_bt_audio_le_set_advertising(true);
+    app_le_reconnect_schedule(APP_LE_RECONNECT_RETRY_MS);
+}
+
+static void app_le_reconnect_failed(const esp_bt_audio_event_connection_failed_t *failed)
+{
+    if (!le_reconnect_connecting ||
+        memcmp(failed->addr, le_reconnect_target, sizeof(le_reconnect_target)) != 0) {
+        return;
+    }
+
+    ESP_LOGW(TAG, "LE reconnect failed, reason 0x%02x", failed->reason);
+    le_reconnect_connecting = false;
+    esp_bt_audio_le_set_advertising(true);
+    app_le_reconnect_schedule(APP_LE_RECONNECT_RETRY_MS);
+}
+
+static void app_le_connection_state_changed(const esp_bt_audio_event_connection_st_t *conn)
+{
+    if (conn->connected) {
+        if (le_connection_count < UINT8_MAX) {
+            le_connection_count++;
+        }
+        le_reconnect_connecting = false;
+        esp_timer_stop(le_reconnect_timer);
+        return;
+    }
+
+    if (le_connection_count > 0) {
+        le_connection_count--;
+    }
+    if (le_connection_count == 0) {
+        app_le_reconnect_schedule(APP_LE_RECONNECT_RETRY_MS);
+    }
+}
+#endif  /* APP_LE_AUTO_RECONNECT_ENABLED */
+
 static void app_ctrl_task(void *arg)
 {
     app_ctrl_msg_t msg = {0};
@@ -316,6 +462,20 @@ static void app_ctrl_task(void *arg)
             case APP_CTRL_MSG_CONNECTABLE_DISABLE_PEER:
                 bt_audio_disable_peer_connectable(msg.msg_data.tech);
                 break;
+#if APP_LE_AUTO_RECONNECT_ENABLED
+            case APP_CTRL_MSG_LE_RECONNECT_SCAN:
+                app_le_reconnect_scan();
+                break;
+            case APP_CTRL_MSG_LE_RECONNECT_CONNECT:
+                app_le_reconnect_connect(&msg.msg_data.le_candidate);
+                break;
+            case APP_CTRL_MSG_LE_RECONNECT_FAILED:
+                app_le_reconnect_failed(&msg.msg_data.le_failure);
+                break;
+            case APP_CTRL_MSG_LE_CONNECTION_STATE:
+                app_le_connection_state_changed(&msg.msg_data.le_connection);
+                break;
+#endif  /* APP_LE_AUTO_RECONNECT_ENABLED */
             default:
                 ESP_LOGW(TAG, "Unknown app control msg %d", msg.msg_id);
                 break;
@@ -343,6 +503,15 @@ static void setup_app_ctrl_task(void)
         vQueueDelete(app_ctrl_queue);
         app_ctrl_queue = NULL;
     }
+#if APP_LE_AUTO_RECONNECT_ENABLED
+    if (app_ctrl_queue) {
+        esp_timer_create_args_t timer_args = {
+            .callback = app_le_reconnect_timer_cb,
+            .name = "le_app_reconnect",
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&timer_args, &le_reconnect_timer));
+    }
+#endif  /* APP_LE_AUTO_RECONNECT_ENABLED */
 }
 
 static esp_err_t volume_ctrl_get_codec(dev_audio_codec_handles_t **codec_handle)
@@ -438,6 +607,7 @@ static esp_err_t setup_device_name(char *device_name, size_t device_name_size)
 }
 
 #if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+#if CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE > 1
 static int hex_nibble(char c)
 {
     if (c >= '0' && c <= '9') {
@@ -470,6 +640,7 @@ static void bytes_from_hex(const char *hex, uint8_t *out, size_t out_len)
         }
     }
 }
+#endif  /* CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE > 1 */
 
 #ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
 static void bytes_from_string(const char *str, uint8_t *out, size_t out_len)
@@ -480,6 +651,31 @@ static void bytes_from_string(const char *str, uint8_t *out, size_t out_len)
 
     memset(out, 0, out_len);
     memcpy(out, str, strnlen(str, out_len));
+}
+
+static esp_bt_audio_le_bsrc_lc3_preset_t bsrc_lc3_preset(void)
+{
+#if CONFIG_GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_16K
+    return ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_16KHZ_10MS_40B_HQ;
+#elif CONFIG_GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_44_1K
+    return ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_44_1KHZ_10MS_130B_HQ;
+#else
+    return ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_10MS_155B_HQ;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_BSRC_SAMPLE_RATE_16K */
+}
+
+static const char *bsrc_sample_rate_str(esp_bt_audio_le_bsrc_lc3_preset_t preset)
+{
+    switch (preset) {
+        case ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_16KHZ_10MS_40B_HQ:
+            return "16000 Hz";
+        case ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_44_1KHZ_10MS_130B_HQ:
+            return "44100 Hz";
+        case ESP_BT_AUDIO_LE_BSRC_LC3_PRESET_48KHZ_10MS_155B_HQ:
+            return "48000 Hz";
+        default:
+            return "unknown";
+    }
 }
 #endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
@@ -528,8 +724,16 @@ static void setup_bt_audio_config_from_kconfig(esp_bt_audio_config_t *bt_config)
 #ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
     bt_config->le.roles |= ESP_BLE_AUDIO_TMAP_ROLE_BMS;
 #endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
+#ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMS
+    bt_config->le.roles |= ESP_BLE_AUDIO_TMAP_ROLE_UMS;
+    bt_config->le.max_unicast_members = CONFIG_GMF_EXAMPLE_LE_UNICAST_MAX_MEMBERS;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_UMS */
 
+#if CONFIG_GMF_EXAMPLE_LE_LOCATION_FRONT_LEFT_RIGHT
+    bt_config->le.snk_cnt = 2;
+#else
     bt_config->le.snk_cnt = 1;
+#endif
 #ifdef CONFIG_GMF_EXAMPLE_LE_SOURCE_ENABLE
     bt_config->le.src_cnt = 1;
 #else
@@ -563,10 +767,11 @@ static void setup_bt_audio_config_from_kconfig(esp_bt_audio_config_t *bt_config)
         bt_config->le.pacs.source_locations = 0;
     }
 
-    bt_config->le.csip.coordinate_set_size = CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE;
-    bt_config->le.csip.rank = CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_RANK;
+    bt_config->le.csip_set_member.coordinate_set_size = CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE;
+    bt_config->le.csip_set_member.rank = CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_RANK;
 #if CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE > 1
-    bytes_from_hex(CONFIG_GMF_EXAMPLE_LE_CSIP_SIRK, bt_config->le.csip.sirk, sizeof(bt_config->le.csip.sirk));
+    bytes_from_hex(CONFIG_GMF_EXAMPLE_LE_CSIP_SIRK, bt_config->le.csip_set_member.sirk,
+                   sizeof(bt_config->le.csip_set_member.sirk));
 #endif  /* CONFIG_GMF_EXAMPLE_LE_COORDINATE_SET_SIZE > 1 */
 
 #ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
@@ -575,6 +780,11 @@ static void setup_bt_audio_config_from_kconfig(esp_bt_audio_config_t *bt_config)
     bytes_from_string(CONFIG_GMF_EXAMPLE_LE_BSRC_CODE, bt_config->le.bsrc.broadcast_code,
                       sizeof(bt_config->le.bsrc.broadcast_code));
     bt_config->le.bsrc.stream_num = CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM;
+    bt_config->le.bsrc.lc3_preset = bsrc_lc3_preset();
+#if CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM > 1
+    bt_config->le.bsrc.stream_locations[0] = ESP_BT_AUDIO_AUDIO_LOC_FRONT_LEFT;
+    bt_config->le.bsrc.stream_locations[1] = ESP_BT_AUDIO_AUDIO_LOC_FRONT_RIGHT;
+#endif  /* CONFIG_GMF_EXAMPLE_LE_BSRC_STREAM_NUM > 1 */
 #endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
 }
@@ -693,10 +903,20 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
             esp_bt_audio_event_discovery_st_t *discovery_state = (esp_bt_audio_event_discovery_st_t *)event_data;
             ESP_LOGI(TAG, "Device Discovery State Changed:");
             ESP_LOGI(TAG, "  State: %s", discovery_state->discovering ? "Discovering" : "Not discovering");
+#if APP_LE_AUTO_RECONNECT_ENABLED
+            if (discovery_state->tech == ESP_BT_AUDIO_TECH_LE &&
+                !discovery_state->discovering && !le_reconnect_connecting &&
+                le_connection_count == 0) {
+                app_ctrl_send_cmd(APP_CTRL_MSG_LE_RECONNECT_SCAN, NULL);
+            }
+#endif  /* APP_LE_AUTO_RECONNECT_ENABLED */
             break;
         }
         case ESP_BT_AUDIO_EVENT_DEVICE_DISCOVERED: {
             esp_bt_audio_event_device_discovered_t *device_discovered = (esp_bt_audio_event_device_discovered_t *)event_data;
+            if (device_discovered->tech == ESP_BT_AUDIO_TECH_LE && !device_discovered->disc_data.le.pacs_included) {
+                break;
+            }
             ESP_LOGI(TAG, "Device discovered:");
             ESP_LOGI(TAG, "  Name: %s", device_discovered->name);
             ESP_LOGI(TAG, "  Address: %02x:%02x:%02x:%02x:%02x:%02x",
@@ -705,6 +925,24 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
             ESP_LOGI(TAG, "  RSSI: %d dBm", device_discovered->rssi);
             if (device_discovered->tech == ESP_BT_AUDIO_TECH_CLASSIC) {
                 ESP_LOGI(TAG, "  CoD: 0x%06x", device_discovered->disc_data.classic.cod);
+            } else if (device_discovered->tech == ESP_BT_AUDIO_TECH_LE) {
+                ESP_LOGI(TAG, "  Addr type: %u (use with le_connect)",
+                         device_discovered->disc_data.le.addr_type);
+                ESP_LOGI(TAG, "  PACS: %s, BASS: %s",
+                         device_discovered->disc_data.le.pacs_included ? "yes" : "no",
+                         device_discovered->disc_data.le.bass_included ? "yes" : "no");
+#if APP_LE_AUTO_RECONNECT_ENABLED
+                if (device_discovered->disc_data.le.pacs_included &&
+                    device_discovered->disc_data.le.connectable &&
+                    device_discovered->disc_data.le.bonded &&
+                    (device_discovered->disc_data.le.tmap_role & ESP_BLE_AUDIO_TMAP_ROLE_UMR)) {
+                    app_ctrl_msg_data_t msg_data = {0};
+                    memcpy(msg_data.le_candidate.addr, device_discovered->addr,
+                           sizeof(msg_data.le_candidate.addr));
+                    msg_data.le_candidate.addr_type = device_discovered->disc_data.le.addr_type;
+                    app_ctrl_send_cmd(APP_CTRL_MSG_LE_RECONNECT_CONNECT, &msg_data);
+                }
+#endif  /* APP_LE_AUTO_RECONNECT_ENABLED */
             }
             cli_bt_device_found(device_discovered->name, device_discovered->addr);
             break;
@@ -743,7 +981,35 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
 #endif  /* CONFIG_EXAMPLE_BT_UI_ENABLE */
                 }
             }
+#if APP_LE_AUTO_RECONNECT_ENABLED
+            if (conn_st->tech == ESP_BT_AUDIO_TECH_LE) {
+                app_ctrl_msg_data_t msg_data = {
+                    .le_connection = *conn_st,
+                };
+                app_ctrl_send_cmd(APP_CTRL_MSG_LE_CONNECTION_STATE, &msg_data);
+            }
+#endif  /* APP_LE_AUTO_RECONNECT_ENABLED */
             cli_bt_device_conn_st_chg(conn_st->addr, conn_st->connected);
+            break;
+        }
+        case ESP_BT_AUDIO_EVENT_CONNECTION_FAILED: {
+            esp_bt_audio_event_connection_failed_t *failed =
+                (esp_bt_audio_event_connection_failed_t *)event_data;
+            ESP_LOGW(TAG, "Connection failed: tech %u, reason 0x%02x",
+                     failed->tech, failed->reason);
+#if CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE
+            if (failed->tech == ESP_BT_AUDIO_TECH_LE) {
+                esp_bt_audio_le_set_advertising(true);
+            }
+#endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
+#if APP_LE_AUTO_RECONNECT_ENABLED
+            if (failed->tech == ESP_BT_AUDIO_TECH_LE) {
+                app_ctrl_msg_data_t msg_data = {
+                    .le_failure = *failed,
+                };
+                app_ctrl_send_cmd(APP_CTRL_MSG_LE_RECONNECT_FAILED, &msg_data);
+            }
+#endif  /* APP_LE_AUTO_RECONNECT_ENABLED */
             break;
         }
         case ESP_BT_AUDIO_EVENT_STREAM_STATE_CHG: {
@@ -900,6 +1166,12 @@ static void bt_audio_event_cb(esp_bt_audio_event_t event, void *event_data, void
             ESP_LOGI(TAG, "PA sync lost");
             break;
         }
+        case ESP_BT_AUDIO_EVENT_UNICAST_REJECTED: {
+            esp_bt_audio_event_unicast_rejected_t *rejected = event_data;
+            ESP_LOGW(TAG, "Unicast rejected handle %u reason %d",
+                     rejected->conn_handle, (int)rejected->reason);
+            break;
+        }
         default:
             ESP_LOGI(TAG, "bt audio event %d", event);
             break;
@@ -1050,6 +1322,9 @@ void app_main()
         .le.vcp_rend.volume = 50,
         .le.vcp_rend.mute = 0,
         .le.vcp_rend.step = 10,
+        .le.src_send_task_core_id = LE_SRC_SEND_TASK_CORE_ID,
+        .le.src_send_task_prio = LE_SRC_SEND_TASK_PRIO,
+        .le.src_send_task_stack_size = LE_SRC_SEND_TASK_STACK_SIZE,
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     };
     setup_bt_audio_config_from_kconfig(&bt_config);
@@ -1069,12 +1344,19 @@ void app_main()
     ESP_LOGI(TAG, "  Roles: 0x%08" PRIX32, bt_config.le.roles);
     ESP_LOGI(TAG, "  Sink count: %u, Source count: %u",
              bt_config.le.snk_cnt, bt_config.le.src_cnt);
-    ESP_LOGI(TAG, "  Coordinate set size: %u", bt_config.le.csip.coordinate_set_size);
-    ESP_LOGI(TAG, "  Coordinate set rank: %u", bt_config.le.csip.rank);
+    ESP_LOGI(TAG, "  Source send task core ID: %u", bt_config.le.src_send_task_core_id);
+    ESP_LOGI(TAG, "  Source send task priority: %u", bt_config.le.src_send_task_prio);
+    ESP_LOGI(TAG, "  Source send task stack size: %u", bt_config.le.src_send_task_stack_size);
+    ESP_LOGI(TAG, "  Coordinate set size: %u", bt_config.le.csip_set_member.coordinate_set_size);
+    ESP_LOGI(TAG, "  Coordinate set rank: %u", bt_config.le.csip_set_member.rank);
     ESP_LOGI(TAG, "  PACS sink locations: %s", le_audio_locations_to_str(bt_config.le.pacs.sink_locations));
+#if APP_LE_AUTO_RECONNECT_ENABLED
+    ESP_LOGI(TAG, "  Bonded peer auto reconnect: enabled");
+#endif
 #ifdef CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS
     ESP_LOGI(TAG, "  Broadcast source name: %s", bt_config.le.bsrc.broadcast_name);
-    ESP_LOGI(TAG, "  Broadcast source stream count: %u", bt_config.le.bsrc.stream_num);
+    ESP_LOGI(TAG, "  Broadcast source: 1 BIG / %u BIS, %s", bt_config.le.bsrc.stream_num,
+             bsrc_sample_rate_str(bt_config.le.bsrc.lc3_preset));
 #endif  /* CONFIG_GMF_EXAMPLE_LE_TMAP_ROLE_BMS */
 #endif  /* CONFIG_GMF_EXAMPLE_AUDIO_TECH_LE */
     ESP_ERROR_CHECK(esp_bt_audio_init(&bt_config));
@@ -1085,6 +1367,9 @@ void app_main()
 #elif CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_A2DP_SINK)
     ESP_ERROR_CHECK(esp_bt_audio_classic_set_scan_mode(true, true));
 #endif  /* CONFIG_BT_CLASSIC_ENABLED && defined(CONFIG_GMF_EXAMPLE_HFP_AG) */
+#if APP_LE_AUTO_RECONNECT_ENABLED
+    app_ctrl_send_cmd(APP_CTRL_MSG_LE_RECONNECT_SCAN, NULL);
+#endif
     /* Initialize console for user interaction */
     cli_init();
 }

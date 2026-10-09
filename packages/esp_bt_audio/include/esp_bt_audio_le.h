@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include <stddef.h>
+
 #include "esp_types.h"
 #include "esp_err.h"
 
@@ -67,6 +69,22 @@ esp_err_t esp_bt_audio_le_scan_stop(void);
 esp_err_t esp_bt_audio_le_set_advertising(bool enable);
 
 /**
+ * @brief  Query whether LE Audio advertising is currently running.
+ *
+ * @return
+ *       - true   Extended advertising is running
+ *       - false  Advertising is stopped, or LE Audio is not started
+ */
+bool esp_bt_audio_le_is_advertising(void);
+
+/**
+ * @brief  Get the number of locally bonded LE devices.
+ *
+ * @return  Number of LE bonds, or 0 if no host bond database is available.
+ */
+size_t esp_bt_audio_le_get_bond_count(void);
+
+/**
  * @brief  Connect to a LE device.
  *
  * @param[in]  addr_type    LE peer address type.
@@ -80,6 +98,19 @@ esp_err_t esp_bt_audio_le_set_advertising(bool enable);
  *       - Others                 On failure
  */
 esp_err_t esp_bt_audio_le_connect(uint8_t addr_type, const uint8_t *bt_dev_addr, uint32_t timeout_ms);
+
+/**
+ * @brief  Cancel a pending LE connection attempt.
+ *
+ *         Has no effect if the ACL is already established; use
+ *         `esp_bt_audio_le_disconnect_peer()` to drop an active link.
+ *
+ * @return
+ *       - ESP_OK                 On success, or if the ACL is already established
+ *       - ESP_ERR_INVALID_STATE  If LE Audio is not initialized
+ *       - Others                 Failure codes from the host connect-cancel path
+ */
+esp_err_t esp_bt_audio_le_connect_cancel(void);
 
 /**
  * @brief  Disconnect current LE ACL connection.
@@ -156,6 +187,35 @@ esp_err_t esp_bt_audio_le_broadcast_sync(const uint8_t *broadcast_name, const ui
  *       - Others                 On failure
  */
 esp_err_t esp_bt_audio_le_pa_sync_terminate(void);
+
+/**
+ * @brief  Request LE Audio unicast client media streaming to the connected peer.
+ *
+ *         Discovers remote Sink ASEs and runs BAP config/QoS/enable/ISO connect.
+ *         Requires an established LE ACL link and completed GATT discovery.
+ *         Local TX streams are reported as LE unicast SOURCE + MEDIA.
+ *
+ *         `ESP_OK` means the request was accepted. Discovery, CIS setup, and
+ *         streaming complete asynchronously via stream state events. If no
+ *         usable Sink ASE is found, or discovery times out, the client returns
+ *         to idle and `esp_bt_audio_le_unicast_start()` may be called again.
+ *
+ * @return
+ *       - ESP_OK                 Request accepted
+ *       - ESP_ERR_INVALID_STATE  Invalid state
+ *       - Others                 On failure
+ */
+esp_err_t esp_bt_audio_le_unicast_start(void);
+
+/**
+ * @brief  Stop LE Audio unicast client media streaming and release ASEs.
+ *
+ * @return
+ *       - ESP_OK                 On success
+ *       - ESP_ERR_INVALID_STATE  Invalid state
+ *       - Others                 On failure
+ */
+esp_err_t esp_bt_audio_le_unicast_stop(void);
 
 #endif  /* CONFIG_BT_AUDIO && CONFIG_BT_ISO */
 

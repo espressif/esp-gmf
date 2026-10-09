@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.2.0
+
+### Features
+
+- Extended the LE Broadcast Source configuration with a stream count, per-BIS audio locations, and named LC3 broadcast presets
+- Added `esp_bt_audio_le_is_advertising()` to query whether LE advertising is running
+- Added CAP Initiator BAP Unicast Client and TMAP Unicast Media Sender (UMS), including CSIP coordinated-set discovery and dual-earbud stereo
+- Added LE bond-count/discovery metadata and `ESP_BT_AUDIO_EVENT_CONNECTION_FAILED`
+- Added `esp_bt_audio_le_connect_cancel()` to abort a pending LE ACL connection attempt
+
+### Breaking Changes
+
+- Renamed `esp_bt_audio_le_csip_cfg_t` to `esp_bt_audio_le_csip_set_member_cfg_t` and `esp_bt_audio_le_cfg_t.csip` to `csip_set_member`; applications using the old CSIP configuration names must update them
+- Added `conn_handle` to `esp_bt_audio_event_connection_st_t` (Classic events keep it 0); event consumers that copy the struct by the previous layout must be updated
+
+### Bug Fixes
+
+- Fix A2DP sink initialization race condition
+- Aligned LE stream `codec_info.channels` with Classic Bluetooth by storing audio location bits (`ESP_BT_AUDIO_AUDIO_LOC_*`) instead of a channel count
+
 ## v1.1.0~2
 
 ### Changes

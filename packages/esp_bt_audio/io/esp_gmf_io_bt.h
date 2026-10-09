@@ -7,6 +7,9 @@
 
 #pragma once
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "esp_gmf_io.h"
 #include "esp_bt_audio_stream.h"
 
@@ -57,6 +60,41 @@ esp_gmf_err_t esp_gmf_io_bt_init(bt_io_cfg_t *config, esp_gmf_io_handle_t *io);
  *       - ESP_GMF_ERR_INVALID_STATE  Invalid state
  */
 esp_gmf_err_t esp_gmf_io_bt_set_stream(esp_gmf_io_handle_t io, esp_bt_audio_stream_handle_t stream);
+
+/**
+ * @brief  Discard writer payloads instead of sending them to a Bluetooth stream
+ *
+ * @note  Enable discard before opening a writer that has no stream, and to keep a running
+ *        writer alive once its stream is gone. To attach a live stream while the pipeline
+ *        is running, call esp_gmf_io_bt_set_stream first, then disable discard.
+ *
+ * @param[in]  io      I/O handle
+ * @param[in]  enable  true to discard writes, false to use the bound stream
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK             On success
+ *       - ESP_GMF_ERR_INVALID_ARG    Invalid argument
+ *       - ESP_GMF_ERR_INVALID_STATE  Invalid state
+ */
+esp_gmf_err_t esp_gmf_io_bt_set_discard(esp_gmf_io_handle_t io, bool enable);
+
+/**
+ * @brief  Pace discarded writer payloads at one frame per frame period
+ *
+ * @note  A discarding writer otherwise consumes its input as fast as it can, which puts its
+ *        PCM position ahead of the writers that a live stream throttles. Set the audio frame
+ *        duration on every writer of a set that must stay in sync, so a writer without a
+ *        stream still consumes in real time.
+ *
+ * @param[in]  io        I/O handle
+ * @param[in]  frame_us  Frame duration in us, 0 to consume as fast as possible
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK             On success
+ *       - ESP_GMF_ERR_INVALID_ARG    Invalid argument
+ *       - ESP_GMF_ERR_INVALID_STATE  Invalid state
+ */
+esp_gmf_err_t esp_gmf_io_bt_set_discard_pace(esp_gmf_io_handle_t io, uint32_t frame_us);
 
 #ifdef __cplusplus
 }

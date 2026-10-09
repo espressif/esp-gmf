@@ -24,18 +24,28 @@
 #include "esp_ble_audio_common_api.h"
 #include "esp_gap_ble_api.h"
 #include "esp_gattc_api.h"
+#include "tinycrypt/aes.h"
+#include "tinycrypt/constants.h"
 #endif  /* CONFIG_BT_AUDIO && CONFIG_BT_ISO */
 
 #include "bt_audio_evt_dispatcher.h"
 #include "bt_audio_host_ops.h"
 #include "bt_audio_ops.h"
 
+#define BT_AUDIO_BDROID_MAX_LE_PEERS  2
+
+/**
+ * @brief  Connected or pending LE peer tracked by the BlueDroid host.
+ */
+typedef struct {
+    esp_bd_addr_t  addr;          /*!< Peer identity address */
+    uint16_t       conn_handle;   /*!< LE ACL connection handle */
+    bool           valid;         /*!< True while the slot is in use */
+} bt_audio_bluedroid_peer_t;
+
 /* Runtime context for BLE Audio / ISO on BlueDroid. */
 typedef struct {
-    esp_bd_addr_t     ble_peer_addr;                                  /*!< Cached BLE peer address */
-    uint8_t           ble_peer_addr_type;                             /*!< Cached BLE peer address type */
-    uint16_t          ble_conn_handle;                                /*!< Cached BLE connection handle */
-    bool              ble_peer_valid;                                 /*!< Whether the cached peer info is valid */
+    bt_audio_bluedroid_peer_t ble_peers[BT_AUDIO_BDROID_MAX_LE_PEERS];  /*!< Connected/pending LE peers */
     char              ble_dev_name[ESP_BT_AUDIO_HOST_MAX_DEV_NAME_LEN]; /*!< Local BLE device name */
     SemaphoreHandle_t ble_gap_op_sem;                                 /*!< Signals completion of a blocking GAP operation */
     SemaphoreHandle_t ble_gap_op_mutex;                               /*!< Serializes concurrent blocking GAP operations */
@@ -51,9 +61,49 @@ static const char *TAG = "BT_AUD_HOST_BDROID";
 #define BT_AUDIO_BDROID_GAP_OP_TIMEOUT_MS      5000
 #define BT_AUDIO_BDROID_SCAN_DURATION_UNIT_MS  10
 
-extern uint16_t r_ble_ll_iso_free_buf_num_get(uint16_t conn_handle);
-extern int esp_ble_hci_iso_tx(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                              bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num);
+static bt_audio_bluedroid_peer_t *bdroid_peer_find_handle(uint16_t conn_handle)
+{
+    if (!s_host) {
+        return NULL;
+    }
+    for (size_t i = 0; i < BT_AUDIO_BDROID_MAX_LE_PEERS; i++) {
+        if (s_host->ble_peers[i].valid && s_host->ble_peers[i].conn_handle == conn_handle) {
+            return &s_host->ble_peers[i];
+        }
+    }
+    return NULL;
+}
+
+static bt_audio_bluedroid_peer_t *bdroid_peer_find_addr(const uint8_t addr[6])
+{
+    if (!s_host || !addr) {
+        return NULL;
+    }
+    for (size_t i = 0; i < BT_AUDIO_BDROID_MAX_LE_PEERS; i++) {
+        if (s_host->ble_peers[i].valid &&
+            memcmp(s_host->ble_peers[i].addr, addr, sizeof(s_host->ble_peers[i].addr)) == 0) {
+            return &s_host->ble_peers[i];
+        }
+    }
+    return NULL;
+}
+
+static bt_audio_bluedroid_peer_t *bdroid_peer_alloc(const uint8_t addr[6])
+{
+    bt_audio_bluedroid_peer_t *peer = bdroid_peer_find_addr(addr);
+    if (peer) {
+        return peer;
+    }
+    if (!s_host) {
+        return NULL;
+    }
+    for (size_t i = 0; i < BT_AUDIO_BDROID_MAX_LE_PEERS; i++) {
+        if (!s_host->ble_peers[i].valid) {
+            return &s_host->ble_peers[i];
+        }
+    }
+    return NULL;
+}
 
 static uint32_t bdroid_disc_timeout_to_duration(uint32_t timeout_ms)
 {
@@ -70,24 +120,25 @@ static esp_err_t bdroid_acl_connected(uint16_t conn_handle, const bt_audio_addr_
         return ESP_ERR_INVALID_ARG;
     }
 
-    memcpy(s_host->ble_peer_addr, peer->val, sizeof(s_host->ble_peer_addr));
-    s_host->ble_peer_addr_type = peer->type;
-    s_host->ble_conn_handle = conn_handle;
-    s_host->ble_peer_valid = true;
+    bt_audio_bluedroid_peer_t *slot = bdroid_peer_alloc(peer->val);
+    if (!slot) {
+        ESP_LOGE(TAG, "No free LE peer slot for conn_handle %u", conn_handle);
+        return ESP_ERR_NO_MEM;
+    }
+    memcpy(slot->addr, peer->val, sizeof(slot->addr));
+    slot->conn_handle = conn_handle;
+    slot->valid = true;
     return ESP_OK;
 }
 
 static esp_err_t bdroid_acl_disconnected(uint16_t conn_handle)
 {
-    if (!s_host || !s_host->ble_peer_valid ||
-        (s_host->ble_conn_handle != UINT16_MAX && s_host->ble_conn_handle != conn_handle)) {
+    bt_audio_bluedroid_peer_t *peer = bdroid_peer_find_handle(conn_handle);
+    if (!peer) {
         return ESP_OK;
     }
 
-    memset(s_host->ble_peer_addr, 0, sizeof(s_host->ble_peer_addr));
-    s_host->ble_peer_addr_type = 0;
-    s_host->ble_conn_handle = UINT16_MAX;
-    s_host->ble_peer_valid = false;
+    memset(peer, 0, sizeof(*peer));
     return ESP_OK;
 }
 
@@ -143,6 +194,10 @@ static void bluedroid_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_
     }
 
     switch (event) {
+        case ESP_GAP_BLE_SET_LOCAL_PRIVACY_COMPLETE_EVT:
+            bdroid_gap_op_done(param->local_privacy_cmpl.status);
+            break;
+
         case ESP_GAP_BLE_SET_EXT_SCAN_PARAMS_COMPLETE_EVT:
             bdroid_gap_op_done(param->set_ext_scan_params.status);
             break;
@@ -354,6 +409,8 @@ static esp_err_t bdroid_connect(uint8_t own_addr_type, const bt_audio_addr_t *pe
         .interval_max = params->itvl_max,
         .latency = params->latency,
         .supervision_timeout = params->supervision_timeout,
+        .min_ce_len = params->min_ce_len,
+        .max_ce_len = params->max_ce_len,
     };
 
     memcpy(remote_addr, peer->val, sizeof(remote_addr));
@@ -378,50 +435,55 @@ static esp_err_t bdroid_connect(uint8_t own_addr_type, const bt_audio_addr_t *pe
         return ret;
     }
 
-    memcpy(s_host->ble_peer_addr, remote_addr, sizeof(s_host->ble_peer_addr));
-    s_host->ble_peer_addr_type = peer->type;
-    s_host->ble_conn_handle = UINT16_MAX;
-    s_host->ble_peer_valid = true;
+    return ESP_OK;
+}
+
+static esp_err_t bdroid_connect_cancel(const uint8_t *bt_dev_addr)
+{
+    if (!bt_dev_addr) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_gatt_if_t gattc_if = (esp_gatt_if_t)esp_ble_audio_bluedroid_get_gattc_if();
+    if (gattc_if == ESP_GATT_IF_NONE) {
+        ESP_LOGE(TAG, "BLE Audio GATTC interface is not ready");
+        return ESP_ERR_INVALID_STATE;
+    }
+    esp_ble_gattc_cancel_open_params_t params = {
+        .gattc_if = gattc_if,
+    };
+    memcpy(params.remote_bda, bt_dev_addr, sizeof(params.remote_bda));
+    esp_err_t ret = esp_ble_gattc_cancel_open(&params);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Cancel pending connect failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
     return ESP_OK;
 }
 
 static esp_err_t bdroid_disconnect(uint16_t conn_handle, uint8_t reason)
 {
-    if (!s_host || !s_host->ble_peer_valid ||
-        (s_host->ble_conn_handle != UINT16_MAX && s_host->ble_conn_handle != conn_handle)) {
+    bt_audio_bluedroid_peer_t *peer = bdroid_peer_find_handle(conn_handle);
+    if (!peer) {
         ESP_LOGE(TAG, "Disconnect failed: no peer address cached for conn_handle %u", conn_handle);
         return ESP_ERR_NOT_FOUND;
     }
 
-    esp_err_t ret = esp_ble_gap_disconnect(s_host->ble_peer_addr);
+    esp_err_t ret = esp_ble_gap_disconnect(peer->addr);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Disconnect GAP link failed: %s", esp_err_to_name(ret));
     }
     return ret;
 }
 
-static esp_err_t bdroid_conn_find(uint16_t conn_handle, bt_audio_conn_desc_t *desc)
-{
-    if (!desc) {
-        return ESP_ERR_INVALID_ARG;
-    }
-    if (!s_host || !s_host->ble_peer_valid ||
-        (s_host->ble_conn_handle != UINT16_MAX && s_host->ble_conn_handle != conn_handle)) {
-        return ESP_ERR_NOT_FOUND;
-    }
-    memcpy(desc->peer_id_addr, s_host->ble_peer_addr, sizeof(desc->peer_id_addr));
-    return ESP_OK;
-}
-
 static esp_err_t bdroid_security_initiate(uint16_t conn_handle)
 {
-    if (!s_host || !s_host->ble_peer_valid ||
-        (s_host->ble_conn_handle != UINT16_MAX && s_host->ble_conn_handle != conn_handle)) {
+    bt_audio_bluedroid_peer_t *peer = bdroid_peer_find_handle(conn_handle);
+    if (!peer) {
         ESP_LOGE(TAG, "Security initiate failed: no peer address cached for conn_handle %u", conn_handle);
         return ESP_ERR_NOT_FOUND;
     }
 
-    esp_err_t ret = esp_ble_set_encryption(s_host->ble_peer_addr, ESP_BLE_SEC_ENCRYPT_NO_MITM);
+    esp_err_t ret = esp_ble_set_encryption(peer->addr, ESP_BLE_SEC_ENCRYPT_NO_MITM);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Set encryption failed: %s", esp_err_to_name(ret));
     }
@@ -526,8 +588,8 @@ static esp_err_t bdroid_pa_sync_receive(uint16_t conn_handle,
                                         const bt_audio_periodic_sync_params_t *params)
 {
 #if CONFIG_BT_BLE_FEAT_PERIODIC_ADV_SYNC_TRANSFER
-    if (!s_host || !s_host->ble_peer_valid ||
-        (s_host->ble_conn_handle != UINT16_MAX && s_host->ble_conn_handle != conn_handle)) {
+    bt_audio_bluedroid_peer_t *peer = bdroid_peer_find_handle(conn_handle);
+    if (!peer) {
         ESP_LOGE(TAG, "PAST receive failed: no peer address cached for conn_handle %u", conn_handle);
         return ESP_ERR_NOT_FOUND;
     }
@@ -543,7 +605,7 @@ static esp_err_t bdroid_pa_sync_receive(uint16_t conn_handle,
     if (ret != ESP_OK) {
         return ret;
     }
-    ret = bdroid_gap_op_end(esp_ble_gap_set_periodic_adv_sync_trans_params(s_host->ble_peer_addr, &past));
+    ret = bdroid_gap_op_end(esp_ble_gap_set_periodic_adv_sync_trans_params(peer->addr, &past));
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Set PAST receive params failed: conn_handle %u, %s",
                  conn_handle, esp_err_to_name(ret));
@@ -557,9 +619,76 @@ static esp_err_t bdroid_pa_sync_receive(uint16_t conn_handle,
 
 static esp_err_t bdroid_id_infer_auto(int privacy, uint8_t *out_addr_type)
 {
-    /* BlueDroid does not auto-infer.  Use public address by default. */
-    *out_addr_type = BLE_ADDR_TYPE_PUBLIC;
+    *out_addr_type = privacy ? BLE_ADDR_TYPE_RPA_PUBLIC : BLE_ADDR_TYPE_PUBLIC;
     return ESP_OK;
+}
+
+static size_t bdroid_bond_count(void)
+{
+    int count = esp_ble_get_bond_device_num();
+    return count > 0 ? (size_t)count : 0;
+}
+
+static bool bdroid_rpa_matches_irk(const uint8_t rpa[6], const uint8_t irk[16])
+{
+    uint8_t key[16];
+    uint8_t plaintext[16] = {0};
+    uint8_t ciphertext[16];
+    struct tc_aes_key_sched_struct sched;
+
+    for (size_t i = 0; i < sizeof(key); i++) {
+        key[i] = irk[sizeof(key) - 1 - i];
+    }
+    plaintext[13] = rpa[0];
+    plaintext[14] = rpa[1];
+    plaintext[15] = rpa[2];
+
+    if (tc_aes128_set_encrypt_key(&sched, key) == TC_CRYPTO_FAIL ||
+        tc_aes_encrypt(ciphertext, plaintext, &sched) == TC_CRYPTO_FAIL) {
+        memset(&sched, 0, sizeof(sched));
+        return false;
+    }
+    memset(&sched, 0, sizeof(sched));
+    return ciphertext[15] == rpa[5] &&
+           ciphertext[14] == rpa[4] &&
+           ciphertext[13] == rpa[3];
+}
+
+static bool bdroid_bond_exists(const bt_audio_addr_t *addr)
+{
+    esp_ble_bond_dev_t *peers = NULL;
+    bool found = false;
+    int count;
+
+    if (!addr) {
+        return false;
+    }
+    count = esp_ble_get_bond_device_num();
+    if (count <= 0) {
+        return false;
+    }
+    peers = heap_caps_calloc(count, sizeof(*peers), MALLOC_CAP_DEFAULT);
+    if (!peers) {
+        return false;
+    }
+    if (esp_ble_get_bond_device_list(&count, peers) == ESP_OK) {
+        for (int i = 0; i < count; i++) {
+            bool identity_match =
+                memcmp(peers[i].bd_addr, addr->val, sizeof(addr->val)) == 0 &&
+                peers[i].bd_addr_type == addr->type;
+            bool rpa_match =
+                addr->type == BLE_ADDR_TYPE_RANDOM &&
+                (addr->val[0] & 0xc0U) == 0x40U &&
+                (peers[i].bond_key.key_mask & ESP_BLE_ID_KEY_MASK) &&
+                bdroid_rpa_matches_irk(addr->val, peers[i].bond_key.pid_key.irk);
+            if (identity_match || rpa_match) {
+                found = true;
+                break;
+            }
+        }
+    }
+    heap_caps_free(peers);
+    return found;
 }
 
 static const char *bdroid_svc_gap_device_name(void)
@@ -568,22 +697,6 @@ static const char *bdroid_svc_gap_device_name(void)
         return NULL;
     }
     return s_host->ble_dev_name[0] ? s_host->ble_dev_name : NULL;
-}
-
-static uint16_t bdroid_iso_free_buf_num_get(uint16_t conn_handle)
-{
-    return r_ble_ll_iso_free_buf_num_get(conn_handle);
-}
-
-static esp_err_t bdroid_hci_iso_tx(uint16_t conn_handle, const uint8_t *sdu, uint16_t sdu_len,
-                                   bool ts_flag, uint32_t time_stamp, uint16_t pkt_seq_num)
-{
-    int rc = esp_ble_hci_iso_tx(conn_handle, sdu, sdu_len, ts_flag, time_stamp, pkt_seq_num);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Send HCI ISO data failed: conn_handle %u, error %d", conn_handle, rc);
-        return ESP_FAIL;
-    }
-    return ESP_OK;
 }
 
 static esp_err_t bdroid_register_event_cb(void)
@@ -599,7 +712,8 @@ static esp_err_t bdroid_register_event_cb(void)
     if (s_host) {
         s_host->gap_cb_registered = true;
     }
-    return ESP_OK;
+    ESP_RETURN_ON_ERROR(bdroid_gap_op_begin(), TAG, "Prepare local privacy configuration failed");
+    return bdroid_gap_op_end(esp_ble_gap_config_local_privacy(true));
 }
 
 static void bdroid_post_gap_event(uint8_t gap_event_type, void *event)
@@ -629,6 +743,28 @@ static esp_err_t bdroid_ble_stack_setup(esp_bt_audio_host_bluedroid_cfg_t *host_
     ESP_RETURN_ON_ERROR(esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(rsp_key)),
                         TAG, "Set BLE rsp key failed");
 
+    int bond_count = esp_ble_get_bond_device_num();
+    if (bond_count > 0) {
+        esp_ble_bond_dev_t *bonds = heap_caps_calloc(bond_count, sizeof(*bonds), MALLOC_CAP_DEFAULT);
+        ESP_RETURN_ON_FALSE(bonds != NULL, ESP_ERR_NO_MEM, TAG, "No memory for BLE bond list");
+        if (esp_ble_get_bond_device_list(&bond_count, bonds) == ESP_OK) {
+            for (int i = 0; i < bond_count; i++) {
+                if (!(bonds[i].bond_key.key_mask & ESP_BLE_ID_KEY_MASK)) {
+                    continue;
+                }
+                esp_err_t ret = esp_ble_gap_add_device_to_resolving_list(
+                    bonds[i].bond_key.pid_key.static_addr,
+                    bonds[i].bond_key.pid_key.addr_type,
+                    bonds[i].bond_key.pid_key.irk);
+                if (ret != ESP_OK) {
+                    ESP_LOGW(TAG, "Add bonded peer to resolving list failed: %s",
+                             esp_err_to_name(ret));
+                }
+            }
+        }
+        heap_caps_free(bonds);
+    }
+
     snprintf(s_host->ble_dev_name, sizeof(s_host->ble_dev_name), "%s", host_cfg->dev_name);
     ESP_RETURN_ON_ERROR(esp_ble_gap_set_device_name(s_host->ble_dev_name), TAG, "Set BLE device name failed");
 
@@ -649,8 +785,8 @@ static esp_err_t bdroid_ble_stack_setup(esp_bt_audio_host_bluedroid_cfg_t *host_
         .disc = bdroid_disc,
         .disc_cancel = bdroid_disc_cancel,
         .connect = bdroid_connect,
+        .connect_cancel = bdroid_connect_cancel,
         .disconnect = bdroid_disconnect,
-        .conn_find = bdroid_conn_find,
         .acl_connected = bdroid_acl_connected,
         .acl_disconnected = bdroid_acl_disconnected,
         .security_initiate = bdroid_security_initiate,
@@ -663,9 +799,9 @@ static esp_err_t bdroid_ble_stack_setup(esp_bt_audio_host_bluedroid_cfg_t *host_
         .pa_sync_create_cancel = bdroid_pa_sync_create_cancel,
         .pa_sync_receive = bdroid_pa_sync_receive,
         .id_infer_auto = bdroid_id_infer_auto,
+        .bond_count = bdroid_bond_count,
+        .bond_exists = bdroid_bond_exists,
         .svc_gap_device_name = bdroid_svc_gap_device_name,
-        .iso_free_buf_num_get = bdroid_iso_free_buf_num_get,
-        .hci_iso_tx = bdroid_hci_iso_tx,
         .register_event_cb = bdroid_register_event_cb,
         .post_gap_event = bdroid_post_gap_event,
     };
