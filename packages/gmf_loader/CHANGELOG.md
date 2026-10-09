@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.1
+
+### Features
+
+- Added `GMF_AI_AUDIO_LOAD_CH_ALLOCATION_FROM_BOARD` to load AEC, WakeNet, AFE, and DOA channel allocation from the capture codec data layout label
+
 ## v1.1.0
 
 ### Features

@@ -9,6 +9,7 @@ if(IDF_TARGET IN_LIST GMF_AI_AUDIO_SUPPORTED_TARGETS)
              "./src/esp_gmf_doa.c"
              "./src/esp_gmf_vad.c"
              "./src/esp_gmf_ns.c"
+             "./src/esp_gmf_ai_audio_helper.c"
              )
 
     idf_component_register(

@@ -390,6 +390,21 @@ menu "GMF AI Audio"
                 Format string of the channel allocation; must contain exactly two `M` channels
     endmenu
 
+    config GMF_AI_AUDIO_LOAD_CH_ALLOCATION_FROM_BOARD
+        bool "Load channel allocation from the codec data layout label"
+        default n
+        help
+            Load the channel allocation for AEC, WakeNet, AFE, and DOA from
+            the capture codec. The label comes from
+            esp_codec_dev_get_data_layout_label() and is converted into the
+            esp-sr input format.
+            This option must stay visible so the component manager can evaluate
+            it. It takes effect only when at least one of AEC, WakeNet, AFE, or
+            DOA is enabled, and the board provides an audio ADC.
+            The audio ADC device must already be initialized. When the label
+            is unavailable or conversion fails, each element keeps its
+            configured channel allocation.
+
     config GMF_AI_AUDIO_MODEL_PARTITION
         string "Model Partition Name"
         depends on GMF_AI_AUDIO_INIT_WN || GMF_AI_AUDIO_INIT_AFE || GMF_AI_AUDIO_INIT_NS || GMF_AI_AUDIO_INIT_VAD
