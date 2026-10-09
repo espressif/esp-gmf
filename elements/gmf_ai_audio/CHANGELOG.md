@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added optional internal RAM allocation for AFE manager feed and fetch task stacks
+
 ## v1.1.0
 
 ### Changes
