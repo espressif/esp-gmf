@@ -104,6 +104,8 @@ AFE 管理器
 
 应用通过 :cpp:type:`esp_gmf_afe_manager_cfg_t` 提供 ``read_cb`` 与 ``result_cb``\ ，feed_task 周期性调用 ``read_cb`` 获取一帧多通道 PCM，并输入 ``esp-sr`` 的 AFE；fetch_task 取出处理结果（降噪 / AEC 后的单声道 PCM + 唤醒 / VAD / 命令词事件），调用 ``result_cb``\ 。两个执行线程默认分配到不同 core（core 0 / core 1），栈 3 KiB、优先级 5，\ ``DEFAULT_GMF_AFE_MANAGER_CFG`` 给出默认值。
 
+创建管理器前，可将 ``feed_task_setting.stack_in_internal`` 或 ``fetch_task_setting.stack_in_internal`` 设为 ``true``，使对应任务的栈使用内部 RAM。默认值 ``false`` 保持原有行为：启用 PSRAM 和静态分配时使用 PSRAM，否则使用内部 RAM。此选项不影响 AFE 模型、音频缓冲区或 ESP-SR 内部任务的内存分配。
+
 运行中可单独开关特性：
 
 .. code:: c

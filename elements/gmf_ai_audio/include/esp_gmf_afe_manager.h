@@ -72,9 +72,10 @@ typedef int32_t (*esp_gmf_afe_manager_read_cb_t)(void *buffer, int buf_sz, void 
  * @brief  Configuration structure for the task setting
  */
 typedef struct {
-    uint32_t stack_size;  /*!< Task stack size */
-    uint8_t  core;        /*!< Task core id */
-    uint8_t  prio;        /*!< Task priority */
+    uint32_t  stack_size;         /*!< Task stack size */
+    uint8_t   core;               /*!< Task core id */
+    uint8_t   prio;               /*!< Task priority */
+    bool      stack_in_internal;  /*!< Allocate the stack in internal RAM; false preserves the default PSRAM placement when available */
 } esp_gmf_afe_manager_task_setting_t;
 
 /**

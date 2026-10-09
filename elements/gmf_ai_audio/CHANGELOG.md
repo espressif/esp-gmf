@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added optional internal RAM allocation for AFE manager feed and fetch task stacks
+
+### Bug Fixes
+
+- Fixed `esp_gmf_afe_close` blocking on the `in_db` read until timeout
+
 ## v1.1.0
 
 ### Changes

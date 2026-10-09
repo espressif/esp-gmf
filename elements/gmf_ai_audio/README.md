@@ -19,6 +19,14 @@
 
 ## AFE Manager `esp_gmf_afe_manager`
 
+The feed and fetch task settings each expose `stack_in_internal`. Set it to `true` before creating the manager to allocate that task's stack in internal RAM. The default (`false`, including zero-initialized settings) preserves PSRAM allocation when PSRAM and static allocation are enabled; otherwise task stacks remain in internal RAM. This option affects only these two task stacks, not AFE models, audio buffers, or ESP-SR internal tasks.
+
+```c
+esp_gmf_afe_manager_cfg_t cfg = DEFAULT_GMF_AFE_MANAGER_CFG(afe_cfg, read_cb, read_ctx, result_cb, result_ctx);
+cfg.feed_task_setting.stack_in_internal = true;
+cfg.fetch_task_setting.stack_in_internal = true;
+```
+
 ### Features
 
 - Manages the data path and task scheduling of the Audio Front-End (AFE)

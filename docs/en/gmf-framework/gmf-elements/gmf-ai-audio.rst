@@ -111,6 +111,8 @@ Individual features can be toggled at runtime:
     esp_gmf_afe_manager_enable_features(mgr, ESP_AFE_FEATURE_AEC, true);
     esp_gmf_afe_manager_enable_features(mgr, ESP_AFE_FEATURE_VAD, false);
 
+Set ``feed_task_setting.stack_in_internal`` or ``fetch_task_setting.stack_in_internal`` to ``true`` before creating the manager to place that task's stack in internal RAM. The default ``false`` preserves PSRAM allocation when PSRAM and static allocation are enabled; otherwise stacks remain internal. This setting does not change AFE model, audio buffer, or ESP-SR internal task allocations.
+
 After calling :cpp:func:`esp_gmf_afe_manager_suspend` with the suspend flag set to ``true``, both feed and fetch tasks can be suspended simultaneously, suitable for low-power scenarios. After initialization, :cpp:func:`esp_gmf_afe_manager_get_chunk_size` and ``get_input_ch_num`` can be used to query the number of samples per processing chunk and the total number of input channels, helping the application adjust its IO buffer.
 
 ai_afe: Full Voice Front-End

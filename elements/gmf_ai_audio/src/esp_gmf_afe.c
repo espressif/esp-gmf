@@ -521,6 +521,12 @@ static esp_gmf_job_err_t esp_gmf_afe_close(esp_gmf_audio_element_handle_t self, 
     if (cfg->vcmd_detect_en) {
         vcmd_det_cancel(gmf_afe);
     }
+    /* The feed task may be waiting for data on `in_db` while holding the read lock.
+       Stop it from reading again, then abort `in_db` so the wait returns at once. */
+    esp_gmf_afe_manager_suspend(cfg->afe_manager, true);
+    if (gmf_afe->in_db) {
+        esp_gmf_db_abort(gmf_afe->in_db);
+    }
     esp_gmf_afe_manager_set_read_cb(cfg->afe_manager, NULL, NULL);
     esp_gmf_afe_manager_set_result_cb(cfg->afe_manager, NULL, NULL);
 
