@@ -1,10 +1,11 @@
 # Changelog
 
-## Unreleased
+## v1.1.1
 
 ### Features
 
 - Added optional internal RAM allocation for AFE manager feed and fetch task stacks
+- Added `esp_gmf_ai_audio_ch_layout_to_sr_format()` to convert an ADC channel label list into the esp-sr `M`/`R`/`N` input format
 
 ### Bug Fixes
 

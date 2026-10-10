@@ -129,6 +129,11 @@ esp_gmf_err_t gmf_loader_teardown_audio_effects_default(esp_gmf_pool_handle_t po
  *        so `gmf_loader_teardown_ai_audio` is used to clean up
  *        More than one `esp_gmf_afe_manager` is meaningless, so `gmf_loader_setup_ai_audio`
  *        will print a warning log if `esp_gmf_afe_manager` already exists
+ *        When `CONFIG_GMF_AI_AUDIO_LOAD_CH_ALLOCATION_FROM_BOARD` is enabled, the capture
+ *        codec data layout is queried once during the first setup and kept in the AI audio
+ *        context. AEC, WakeNet, AFE, and DOA share that channel allocation. The audio ADC
+ *        device must already be initialized. If the query fails, each element keeps its
+ *        configured channel allocation.
  *
  * @param[in]  pool  Handle to the GMF pool
  *

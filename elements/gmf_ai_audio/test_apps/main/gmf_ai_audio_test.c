@@ -31,9 +31,10 @@
 #include "esp_gmf_wn.h"
 #include "esp_gmf_vad.h"
 #include "esp_gmf_ns.h"
+#include "esp_gmf_ai_audio_helper.h"
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 #include "esp_gmf_doa.h"
-#endif  /* DOA supported targets */
+#endif  /* defined(CONFIG_IDF_TARGET_ESP32S3) */
 #if defined(CONFIG_IDF_TARGET_ESP32) || defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32P4)
 #include "esp_afe_config.h"
 #include "esp_gmf_afe_manager.h"
@@ -1114,4 +1115,72 @@ TEST_CASE("Test gmf wakenet process", "[ESP_GMF_WN][leaks=1400]")
     esp_srmodel_deinit(models);
     vEventGroupDelete(g_event_group);
     g_event_group = NULL;
+}
+
+static void assert_layout_label_sr_format(const char *label, const char *expect)
+{
+    char sr_format[ESP_GMF_AI_AUDIO_SR_FORMAT_MAX_CH + 1];
+    memset(sr_format, 'X', sizeof(sr_format));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK,
+                      esp_gmf_ai_audio_ch_layout_to_sr_format(label, sr_format, sizeof(sr_format)));
+    TEST_ASSERT_EQUAL_STRING(expect, sr_format);
+}
+
+TEST_CASE("Convert codec data layout label to SR input format", "[ESP_GMF_AI_AUDIO]")
+{
+    assert_layout_label_sr_format("FL,FL,RE", "MMR");
+    assert_layout_label_sr_format("FL,NA,RE", "MNR");
+    assert_layout_label_sr_format("FL,FR,SL,SR", "MMMM");
+    assert_layout_label_sr_format("FL,FL,NA,FL", "MMNM");
+    assert_layout_label_sr_format("RE,FL", "RM");
+    assert_layout_label_sr_format("FL,FR,RE,NA", "MMRN");
+    assert_layout_label_sr_format("FL,RE,FR,NA", "MRMN");
+    assert_layout_label_sr_format("RE,FL,NA,FR", "RMNM");
+    assert_layout_label_sr_format("FL,FR,SL,SR,RE,NA", "MMMMRN");
+    assert_layout_label_sr_format("FL, NA, RE", "MNR");
+    assert_layout_label_sr_format("FC,BL,BR", "MMM");
+    assert_layout_label_sr_format("FL,FR,SL,SR,BL,BR,RE,NA", "MMMMMMRN");
+    assert_layout_label_sr_format("NA,NA", "NN");
+
+    char exact[4];
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_ai_audio_ch_layout_to_sr_format("FL,RE,FR", exact, sizeof(exact)));
+    TEST_ASSERT_EQUAL_STRING("MRM", exact);
+
+    char too_small[4];
+    memset(too_small, 'A', sizeof(too_small));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_NOT_ENOUGH, esp_gmf_ai_audio_ch_layout_to_sr_format("FL,RE,FR", too_small, 3));
+    TEST_ASSERT_EQUAL_MEMORY("AAAA", too_small, sizeof(too_small));
+
+    static const char *const invalid_labels[] = {
+        "NF",
+        "N/A",
+        "na",
+        "Na",
+        "fl",
+        "MIC1",
+        "FL,na,RE",
+        "FL, ,RE",
+        "FL,",
+        "FL,,RE",
+        "FL,FR,SL,SR,BL,BR,RE,NA,FC",
+        "ABCDEFGHIJKLMNOP",
+    };
+    for (size_t i = 0; i < sizeof(invalid_labels) / sizeof(invalid_labels[0]); i++) {
+        char unchanged[8];
+        memset(unchanged, 'Z', sizeof(unchanged));
+        TEST_ASSERT_EQUAL(ESP_GMF_ERR_INVALID_ARG,
+                          esp_gmf_ai_audio_ch_layout_to_sr_format(invalid_labels[i], unchanged, sizeof(unchanged)));
+        for (size_t j = 0; j < sizeof(unchanged); j++) {
+            TEST_ASSERT_EQUAL_CHAR('Z', unchanged[j]);
+        }
+    }
+
+    char buf[8];
+    memset(buf, 'Z', sizeof(buf));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_INVALID_ARG, esp_gmf_ai_audio_ch_layout_to_sr_format(NULL, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_INVALID_ARG, esp_gmf_ai_audio_ch_layout_to_sr_format("", buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL(ESP_GMF_ERR_INVALID_ARG, esp_gmf_ai_audio_ch_layout_to_sr_format("FL,RE", NULL, sizeof(buf)));
+    for (size_t j = 0; j < sizeof(buf); j++) {
+        TEST_ASSERT_EQUAL_CHAR('Z', buf[j]);
+    }
 }

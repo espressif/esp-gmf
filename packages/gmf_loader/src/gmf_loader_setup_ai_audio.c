@@ -37,20 +37,52 @@
 #include "esp_gmf_obj.h"
 #endif  /* CONFIG_GMF_AI_AUDIO_INIT_DOA */
 
+#include "esp_gmf_ai_audio_helper.h"
+
+#if CONFIG_GMF_AI_AUDIO_LOAD_CH_ALLOCATION_FROM_BOARD
+#include "esp_codec_dev.h"
+#include "dev_audio_codec.h"
+#include "esp_board_manager.h"
+#include "esp_board_manager_defs.h"
+#endif  /* CONFIG_GMF_AI_AUDIO_LOAD_CH_ALLOCATION_FROM_BOARD */
+
 typedef struct {
-    uint32_t setup_cnt;
+    uint32_t  setup_cnt;
 #if defined(CONFIG_GMF_AI_AUDIO_INIT_WN) || defined(CONFIG_GMF_AI_AUDIO_INIT_AFE)
     srmodel_list_t *models;
 #endif  /* defined(CONFIG_GMF_AI_AUDIO_INIT_WN) || defined(CONFIG_GMF_AI_AUDIO_INIT_AFE) */
-#ifdef CONFIG_GMF_AI_AUDIO_INIT_AFE
-    esp_gmf_afe_manager_handle_t afe_manager;
+#ifdef  CONFIG_GMF_AI_AUDIO_INIT_AFE
+    esp_gmf_afe_manager_handle_t  afe_manager;
 #endif  /* CONFIG_GMF_AI_AUDIO_INIT_AFE */
+    char  ch_allocation[ESP_GMF_AI_AUDIO_SR_FORMAT_MAX_CH + 1];
+    bool  ch_allocation_from_board;
 } gmf_ai_audio_ctx_t;
 
 static const char *TAG = "GMF_SETUP_AI";
-#if defined(CONFIG_GMF_AI_AUDIO_INIT_AFE) || defined(CONFIG_GMF_AI_AUDIO_INIT_WN)
 static gmf_ai_audio_ctx_t *ai_audio_ctx = NULL;
-#endif  /* defined(CONFIG_GMF_AI_AUDIO_INIT_AFE) || defined(CONFIG_GMF_AI_AUDIO_INIT_WN) */
+
+#define GMF_LOADER_CH_ALLOC(cfg)  ((ai_audio_ctx && ai_audio_ctx->ch_allocation_from_board) ? ai_audio_ctx->ch_allocation : (cfg))
+
+#if CONFIG_GMF_AI_AUDIO_LOAD_CH_ALLOCATION_FROM_BOARD
+static bool gmf_loader_load_ch_allocation_from_board(char *sr_format, size_t sr_format_size)
+{
+    dev_audio_codec_handles_t *adc = NULL;
+    esp_err_t err = esp_board_manager_get_device_handle(ESP_BOARD_DEVICE_NAME_AUDIO_ADC, (void **)&adc);
+    char label[ESP_GMF_AI_AUDIO_SR_FORMAT_MAX_CH * 16];
+    if (err != ESP_OK || adc == NULL || adc->codec_dev == NULL ||
+        esp_codec_dev_get_data_layout_label(adc->codec_dev, label, sizeof(label)) != ESP_CODEC_DEV_OK ||
+        label[0] == '\0') {
+        ESP_LOGW(TAG, "Data layout label unavailable, keep configured channel allocation");
+        return false;
+    }
+    if (esp_gmf_ai_audio_ch_layout_to_sr_format(label, sr_format, sr_format_size) != ESP_GMF_ERR_OK) {
+        ESP_LOGW(TAG, "Data layout label conversion failed, keep configured channel allocation");
+        return false;
+    }
+    ESP_LOGI(TAG, "Channel allocation from data layout label \"%s\": %s", label, sr_format);
+    return true;
+}
+#endif  /* CONFIG_GMF_AI_AUDIO_LOAD_CH_ALLOCATION_FROM_BOARD */
 
 #ifdef CONFIG_GMF_AI_AUDIO_INIT_AEC
 static esp_gmf_err_t gmf_loader_setup_default_aec(esp_gmf_pool_handle_t pool)
@@ -62,7 +94,7 @@ static esp_gmf_err_t gmf_loader_setup_default_aec(esp_gmf_pool_handle_t pool)
         .filter_len = CONFIG_GMF_AI_AUDIO_AEC_FILTER_LEN,
         .type = CONFIG_GMF_AI_AUDIO_AEC_TYPE,
         .mode = CONFIG_GMF_AI_AUDIO_AEC_MODE,
-        .input_format = (char *)CONFIG_GMF_AI_AUDIO_AEC_CH_ALLOCATION,
+        .input_format = (char *)GMF_LOADER_CH_ALLOC(CONFIG_GMF_AI_AUDIO_AEC_CH_ALLOCATION),
     };
     ret = esp_gmf_aec_init(&gmf_aec_cfg, &hd);
     ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to init audio aec");
@@ -79,7 +111,7 @@ static esp_gmf_err_t gmf_loader_setup_default_wn(esp_gmf_pool_handle_t pool, gmf
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
     esp_gmf_element_handle_t hd = NULL;
     esp_gmf_wn_cfg_t gmf_wn_cfg = {
-        .input_format = (char *)CONFIG_GMF_AI_AUDIO_WN_CH_ALLOCATION,
+        .input_format = (char *)GMF_LOADER_CH_ALLOC(CONFIG_GMF_AI_AUDIO_WN_CH_ALLOCATION),
     };
     gmf_wn_cfg.det_mode = CONFIG_GMF_AI_AUDIO_WN_DET_MODE;
     gmf_wn_cfg.models = ctx->models;
@@ -161,7 +193,7 @@ static esp_gmf_err_t gmf_loader_setup_default_doa(esp_gmf_pool_handle_t pool)
         .resolution = CONFIG_GMF_AI_AUDIO_DOA_ELEMENT_RESOLUTION,
         .d_mics = CONFIG_GMF_AI_AUDIO_DOA_ELEMENT_D_MICS_MM / 1000.0f,
         .frame_ms = CONFIG_GMF_AI_AUDIO_DOA_ELEMENT_FRAME_MS,
-        .input_format = CONFIG_GMF_AI_AUDIO_DOA_ELEMENT_CH_ALLOCATION,
+        .input_format = GMF_LOADER_CH_ALLOC(CONFIG_GMF_AI_AUDIO_DOA_ELEMENT_CH_ALLOCATION),
         .result_callback = NULL,
         .ctx = NULL,
     };
@@ -178,20 +210,20 @@ esp_gmf_err_t gmf_loader_setup_ai_audio_default(esp_gmf_pool_handle_t pool)
     ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
     esp_gmf_err_t ret = ESP_GMF_ERR_OK;
 
-#ifdef CONFIG_GMF_AI_AUDIO_INIT_AEC
-    ret = gmf_loader_setup_default_aec(pool);
-    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register aec");
-#endif  /* CONFIG_GMF_AI_AUDIO_INIT_AEC */
-
-#if defined(CONFIG_GMF_AI_AUDIO_INIT_WN) || defined(CONFIG_GMF_AI_AUDIO_INIT_AFE)
     if (ai_audio_ctx == NULL) {
         ai_audio_ctx = esp_gmf_oal_calloc(1, sizeof(gmf_ai_audio_ctx_t));
         ESP_GMF_MEM_CHECK(TAG, ai_audio_ctx, return ESP_GMF_ERR_MEMORY_LACK;);
         ai_audio_ctx->setup_cnt = 0;
+#if defined(CONFIG_GMF_AI_AUDIO_INIT_WN) || defined(CONFIG_GMF_AI_AUDIO_INIT_AFE)
         ai_audio_ctx->models = esp_srmodel_init(CONFIG_GMF_AI_AUDIO_MODEL_PARTITION);
+#endif  /* defined(CONFIG_GMF_AI_AUDIO_INIT_WN) || defined(CONFIG_GMF_AI_AUDIO_INIT_AFE) */
+#if CONFIG_GMF_AI_AUDIO_LOAD_CH_ALLOCATION_FROM_BOARD
+        ai_audio_ctx->ch_allocation_from_board = gmf_loader_load_ch_allocation_from_board(
+            ai_audio_ctx->ch_allocation, sizeof(ai_audio_ctx->ch_allocation));
+#endif  /* CONFIG_GMF_AI_AUDIO_LOAD_CH_ALLOCATION_FROM_BOARD */
 #ifdef CONFIG_GMF_AI_AUDIO_INIT_AFE
         esp_gmf_err_t ret = ESP_GMF_ERR_OK;
-        afe_config_t *afe_cfg = afe_config_init(CONFIG_GMF_AI_AUDIO_AFE_CH_ALLOCATION,
+        afe_config_t *afe_cfg = afe_config_init(GMF_LOADER_CH_ALLOC(CONFIG_GMF_AI_AUDIO_AFE_CH_ALLOCATION),
                                                 ai_audio_ctx->models,
                                                 AFE_TYPE_SR,
                                                 AFE_MODE_HIGH_PERF);
@@ -227,7 +259,11 @@ esp_gmf_err_t gmf_loader_setup_ai_audio_default(esp_gmf_pool_handle_t pool)
 #endif  /* CONFIG_GMF_AI_AUDIO_INIT_AFE */
     }
     ai_audio_ctx->setup_cnt++;
-#endif  /* CONFIG_GMF_AI_AUDIO_INIT_WN || CONFIG_GMF_AI_AUDIO_INIT_AFE */
+
+#ifdef CONFIG_GMF_AI_AUDIO_INIT_AEC
+    ret = gmf_loader_setup_default_aec(pool);
+    ESP_GMF_RET_ON_ERROR(TAG, ret, return ret, "Failed to register aec");
+#endif  /* CONFIG_GMF_AI_AUDIO_INIT_AEC */
 
 #ifdef CONFIG_GMF_AI_AUDIO_INIT_WN
     ret = gmf_loader_setup_default_wn(pool, ai_audio_ctx);
@@ -261,7 +297,6 @@ esp_gmf_err_t gmf_loader_teardown_ai_audio_default(esp_gmf_pool_handle_t pool)
 {
     ESP_GMF_NULL_CHECK(TAG, pool, return ESP_GMF_ERR_INVALID_ARG);
 
-#if defined(CONFIG_GMF_AI_AUDIO_INIT_AFE) || defined(CONFIG_GMF_AI_AUDIO_INIT_WN)
     if (ai_audio_ctx == NULL || ai_audio_ctx->setup_cnt == 0) {
         ESP_LOGI(TAG, "AI audio context not initialized");
         return ESP_GMF_ERR_INVALID_STATE;
@@ -272,17 +307,18 @@ esp_gmf_err_t gmf_loader_teardown_ai_audio_default(esp_gmf_pool_handle_t pool)
             esp_gmf_afe_manager_destroy(ai_audio_ctx->afe_manager);
             ai_audio_ctx->afe_manager = NULL;
         }
-#endif  /* CONFIG_GMF_AI_AUDIO_INIT_AFE */
+#endif  /* defined(CONFIG_GMF_AI_AUDIO_INIT_AFE) */
+#if defined(CONFIG_GMF_AI_AUDIO_INIT_WN) || defined(CONFIG_GMF_AI_AUDIO_INIT_AFE)
         if (ai_audio_ctx->models) {
             esp_srmodel_deinit(ai_audio_ctx->models);
             ai_audio_ctx->models = NULL;
         }
+#endif  /* defined(CONFIG_GMF_AI_AUDIO_INIT_WN) || defined(CONFIG_GMF_AI_AUDIO_INIT_AFE) */
         esp_gmf_oal_free(ai_audio_ctx);
         ai_audio_ctx = NULL;
     } else {
-        ESP_LOGW(TAG, "AFE or WN still in use");
+        ESP_LOGW(TAG, "AI audio context still in use");
     }
-#endif  /* CONFIG_GMF_AI_AUDIO_INIT_AFE || CONFIG_GMF_AI_AUDIO_INIT_WN */
 
     return ESP_GMF_ERR_OK;
 }
