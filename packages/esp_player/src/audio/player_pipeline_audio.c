@@ -309,7 +309,7 @@ esp_player_err_t player_pl_run_create_audio_decoder(esp_player_stream_t *stream)
         }
     } else {
         esp_gmf_element_handle_t aud_dec_el = player_aud_dec_el_by_caps(stream->audio_side->decoder);
-        if (stream->dec_frame_mode == ESP_PLAYER_DEC_FRAME_MODE_EXTRACTOR && aud_dec_el != NULL) {
+        if (aud_dec_el != NULL) {
             if (player_get_audio_dec_cfg(stream) != ESP_PLAYER_ERR_OK
                 || esp_gmf_audio_dec_reconfig(aud_dec_el, &stream->dec_cfg) != ESP_GMF_ERR_OK) {
                 player_raise_error_source(stream, ESP_PLAYER_ERROR_SOURCE_AUDIO_DECODER, "refresh dec cfg");

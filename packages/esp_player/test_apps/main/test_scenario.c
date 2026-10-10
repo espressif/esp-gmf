@@ -45,11 +45,15 @@
 #define SC_BUFFERED_BIT    (1 << 7)
 #define SC_TRACK_INFO_BIT  (1 << 8)
 
-#define SC_TIMEOUT_PLAY_MS     10000
-#define SC_TIMEOUT_STOP_MS     8000
-#define SC_TIMEOUT_SEEK_MS     5000
-#define SC_TIMEOUT_FINISH_MS   120000
-#define SC_HTTP_EOS_MARGIN_MS  15000
+#define SC_TIMEOUT_PLAY_MS       10000
+#define SC_TIMEOUT_STOP_MS       8000
+#define SC_TIMEOUT_SEEK_MS       5000
+#define SC_TIMEOUT_FINISH_MS     120000
+#define SC_HTTP_EOS_MARGIN_MS    15000
+#define SC_TIMEOUT_HTTP_PLAY_MS  15000
+#define SC_TIMEOUT_HTTP_SEEK_MS  10000
+
+#define SC_PCM_SUBMIT_CHUNK_BYTES  (16 * 1024)
 
 typedef struct {
     esp_player_handle_t  player;
@@ -384,20 +388,36 @@ static void sc_submit_pcm_silence(esp_player_handle_t player, uint32_t sample_ra
                                   uint8_t channels, uint8_t bits, uint32_t duration_ms,
                                   uint64_t pts, bool eos)
 {
-    uint32_t nbytes = sample_rate * (uint32_t)channels * ((uint32_t)bits / 8U) * duration_ms / 1000U;
+    uint32_t frame_bytes = (uint32_t)channels * ((uint32_t)bits / 8U);
+    TEST_ASSERT_GREATER_THAN_MESSAGE(0, frame_bytes, "PCM frame size must be > 0");
+    uint32_t nbytes = sample_rate * frame_bytes * duration_ms / 1000U;
     TEST_ASSERT_GREATER_THAN_MESSAGE(0, nbytes, "PCM payload size must be > 0");
 
-    uint8_t *buf = (uint8_t *)calloc(1, nbytes);
+    uint32_t chunk = SC_PCM_SUBMIT_CHUNK_BYTES - (SC_PCM_SUBMIT_CHUNK_BYTES % frame_bytes);
+    TEST_ASSERT_GREATER_THAN_MESSAGE(0, chunk, "PCM chunk size must be > 0");
+    if (chunk > nbytes) {
+        chunk = nbytes;
+    }
+
+    uint8_t *buf = (uint8_t *)calloc(1, chunk);
     TEST_ASSERT_NOT_NULL(buf);
-    esp_player_frame_t frame = {
-        .data = buf,
-        .data_len = nbytes,
-        .pts = pts,
-        .frame_type = ESP_PLAYER_FRAME_TYPE_DEFAULT,
-        .is_bad = false,
-        .eos = eos,
-    };
-    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_submit_frame(player, &frame, 3000));
+    uint32_t sent = 0;
+    while (sent < nbytes) {
+        uint32_t n = nbytes - sent;
+        if (n > chunk) {
+            n = chunk;
+        }
+        esp_player_frame_t frame = {
+            .data = buf,
+            .data_len = n,
+            .pts = pts,
+            .frame_type = ESP_PLAYER_FRAME_TYPE_DEFAULT,
+            .is_bad = false,
+            .eos = eos && (sent + n == nbytes),
+        };
+        TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_submit_frame(player, &frame, 3000));
+        sent += n;
+    }
     free(buf);
 }
 
@@ -2310,6 +2330,34 @@ TEST_CASE("[frame_mode]:test_player_reuse_render_sample_info", "[player][scenari
     sc_destroy_player_and_render(&ctx);
 }
 
+TEST_CASE("[frame_mode]:test_player_render_frame_whole_samples", "[player][scenario][audio]")
+{
+    const uint32_t duration_ms = 200;
+    const uint32_t sample_rates[] = {8000, 11025, 16000, 22050, 32000, 44100, 48000, 96000};
+    const uint8_t channels[] = {1, 2};
+    const uint8_t bits[] = {16, 24, 32};
+    const uint8_t render_bits = 16;
+    const uint8_t render_channels = 2;
+
+    sc_ctx_t ctx = {0};
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
+                      sc_create_audio_player(&ctx, 0, 44100, render_bits, render_channels));
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, "fill:///test.pcm"));
+
+    for (size_t ri = 0; ri < sizeof(sample_rates) / sizeof(sample_rates[0]); ri++) {
+        for (size_t ci = 0; ci < sizeof(channels) / sizeof(channels[0]); ci++) {
+            for (size_t bi = 0; bi < sizeof(bits) / sizeof(bits[0]); bi++) {
+                ESP_LOGI(TAG, "Render frame matrix: %" PRIu32 " Hz, %u ch, %u bits",
+                         sample_rates[ri], channels[ci], bits[bi]);
+                sc_set_pcm_track(ctx.player, sample_rates[ri], channels[ci], bits[bi]);
+                sc_run_submit_pcm_wait_finished(&ctx, sample_rates[ri], channels[ci], bits[bi],
+                                                duration_ms);
+            }
+        }
+    }
+    sc_destroy_player_and_render(&ctx);
+}
+
 TEST_CASE("[frame_mode]:test_player_submit_frame_av_fill", "[player][scenario]")
 {
     sc_ctx_t ctx = {0};
@@ -2659,7 +2707,12 @@ TEST_CASE("[buffering]:test_player_pause_keeps_rebuffer_gate_http", "[player][bu
     };
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_buffer_config(ctx.player, &buffer_cfg));
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, TEST_HTTP_URL));
-    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx), "HTTP stream failed to reach PLAYED");
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_run(ctx.player));
+    EventBits_t played = xEventGroupWaitBits(ctx.event_group,
+                                             SC_PLAYED_BIT | SC_ERROR_BIT | SC_FINISHED_BIT,
+                                             pdTRUE, pdFALSE,
+                                             pdMS_TO_TICKS(SC_TIMEOUT_HTTP_PLAY_MS));
+    TEST_ASSERT_TRUE_MESSAGE((played & SC_PLAYED_BIT) != 0, "HTTP stream failed to reach PLAYED");
 
     /* Startup pre-buffering already reported; wait for the first runtime re-buffering gate. */
     sc_clear_bits(&ctx, SC_BUFFERING_BIT | SC_BUFFERED_BIT);
@@ -2703,8 +2756,12 @@ TEST_CASE("[buffering]:test_player_http_eos_finished", "[player][buffering][leak
                       sc_create_audio_player(&ctx, 0, 44100, 16, 2));
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
                       esp_player_set_url(ctx.player, TEST_HTTPS_URL));
-    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx),
-                             "HTTP stream failed to reach PLAYED");
+    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_run(ctx.player));
+    EventBits_t played = xEventGroupWaitBits(ctx.event_group,
+                                             SC_PLAYED_BIT | SC_ERROR_BIT | SC_FINISHED_BIT,
+                                             pdTRUE, pdFALSE,
+                                             pdMS_TO_TICKS(SC_TIMEOUT_HTTP_PLAY_MS));
+    TEST_ASSERT_TRUE_MESSAGE((played & SC_PLAYED_BIT) != 0, "HTTP stream failed to reach PLAYED");
 
     uint64_t duration_ms = 0;
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_duration(ctx.player, &duration_ms));
@@ -2753,7 +2810,7 @@ TEST_CASE("[buffering]:test_player_http_seek_near_end_finished", "[player][buffe
     uint64_t near_end = duration_ms * 95 / 100;
     sc_clear_bits(&ctx, SC_SEEK_DONE_BIT | SC_FINISHED_BIT | SC_ERROR_BIT);
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_seek(ctx.player, near_end));
-    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_SEEK_MS),
+    TEST_ASSERT_TRUE_MESSAGE(sc_wait_bits(&ctx, SC_SEEK_DONE_BIT, SC_TIMEOUT_HTTP_SEEK_MS),
                              "SEEK_DONE missing after HTTP seek near end");
 
     EventBits_t got = xEventGroupWaitBits(ctx.event_group,

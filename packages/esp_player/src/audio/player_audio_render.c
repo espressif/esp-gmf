@@ -244,7 +244,9 @@ esp_gmf_err_t player_audio_render_set_frame_duration(esp_gmf_element_handle_t ha
         return ESP_GMF_ERR_INVALID_ARG;
     }
     uint32_t bytes_per_sample = (uint32_t)info->bits_per_sample >> 3;
-    uint64_t frame_size = (uint64_t)info->sample_rate * info->channel * bytes_per_sample * duration_ms / 1000;
+    uint32_t frame_bytes = (uint32_t)info->channel * bytes_per_sample;
+    uint64_t samples = (uint64_t)info->sample_rate * duration_ms / 1000;
+    uint64_t frame_size = samples * frame_bytes;
     if (frame_size == 0 || frame_size > UINT32_MAX) {
         ESP_LOGE(TAG, "Calculated frame size out of range: %llu", (unsigned long long)frame_size);
         return ESP_GMF_ERR_INVALID_ARG;
