@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.1
+
+### Bug Fixes
+
+- Fixed audio render frame size may not align with whole samples at certain sample rates, e.g., 11025 Hz
+
 ## v1.1.0
 
 ### Features
