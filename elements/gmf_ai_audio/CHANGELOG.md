@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added optional immediate AFE PCM output for external consumers without an output data bus
+
 ## v1.1.1
 
 ### Features

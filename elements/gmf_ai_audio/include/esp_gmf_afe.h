@@ -70,6 +70,20 @@ typedef struct {
 typedef void (*esp_gmf_afe_event_cb_t)(esp_gmf_element_handle_t el, esp_gmf_afe_evt_t *event, void *user_data);
 
 /**
+ * @brief  Callback for immediate AFE PCM output
+ *
+ * @note  Called on the existing AFE fetch task after event monitoring. The PCM
+ *        is borrowed until the callback returns. Copy retained data into a
+ *        bounded, nonblocking sink. Do not block, replace manager callbacks,
+ *        or synchronously close/destroy the element or pipeline from here.
+ *
+ * @param[in]  data   Processed mono, signed 16-bit PCM at 16 kHz
+ * @param[in]  bytes  Number of valid bytes
+ * @param[in]  ctx    User context
+ */
+typedef void (*esp_gmf_afe_output_cb_t)(const int16_t *data, size_t bytes, void *ctx);
+
+/**
  * @brief  Configuration structure for GMF AFE wrapper
  */
 typedef struct {
@@ -113,6 +127,27 @@ typedef struct {
  *       - ESP_GMF_ERR_INVALID_ARG  Invalid argument
  */
 esp_gmf_err_t esp_gmf_afe_init(void *config, esp_gmf_obj_handle_t *handle);
+
+/**
+ * @brief  Select immediate PCM delivery instead of the normal output port
+ *
+ * @note  Bind before opening, or after closing, serialized with the element
+ *        lifecycle. A non-NULL callback requires delay_samples == 0 and avoids
+ *        allocating the output data bus. Do not connect a downstream consumer
+ *        in this mode. Wakeup, VAD and command monitoring remain enabled.
+ *        Close detaches the manager result callback before releasing resources.
+ *        Bind each instance separately; cloning does not copy this binding.
+ *
+ * @param[in]  handle    AFE element handle
+ * @param[in]  callback  PCM callback, or NULL for normal pipeline output
+ * @param[in]  ctx       User context
+ *
+ * @return
+ *       - ESP_GMF_ERR_OK           Success
+ *       - ESP_GMF_ERR_INVALID_ARG  NULL handle, element open, or nonzero delay
+ */
+esp_gmf_err_t esp_gmf_afe_set_output_callback(esp_gmf_element_handle_t handle,
+                                              esp_gmf_afe_output_cb_t callback, void *ctx);
 
 /**
  * @brief  Begin voice command detection

@@ -80,21 +80,23 @@ typedef struct {
  * @brief  Structure representing the ESP GMF AFE component
  */
 typedef struct {
-    esp_gmf_audio_element_t parent;
-    esp_gmf_db_handle_t     in_db;
-    esp_gmf_db_handle_t     out_db;
-    wakeup_state_t          wakeup_state;
-    wakeup_event_t          last_event;
-    bool                    origin_vad_enable;
-    bool                    keep_wake;
-    esp_timer_handle_t      wakeup_timer;
-    SemaphoreHandle_t       wake_st_lock;
-    model_iface_data_t     *mn_handle;
-    bool                    mn_detecting;
-    SemaphoreHandle_t       mn_lock;
-    esp_mn_state_t          mn_state;
-    esp_mn_iface_t         *multinet;
-    QueueHandle_t           msg_queue;
+    esp_gmf_audio_element_t  parent;
+    esp_gmf_db_handle_t      in_db;
+    esp_gmf_db_handle_t      out_db;
+    esp_gmf_afe_output_cb_t  output_cb;
+    void                    *output_ctx;
+    wakeup_state_t           wakeup_state;
+    wakeup_event_t           last_event;
+    bool                     origin_vad_enable;
+    bool                     keep_wake;
+    esp_timer_handle_t       wakeup_timer;
+    SemaphoreHandle_t        wake_st_lock;
+    model_iface_data_t      *mn_handle;
+    bool                     mn_detecting;
+    SemaphoreHandle_t        mn_lock;
+    esp_mn_state_t           mn_state;
+    esp_mn_iface_t          *multinet;
+    QueueHandle_t            msg_queue;
 } esp_gmf_afe_t;
 
 static const char *TAG = "GMF_AFE";
@@ -393,6 +395,11 @@ static void esp_gmf_afe_result_proc(afe_fetch_result_t *result, void *user_ctx)
             mn_afe_monitor(result, user_ctx);
         }
 
+        if (gmf_afe->output_cb != NULL) {
+            gmf_afe->output_cb(result->data, result->data_size, gmf_afe->output_ctx);
+            return;
+        }
+
         uint32_t available_size = 0;
         esp_gmf_db_get_available(gmf_afe->out_db, &available_size);
 
@@ -495,7 +502,9 @@ static esp_gmf_job_err_t esp_gmf_afe_open(esp_gmf_audio_element_handle_t self, v
         esp_mn_commands_update_from_sdkconfig((esp_mn_iface_t *)gmf_afe->multinet, gmf_afe->mn_handle);
     }
     esp_gmf_db_new_ringbuf(2, buf_size, &gmf_afe->in_db);
-    esp_gmf_db_new_ringbuf(1, buf_size * 2 + (cfg->delay_samples * sizeof(uint16_t)), &gmf_afe->out_db);
+    if (gmf_afe->output_cb == NULL) {
+        esp_gmf_db_new_ringbuf(1, buf_size * 2 + (cfg->delay_samples * sizeof(uint16_t)), &gmf_afe->out_db);
+    }
     esp_gmf_afe_manager_set_result_cb(cfg->afe_manager, esp_gmf_afe_result_proc, self);
     esp_gmf_afe_manager_set_read_cb(cfg->afe_manager, esp_gmf_afe_read_cb, self);
     if (gmf_afe->msg_queue == NULL) {
@@ -612,23 +621,28 @@ static esp_gmf_job_err_t esp_gmf_afe_proc(esp_gmf_audio_element_handle_t self, v
     blk.valid_size = in_load->valid_size;
     esp_gmf_db_release_write(gmf_afe->in_db, &blk, ESP_GMF_MAX_DELAY);
 
-    uint32_t filled_size = 0;
-    esp_gmf_db_get_filled_size(gmf_afe->out_db, &filled_size);
+    if (gmf_afe->output_cb == NULL) {
+        uint32_t filled_size = 0;
+        esp_gmf_db_get_filled_size(gmf_afe->out_db, &filled_size);
 
-    if (filled_size > (cfg->delay_samples * sizeof(uint16_t))) {
-        uint32_t rsize = filled_size - (cfg->delay_samples * sizeof(uint16_t));
-        esp_gmf_port_acquire_out(out_port, &out_load, rsize, ESP_GMF_MAX_DELAY);
-        esp_gmf_data_bus_block_t blk = {0};
-        blk.buf = out_load->buf;
-        blk.buf_length = rsize;
-        esp_gmf_db_acquire_read(gmf_afe->out_db, &blk, rsize, ESP_GMF_MAX_DELAY);
-        esp_gmf_db_release_read(gmf_afe->out_db, &blk, ESP_GMF_MAX_DELAY);
-        out_load->valid_size = rsize;
-        esp_gmf_port_release_out(out_port, out_load, ESP_GMF_MAX_DELAY);
-        ret = ESP_GMF_JOB_ERR_OK;
+        if (filled_size > (cfg->delay_samples * sizeof(uint16_t))) {
+            uint32_t rsize = filled_size - (cfg->delay_samples * sizeof(uint16_t));
+            esp_gmf_port_acquire_out(out_port, &out_load, rsize, ESP_GMF_MAX_DELAY);
+            esp_gmf_data_bus_block_t blk = {0};
+            blk.buf = out_load->buf;
+            blk.buf_length = rsize;
+            esp_gmf_db_acquire_read(gmf_afe->out_db, &blk, rsize, ESP_GMF_MAX_DELAY);
+            esp_gmf_db_release_read(gmf_afe->out_db, &blk, ESP_GMF_MAX_DELAY);
+            out_load->valid_size = rsize;
+            esp_gmf_port_release_out(out_port, out_load, ESP_GMF_MAX_DELAY);
+            ret = ESP_GMF_JOB_ERR_OK;
+        } else {
+            ret = ESP_GMF_JOB_ERR_CONTINUE;
+        }
     } else {
-        ret = ESP_GMF_JOB_ERR_CONTINUE;
+        ret = ESP_GMF_JOB_ERR_OK;
     }
+
     if (in_load->is_done) {
         ret = ESP_GMF_JOB_ERR_DONE;
     }
@@ -746,6 +760,22 @@ esp_gmf_err_t esp_gmf_afe_init(void *config, esp_gmf_obj_handle_t *handle)
 __failed:
     esp_gmf_afe_destroy(gmf_afe);
     return ESP_GMF_ERR_FAIL;
+}
+
+esp_gmf_err_t esp_gmf_afe_set_output_callback(esp_gmf_element_handle_t handle,
+                                              esp_gmf_afe_output_cb_t callback, void *ctx)
+{
+    if (handle == NULL) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    esp_gmf_afe_t *afe = (esp_gmf_afe_t *)handle;
+    esp_gmf_afe_cfg_t *cfg = OBJ_GET_CFG(afe);
+    if (afe->in_db != NULL || (callback != NULL && cfg->delay_samples != 0)) {
+        return ESP_GMF_ERR_INVALID_ARG;
+    }
+    afe->output_cb = callback;
+    afe->output_ctx = ctx;
+    return ESP_GMF_ERR_OK;
 }
 
 static esp_gmf_err_t esp_gmf_afe_set_vcmd_detection(esp_gmf_element_handle_t handle, bool enable)

@@ -115,6 +115,33 @@ cfg.fetch_task_setting.stack_in_internal = true;
 - Unified Event Interface: Notifies events (wake-up start/end, VAD state changes, command word triggers) via callback functions
 - State Machine Management: Automatically maintains transitions between wake-up, speech, and silence states
 
+### Immediate PCM output
+
+The normal AFE output port is drained by the input processing job. When that
+job waits for another input block, already processed PCM can remain queued.
+An external consumer with its own audio clock can instead bind an immediate
+output callback before opening the element:
+
+```c
+// Configure before esp_gmf_afe_init().
+afe_element_cfg.delay_samples = 0;
+// Bind to the initialized element, before opening it.
+esp_gmf_afe_set_output_callback(element, consume_pcm, context);
+```
+
+The callback receives mono, signed 16-bit PCM at 16 kHz on the existing AFE
+fetch task, after wakeup, VAD and command monitoring. Its data is borrowed only
+until it returns. Copy retained data into a bounded, nonblocking sink and handle
+sink overflow there. Do not block, replace manager callbacks, or synchronously
+close/destroy the element or pipeline from the callback.
+
+This mode replaces output-port delivery and does not allocate the output data
+bus or create another task. Do not connect a downstream pipeline consumer.
+A NULL callback preserves normal pipeline output and sample-delay behavior.
+Binding while open, or selecting immediate output with a nonzero delay, is
+rejected. Bind cloned instances separately. Configuration must be serialized
+with open/close; close detaches the manager callback before releasing resources.
+
 ### System Diagram
 
   ```mermaid
