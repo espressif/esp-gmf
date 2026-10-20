@@ -37,3 +37,4 @@ include:
   - '.gitlab/ci/target_examples.yml'
   - '.gitlab/ci/docs.yml'
   - '.gitlab/ci/deploy.yml'
+  - '.gitlab/ci/weekly_report.yml'

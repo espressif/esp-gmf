@@ -109,6 +109,8 @@
 
 .rules:build:idf-version-tag:
   rules:
+    - if: '$WEEKLY_CI_REPORT == "true"'
+      when: never
     - <<: *idf-version-tag-alpha
     - <<: *idf-version-tag-beta
     - <<: *idf-version-tag-gamma
@@ -116,6 +118,8 @@
 
 .rules:build:idf-version-tag-changes:
   rules:
+    - if: '$WEEKLY_CI_REPORT == "true"'
+      when: never
     - <<: *idf-version-tag-alpha
       changes: *patterns-build_components
     - <<: *idf-version-tag-beta

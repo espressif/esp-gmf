@@ -1,0 +1,14 @@
+# Weekly failed-case report. Included only when WEEKLY_CI_REPORT=true,
+# so a schedule does not also build and flash the whole matrix.
+weekly_ci_failed_cases:
+  stage: post_deploy
+  image: "${CI_DOCKER_REGISTRY}/esp-env-v5.3:1"
+  tags:
+    - host_test
+  before_script:
+    - source ${CI_PROJECT_DIR}/tools/ci/utils.sh
+    - add_gitlab_local_dns
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $WEEKLY_CI_REPORT == "true"'
+  script:
+    - python3 tools/ci/weekly_ci_report.py
