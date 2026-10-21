@@ -434,7 +434,6 @@ static bool check_ppa_supported_formats(gmf_video_ppa_t *vid_cvt, uint32_t src_f
     }
     if ((src_fmt == ESP_FOURCC_RGB24 && dst_fmt == ESP_FOURCC_RGB16) ||
         (src_fmt == ESP_FOURCC_RGB16 && dst_fmt == ESP_FOURCC_RGB24) ||
-        (src_fmt == ESP_FOURCC_RGB16 && dst_fmt == ESP_FOURCC_OUYY_EVYY) ||
         (src_fmt == ESP_FOURCC_RGB24 && dst_fmt == ESP_FOURCC_OUYY_EVYY) ||
         (src_fmt == ESP_FOURCC_RGB24 && dst_fmt == ESP_FOURCC_BGR24) ||
         (src_fmt == ESP_FOURCC_BGR24 && dst_fmt == ESP_FOURCC_RGB24)) {
@@ -1395,7 +1394,7 @@ static esp_gmf_job_err_t gmf_video_ppa_open(esp_gmf_element_handle_t self, void 
         int cache_line_size = esp_gmf_oal_get_spiram_cache_align();
         ;
         ESP_GMF_ELEMENT_GET(vid_cvt)->out_attr.data_size = GMF_VIDEO_ALIGN_UP(vid_cvt->out_frame_size, cache_line_size);
-        if (dma2d_ok) {
+        if (dma2d_ok && !geom) {
             vid_cvt->use_ppa = false;
         } else {
             vid_cvt->use_ppa = geom || vid_cvt->soft_in || vid_cvt->soft_out || ppa_native_pair_ok(src_info->format_id, vid_cvt->dst_format);

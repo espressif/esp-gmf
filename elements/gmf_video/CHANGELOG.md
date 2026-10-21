@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.1.1
+
+### Bug Fixes
+
+- Fixed `vid_ppa` wrongly selecting 2D-DMA instead of PPA when scaling, rotating, or cropping `RGB888` / `RGB565` frames
+- Fixed `vid_ppa` erroneously setting `rgb_swap` for `RGB565` to `O_UYY_E_VYY` conversion
+
 ## v1.1.0
 
 ### Changes

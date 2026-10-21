@@ -5,7 +5,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "unity.h"
 #include "esp_gmf_video_ppa.h"
@@ -71,8 +73,16 @@ bool esp_gmf_video_overlay_dst_format_supported(uint32_t format_id);
     ptr = NULL;                     \
 }
 
-#define ELEMS(arr)               (sizeof(arr) / sizeof((arr)[0]))
-#define VIDEO_EL_MAX_STACK_SIZE  (40 * 1024)
+#define ELEMS(arr)                (sizeof(arr) / sizeof((arr)[0]))
+#define VIDEO_EL_MAX_STACK_SIZE   (40 * 1024)
+#define TEST_COLOR_BAR_TOLERANCE  (24)
+#define TEST_DECODE_MIN_PSNR_DB   (24.0f)
+
+typedef enum {
+    VERIFY_BAR_ROTATE_NONE = 0,
+    VERIFY_BAR_ROTATE_FORWARD,
+    VERIFY_BAR_ROTATE_REVERSE,
+} verify_bar_rotate_t;
 
 typedef struct {
     // Src information
@@ -93,6 +103,7 @@ typedef struct {
     uint32_t                    out_codec;
     esp_gmf_video_resolution_t  out_res;
     uint8_t                    *out_pixel;
+    uint8_t                    *out_copy;
     uint32_t                    out_size;
     uint32_t                    out_frame_count;
     uint32_t                    out_max_size;
@@ -212,7 +223,7 @@ static void get_pattern_info(pattern_info_t *info, bool is_out)
     } else {
         info->format_id = video_el_inst.out_codec;
         info->res = video_el_inst.out_res;
-        info->pixel = video_el_inst.out_pixel;
+        info->pixel = video_el_inst.out_copy ? video_el_inst.out_copy : video_el_inst.out_pixel;
         info->data_size = video_el_inst.out_size;
         info->bar_count = TEST_PATTERN_BAR_COUNT;
         if (video_el_inst.rotate_degree == 90 || video_el_inst.rotate_degree == 270) {
@@ -227,6 +238,10 @@ static int allocate_src_pattern(uint32_t src_codec, bool copy)
         video_el_inst.src_res.width = TEST_PATTERN_WIDTH;
         video_el_inst.src_res.height = TEST_PATTERN_HEIGHT;
     }
+    video_el_inst.in_frame_count = 0;
+    video_el_inst.out_frame_count = 0;
+    video_el_inst.out_size = 0;
+    video_el_inst.no_need_free = false;
     video_el_inst.src_codec = src_codec;
     esp_video_codec_resolution_t res = {
         .width = video_el_inst.src_res.width,
@@ -256,12 +271,146 @@ static void free_video_el_inst(void)
 {
     SAFE_FREE(video_el_inst.src_pixel);
     SAFE_FREE(video_el_inst.src_copy);
+    SAFE_FREE(video_el_inst.out_copy);
     SAFE_FREE(video_el_inst.overlay_data);
     if (video_el_inst.no_need_free == false) {
         SAFE_FREE(video_el_inst.out_pixel);
     }
     video_el_inst.out_max_size = 0;
     video_el_inst.out_pixel = NULL;
+}
+
+static bool pixels_match_within(rgb888_pixel_t a, rgb888_pixel_t b, int tol)
+{
+    return (abs((int)a.r - (int)b.r) <= tol &&
+            abs((int)a.g - (int)b.g) <= tol &&
+            abs((int)a.b - (int)b.b) <= tol);
+}
+
+static void verify_raw_frame_output(void)
+{
+    TEST_ASSERT_GREATER_THAN_UINT32(0, video_el_inst.out_frame_count);
+    esp_video_codec_resolution_t expected_res = {
+        .width = video_el_inst.out_res.width,
+        .height = video_el_inst.out_res.height,
+    };
+    uint32_t expected_size = esp_video_codec_get_image_size(
+        (esp_video_codec_pixel_fmt_t)video_el_inst.out_codec, &expected_res);
+    if (expected_size > 0) {
+        TEST_ASSERT_EQUAL_UINT32(expected_size, video_el_inst.out_size);
+    }
+}
+
+static void verify_color_bars(const esp_gmf_video_rgn_t *crop_rgn, verify_bar_rotate_t rotate_mode, int tol)
+{
+    pattern_info_t src_info = {};
+    pattern_info_t out_info = {};
+    get_pattern_info(&src_info, false);
+    get_pattern_info(&out_info, true);
+    TEST_ASSERT_NOT_NULL(src_info.pixel);
+    TEST_ASSERT_NOT_NULL(out_info.pixel);
+
+    static const int fracs[3] = {1, 2, 3};
+    int n = TEST_PATTERN_BAR_COUNT;
+    int src_bar_h = src_info.res.height / n;
+
+    if (rotate_mode != VERIFY_BAR_ROTATE_NONE) {
+        int out_bar_w = out_info.res.width / n;
+        for (int i = 0; i < n; i++) {
+            int src_idx = (rotate_mode == VERIFY_BAR_ROTATE_REVERSE) ? (n - 1 - i) : i;
+            int sy = (src_idx * src_bar_h + src_bar_h / 2) & ~1;
+            int ox = (i * out_bar_w + out_bar_w / 2) & ~1;
+            for (int k = 0; k < 3; k++) {
+                rgb888_pixel_t src_px = {};
+                rgb888_pixel_t out_px = {};
+                int sx = ((src_info.res.width * fracs[k]) / 4) & ~1;
+                int oy = ((out_info.res.height * fracs[k]) / 4) & ~1;
+                get_pixel(&src_info, &src_px, sx, sy);
+                get_pixel(&out_info, &out_px, ox, oy);
+                TEST_ASSERT_TRUE_MESSAGE(pixels_match_within(src_px, out_px, tol),
+                                         "Rotated color bar does not match expected direction/color");
+            }
+        }
+        return;
+    }
+
+    if (crop_rgn != NULL) {
+        int crop_y0 = crop_rgn->y;
+        int crop_y1 = crop_rgn->y + out_info.res.height;
+        int checked_bars = 0;
+        for (int i = 0; i < n; i++) {
+            int bar_y0 = i * src_bar_h;
+            int bar_y1 = (i == n - 1) ? (int)src_info.res.height : (i + 1) * src_bar_h;
+            int y0 = (bar_y0 > crop_y0) ? bar_y0 : crop_y0;
+            int y1 = (bar_y1 < crop_y1) ? bar_y1 : crop_y1;
+            if (y1 - y0 < 4) {
+                continue;
+            }
+            int src_y = ((y0 + y1) / 2) & ~1;
+            int out_y = (src_y - crop_rgn->y) & ~1;
+            for (int k = 0; k < 3; k++) {
+                rgb888_pixel_t src_px = {};
+                rgb888_pixel_t out_px = {};
+                int out_x = ((out_info.res.width * fracs[k]) / 4) & ~1;
+                int src_x = (crop_rgn->x + out_x) & ~1;
+                get_pixel(&src_info, &src_px, src_x, src_y);
+                get_pixel(&out_info, &out_px, out_x, out_y);
+                TEST_ASSERT_TRUE_MESSAGE(pixels_match_within(src_px, out_px, tol),
+                                         "Cropped color bar pixel mismatch");
+            }
+            checked_bars++;
+        }
+        TEST_ASSERT_GREATER_THAN(0, checked_bars);
+        return;
+    }
+
+    int out_bar_h = out_info.res.height / n;
+    for (int i = 0; i < n; i++) {
+        int src_y = (i * src_bar_h + src_bar_h / 2) & ~1;
+        int out_y = (i * out_bar_h + out_bar_h / 2) & ~1;
+        for (int k = 0; k < 3; k++) {
+            rgb888_pixel_t src_px = {};
+            rgb888_pixel_t out_px = {};
+            int src_x = ((src_info.res.width * fracs[k]) / 4) & ~1;
+            int out_x = ((out_info.res.width * fracs[k]) / 4) & ~1;
+            get_pixel(&src_info, &src_px, src_x, src_y);
+            get_pixel(&out_info, &out_px, out_x, out_y);
+            TEST_ASSERT_TRUE_MESSAGE(pixels_match_within(src_px, out_px, tol),
+                                     "Color bar pixel mismatch");
+        }
+    }
+}
+
+static void verify_decoded_psnr(float min_psnr_db)
+{
+    pattern_info_t src_info = {};
+    pattern_info_t out_info = {};
+    get_pattern_info(&src_info, false);
+    get_pattern_info(&out_info, true);
+    TEST_ASSERT_NOT_NULL(src_info.pixel);
+    TEST_ASSERT_NOT_NULL(out_info.pixel);
+
+    double err_sum = 0.0;
+    uint32_t sample_count = 0;
+    int step = 4;
+    for (int y = 2; y < (int)out_info.res.height - 2; y += step) {
+        for (int x = 2; x < (int)out_info.res.width - 2; x += step) {
+            rgb888_pixel_t src_px = {};
+            rgb888_pixel_t out_px = {};
+            get_pixel(&src_info, &src_px, x, y);
+            get_pixel(&out_info, &out_px, x, y);
+            int dr = (int)src_px.r - (int)out_px.r;
+            int dg = (int)src_px.g - (int)out_px.g;
+            int db = (int)src_px.b - (int)out_px.b;
+            err_sum += (double)(dr * dr + dg * dg + db * db);
+            sample_count += 3;
+        }
+    }
+    TEST_ASSERT_GREATER_THAN_UINT32(0, sample_count);
+    double mse = err_sum / (double)sample_count;
+    float psnr = (mse <= 1e-6) ? 99.0f : (float)(10.0 * log10((255.0 * 255.0) / mse));
+    ESP_LOGI(TAG, "Decoded frame PSNR: %.2f dB (threshold %.2f dB)", psnr, min_psnr_db);
+    TEST_ASSERT_TRUE_MESSAGE(psnr >= min_psnr_db, "Decoded frame PSNR below threshold");
 }
 
 static esp_gmf_err_io_t in_acquire(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
@@ -841,6 +990,13 @@ static esp_gmf_err_io_t out_release(void *handle, esp_gmf_payload_t *load, uint3
     video_el_inst.out_size = load->valid_size;
     if (video_el_inst.perf_mode == false) {
         ESP_LOGI(TAG, "Out frame %d size %d", (int)video_el_inst.out_frame_count, (int)video_el_inst.out_size);
+        if (video_el_inst.no_need_free && load->buf && load->buf != video_el_inst.src_pixel &&
+            load->valid_size > 0 && video_el_inst.out_copy == NULL) {
+            video_el_inst.out_copy = esp_gmf_oal_malloc_align(TEST_VIDEO_ALIGNMENT, load->valid_size);
+            if (video_el_inst.out_copy) {
+                memcpy(video_el_inst.out_copy, load->buf, load->valid_size);
+            }
+        }
     }
     video_el_inst.out_frame_count++;
     // FIXME: why add this ugly code
@@ -943,6 +1099,8 @@ static int test_color_convert(convert_res_t *res, uint32_t convert_pair[][2], in
         vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
         show_result_pattern();
+        verify_raw_frame_output();
+        verify_color_bars(NULL, VERIFY_BAR_ROTATE_NONE, TEST_COLOR_BAR_TOLERANCE);
         free_video_el_inst();
         esp_gmf_pipeline_reset(res->pipe);
         esp_gmf_pipeline_loading_jobs(res->pipe);
@@ -977,9 +1135,11 @@ TEST_CASE("PPA TEST", "[ESP_GMF_VIDEO][leaks=1400]")
             ESP_LOGI(TAG, "  swap probe j=%d: %s -> %s", j,
                      esp_gmf_video_get_format_string(convert_cases[i].src),
                      esp_gmf_video_get_format_string(convert_cases[i].dst));
-            gmf_video_ppa_test(convert_cases[i].src, convert_cases[i].dst, TEST_PATTERN_WIDTH, TEST_PATTERN_HEIGHT,
-                               video_el_inst.src_pixel, video_el_inst.out_pixel, j);
+            int ret = gmf_video_ppa_test(convert_cases[i].src, convert_cases[i].dst, TEST_PATTERN_WIDTH, TEST_PATTERN_HEIGHT,
+                                         video_el_inst.src_pixel, video_el_inst.out_pixel, j);
             show_result_pattern();
+            TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, ret);
+            verify_color_bars(NULL, VERIFY_BAR_ROTATE_NONE, TEST_COLOR_BAR_TOLERANCE);
         }
         free_video_el_inst();
     }
@@ -1077,6 +1237,8 @@ TEST_CASE("vid_ppa soft color convert integration", "[ESP_GMF_VIDEO][leaks=1400]
         esp_gmf_err_t stop_ret = esp_gmf_pipeline_stop(res.pipe);
         TEST_ASSERT_MESSAGE(stop_ret == ESP_GMF_ERR_OK, cases[i].desc);
         show_result_pattern();
+        verify_raw_frame_output();
+        verify_color_bars(NULL, VERIFY_BAR_ROTATE_NONE, TEST_COLOR_BAR_TOLERANCE);
         free_video_el_inst();
         esp_gmf_pipeline_reset(res.pipe);
         esp_gmf_pipeline_loading_jobs(res.pipe);
@@ -1354,6 +1516,8 @@ static int test_scale(convert_res_t *res, uint32_t convert_pair[][2], int n)
         vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
         show_result_pattern();
+        verify_raw_frame_output();
+        verify_color_bars(NULL, VERIFY_BAR_ROTATE_NONE, TEST_COLOR_BAR_TOLERANCE);
         free_video_el_inst();
         esp_gmf_pipeline_reset(res->pipe);
         esp_gmf_pipeline_loading_jobs(res->pipe);
@@ -1452,6 +1616,10 @@ static int test_rotate(convert_res_t *res, uint32_t convert_pair[][2], int n)
         vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
         show_result_pattern();
+        verify_raw_frame_output();
+        bool is_hw_ppa = (get_element_by_caps_from_pipe(res->pipe, ESP_GMF_CAPS_VIDEO_ROTATE) == get_element_by_caps_from_pipe(res->pipe, ESP_GMF_CAPS_VIDEO_COLOR_CONVERT));
+        bool expect_reverse = is_hw_ppa ? (video_el_inst.rotate_degree == 270) : (video_el_inst.rotate_degree == 90);
+        verify_color_bars(NULL, expect_reverse ? VERIFY_BAR_ROTATE_REVERSE : VERIFY_BAR_ROTATE_FORWARD, TEST_COLOR_BAR_TOLERANCE);
         free_video_el_inst();
         esp_gmf_pipeline_reset(res->pipe);
         esp_gmf_pipeline_loading_jobs(res->pipe);
@@ -1553,6 +1721,8 @@ static int test_crop(convert_res_t *res, uint32_t convert_pair[][2], int n)
         vTaskDelay(1000 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res->pipe));
         show_result_pattern();
+        verify_raw_frame_output();
+        verify_color_bars(&crop_rgn, VERIFY_BAR_ROTATE_NONE, TEST_COLOR_BAR_TOLERANCE);
         free_video_el_inst();
         esp_gmf_pipeline_reset(res->pipe);
         esp_gmf_pipeline_loading_jobs(res->pipe);
@@ -1749,6 +1919,8 @@ TEST_CASE("FPS convert only", "[ESP_GMF_VIDEO][leaks=1400]")
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_run(res.pipe));
         vTaskDelay(100 / portTICK_RATE_MS);
         TEST_ASSERT_EQUAL(ESP_GMF_ERR_OK, esp_gmf_pipeline_stop(res.pipe));
+        TEST_ASSERT_GREATER_THAN_UINT32(0, video_el_inst.out_frame_count);
+        TEST_ASSERT_INT_WITHIN(2, (int)((video_el_inst.in_frame_count + 1) / 2), (int)video_el_inst.out_frame_count);
         free_video_el_inst();
         esp_gmf_pipeline_reset(res.pipe);
         esp_gmf_pipeline_loading_jobs(res.pipe);
@@ -1832,6 +2004,13 @@ static void encoder_to_decode_run(bool use_out_pool)
         TEST_ASSERT_FALSE_MESSAGE(dec_probe.saw_compressed_report_from_dec,
                                   "vid_dec must not REPORT_INFO compressed stream FourCC at open when decoding");
         show_result_pattern();
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3
+        TEST_ASSERT_GREATER_THAN_UINT32(0, video_el_inst.out_frame_count);
+#endif  /* CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32S3 */
+        if (video_el_inst.out_frame_count > 0) {
+            verify_raw_frame_output();
+            verify_decoded_psnr(TEST_DECODE_MIN_PSNR_DB);
+        }
         free_video_el_inst();
         esp_gmf_pipeline_reset(res.pipe);
         esp_gmf_pipeline_loading_jobs(res.pipe);
