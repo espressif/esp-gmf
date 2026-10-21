@@ -57,7 +57,7 @@ static int gen_pattern_color_bar(pattern_info_t *info)
             for (int i = 0; i < n; i++) {
                 color[i].r = (uint16_t)(rand() & 0xFF);
                 color[i].g = (uint16_t)(rand() & 0xFF);
-                color[i].g = (uint16_t)(rand() & 0xFF);
+                color[i].b = (uint16_t)(rand() & 0xFF);
             }
             if (vertical) {
                 uint32_t bar_w = info->res.width / n;
@@ -94,7 +94,7 @@ static int gen_pattern_color_bar(pattern_info_t *info)
             for (int i = 0; i < n; i++) {
                 color[i].r = (uint8_t)(rand() & 0xFF);
                 color[i].g = (uint8_t)(rand() & 0xFF);
-                color[i].g = (uint8_t)(rand() & 0xFF);
+                color[i].b = (uint8_t)(rand() & 0xFF);
             }
             if (vertical) {
                 uint32_t bar_w = info->res.width / n;
@@ -421,6 +421,14 @@ static void get_pixel(pattern_info_t *info, rgb888_pixel_t *pixel, int x, int y)
             pixel->r = GET_RGB565_R(*src);
             pixel->g = GET_RGB565_G(*src);
             pixel->b = GET_RGB565_B(*src);
+            break;
+        }
+        case ESP_FOURCC_BGR16: {
+            uint16_t *src = (uint16_t *)data;
+            src += y * info->res.width + x;
+            pixel->b = GET_RGB565_R(*src);
+            pixel->g = GET_RGB565_G(*src);
+            pixel->r = GET_RGB565_B(*src);
             break;
         }
         case ESP_FOURCC_RGB16_BE: {

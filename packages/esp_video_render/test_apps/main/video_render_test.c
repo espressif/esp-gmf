@@ -257,6 +257,149 @@ int video_render_lcd_backend_none_fb_test(int count)
     return success ? 0 : -1;
 }
 
+static void read_render_yuv_to_rgb(uint8_t y, uint8_t u, uint8_t v, esp_video_render_clr_t *px)
+{
+    int c = (int)y - 16;
+    int d = (int)u - 128;
+    int e = (int)v - 128;
+    int r = (298 * c + 409 * e + 128) >> 8;
+    int g = (298 * c - 100 * d - 208 * e + 128) >> 8;
+    int b = (298 * c + 516 * d + 128) >> 8;
+    px->r = (uint8_t)(r < 0 ? 0 : (r > 255 ? 255 : r));
+    px->g = (uint8_t)(g < 0 ? 0 : (g > 255 ? 255 : g));
+    px->b = (uint8_t)(b < 0 ? 0 : (b > 255 ? 255 : b));
+}
+
+static bool read_render_pixel_rgb(const esp_video_render_img_t *img, int x, int y, esp_video_render_clr_t *px)
+{
+    if (img == NULL || img->data == NULL || px == NULL) {
+        return false;
+    }
+    int idx = y * img->info.width + x;
+    switch (img->info.format) {
+        case ESP_VIDEO_RENDER_FORMAT_RGB888: {
+            const uint8_t *p = img->data + idx * 3;
+            px->r = p[0];
+            px->g = p[1];
+            px->b = p[2];
+            return true;
+        }
+        case ESP_VIDEO_RENDER_FORMAT_BGR888: {
+            const uint8_t *p = img->data + idx * 3;
+            px->b = p[0];
+            px->g = p[1];
+            px->r = p[2];
+            return true;
+        }
+        case ESP_VIDEO_RENDER_FORMAT_RGB565: {
+            uint16_t v = ((const uint16_t *)img->data)[idx];
+            px->r = GET_RGB565_R(v);
+            px->g = GET_RGB565_G(v);
+            px->b = GET_RGB565_B(v);
+            return true;
+        }
+        case ESP_VIDEO_RENDER_FORMAT_RGB565_BE: {
+            uint16_t v = SWAP_EDIAN(((const uint16_t *)img->data)[idx]);
+            px->r = GET_RGB565_R(v);
+            px->g = GET_RGB565_G(v);
+            px->b = GET_RGB565_B(v);
+            return true;
+        }
+        case ESP_VIDEO_RENDER_FORMAT_UYVY: {
+            int x_even = (x >> 1) << 1;
+            const uint8_t *p = img->data + (y * img->info.width + x_even) * 2;
+            read_render_yuv_to_rgb(p[3], p[0], p[2], px);
+            return true;
+        }
+        case ESP_VIDEO_RENDER_FORMAT_YUV422: {
+            int x_even = (x >> 1) << 1;
+            const uint8_t *p = img->data + (y * img->info.width + x_even) * 2;
+            read_render_yuv_to_rgb(p[0], p[1], p[3], px);
+            return true;
+        }
+        case ESP_VIDEO_RENDER_FORMAT_YUV420P: {
+            int w = img->info.width;
+            int h = img->info.height;
+            const uint8_t *py = img->data + y * w + x;
+            const uint8_t *pu = img->data + w * h + (y >> 1) * (w >> 1) + (x >> 1);
+            const uint8_t *pv = img->data + w * h * 5 / 4 + (y >> 1) * (w >> 1) + (x >> 1);
+            read_render_yuv_to_rgb(py[0], pu[0], pv[0], px);
+            return true;
+        }
+        case ESP_VIDEO_RENDER_FORMAT_O_UYY_E_VYY: {
+            int w = img->info.width;
+            const uint8_t *uyy = img->data + (y >> 1) * w * 3 + (x >> 1) * 3;
+            const uint8_t *vyy = uyy + w * 3 / 2;
+            uint8_t y_val = (y & 1) ? vyy[1 + (x & 1)] : uyy[1 + (x & 1)];
+            read_render_yuv_to_rgb(y_val, uyy[0], vyy[0], px);
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
+static int verify_render_color_bars(const esp_video_render_img_t *src, const esp_video_render_img_t *dst, int bar_count, int tol)
+{
+    if (src == NULL || dst == NULL || src->data == NULL || dst->data == NULL || bar_count <= 0) {
+        return ESP_VIDEO_RENDER_ERR_FAIL;
+    }
+    int src_bar_h = src->info.height / bar_count;
+    int dst_bar_h = dst->info.height / bar_count;
+    int src_x = src->info.width / 2;
+    int dst_x = dst->info.width / 2;
+    for (int i = 0; i < bar_count; i++) {
+        esp_video_render_clr_t sp = {};
+        esp_video_render_clr_t dp = {};
+        int src_y = i * src_bar_h + src_bar_h / 2;
+        int dst_y = i * dst_bar_h + dst_bar_h / 2;
+        if (!read_render_pixel_rgb(src, src_x, src_y, &sp) || !read_render_pixel_rgb(dst, dst_x, dst_y, &dp)) {
+            ESP_LOGE(TAG, "Unsupported format or null buffer in verify_render_color_bars (src=%x dst=%x)",
+                     (unsigned)src->info.format, (unsigned)dst->info.format);
+            return ESP_VIDEO_RENDER_ERR_FAIL;
+        }
+        if (abs((int)sp.r - (int)dp.r) > tol ||
+            abs((int)sp.g - (int)dp.g) > tol ||
+            abs((int)sp.b - (int)dp.b) > tol) {
+            ESP_LOGE(TAG, "Bar %d pixel mismatch: src(%u,%u,%u) vs dst(%u,%u,%u)",
+                     i, sp.r, sp.g, sp.b, dp.r, dp.g, dp.b);
+            return ESP_VIDEO_RENDER_ERR_FAIL;
+        }
+    }
+    return ESP_VIDEO_RENDER_ERR_OK;
+}
+
+static int verify_encoded_render_color_bars(uint32_t seed, esp_video_codec_type_t codec_type,
+                                            uint16_t src_w, uint16_t src_h, bool vertical,
+                                            int bar_count, const esp_video_render_img_t *dst, int tol)
+{
+    esp_video_enc_register_default();
+    esp_video_codec_query_t query = {.codec_type = codec_type};
+    esp_video_enc_caps_t enc_caps = {0};
+    int ret = esp_video_enc_query_caps(&query, &enc_caps);
+    esp_video_enc_unregister_default();
+    if (ret != ESP_VC_ERR_OK) {
+        return ESP_VIDEO_RENDER_ERR_FAIL;
+    }
+    esp_video_render_img_t ref = {
+        .info = {
+            .format = (esp_video_render_format_t)enc_caps.in_fmts[0],
+            .width = src_w,
+            .height = src_h,
+        },
+    };
+    srand(seed);
+    ret = gen_image(&ref, vertical, bar_count);
+    if (ret != 0) {
+        return ret;
+    }
+    ret = verify_render_color_bars(&ref, dst, bar_count, tol);
+    if (ref.data) {
+        free(ref.data);
+    }
+    return ret;
+}
+
 static int decoder_output_hdlr(esp_video_render_frame_t *frame, void *ctx)
 {
     esp_video_render_frame_t *out_frame = (esp_video_render_frame_t *)ctx;
@@ -284,6 +427,7 @@ int video_render_proc_decode_test(int write_count)
         ret = video_render_proc_create((esp_gmf_pool_handle_t)get_render_pool(), &render_proc);
         BREAK_ON_FAIL(ret);
 
+        srand(0x1234);
         ret = gen_image(&image, false, 16);
         BREAK_ON_FAIL(ret);
         printf("Encode image size %d\n", (int)image.size);
@@ -333,7 +477,6 @@ int video_render_proc_decode_test(int write_count)
             ESP_LOGE(TAG, "Decoded output size %d != %d (expected)", (int)out_frame.size, (int)size);
             BREAK_ON_FAIL(ESP_VIDEO_RENDER_ERR_FAIL);
         }
-        success = true;
         esp_video_render_img_t out_image = {
             .info = {
                 .format = out_frame.format,
@@ -343,6 +486,11 @@ int video_render_proc_decode_test(int write_count)
             .data = out_frame.data,
             .size = out_frame.size,
         };
+        ret = verify_encoded_render_color_bars(0x1234, ESP_VIDEO_CODEC_TYPE_MJPEG,
+                                               image.info.width, image.info.height,
+                                               false, 16, &out_image, 32);
+        BREAK_ON_FAIL(ret);
+        success = true;
         show_image(&out_image);
     } while (0);
     if (render_proc) {
@@ -416,7 +564,6 @@ int video_render_proc_color_convert_test(int write_count)
             ESP_LOGE(TAG, "Decoded output size %d != %d (expected)", (int)out_frame.size, (int)size);
             BREAK_ON_FAIL(ESP_VIDEO_RENDER_ERR_FAIL);
         }
-        success = true;
         esp_video_render_img_t out_image = {
             .info = {
                 .format = out_frame.format,
@@ -426,6 +573,9 @@ int video_render_proc_color_convert_test(int write_count)
             .data = out_frame.data,
             .size = out_frame.size,
         };
+        ret = verify_render_color_bars(&image, &out_image, 16, 16);
+        BREAK_ON_FAIL(ret);
+        success = true;
         show_image(&out_image);
     } while (0);
     if (render_proc) {
@@ -502,7 +652,6 @@ int video_render_proc_scale_test(int write_count)
             ESP_LOGE(TAG, "Decoded output size %d != %d (expected)", (int)out_frame.size, (int)size);
             BREAK_ON_FAIL(ESP_VIDEO_RENDER_ERR_FAIL);
         }
-        success = true;
         esp_video_render_img_t out_image = {
             .info = {
                 .format = out_frame.format,
@@ -512,6 +661,9 @@ int video_render_proc_scale_test(int write_count)
             .data = out_frame.data,
             .size = out_frame.size,
         };
+        ret = verify_render_color_bars(&image, &out_image, 16, 16);
+        BREAK_ON_FAIL(ret);
+        success = true;
         show_image(&out_image);
     } while (0);
     if (render_proc) {
@@ -616,6 +768,7 @@ int video_render_proc_chain_test(int write_count)
         ret = video_render_proc_create((esp_gmf_pool_handle_t)get_render_pool(), &render_proc);
         BREAK_ON_FAIL(ret);
 
+        srand(0x5678);
         ret = gen_image(&image, false, 16);
         BREAK_ON_FAIL(ret);
         printf("Encode image size %d\n", (int)image.size);
@@ -658,7 +811,6 @@ int video_render_proc_chain_test(int write_count)
             ESP_LOGE(TAG, "Decoded output size %d != %d (expected)", (int)out_frame.size, (int)size);
             BREAK_ON_FAIL(ESP_VIDEO_RENDER_ERR_FAIL);
         }
-        success = true;
         esp_video_render_img_t out_image = {
             .info = {
                 .format = out_frame.format,
@@ -668,6 +820,11 @@ int video_render_proc_chain_test(int write_count)
             .data = out_frame.data,
             .size = out_frame.size,
         };
+        ret = verify_encoded_render_color_bars(0x5678, ESP_VIDEO_CODEC_TYPE_MJPEG,
+                                               image.info.width, image.info.height,
+                                               false, 16, &out_image, 32);
+        BREAK_ON_FAIL(ret);
+        success = true;
         show_image(&out_image);
     } while (0);
     if (render_proc) {

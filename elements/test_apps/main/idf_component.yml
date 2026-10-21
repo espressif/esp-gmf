@@ -12,6 +12,9 @@ dependencies:
   espressif/gmf_video:
     override_path: ../../gmf_video
   espressif/esp_video_codec: "~0.5.2"
+  espressif/esp_hosted:
+    rules:
+      - if: "target in [esp32p4]"
   espressif/esp_wifi_remote:
     rules:
       - if: "target in [esp32p4]"
