@@ -339,7 +339,7 @@ static bool sc_get_first_file(const char *dir_path, const char *ext,
     return false;
 }
 
-static bool sc_run_and_wait_played(sc_ctx_t *c)
+static bool sc_run_and_wait_played_timeout(sc_ctx_t *c, uint32_t timeout_ms)
 {
     c->run_time_us = esp_timer_get_time();
     esp_player_run(c->player);
@@ -347,8 +347,18 @@ static bool sc_run_and_wait_played(sc_ctx_t *c)
     EventBits_t wait_bits = SC_PLAYED_BIT | SC_ERROR_BIT | SC_FINISHED_BIT;
     EventBits_t got = xEventGroupWaitBits(c->event_group, wait_bits,
                                           pdTRUE, pdFALSE,
-                                          pdMS_TO_TICKS(SC_TIMEOUT_PLAY_MS));
+                                          pdMS_TO_TICKS(timeout_ms));
     return (got & SC_PLAYED_BIT) != 0;
+}
+
+static bool sc_run_and_wait_played(sc_ctx_t *c)
+{
+    return sc_run_and_wait_played_timeout(c, SC_TIMEOUT_PLAY_MS);
+}
+
+static bool sc_run_and_wait_http_played(sc_ctx_t *c)
+{
+    return sc_run_and_wait_played_timeout(c, SC_TIMEOUT_HTTP_PLAY_MS);
 }
 
 static bool sc_run_and_wait_prepared(sc_ctx_t *c)
@@ -2664,7 +2674,7 @@ TEST_CASE("[buffering]:test_player_rebuffer_event_pair_http", "[player][bufferin
                       sc_create_audio_player(&ctx, 0, 44100, 16, 2));
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
                       esp_player_set_url(ctx.player, TEST_HTTP_URL));
-    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx),
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_http_played(&ctx),
                              "HTTP stream failed to reach PLAYED");
 
     EventBits_t bits = xEventGroupGetBits(ctx.event_group);
@@ -2707,12 +2717,7 @@ TEST_CASE("[buffering]:test_player_pause_keeps_rebuffer_gate_http", "[player][bu
     };
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_buffer_config(ctx.player, &buffer_cfg));
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_set_url(ctx.player, TEST_HTTP_URL));
-    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_run(ctx.player));
-    EventBits_t played = xEventGroupWaitBits(ctx.event_group,
-                                             SC_PLAYED_BIT | SC_ERROR_BIT | SC_FINISHED_BIT,
-                                             pdTRUE, pdFALSE,
-                                             pdMS_TO_TICKS(SC_TIMEOUT_HTTP_PLAY_MS));
-    TEST_ASSERT_TRUE_MESSAGE((played & SC_PLAYED_BIT) != 0, "HTTP stream failed to reach PLAYED");
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_http_played(&ctx), "HTTP stream failed to reach PLAYED");
 
     /* Startup pre-buffering already reported; wait for the first runtime re-buffering gate. */
     sc_clear_bits(&ctx, SC_BUFFERING_BIT | SC_BUFFERED_BIT);
@@ -2756,12 +2761,7 @@ TEST_CASE("[buffering]:test_player_http_eos_finished", "[player][buffering][leak
                       sc_create_audio_player(&ctx, 0, 44100, 16, 2));
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
                       esp_player_set_url(ctx.player, TEST_HTTPS_URL));
-    TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_run(ctx.player));
-    EventBits_t played = xEventGroupWaitBits(ctx.event_group,
-                                             SC_PLAYED_BIT | SC_ERROR_BIT | SC_FINISHED_BIT,
-                                             pdTRUE, pdFALSE,
-                                             pdMS_TO_TICKS(SC_TIMEOUT_HTTP_PLAY_MS));
-    TEST_ASSERT_TRUE_MESSAGE((played & SC_PLAYED_BIT) != 0, "HTTP stream failed to reach PLAYED");
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_http_played(&ctx), "HTTP stream failed to reach PLAYED");
 
     uint64_t duration_ms = 0;
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK, esp_player_get_duration(ctx.player, &duration_ms));
@@ -2800,7 +2800,7 @@ TEST_CASE("[buffering]:test_player_http_seek_near_end_finished", "[player][buffe
                       sc_create_audio_player(&ctx, 0, 44100, 16, 2));
     TEST_ASSERT_EQUAL(ESP_PLAYER_ERR_OK,
                       esp_player_set_url(ctx.player, TEST_HTTPS_URL));
-    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_played(&ctx),
+    TEST_ASSERT_TRUE_MESSAGE(sc_run_and_wait_http_played(&ctx),
                              "HTTP stream failed to reach PLAYED");
 
     uint64_t duration_ms = 0;

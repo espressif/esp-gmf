@@ -30,7 +30,7 @@ extern "C" {
 
 /** @brief HTTP URLs for error-path tests */
 #define TEST_HTTP_URL_NOT_FOUND      "http://192.168.8.31:8008/esp_player_test_not_found.m4a"
-#define TEST_HTTP_URL_INVALID_MEDIA  "https://www.espressif.com/"
+#define TEST_HTTP_URL_INVALID_MEDIA  "http://192.168.8.31:8008/download"
 
 /** @brief Max path buffer for test file discovery helpers */
 #define TEST_PATH_MAX_LEN  512
