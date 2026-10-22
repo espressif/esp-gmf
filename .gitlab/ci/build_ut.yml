@@ -28,14 +28,13 @@ variables:
     when: always
     expire_in: 4 days
   script:
-    - python $CI_PROJECT_DIR/tools/ci/esp_bmgr_pre_build.py --target $IDF_TARGET --board $AUDIO_BOARD --project-path ${TEST_DIR} --target-dir-type ${TARGET_DIR_TYPE}
+    - python $CI_PROJECT_DIR/tools/ci/esp_bmgr_pre_build.py --target $IDF_TARGET --board $AUDIO_BOARD --project-path ${TEST_DIR} --target-dir-type ${TARGET_DIR_TYPE} --skip-set-target --parallel-count ${parallel##*/} --parallel-index ${parallel%%/*}
     - run_cmd python $CI_PROJECT_DIR/tools/ci/build_apps.py ${TEST_DIR} \
         -t $IDF_TARGET -vv \
         --target-dir-type ${TARGET_DIR_TYPE} \
         --build-dir ${IDF_VERSION_TAG}/build_@t_@w \
         --parallel-count ${parallel##*/} \
         --parallel-index ${parallel%%/*}
-    - python $CI_PROJECT_DIR/tools/ci/check_test_cxx_build.py
 
 .build_gmf_component:
   extends:

@@ -24,7 +24,7 @@ variables:
   before_script:
     - *update_source
   after_script:
-    - find "${TEST_DIR}" -type d \( -name "managed_components" -o -name "build" \) -exec rm -rf {} +
+    - find "${TEST_DIR:-$CI_PROJECT_DIR}" -type d \( -name "managed_components" -o -name "build" \) -exec rm -rf {} +
 
 .target_test_template:
   stage: target_test
