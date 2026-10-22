@@ -91,6 +91,7 @@ check_pre_commit:
     - pre-commit install --allow-missing-config -t pre-commit -t commit-msg
     - pre-commit run --files $MODIFIED_FILES
     - python3 ${CI_PROJECT_DIR}/tools/ci/check_component_manifest.py
+    - python3 ${CI_PROJECT_DIR}/tools/ci/check_test_cxx_build.py
 
   after_script:
     - git diff > fixed.patch

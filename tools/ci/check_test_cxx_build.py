@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import os
+import logging
 import argparse
 import subprocess
-import build_apps
 
 from pathlib import Path
 from collections import defaultdict
@@ -15,16 +15,16 @@ GIT_STATUS_CMD = ['git', 'status', '--porcelain']
 
 # Logging functions for cleaner code
 def print_debug(msg: str) -> None:
-    build_apps.print_debug(msg)
+    logging.debug(f'\033[37m{msg}\033[0m')
 
 def print_info(msg: str) -> None:
-    build_apps.print_info(msg)
+    logging.info(f'\033[37m{msg}\033[0m')
 
 def print_warning(msg: str) -> None:
-    build_apps.print_warning(msg)
+    logging.warning(f'\033[33m{msg}\033[0m')
 
 def print_error(msg: str) -> None:
-    build_apps.print_error(msg)
+    logging.error(f'\033[31m{msg}\033[0m')
 
 def get_project_root() -> Path:
     """Get the project root directory using git"""
@@ -67,17 +67,20 @@ CONFIG = {
 
 def get_ci_modified_files() -> Optional[Set[Path]]:
     """Get modified files in CI environment"""
+    if git_diff_env := os.getenv('GIT_DIFF_OUTPUT', '').strip():
+        return {CONFIG['project_root'] / path for path in git_diff_env.split() if path.strip()}
+
     if not (base_sha := os.getenv('CI_MERGE_REQUEST_DIFF_BASE_SHA')) or not (ref_name := os.getenv('CI_COMMIT_REF_NAME')):
         return None
 
     try:
-        # Fetch branches
+        # Fetch branches shallowly to avoid unshallowing full repository history
         for branch in [base_sha, ref_name]:
             subprocess.run(
-                ['git', 'fetch', 'origin', f'{branch}:origin/{branch}'],
+                ['git', 'fetch', '--depth', '1', 'origin', f'{branch}:origin/{branch}'],
                 check = True, capture_output = True
             )
-        
+
         # Get changed files
         result = subprocess.run(
             GIT_DIFF_CMD + [f'origin/{base_sha}', f'origin/{ref_name}'],
@@ -130,13 +133,24 @@ def get_modified_files() -> Optional[Dict[Path, Set[Path]]]:
 
 def get_test_apps() -> List[Tuple[Path, Path]]:
     """Get all test_apps directories with their test file paths"""
-    paths = build_apps.get_app_paths(
-        str(CONFIG['project_root']),
-        target = CONFIG['target'],
-        target_dir_type = build_apps.APP_TYPE_TEST_APPS,
-        exclude_apps = CONFIG['excluded_dirs']
-    )
-    return [(Path(p), Path(p) / 'main' / CONFIG['test_file_name']) for p in paths]
+    root = CONFIG['project_root']
+    excluded = set(CONFIG['excluded_dirs'])
+    results: List[Tuple[Path, Path]] = []
+    for cmake_file in sorted(root.glob('**/CMakeLists.txt')):
+        rel_parts = cmake_file.relative_to(root).parts
+        if 'test_apps' not in rel_parts:
+            continue
+        if any(part in excluded or part.startswith('build') for part in rel_parts):
+            continue
+        try:
+            content = cmake_file.read_text(encoding='utf-8', errors='ignore')
+        except OSError:
+            continue
+        if 'project(' not in content:
+            continue
+        test_app_dir = cmake_file.parent
+        results.append((test_app_dir, test_app_dir / 'main' / CONFIG['test_file_name']))
+    return results
 
 def should_update_test_file(test_app_path: Path, test_file: Path, modified_files: Dict[Path, Set[Path]]) -> bool:
     """Check if test_cxx_build.cpp needs to be updated"""
@@ -195,5 +209,8 @@ if __name__ == '__main__':
     )
 
     arguments = parser.parse_args()
-    build_apps.setup_logging(verbose = arguments.verbose)
+    logging.basicConfig(
+        level = logging.DEBUG if arguments.verbose else logging.INFO,
+        format = '%(message)s',
+    )
     main()

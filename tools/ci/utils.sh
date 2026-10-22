@@ -93,6 +93,7 @@ function push_to_github() {
 }
 
 function set_env_variable() {
+  export IDF_CCACHE_ENABLE=1
   export LDGEN_CHECK_MAPPING=
   export PEDANTIC_CFLAGS="-w"
   export EXTRA_CFLAGS=${PEDANTIC_CFLAGS} && export EXTRA_CXXFLAGS=${EXTRA_CFLAGS}
@@ -241,7 +242,11 @@ function set_idf() {
   git log -1
   # Removes the mqtt submodule, so the next submodule update doesn't fail
   rm -rf $IDF_PATH/components/mqtt/esp-mqtt
-  git submodule update --init --recursive --depth 1
+  if [[ -n "$IDF_DONT_USE_MIRRORS" ]]; then
+    git submodule update --init --recursive --depth 1
+  else
+    git -c "url.https://jihulab.com/esp-mirror/.insteadOf=https://github.com/" submodule update --init --recursive --depth 1
+  fi
 
   popd
 }

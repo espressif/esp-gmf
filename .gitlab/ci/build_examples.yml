@@ -30,7 +30,7 @@
   extends:
     - .build_template
   script:
-    - python $CI_PROJECT_DIR/tools/ci/esp_bmgr_pre_build.py --target $IDF_TARGET --board $AUDIO_BOARD --project-path ${EXAMPLES_PATH[@]} --target-dir-type ${TARGET_DIR_TYPE}
+    - python $CI_PROJECT_DIR/tools/ci/esp_bmgr_pre_build.py --target $IDF_TARGET --board $AUDIO_BOARD --project-path ${EXAMPLES_PATH[@]} --target-dir-type ${TARGET_DIR_TYPE} --skip-set-target --parallel-count ${parallel##*/} --parallel-index ${parallel%%/*}
     - run_cmd python $CI_PROJECT_DIR/tools/ci/build_apps.py ${EXAMPLES_PATH[@]} \
         -t $IDF_TARGET -vv \
         --target-dir-type ${TARGET_DIR_TYPE} \

@@ -58,6 +58,8 @@ def get_app_list(
     target_dir_type: str = APP_TYPE_ALL,
     no_require_pytest: bool = False,
     enable_preview_targets: bool = True,
+    parallel_count: int = 1,
+    parallel_index: int = 1,
 ) -> List[str]:
     """
     Get application list using build_apps.py's get_app_paths API.
@@ -90,6 +92,8 @@ def get_app_list(
             target_dir_type=target_dir_type,
             exclude_apps=None,
             enable_preview_targets=enable_preview_targets,
+            parallel_count=parallel_count,
+            parallel_index=parallel_index,
         )
 
         if not app_list:
@@ -211,7 +215,21 @@ def _is_depending_on_esp_board_manager(app_path: str) -> bool:
     project_desc_path = os.path.join(app_path, 'build', 'project_description.json')
 
     if not os.path.exists(project_desc_path):
-        print_warning(f'  Warning: {project_desc_path} does not exist, skipping gen-bmgr-config')
+        import yaml  # type: ignore
+        manifests = [Path(app_path) / 'main/idf_component.yml', Path(app_path) / 'idf_component.yml']
+        manifests.extend(Path(app_path).glob('components/*/idf_component.yml'))
+        for yml in manifests:
+            if not yml.is_file():
+                continue
+            try:
+                deps = (yaml.safe_load(yml.read_text(encoding='utf-8')) or {}).get('dependencies') or {}
+            except Exception:
+                continue
+            if isinstance(deps, dict) and any(
+                str(k).split('/')[-1] in ('esp_board_manager', 'gmf_app_utils', 'gmf_loader') for k in deps
+            ):
+                return True
+        print_info('  Info: esp_board_manager not found in manifest dependencies, skipping bmgr board config')
         return False
 
     try:
@@ -256,19 +274,20 @@ def set_board_for_app(app_path: str, board: str, dry_run: bool = False, idf_targ
         return
 
     idf_env = _idf_env_for_app(app_path)
-    if idf_env is None:
-        print_warning(
-            '  Warning: esp_board_manager is in build_components but '
-            'managed_components/.../idf_ext.py was not found; skipping board config. '
-            'Ensure idf.py set-target completed and the component was downloaded.'
-        )
-        return
-
-    bmgr_path = idf_env['IDF_EXTRA_ACTIONS_PATH']
-    print_info(f'  Info: IDF_EXTRA_ACTIONS_PATH={bmgr_path}')
+    if idf_env is not None:
+        bmgr_path = idf_env['IDF_EXTRA_ACTIONS_PATH']
+        print_info(f'  Info: IDF_EXTRA_ACTIONS_PATH={bmgr_path}')
+    else:
+        idf_env = os.environ.copy()
+    # CI sets IDF_VERSION to tag/branch names like "v5.5.3" or "release/v6.1",
+    # which idf_component_tools rejects during esp-bmgr-assist bootstrap.
+    # Unsetting it lets esp-bmgr-assist read the numeric version from version.cmake.
+    idf_env.pop('IDF_VERSION', None)
+    if idf_target:
+        idf_env['IDF_TARGET'] = idf_target
 
     # Prefer the new action name; gen-bmgr-config remains a legacy alias in idf_ext.py.
-    cmd = ['idf.py', 'bmgr', '-b', board]
+    cmd = _idf_py_cmd(idf_target, 'bmgr', '-b', board)
     _execute_command_for_app(
         app_path, cmd, dry_run, use_warning_for_failure=True, env=idf_env
     )
@@ -331,6 +350,20 @@ Examples:
     )
 
     parser.add_argument(
+        '--parallel-count',
+        default=1,
+        type=int,
+        help='Number of parallel build jobs (default: 1)'
+    )
+
+    parser.add_argument(
+        '--parallel-index',
+        default=1,
+        type=int,
+        help='1-based index of the parallel build job (default: 1)'
+    )
+
+    parser.add_argument(
         '--no-require-pytest',
         action='store_true',
         help='Do not require pytest files in applications'
@@ -389,6 +422,8 @@ Examples:
         args.target_dir_type,
         args.no_require_pytest,
         enable_preview_targets=args.enable_preview_targets,
+        parallel_count=args.parallel_count,
+        parallel_index=args.parallel_index,
     )
 
     if not app_list:

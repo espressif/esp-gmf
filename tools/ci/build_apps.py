@@ -333,9 +333,18 @@ def _handle_find_mode(args, filtered_paths) -> List[str]:
         enable_preview_targets=getattr(args, 'enable_preview_targets', True),
     )
 
+    # Check for apps removed by build rules before sharding
+    removed_apps = _get_removed_apps(filtered_paths, apps)
+
     exclude_apps = getattr(args, 'exclude_apps', [])
     if exclude_apps:
         apps = [app for app in apps if app.name not in exclude_apps]
+
+    parallel_count = getattr(args, 'parallel_count', 1)
+    parallel_index = getattr(args, 'parallel_index', 1)
+    if parallel_count > 1:
+        start, stop = utils.get_parallel_start_stop(len(apps), parallel_count, parallel_index)
+        apps = apps[start - 1 : stop]
 
     # Deduplicate app paths (same app may have multiple configs/targets)
     unique_paths = []
@@ -352,9 +361,6 @@ def _handle_find_mode(args, filtered_paths) -> List[str]:
     if not args.no_require_pytest:
         if not check_pytest_files(sorted_paths, is_error=True, output_to_stderr=True):
             sys.exit(1)
-
-    # Check for apps removed by build rules
-    removed_apps = _get_removed_apps(filtered_paths, apps)
     if removed_apps:
         print_warning(f'\n{WARNING_ICON} {REMOVED_BY_RULES_MSG}')
         for path in removed_apps:
@@ -427,12 +433,14 @@ def get_app_paths(
     target_dir_type: str = APP_TYPE_TEST_APPS,
     exclude_apps: List[str] = None,
     enable_preview_targets: bool = True,
+    parallel_count: int = 1,
+    parallel_index: int = 1,
 ) -> List[str]:
     """Get application paths based on directory type"""
     args = argparse.Namespace(
         paths = [path],
         target = target,
-        config = ['sdkconfig.ci=default'],
+        config = ['sdkconfig.ci=default', 'sdkconfig.ci.*=', '=default'],
         default_build_targets = None,
         build_dir = 'build_@t_@w',
         target_dir_type = target_dir_type,
@@ -441,6 +449,8 @@ def get_app_paths(
         no_require_pytest = True,
         verbose = 0,
         enable_preview_targets = enable_preview_targets,
+        parallel_count = parallel_count,
+        parallel_index = parallel_index,
     )
 
     filtered_paths, _ = find_apps_with_filter(args.paths, target_dir_type=args.target_dir_type)
