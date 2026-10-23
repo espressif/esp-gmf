@@ -19,6 +19,7 @@ import subprocess
 import logging
 from typing import Dict, List, Optional
 from pathlib import Path
+from apply_upstream_component import upstream_repo_dir
 from build_apps import (
     get_app_paths,
     APP_TYPE_ALL,
@@ -113,16 +114,39 @@ def get_app_list(
         sys.exit(1)
 
 
+def _upstream_bmgr_dir() -> Optional[str]:
+    """Local checkout from apply_upstream_component.py, when this job is an upstream regression."""
+    name = os.environ.get('UPSTREAM_COMPONENT', '').strip()
+    root = os.environ.get('CI_PROJECT_DIR', '').strip()
+    if not name or not root:
+        return None
+    repo_root = upstream_repo_dir(root)
+    for candidate in (
+        repo_root / 'esp_board_manager',
+        repo_root / 'components' / 'esp_board_manager',
+        repo_root.parent / 'esp_board_manager',
+    ):
+        if (candidate / 'idf_component.yml').is_file() and (candidate / 'idf_ext.py').is_file():
+            return str(candidate)
+    return None
+
+
 def _find_bmgr_actions_path(app_path: str) -> Optional[str]:
     """
-    Locate esp_board_manager's idf_ext.py under the app's managed_components.
+    Locate esp_board_manager's idf_ext.py.
 
     After bmgr moved to the IDF Component Registry, IDF 5.x does not auto-load
     component idf_ext.py unless IDF_EXTRA_ACTIONS_PATH points at the component dir.
+    When esp_board_manager is overridden to a local upstream checkout, IDF does not
+    copy it into managed_components, so we prioritize the upstream checkout path
+    and fall back to managed_components/espressif__esp_board_manager.
     """
-    candidates = (
-        os.path.join(app_path, 'managed_components', 'espressif__esp_board_manager'),
-        os.path.join(app_path, 'managed_components', 'esp_board_manager'),
+    candidates: List[str] = []
+    upstream = _upstream_bmgr_dir()
+    if upstream:
+        candidates.append(upstream)
+    candidates.append(
+        os.path.join(app_path, 'managed_components', 'espressif__esp_board_manager')
     )
     for path in candidates:
         if os.path.isfile(os.path.join(path, 'idf_ext.py')):
@@ -202,57 +226,201 @@ def set_target_for_app(app_path: str, target: str, dry_run: bool = False) -> Non
     _execute_command_for_app(app_path, cmd, dry_run, use_warning_for_failure=False)
 
 
-def _is_depending_on_esp_board_manager(app_path: str) -> bool:
+def _resolve_numeric_idf_version() -> Optional[str]:
+    """Read numeric MAJOR.MINOR.PATCH from $IDF_PATH/tools/cmake/version.cmake."""
+    import re
+    idf_path = os.environ.get('IDF_PATH', '').strip()
+    if not idf_path:
+        return None
+    ver_cmake = Path(idf_path) / 'tools' / 'cmake' / 'version.cmake'
+    if not ver_cmake.is_file():
+        return None
+    parts: Dict[str, str] = {}
+    pat = re.compile(r'^\s*set\s*\(\s*IDF_VERSION_([A-Z]{5})\s+(\d+)')
+    try:
+        for line in ver_cmake.read_text(encoding='utf-8').splitlines():
+            m = pat.match(line)
+            if m:
+                parts[m.group(1)] = m.group(2)
+        return f"{parts['MAJOR']}.{parts['MINOR']}.{parts['PATCH']}"
+    except Exception:
+        return None
+
+
+def _solve_depends_on_esp_board_manager(app_path: str, idf_target: str = '') -> Optional[bool]:
+    """Resolve the full dependency graph (in-repo + external Registry) via VersionSolver."""
+    try:
+        from idf_component_tools.manager import ManifestManager
+        from idf_component_tools.utils import ProjectRequirements
+        from idf_component_manager.version_solver.version_solver import VersionSolver
+    except ImportError:
+        return None
+
+    app_dir = Path(app_path).resolve()
+    candidates = [('main', app_dir / 'main'), (app_dir.name, app_dir)]
+    components_dir = app_dir / 'components'
+    if components_dir.is_dir():
+        for child in sorted(components_dir.iterdir(), key=lambda p: p.name):
+            if child.is_dir() and child.name != 'gen_bmgr_codes':
+                candidates.append((child.name, child))
+
+    saved_target = os.environ.get('IDF_TARGET')
+    saved_ver = os.environ.get('IDF_VERSION')
+    try:
+        if idf_target:
+            os.environ['IDF_TARGET'] = idf_target
+        elif not saved_target:
+            os.environ['IDF_TARGET'] = 'esp32'
+        # ManifestManager.load() evaluates `if: "idf_version ..."` rules using
+        # os.environ['IDF_VERSION'], which in CI is a tag/branch name like
+        # "v5.5.3" or "release/v6.1". Replace it with the numeric version from
+        # version.cmake BEFORE calling ManifestManager.load().
+        numeric_ver = _resolve_numeric_idf_version()
+        if numeric_ver:
+            os.environ['IDF_VERSION'] = numeric_ver
+        else:
+            os.environ.pop('IDF_VERSION', None)
+
+        manifests = []
+        has_any_deps = False
+        for name, comp_dir in candidates:
+            yml = comp_dir / 'idf_component.yml'
+            if not yml.is_file() or not (comp_dir / 'CMakeLists.txt').is_file():
+                continue
+            loaded = ManifestManager(str(comp_dir), name).load()
+            if loaded.requirements:
+                has_any_deps = True
+                for req in loaded.requirements:
+                    if str(getattr(req, 'name', '')).split('/')[-1] == 'esp_board_manager':
+                        return True
+            manifests.append(loaded)
+
+        if not manifests or not has_any_deps:
+            return False
+
+        solution = VersionSolver(ProjectRequirements(manifests)).solve()
+        return any(
+            str(getattr(dep, 'name', '')).split('/')[-1] == 'esp_board_manager'
+            for dep in (solution.dependencies or [])
+        )
+    except Exception as exc:
+        print_warning(f'  Warning: VersionSolver fallback ({exc})')
+        return None
+    finally:
+        if saved_target is None:
+            os.environ.pop('IDF_TARGET', None)
+        else:
+            os.environ['IDF_TARGET'] = saved_target
+        if saved_ver is None:
+            os.environ.pop('IDF_VERSION', None)
+        else:
+            os.environ['IDF_VERSION'] = saved_ver
+
+
+def _is_depending_on_esp_board_manager(app_path: str, idf_target: str = '') -> bool:
     """
-    Check if the project depends on esp_board_manager component.
+    Check if the project depends on esp_board_manager component (directly or transitively).
 
     Args:
         app_path: Application path
+        idf_target: Target chip (e.g., esp32, esp32s3)
 
     Returns:
-        True if esp_board_manager is found in build_components, False otherwise
+        True if esp_board_manager is in the project's dependency graph, False otherwise
     """
     project_desc_path = os.path.join(app_path, 'build', 'project_description.json')
 
-    if not os.path.exists(project_desc_path):
-        import yaml  # type: ignore
-        manifests = [Path(app_path) / 'main/idf_component.yml', Path(app_path) / 'idf_component.yml']
-        manifests.extend(Path(app_path).glob('components/*/idf_component.yml'))
-        for yml in manifests:
-            if not yml.is_file():
-                continue
-            try:
-                deps = (yaml.safe_load(yml.read_text(encoding='utf-8')) or {}).get('dependencies') or {}
-            except Exception:
-                continue
-            if isinstance(deps, dict) and any(
-                str(k).split('/')[-1] in ('esp_board_manager', 'gmf_app_utils', 'gmf_loader') for k in deps
-            ):
+    if os.path.exists(project_desc_path):
+        try:
+            with open(project_desc_path, 'r', encoding='utf-8') as f:
+                project_desc = json.load(f)
+
+            build_components = project_desc.get('build_components', [])
+            bmgr_aliases = ('esp_board_manager', 'espressif__esp_board_manager')
+            if any(alias in build_components for alias in bmgr_aliases):
                 return True
-        print_info('  Info: esp_board_manager not found in manifest dependencies, skipping bmgr board config')
-        return False
-
-    try:
-        with open(project_desc_path, 'r', encoding='utf-8') as f:
-            project_desc = json.load(f)
-
-        build_components = project_desc.get('build_components', [])
-        # The component may appear as either:
-        #   - 'esp_board_manager'              (legacy in-tree override_path)
-        #   - 'espressif__esp_board_manager'   (managed via the IDF Component Registry)
-        bmgr_aliases = ('esp_board_manager', 'espressif__esp_board_manager')
-        if any(alias in build_components for alias in bmgr_aliases):
-            return True
-        else:
-            print_info(f'  Info: esp_board_manager not found in build_components, skipping gen-bmgr-config')
+            print_info('  Info: esp_board_manager not found in build_components, skipping gen-bmgr-config')
             return False
+        except Exception as e:
+            print_warning(f'  Warning: Error reading {project_desc_path}: {e}')
 
-    except json.JSONDecodeError as e:
-        print_warning(f'  Warning: Failed to parse {project_desc_path}: {e}, skipping gen-bmgr-config')
-        return False
-    except Exception as e:
-        print_warning(f'  Warning: Error reading {project_desc_path}: {e}, skipping gen-bmgr-config')
-        return False
+    solved = _solve_depends_on_esp_board_manager(app_path, idf_target=idf_target)
+    if solved is not None:
+        if not solved:
+            print_info('  Info: esp_board_manager not found in solved dependency graph, skipping bmgr board config')
+        return solved
+
+    print_info('  Info: esp_board_manager not found in dependency graph, skipping bmgr board config')
+    return False
+
+
+def _external_board_component_dirs(app_path: str) -> List[str]:
+    """
+    Return resolved dirs of board-pack components that live outside managed_components/components.
+
+    When a board pack such as ``esp_boards`` is redirected via a top-level ``overrides:``
+    block in ``main/idf_component.yml``, IDF resolves it in ``project_description.json``
+    without copying it into ``managed_components/``. Passing those directories via ``-c``
+    lets ``idf.py bmgr`` discover the boards regardless of the installed bmgr version.
+    """
+    app_abs = os.path.abspath(app_path)
+    in_tree_prefixes = (
+        os.path.join(app_abs, 'managed_components') + os.sep,
+        os.path.join(app_abs, 'components') + os.sep,
+    )
+    dirs: List[str] = []
+
+    def _add_dir(comp_dir: str) -> None:
+        if not comp_dir or not os.path.isdir(comp_dir):
+            return
+        comp_abs = os.path.abspath(comp_dir)
+        if any(comp_abs.startswith(prefix) for prefix in in_tree_prefixes):
+            return
+        if comp_abs not in dirs:
+            dirs.append(comp_abs)
+
+    project_desc_path = os.path.join(app_path, 'build', 'project_description.json')
+    if os.path.isfile(project_desc_path):
+        try:
+            with open(project_desc_path, 'r', encoding='utf-8') as f:
+                project_desc = json.load(f)
+            comp_info = project_desc.get('build_component_info')
+            if isinstance(comp_info, dict):
+                for name, info in comp_info.items():
+                    if not isinstance(name, str) or not isinstance(info, dict):
+                        continue
+                    slug = name.lower()
+                    if 'board_manager' in slug or 'boards' not in slug:
+                        continue
+                    _add_dir(info.get('dir', ''))
+        except Exception:
+            pass
+
+    for rel_yml in ('main/idf_component.yml', 'idf_component.yml'):
+        yml_path = Path(app_path) / rel_yml
+        if not yml_path.is_file():
+            continue
+        try:
+            import yaml  # type: ignore
+            doc = yaml.safe_load(yml_path.read_text(encoding='utf-8')) or {}
+        except Exception:
+            continue
+        if not isinstance(doc, dict):
+            continue
+        for entry in doc.get('overrides') or []:
+            if not isinstance(entry, dict):
+                continue
+            for name, body in entry.items():
+                slug = str(name).lower()
+                if 'board_manager' in slug or 'boards' not in slug or not isinstance(body, dict):
+                    continue
+                with_block = body.get('with')
+                if isinstance(with_block, dict):
+                    for rep in with_block.values():
+                        if isinstance(rep, dict) and rep.get('path'):
+                            _add_dir(str((yml_path.parent / str(rep['path'])).resolve()))
+
+    return dirs
 
 
 def set_board_for_app(app_path: str, board: str, dry_run: bool = False, idf_target: str = '') -> None:
@@ -266,7 +434,7 @@ def set_board_for_app(app_path: str, board: str, dry_run: bool = False, idf_targ
         dry_run: Whether to simulate execution only
         idf_target: Chip target (used to add idf.py --preview for preview SoCs)
     """
-    if not _is_depending_on_esp_board_manager(app_path):
+    if not _is_depending_on_esp_board_manager(app_path, idf_target=idf_target):
         return
 
     if not board or not board.strip():
@@ -288,6 +456,11 @@ def set_board_for_app(app_path: str, board: str, dry_run: bool = False, idf_targ
 
     # Prefer the new action name; gen-bmgr-config remains a legacy alias in idf_ext.py.
     cmd = _idf_py_cmd(idf_target, 'bmgr', '-b', board)
+    extra_board_dirs = _external_board_component_dirs(app_path)
+    if extra_board_dirs:
+        cmd.extend(['-c', ';'.join(extra_board_dirs)])
+        if _upstream_bmgr_dir():
+            idf_env['ESP_BMGR_SKIP_BOOTSTRAP'] = '1'
     _execute_command_for_app(
         app_path, cmd, dry_run, use_warning_for_failure=True, env=idf_env
     )

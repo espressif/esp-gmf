@@ -1,6 +1,8 @@
 push_to_github:
   stage: deploy
   rules:
+    - if: '$UPSTREAM_COMPONENT'
+      when: never
     - if:
         '($CI_COMMIT_REF_NAME == "main" ||
         $CI_COMMIT_BRANCH =~ /^release\/v/ ||

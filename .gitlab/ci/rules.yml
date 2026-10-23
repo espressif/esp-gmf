@@ -158,6 +158,8 @@
 
 .rules:build:enable-gmf-unit-test:
   rules:
+    - if: '$UPSTREAM_COMPONENT && $UPSTREAM_APP'
+      when: never
     - <<: *if-dev-push
       when: never
     - <<: *if-label-skip_unit_test

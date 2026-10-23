@@ -8,8 +8,11 @@ variables:
   variables:
     TARGET_DIR_TYPE: "test_apps"
     TEST_DIR: ${CI_PROJECT_DIR}/gmf_core
+  rules:
+    - if: '$UPSTREAM_COMPONENT && $UPSTREAM_APP'
+      when: never
+    - !reference [".rules:build:protected-merge-requests-pipeline", rules]
   extends:
-    - .rules:build:protected-merge-requests-pipeline
     - .build_template
   artifacts:
     paths:
@@ -28,8 +31,20 @@ variables:
     when: always
     expire_in: 4 days
   script:
-    - python $CI_PROJECT_DIR/tools/ci/esp_bmgr_pre_build.py --target $IDF_TARGET --board $AUDIO_BOARD --project-path ${TEST_DIR} --target-dir-type ${TARGET_DIR_TYPE} --skip-set-target --parallel-count ${parallel##*/} --parallel-index ${parallel%%/*}
-    - run_cmd python $CI_PROJECT_DIR/tools/ci/build_apps.py ${TEST_DIR} \
+    - |
+      python $CI_PROJECT_DIR/tools/ci/apply_upstream_component.py \
+        --target "$IDF_TARGET" \
+        --project-path "${TEST_DIR}" \
+        --target-dir-type "${TARGET_DIR_TYPE}"
+      python $CI_PROJECT_DIR/tools/ci/esp_bmgr_pre_build.py \
+        --target "$IDF_TARGET" \
+        --board "$AUDIO_BOARD" \
+        --project-path "${TEST_DIR}" \
+        --target-dir-type "${TARGET_DIR_TYPE}" \
+        --skip-set-target \
+        --parallel-count ${parallel##*/} \
+        --parallel-index ${parallel%%/*}
+      run_cmd python $CI_PROJECT_DIR/tools/ci/build_apps.py "${TEST_DIR}" \
         -t $IDF_TARGET -vv \
         --target-dir-type ${TARGET_DIR_TYPE} \
         --build-dir ${IDF_VERSION_TAG}/build_@t_@w \
