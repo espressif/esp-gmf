@@ -24,13 +24,26 @@
   extends:
     - .target_example_test_template
   script:
+    - |
+      if [ -n "${UPSTREAM_COMPONENT}" ] && [ -n "${UPSTREAM_APP}" ]; then
+        export TEST_DIR="${CI_PROJECT_DIR}/${UPSTREAM_APP}"
+        export TARGET_DIR_TYPE="all"
+      fi
     - pip install pytest pytest-embedded-idf pytest-embedded-serial-esp pytest-rerunfailures pytest-timeout idf_build_apps
     # Run build_apps.py --find as a separate assignment so set -e aborts the job
     # when it crashes (e.g. dependency mismatch). Using `eval "$(...)"` directly
     # would swallow the failure and silently produce an empty APP_LIST.
     - APP_LIST_CMD=$(python ${CI_PROJECT_DIR}/tools/ci/build_apps.py ${TEST_DIR} --find --target-dir-type ${TARGET_DIR_TYPE} --target ${IDF_TARGET} -vv)
     - eval "$APP_LIST_CMD"
-    - '[ "${#APP_LIST[@]}" -gt 0 ] || { echo "ERROR APP_LIST is empty, build_apps.py produced no apps"; exit 1; }'
+    - |
+      if [ "${#APP_LIST[@]}" -eq 0 ] || [ -z "${APP_LIST[0]}" ]; then
+        if [ -n "${UPSTREAM_COMPONENT}" ] && [ -n "${UPSTREAM_APP}" ]; then
+          echo "Skipping pytest: ${UPSTREAM_APP} has no matching app for target ${IDF_TARGET}"
+          exit 0
+        fi
+        echo "ERROR APP_LIST is empty, build_apps.py produced no apps"
+        exit 1
+      fi
     - pytest "${APP_LIST[@]}" --target ${IDF_TARGET} -m "${tags}" --junitxml=XUNIT_RESULT.xml --parallel-count 1 --parallel-index 1
 
 .pytest_audio_loopback_template:
@@ -46,11 +59,24 @@
   script:
     # Per-IDF-version site-packages path (AUDIO_LOOPBACK_PYTHONPATH from rules.yml).
     - export PYTHONPATH="$AUDIO_LOOPBACK_PYTHONPATH:$PYTHONPATH"
+    - |
+      if [ -n "${UPSTREAM_COMPONENT}" ] && [ -n "${UPSTREAM_APP}" ]; then
+        export TEST_DIR="${CI_PROJECT_DIR}/${UPSTREAM_APP}"
+        export TARGET_DIR_TYPE="all"
+      fi
     - pip install pytest pytest-embedded-idf pytest-embedded-serial-esp pytest-rerunfailures pytest-timeout idf_build_apps
     - arecord -l
     - APP_LIST_CMD=$(python ${CI_PROJECT_DIR}/tools/ci/build_apps.py ${TEST_DIR} --find --target-dir-type ${TARGET_DIR_TYPE} --target ${IDF_TARGET} -vv)
     - eval "$APP_LIST_CMD"
-    - '[ "${#APP_LIST[@]}" -gt 0 ] || { echo "ERROR APP_LIST is empty, build_apps.py produced no apps"; exit 1; }'
+    - |
+      if [ "${#APP_LIST[@]}" -eq 0 ] || [ -z "${APP_LIST[0]}" ]; then
+        if [ -n "${UPSTREAM_COMPONENT}" ] && [ -n "${UPSTREAM_APP}" ]; then
+          echo "Skipping pytest: ${UPSTREAM_APP} has no matching app for target ${IDF_TARGET}"
+          exit 0
+        fi
+        echo "ERROR APP_LIST is empty, build_apps.py produced no apps"
+        exit 1
+      fi
     - pytest "${APP_LIST[@]}" --target ${IDF_TARGET} -m "${tags}" --junitxml=XUNIT_RESULT.xml --parallel-count 1 --parallel-index 1
   variables:
     TEST_DIR: "${EXAMPLES_PATH}"

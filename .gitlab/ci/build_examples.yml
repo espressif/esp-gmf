@@ -30,10 +30,30 @@
   extends:
     - .build_template
   script:
-    - python $CI_PROJECT_DIR/tools/ci/esp_bmgr_pre_build.py --target $IDF_TARGET --board $AUDIO_BOARD --project-path ${EXAMPLES_PATH[@]} --target-dir-type ${TARGET_DIR_TYPE} --skip-set-target --parallel-count ${parallel##*/} --parallel-index ${parallel%%/*}
-    - run_cmd python $CI_PROJECT_DIR/tools/ci/build_apps.py ${EXAMPLES_PATH[@]} \
+    # UPSTREAM_APP limits a smoke run to one example. Unset, the job builds the usual tree.
+    - |
+      if [ -n "${UPSTREAM_COMPONENT}" ] && [ -n "${UPSTREAM_APP}" ]; then
+        BUILD_PATH="${CI_PROJECT_DIR}/${UPSTREAM_APP}"
+        BUILD_DIR_TYPE="all"
+      else
+        BUILD_PATH="${EXAMPLES_PATH}"
+        BUILD_DIR_TYPE="${TARGET_DIR_TYPE}"
+      fi
+      python $CI_PROJECT_DIR/tools/ci/apply_upstream_component.py \
+        --target "$IDF_TARGET" \
+        --project-path "$BUILD_PATH" \
+        --target-dir-type "$BUILD_DIR_TYPE"
+      python $CI_PROJECT_DIR/tools/ci/esp_bmgr_pre_build.py \
+        --target "$IDF_TARGET" \
+        --board "$AUDIO_BOARD" \
+        --project-path "$BUILD_PATH" \
+        --target-dir-type "$BUILD_DIR_TYPE" \
+        --skip-set-target \
+        --parallel-count ${parallel##*/} \
+        --parallel-index ${parallel%%/*}
+      run_cmd python $CI_PROJECT_DIR/tools/ci/build_apps.py "$BUILD_PATH" \
         -t $IDF_TARGET -vv \
-        --target-dir-type ${TARGET_DIR_TYPE} \
+        --target-dir-type "$BUILD_DIR_TYPE" \
         --build-dir ${IDF_VERSION_TAG}/build_@t_@w \
         --parallel-count ${parallel##*/} \
         --parallel-index ${parallel%%/*}
