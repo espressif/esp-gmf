@@ -79,7 +79,7 @@ void app_main(void)
 
     // Set scheduler
     esp_capture_set_thread_scheduler(capture_test_scheduler);
-
+    RUN_CASE(video_capture_run_v4l2_formats, 3);
     // Run video capture typical cases
     RUN_CASE(video_capture_run, 10000);
     RUN_CASE(video_capture_run_one_shot, 10000);

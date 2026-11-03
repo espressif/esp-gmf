@@ -104,6 +104,21 @@ int video_capture_run_dual_path(int duration);
  */
 int video_capture_run_dual_encode(int duration, bool full_ppa);
 
+/**
+ * @brief  Traverse all V4L2 formats and frame sizes and verify captured frames
+ *
+ * @note  Uses `esp_capture_v4l2_get_formats` / `esp_capture_v4l2_get_frame_sizes` to discover
+ *        capabilities (including CSI/DVP sensor modes). For each format/size tuple it captures
+ *        several native frames and checks payload size / JPEG SOI-EOI markers.
+ *
+ * @param[in]  frames_per_combo  Number of frames to capture and verify per format/size
+ *
+ * @return
+ *       - 0       On success
+ *       - Others  Fail to run / validation mismatch
+ */
+int video_capture_run_v4l2_formats(int frames_per_combo);
+
 #ifdef __cplusplus
 }
 #endif  /* __cplusplus */
