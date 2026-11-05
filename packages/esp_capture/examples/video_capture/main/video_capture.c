@@ -44,6 +44,8 @@ typedef struct {
     uint32_t vid_total_frame_size;
 } video_capture_res_t;
 
+extern const char *esp_gmf_video_get_format_string(uint32_t format_id);
+
 static esp_capture_video_src_if_t *create_video_source(uint8_t fb_count)
 {
 #ifdef CONFIG_ESP_BOARD_DEV_CAMERA_SUPPORT
@@ -167,6 +169,211 @@ static int read_video_frames(esp_capture_sink_handle_t sink[], int sink_num, int
                  res[i].vid_total_frame_size, res[i].vid_frames, duration);
     }
     return 0;
+}
+
+static uint32_t expected_raw_frame_size(esp_capture_format_id_t fmt, uint16_t width, uint16_t height)
+{
+    uint32_t pixels = (uint32_t)width * height;
+    switch (fmt) {
+        case ESP_CAPTURE_FMT_ID_RGB565:
+        case ESP_CAPTURE_FMT_ID_RGB565_BE:
+        case ESP_CAPTURE_FMT_ID_YUV422:
+        case ESP_CAPTURE_FMT_ID_UYVY422:
+            return pixels * 2;
+        case ESP_CAPTURE_FMT_ID_YUV420:
+        case ESP_CAPTURE_FMT_ID_O_UYY_E_VYY:
+            return pixels * 3 / 2;
+        case ESP_CAPTURE_FMT_ID_RGB888:
+        case ESP_CAPTURE_FMT_ID_BGR888:
+            return pixels * 3;
+        default:
+            return 0;
+    }
+}
+
+static bool verify_native_frame(esp_capture_format_id_t fmt, uint16_t width, uint16_t height,
+                                const esp_capture_stream_frame_t *frame)
+{
+    if (frame == NULL || frame->data == NULL || frame->size <= 0) {
+        return false;
+    }
+    if (fmt == ESP_CAPTURE_FMT_ID_MJPEG) {
+        const uint8_t *d = frame->data;
+        int n = frame->size;
+        return (n >= 4 && d[0] == 0xFF && d[1] == 0xD8 && d[n - 2] == 0xFF && d[n - 1] == 0xD9);
+    }
+    uint32_t expect = expected_raw_frame_size(fmt, width, height);
+    if (expect == 0) {
+        return frame->size > 0;
+    }
+    return ((uint32_t)frame->size == expect);
+}
+
+static int capture_and_verify_combo(esp_capture_format_id_t format_id, uint16_t width, uint16_t height,
+                                    int frames_per_combo, bool use_fixed_caps)
+{
+    video_capture_sys_t capture_sys = {0};
+    int ret = -1;
+    do {
+        if (build_video_capture(&capture_sys, 2) != 0) {
+            ESP_LOGE(TAG, "Fail to build capture for %x %ux%u", (unsigned)format_id, width, height);
+            break;
+        }
+        esp_capture_video_info_t fixed = {
+            .format_id = format_id,
+            .width = width,
+            .height = height,
+            .fps = VIDEO_SINK0_FPS,
+        };
+        const char *nego_mode = use_fixed_caps ? "fixed" : "normal";
+        if (use_fixed_caps) {
+            if (capture_sys.vid_src->set_fixed_caps == NULL ||
+                    capture_sys.vid_src->set_fixed_caps(capture_sys.vid_src, &fixed) != ESP_CAPTURE_ERR_OK) {
+                ESP_LOGE(TAG, "Fail to set fixed caps for %s %ux%u",
+                         esp_gmf_video_get_format_string(format_id), width, height);
+                break;
+            }
+        }
+        esp_capture_sink_handle_t sink = NULL;
+        esp_capture_sink_cfg_t sink_cfg = {
+            .video_info = fixed,
+        };
+        ret = esp_capture_sink_setup(capture_sys.capture, 0, &sink_cfg, &sink);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Fail to setup %s sink for %s %ux%u ret=%d", nego_mode,
+                     esp_gmf_video_get_format_string(format_id), width, height, ret);
+            break;
+        }
+        esp_capture_sink_enable(sink, ESP_CAPTURE_RUN_MODE_ALWAYS);
+        ret = esp_capture_start(capture_sys.capture);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Fail to start %s negotiation for %s %ux%u ret=%d", nego_mode,
+                     esp_gmf_video_get_format_string(format_id), width, height, ret);
+            break;
+        }
+
+        int ok_frames = 0;
+        uint32_t start_ms = (uint32_t)(esp_timer_get_time() / 1000);
+        while (ok_frames < frames_per_combo) {
+            esp_capture_stream_frame_t frame = {
+                .stream_type = ESP_CAPTURE_STREAM_TYPE_VIDEO,
+            };
+            ret = esp_capture_sink_acquire_frame(sink, &frame, false);
+            if (ret != ESP_CAPTURE_ERR_OK) {
+                ESP_LOGE(TAG, "Acquire fail fmt=%x %ux%u ret=%d after %d frames",
+                         (unsigned)format_id, width, height, ret, ok_frames);
+                break;
+            }
+            bool valid = verify_native_frame(format_id, width, height, &frame);
+            if (valid == false) {
+                ESP_LOGE(TAG, "Verify fail fmt=%x %ux%u size=%d expect=%lu frame=%d",
+                         (unsigned)format_id, width, height, frame.size,
+                         (unsigned long)expected_raw_frame_size(format_id, width, height), ok_frames);
+                if (format_id == ESP_CAPTURE_FMT_ID_MJPEG && frame.size >= 4) {
+                    ESP_LOGE(TAG, "JPEG head=%02x%02x tail=%02x%02x",
+                             frame.data[0], frame.data[1],
+                             frame.data[frame.size - 2], frame.data[frame.size - 1]);
+                }
+                esp_capture_sink_release_frame(sink, &frame);
+                ret = -1;
+                break;
+            }
+            esp_capture_sink_release_frame(sink, &frame);
+            ok_frames++;
+            uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
+            if (now_ms > start_ms + 15000 && ok_frames < frames_per_combo) {
+                ESP_LOGE(TAG, "Timeout waiting frames for %x %ux%u got %d/%d",
+                         (unsigned)format_id, width, height, ok_frames, frames_per_combo);
+                ret = -1;
+                break;
+            }
+        }
+        if (ok_frames == frames_per_combo) {
+            ESP_LOGW(TAG, "PASS mode=%s fmt=%s %ux%u frames=%d\n", nego_mode,
+                     esp_gmf_video_get_format_string(format_id), width, height, ok_frames);
+            ret = 0;
+        } else if (ret == ESP_CAPTURE_ERR_OK) {
+            ret = -1;
+        }
+        esp_capture_stop(capture_sys.capture);
+    } while (0);
+    destroy_video_capture(&capture_sys);
+    return ret;
+}
+
+int video_capture_run_v4l2_formats(int frames_per_combo)
+{
+    if (frames_per_combo <= 0) {
+        frames_per_combo = 3;
+    }
+    video_capture_sys_t probe_sys = {0};
+    int ret = -1;
+    do {
+        probe_sys.vid_src = create_video_source(2);
+        if (probe_sys.vid_src == NULL) {
+            ESP_LOGE(TAG, "Fail to create V4L2 source for format sweep");
+            break;
+        }
+        uint8_t fmt_count = 0;
+        ret = esp_capture_v4l2_get_formats(probe_sys.vid_src, NULL, &fmt_count);
+        if (ret != ESP_CAPTURE_ERR_OK || fmt_count == 0) {
+            ESP_LOGE(TAG, "Fail to query formats ret=%d count=%u", ret, fmt_count);
+            break;
+        }
+        esp_capture_format_id_t formats[16] = {0};
+        if (fmt_count > sizeof(formats) / sizeof(formats[0])) {
+            fmt_count = sizeof(formats) / sizeof(formats[0]);
+        }
+        ret = esp_capture_v4l2_get_formats(probe_sys.vid_src, formats, &fmt_count);
+        if (ret != ESP_CAPTURE_ERR_OK) {
+            ESP_LOGE(TAG, "Fail to get formats ret=%d", ret);
+            break;
+        }
+        ESP_LOGI(TAG, "V4L2 format sweep: %u formats, %d frames/combo", fmt_count, frames_per_combo);
+
+        int fail_count = 0;
+        int pass_count = 0;
+        for (uint8_t i = 0; i < fmt_count; i++) {
+            uint8_t size_count = 0;
+            ret = esp_capture_v4l2_get_frame_sizes(probe_sys.vid_src, formats[i], NULL, &size_count);
+            if (ret != ESP_CAPTURE_ERR_OK || size_count == 0) {
+                ESP_LOGW(TAG, "No sizes for fmt=%x ret=%d", (unsigned)formats[i], ret);
+                continue;
+            }
+            esp_capture_v4l2_frame_size_t sizes[16] = {0};
+            if (size_count > sizeof(sizes) / sizeof(sizes[0])) {
+                size_count = sizeof(sizes) / sizeof(sizes[0]);
+            }
+            ret = esp_capture_v4l2_get_frame_sizes(probe_sys.vid_src, formats[i], sizes, &size_count);
+            if (ret != ESP_CAPTURE_ERR_OK) {
+                ESP_LOGE(TAG, "Fail to get sizes for fmt=%x ret=%d", (unsigned)formats[i], ret);
+                fail_count++;
+                continue;
+            }
+            for (uint8_t j = 0; j < size_count; j++) {
+                ESP_LOGI(TAG, "Test fmt=%s %ux%u", esp_gmf_video_get_format_string(formats[i]),
+                         sizes[j].width, sizes[j].height);
+                for (int use_fixed = 0; use_fixed <= 1; use_fixed++) {
+                    if (capture_and_verify_combo(formats[i], sizes[j].width, sizes[j].height,
+                                                 frames_per_combo, use_fixed) != 0) {
+                        fail_count++;
+                    } else {
+                        pass_count++;
+                    }
+                }
+            }
+        }
+        ESP_LOGI(TAG, "V4L2 format sweep done: pass=%d fail=%d", pass_count, fail_count);
+        ret = (fail_count == 0 && pass_count > 0) ? 0 : -1;
+    } while (0);
+    if (probe_sys.vid_src) {
+        if (probe_sys.vid_src->close) {
+            probe_sys.vid_src->close(probe_sys.vid_src);
+        }
+        free(probe_sys.vid_src);
+        probe_sys.vid_src = NULL;
+    }
+    return ret;
 }
 
 int video_capture_run(int duration)

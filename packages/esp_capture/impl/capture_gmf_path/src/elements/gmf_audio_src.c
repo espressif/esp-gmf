@@ -73,14 +73,18 @@ static esp_gmf_err_io_t audio_src_acquire(void *handle, esp_gmf_payload_t *load,
 static esp_gmf_err_io_t audio_src_release(void *handle, esp_gmf_payload_t *load, uint32_t wanted_size, int wait_ticks)
 {
     audio_src_t *audio_src = (audio_src_t *)handle;
-    if (audio_src->audio_src_q) {
+    esp_gmf_element_handle_t self = (esp_gmf_element_handle_t)handle;
+    esp_gmf_element_lock(self);
+    esp_gmf_data_queue_t *q = audio_src->audio_src_q;
+    if (q) {
         void *data = NULL;
         int size = 0;
-        esp_gmf_data_queue_acquire_read(audio_src->audio_src_q, &data, &size, 0);
+        esp_gmf_data_queue_acquire_read(q, &data, &size, 0);
         if (data) {
-            esp_gmf_data_queue_release_read(audio_src->audio_src_q);
+            esp_gmf_data_queue_release_read(q);
         }
     }
+    esp_gmf_element_unlock(self);
     return ESP_GMF_IO_OK;
 }
 
@@ -315,12 +319,14 @@ static esp_gmf_job_err_t audio_src_el_close(esp_gmf_audio_element_handle_t self,
     }
     audio_src->audio_frames = 0;
     if (audio_src->audio_src_q) {
-        esp_gmf_data_queue_destroy(audio_src->audio_src_q);
+        esp_gmf_data_queue_t *q = audio_src->audio_src_q;
         audio_src->audio_src_q = NULL;
+        esp_gmf_data_queue_destroy(q);
     }
     if (audio_src->audio_info_q) {
-        msg_q_destroy(audio_src->audio_info_q);
+        msg_q_handle_t q = audio_src->audio_info_q;
         audio_src->audio_info_q = NULL;
+        msg_q_destroy(q);
     }
     if (audio_src->event_group) {
         capture_event_group_destroy(audio_src->event_group);

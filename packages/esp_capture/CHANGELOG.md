@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.2
+
+### Changes
+
+- Enhanced the V4L2 video source with sensor-aware format and resolution negotiation for CSI, DVP, SPI, and UVC devices
+- Added V4L2 format and frame-size query APIs
+- Added a video capture example test that validates normal and fixed-capability negotiation across all reported formats and resolutions
+
+### Bug Fixes
+
+- Fixed V4L2 dequeue timeout handling to use the `errno` returned by `ioctl`
+- Fixed a race between audio source queue release and teardown
+
 ## 1.1.1
 
 ### Changes
