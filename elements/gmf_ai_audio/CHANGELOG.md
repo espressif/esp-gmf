@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.2
+
+### Features
+
+- Upgrade `esp-sr` to version v2.6.*
+
 ## v1.1.1
 
 ### Features
