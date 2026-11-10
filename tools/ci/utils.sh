@@ -245,7 +245,7 @@ function set_idf() {
   if [[ -n "$IDF_DONT_USE_MIRRORS" ]]; then
     git submodule update --init --recursive --depth 1
   else
-    git -c "url.https://jihulab.com/esp-mirror/.insteadOf=https://github.com/" submodule update --init --recursive --depth 1
+    git -c "url.${GITHUB_COMMIT_MIRROR:-http://ci.espressif.cn:3000/}.insteadOf=https://github.com/" submodule update --init --recursive --depth 1
   fi
 
   popd
