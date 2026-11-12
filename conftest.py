@@ -43,6 +43,118 @@ def resolve_unity_case_timeout(marker_timeout: Optional[object] = None) -> float
     return DEFAULT_UNITY_CASE_TIMEOUT
 
 
+def _patch_pytest_embedded_serial_redirect() -> None:
+    """Drain serial RX faster to prevent USB-Serial-JTAG TX FIFO truncation.
+
+    pytest_embedded_serial's _SerialRedirectThread sleeps 50 ms between
+    non-blocking read_all() calls. On USB-Serial-JTAG targets (e.g. ESP32-P4
+    on /dev/ttyACM0), the 400 MHz CPU bursts a ~7.8 KB Unity menu in a few
+    milliseconds, filling the Linux tty + cdc_acm buffers (~5184 B) while the
+    reader thread is asleep. Because the firmware's USB-Serial-JTAG TX flush
+    timeout is also 50 ms (TX_FLUSH_TIMEOUT_US), the tail of the menu—including
+    "Enter test for running."—gets silently dropped before the host wakes up.
+
+    Polling every 5 ms when idle (and 1 ms while actively receiving data)
+    keeps the kernel tty buffer drained well within the 50 ms firmware timeout.
+    """
+    try:
+        import queue
+        import time
+        import serial as pyserial
+        from pytest_embedded_serial import serial as _pes_serial
+    except ImportError:
+        return
+
+    redirect_cls = getattr(_pes_serial, '_SerialRedirectThread', None)
+    if redirect_cls is None:
+        return
+
+    idle_interval_s = 0.005
+    active_interval_s = 0.001
+
+    def _event_loop(self) -> None:
+        while True:
+            try:
+                _e = self._event_q.get_nowait()
+            except queue.Empty:
+                _e = 'read'
+            except OSError:
+                return
+
+            s = b''
+            if _e == 'read':
+                if self._block_reading:
+                    time.sleep(idle_interval_s)
+                    continue
+
+                try:
+                    s = self._s.read_all()
+                except OSError as e:
+                    logging.error(f'OSError detected: {e}. Serial connection may be lost.')
+                    if self._s.closed:
+                        logging.error('Serial port is already closed. Exiting event loop.')
+                        return
+
+                    port = self._s.port
+                    port_config = {
+                        'baudrate': self._s.baudrate,
+                        'bytesize': self._s.bytesize,
+                        'parity': self._s.parity,
+                        'stopbits': self._s.stopbits,
+                        'timeout': self._s.timeout,
+                        'xonxoff': self._s.xonxoff,
+                        'rtscts': self._s.rtscts,
+                    }
+                    for attempt in range(1, 4):
+                        delay = attempt * 1.5
+                        logging.warning(
+                            f'Attempting to reconnect to serial port {port} (try {attempt}/3) after {delay}s...'
+                        )
+                        time.sleep(delay)
+                        try:
+                            self._s.close()
+                            self._s = pyserial.serial_for_url(port, **port_config)
+                            logging.info(f'Successfully reconnected to serial port {port}.')
+                            break
+                        except Exception as ex:
+                            logging.warning(f'Reconnection attempt {attempt} failed: {ex}')
+                    else:
+                        logging.error(
+                            f'Failed to reconnect to serial port {port} after 3 attempts. Exiting event loop.'
+                        )
+                        return
+
+                    continue
+
+                except Exception as e:
+                    logging.warning(
+                        'unknown error: %s.\nRecommend to close the serial process by `dut.serial.close()`', str(e)
+                    )
+                    return
+
+                try:
+                    self._q.put(s)
+                except OSError as e:
+                    logging.warning(f'OSError. Error msg: {e}')
+                    return
+                except Exception as e:
+                    logging.warning(
+                        'unknown error: %s.\nRecommend to close the serial process by `dut.serial.close()`', str(e)
+                    )
+                    return
+
+            elif _e == 'stop':
+                self._block_reading = True
+            elif _e == 'start':
+                self._block_reading = False
+            elif _e == 'end':
+                return
+
+            time.sleep(active_interval_s if s else idle_interval_s)
+
+    redirect_cls._event_loop = _event_loop
+
+
 def _patch_pytest_embedded_unity_menu_parser() -> None:
     """Tolerate repeated / truncated unity test menus from IDF.
 
@@ -141,10 +253,113 @@ def _patch_pytest_embedded_unity_menu_parser() -> None:
             deduped[(c.index, c.name)] = c
         return list(deduped.values())
 
+    def _parse_test_menu(
+        self,
+        ready_line: str = 'Press ENTER to see the list of tests',
+        pattern="Here's the test menu, pick your combo:(.+)Enter test for running.",
+        trigger: str = '',
+    ):
+        self.expect_exact(ready_line)
+        res = self.confirm_write(trigger, expect_pattern=pattern, timeout=2, retry_times=5)
+        return self._parse_unity_menu_from_str(res.group(1).decode('utf8', errors='replace'))
+
     _uut.IdfUnityDutMixin._parse_unity_menu_from_str = staticmethod(_parse)
+    _uut.IdfUnityDutMixin._parse_test_menu = _parse_test_menu
 
 
+def _patch_esptool_progress_bar() -> None:
+    """Throttle esptool flash progress output to 20% steps without bar glyphs.
+
+    In non-TTY CI environments (especially on targets using --no-stub where
+    esptool writes 1 KB blocks), esptool v5 emits a full ANSI-colored progress
+    bar line on every block—producing ~2,500 lines (~440 KB) per 2.5 MB binary
+    and over 3 MB across a multi-app test job, which can exceed GitLab's 8 MB
+    job log limit.
+    """
+    step_pct = 20
+
+    try:
+        from esptool.logger import EsptoolLogger
+    except ImportError:
+        EsptoolLogger = None
+
+    if EsptoolLogger is not None and hasattr(EsptoolLogger, 'progress_bar'):
+        state = {'prev_iter': -1, 'prev_bucket': -1, 'prev_total': -1}
+
+        def _throttled_progress_bar(
+            self,
+            cur_iter: int,
+            total_iters: int,
+            prefix: str = '',
+            suffix: str = '',
+            bar_length: int = 30,
+        ) -> None:
+            if getattr(self, '_verbosity', None) in ('silent', 0):
+                return
+            if total_iters <= 0:
+                return
+            cur_iter = max(0, min(cur_iter, total_iters))
+            pct = 100.0 * cur_iter / total_iters
+            bucket = 100 if cur_iter >= total_iters else (int(pct) // step_pct) * step_pct
+            is_new_run = (
+                state['prev_bucket'] < 0
+                or total_iters != state['prev_total']
+                or cur_iter < state['prev_iter']
+            )
+            if not is_new_run and bucket == state['prev_bucket']:
+                state['prev_iter'] = cur_iter
+                return
+            if cur_iter >= total_iters:
+                state['prev_iter'] = -1
+                state['prev_bucket'] = -1
+                state['prev_total'] = -1
+            else:
+                state['prev_iter'] = cur_iter
+                state['prev_bucket'] = bucket
+                state['prev_total'] = total_iters
+            self.print(f'{prefix}{pct:5.1f}%{suffix}')
+
+        EsptoolLogger.progress_bar = _throttled_progress_bar
+        return
+
+    try:
+        from esptool import cmds as _esptool_cmds
+        from esptool import util as _esptool_util
+    except ImportError:
+        return
+
+    orig_print_overwrite = getattr(_esptool_util, 'print_overwrite', None)
+    if orig_print_overwrite is None:
+        return
+
+    pct_re = re.compile(r'^Writing at 0x[0-9a-fA-F]+\.\.\. \((\d+)\s*%\)$')
+    state = {'prev_bucket': -1, 'prev_pct': -1}
+
+    def _throttled_print_overwrite(message: str, last_line: bool = False) -> None:
+        if not last_line and isinstance(message, str):
+            m = pct_re.match(message.strip())
+            if m:
+                pct = int(m.group(1))
+                bucket = 100 if pct >= 100 else (pct // step_pct) * step_pct
+                if state['prev_bucket'] >= 0 and pct >= state['prev_pct'] and bucket == state['prev_bucket']:
+                    state['prev_pct'] = pct
+                    return
+                if pct >= 100:
+                    state['prev_pct'] = -1
+                    state['prev_bucket'] = -1
+                else:
+                    state['prev_pct'] = pct
+                    state['prev_bucket'] = bucket
+        orig_print_overwrite(message, last_line=last_line)
+
+    _esptool_util.print_overwrite = _throttled_print_overwrite
+    if hasattr(_esptool_cmds, 'print_overwrite'):
+        _esptool_cmds.print_overwrite = _throttled_print_overwrite
+
+
+_patch_pytest_embedded_serial_redirect()
 _patch_pytest_embedded_unity_menu_parser()
+_patch_esptool_progress_bar()
 
 
 SUPPORTED_TARGETS = ['esp32', 'esp32s2', 'esp32c3', 'esp32s3', 'esp32c2', 'esp32c6', 'esp32h2', 'esp32p4', 'esp32s31']

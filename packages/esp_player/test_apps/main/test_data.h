@@ -25,8 +25,8 @@ extern "C" {
 
 /** @brief Network streams (require Wi-Fi and reachable servers) */
 #define TEST_HTTP_URL   "http://192.168.8.31:8008/0_44100_2_265650_214.m4a"
-#define TEST_HTTPS_URL  "https://dl.espressif.com/dl/audio/gs-16b-2c-44100hz.mp3"
-#define TEST_HLS_URL    "http://open.ls.qingting.fm/live/274/64k.m3u8?format=aac"
+#define TEST_HTTPS_URL  "http://192.168.8.31:8008/gs-16b-2c-44100hz.mp3"
+#define TEST_HLS_URL    "http://192.168.8.31:8008/esp_player_hls_test.m3u8"
 
 /** @brief HTTP URLs for error-path tests */
 #define TEST_HTTP_URL_NOT_FOUND      "http://192.168.8.31:8008/esp_player_test_not_found.m4a"

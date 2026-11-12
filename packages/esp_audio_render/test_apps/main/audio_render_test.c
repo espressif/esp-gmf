@@ -1210,6 +1210,16 @@ int audio_render_dual_stream_one_slow(int write_count)
             ret = esp_audio_render_stream_write(stream[0], write_data, frame_size);
             BREAK_ON_FAIL(ret);
         }
+        /* TODO(esp_audio_effects): drain queued warmup frames when main_task is migrated to Core 1
+         * on ESP32-S31 (PIE CFG.mis_ld in v1.4.5), then write two zero frames spaced < 20 ms to
+         * re-arm consume_fast so AudioRender blocks on stream[0] before the half-frame loop. */
+        vTaskDelay(pdMS_TO_TICKS(DEFAULT_MIXER_INTERVAL * 5));
+        ret = esp_audio_render_stream_write(stream[0], write_data, frame_size);
+        BREAK_ON_FAIL(ret);
+        vTaskDelay(pdMS_TO_TICKS(15));
+        ret = esp_audio_render_stream_write(stream[0], write_data, frame_size);
+        BREAK_ON_FAIL(ret);
+        vTaskDelay(pdMS_TO_TICKS(6));
 
         // Recursive to send data, write one extra data to let mixer finished
         for (int i = 0; i < res.expect_num + 1; i++) {
